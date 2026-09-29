@@ -5,7 +5,7 @@
 
 ## Fase 1 — Base
 
-- [ ] **T1: Andamiaje de la app**
+- [x] **T1: Andamiaje de la app**
   - **Qué:** Next.js 16 (App Router, `src/`), TypeScript `strict`, pnpm, ESLint (config de Next) + Prettier, Tailwind CSS v4 y una página inicial vacía que diga "brahua-os".
   - **Aceptación:** `pnpm dev` levanta; `pnpm build` y `pnpm typecheck` pasan; `.env*` está ignorado.
   - **Verificar:** `pnpm build && pnpm typecheck && pnpm lint`

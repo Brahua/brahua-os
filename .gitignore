@@ -1,11 +1,26 @@
-node_modules/
-.next/
-out/
-coverage/
-playwright-report/
-test-results/
+# dependencies
+/node_modules
+.pnpm-debug.log*
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# testing
+/coverage
+/playwright-report/
+/test-results/
+
+# env files
 .env*
 !.env.example
-.vercel/
+
+# vercel
+.vercel
+
+# misc
 .DS_Store
-*.tsbuildinfo
+*.pem
