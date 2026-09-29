@@ -12,7 +12,7 @@
   - **Archivos:** `package.json`, `tsconfig.json`, `next.config.ts`, `eslint.config.mjs`, `src/app/{layout,page}.tsx`, `src/app/globals.css`
   - **Tamaño:** M
 
-- [ ] **T2: Herramientas de prueba y CI**
+- [x] **T2: Herramientas de prueba y CI**
   - **Qué:** Vitest + Testing Library (jsdom), Playwright con proyectos de 390 px y 1280 px, `@axe-core/playwright`, y un workflow de GitHub Actions con `lint`, `typecheck`, `test`, `test:e2e` (en el contenedor de Playwright) y `build`.
   - **Aceptación:** un test unitario y uno E2E de ejemplo pasan; el workflow corre verde en un PR.
   - **Verificar:** `pnpm test && pnpm test:e2e`; checks verdes en GitHub
