@@ -30,14 +30,14 @@ T1 Andamiaje ─► T2 Pruebas + CI ─► T3 Tokens + fuentes + temas
                          T13 Regla de lint + reduced motion ─► T14 Exportar a Claude Design
 ```
 
-- **Se pueden hacer en paralelo:** T5 a T12, porque solo dependen de T4. Usan el mismo patrón pero tocan archivos distintos.
+- **Se pueden hacer en paralelo:** T5 a T12 y T15 (`Kbd` + `Tooltip` + layout de escritorio), porque solo dependen de T4. Usan el mismo patrón pero tocan archivos distintos.
 - **Tienen que ir en orden:** T1 → T2 → T3 → T4, y al final T13 → T14.
 
 ## Fases
 
 1. **Base (T1–T3):** app, calidad, CI y tokens. *Checkpoint 1.*
 2. **Rebanada vertical y fidelidad (T4–T6):** guía viva y primeros componentes. *Checkpoint 2: comparación lado a lado contigo contra el diseño de Claude Design.*
-3. **Resto de componentes (T7–T12).** *Checkpoint 3.*
+3. **Resto de componentes y escritorio (T7–T12, T15).** *Checkpoint 3.*
 4. **Protecciones y sincronización (T13–T14).** *Checkpoint final:* los 9 criterios de éxito de la spec.
 
 ## Riesgos y mitigaciones
@@ -49,6 +49,7 @@ T1 Andamiaje ─► T2 Pruebas + CI ─► T3 Tokens + fuentes + temas
 | Vaul podría estar sin mantenimiento | Medio | Revisar su estado en T12; si no está activo, construir `Sheet` sobre Radix Dialog + Motion |
 | NumberFlow con Server Components o SSR | Bajo | Usarlo solo en componentes cliente, con respaldo de texto estático |
 | La fidelidad visual se aleja del diseño | Medio | Checkpoint 2 con comparación lado a lado antes de construir el resto |
+| El escritorio aún no está diseñado | Medio | Tokens de layout de partida; se ajustan con el diseño de Claude Design antes de `core` |
 | El tema claro aún no está diseñado | Bajo | Tokens provisionales, tema oculto en la UI; entra cuando se apruebe el diseño |
 
 ## Preguntas abiertas

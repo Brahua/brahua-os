@@ -1,6 +1,6 @@
 # Spec: design-system
 
-> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · tema claro pendiente de diseño
+> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · v1.1 con escritorio **pendiente de aprobación** · tema claro y escritorio pendientes de diseño
 > Fuente visual: Claude Design, proyecto "Tres direcciones de diseño de hábitos", archivo `brahua-os Pantallas.dc.html` (dirección **3A · Panel mono**).
 
 ## Objetivo
@@ -130,6 +130,24 @@ Se exponen como `--area-<name>-led` y `--area-<name>-ink`, y en Tailwind como `b
 
 - Al presionar una tecla: `translateY(3px)` y cambio de `shadow-key` a `shadow-key-pressed`.
 
+### Layout y breakpoints
+
+Mobile-first con los breakpoints por defecto de Tailwind:
+
+| Breakpoint | Ancho | Layout |
+|---|---|---|
+| base | < 768 px | Celular: una columna, barra inferior, hojas desde abajo |
+| `md` | ≥ 768 px | Tablet: 2 columnas donde aporte, barra inferior |
+| `lg` | ≥ 1024 px | Escritorio: **barra lateral** (240 px, colapsable a 72 px), hasta 3 columnas, paneles laterales |
+| `xl` | ≥ 1280 px | Escritorio amplio: contenido con ancho máximo de 1200 px, centrado |
+
+- **Tokens:** `--sidebar-width` 240 px, `--sidebar-width-collapsed` 72 px, `--content-max` 1200 px y `--panel-width` 420 px.
+- **Hover:** solo con `@media (hover: hover)` (variante `hover:` de Tailwind v4), para que no quede "pegado" en pantallas táctiles.
+- **Densidad:**
+  - Con puntero fino (`pointer: fine`), las filas de lista pueden bajar a 40 px.
+  - Las teclas mantienen 44 px mínimo en todos los tamaños.
+- **Atajos de teclado:** toda acción principal tiene su atajo en escritorio. Se muestra con `Kbd` y en el tooltip de su botón.
+
 ### Movimiento
 
 | Token | Valor | Uso |
@@ -178,9 +196,11 @@ Los que vienen de shadcn/ui (Radix) se reestilizan con los tokens; no se usan co
 | `Switch` | Interruptor | Encendido en naranja | Radix |
 | `SegmentedControl` | Pestañas segmentadas (Activos, Pausados, Ideas; tema) | 2 a 4 opciones · el activo se ve como tecla activada | Radix Tabs / ToggleGroup |
 | `TextField` / `TextArea` | Entrada de texto | Reposo, foco, error (mensaje debajo, `aria-describedby`), deshabilitado | Propio |
-| `Sheet` | Hoja inferior | Arrastre para cerrar · se cierra con `Esc` y con el fondo | Vaul (Drawer de shadcn) |
+| `Sheet` | Panel responsive: **hoja inferior** en el celular, **panel lateral derecho** (`--panel-width`) o diálogo centrado desde `lg` | `side`: `auto`, `bottom`, `right`, `center` · se cierra arrastrando (celular), con `Esc` y tocando el fondo | Vaul (celular) + Radix Dialog (escritorio) |
 | `Toast` | Aviso con acción "Deshacer" | Neutro y éxito · estilo `Lcd` | Sonner |
-| `ListRow` | Fila tocable con divisor | Con acción al inicio y al final | Propio |
+| `ListRow` | Fila tocable con divisor | Con acción al inicio y al final · densidad `touch` 56 px o `fine` 40 px | Propio |
+| `Kbd` | Tecla de atajo grabada (`⌘`, `K`, `C`) | Tamaño `sm` y `md` · combinaciones | Propio |
+| `Tooltip` | Nombre y atajo de un control, solo con hover o foco en escritorio | Con `Kbd` opcional · retardo de 400 ms | Radix Tooltip |
 
 **Patrones de referencia.** No forman parte del design system; los implementa su módulo con estas piezas:
 
@@ -188,7 +208,9 @@ Los que vienen de shadcn/ui (Radix) se reestilizan con los tokens; no se usan co
 |---|---|---|
 | Fila de hábito | `habits` | `Key` + `Led` + `label` |
 | Tarjeta de proyecto | `projects` | `AreaTag` + `SegmentBar` + `Key` |
-| Barra de navegación con tecla de captura | `core` | `IconKey` + `Key signal` |
+| Barra inferior con tecla de captura (celular) | `core` | `IconKey` + `Key signal` |
+| Barra lateral colapsable (escritorio) | `core` | `ListRow` + `Icon` + `Tooltip` + `Kbd` |
+| Paleta de comandos `⌘K` (escritorio) | `core` | `Sheet center` + `TextField` + `ListRow` + `Kbd` (con `cmdk`, se agrega en `core`) |
 | Hoja de captura rápida | `today` | `Sheet` + `SegmentedControl` + `TextField` + `AreaTag` |
 
 ## Estructura
@@ -198,7 +220,7 @@ src/design-system/
   tokens.css               → @theme tokens + light/dark semantic variables
   fonts.ts                 → next/font setup (Archivo, IBM Plex Mono)
   components/
-    key.tsx  led.tsx  area-tag.tsx  section-label.tsx  stat-number.tsx
+    key.tsx  kbd.tsx  tooltip.tsx  led.tsx  area-tag.tsx  section-label.tsx  stat-number.tsx
     progress-ring.tsx  segment-bar.tsx  dot-matrix.tsx  day-cell.tsx
     lcd.tsx  switch.tsx  segmented-control.tsx  text-field.tsx
     sheet.tsx  toast.tsx  list-row.tsx
@@ -315,7 +337,8 @@ pnpm design:export                # generate design-sync/ previews for Claude De
 
 ## Criterios de éxito
 
-1. `/design` muestra los 18 componentes con todas sus variantes y estados, en tema oscuro y claro, a 390 px y 1280 px.
+1. `/design` muestra los 20 componentes con todas sus variantes y estados, en tema oscuro y claro, a 390 px, 768 px y 1280 px.
+1b. En escritorio, todos los controles interactivos tienen estado hover (solo con puntero) y los botones de solo ícono muestran `Tooltip` con nombre y atajo.
 2. El test de contraste pasa para todos los pares semánticos y de área en ambos temas.
 3. axe reporta 0 violaciones en `/design`.
 4. Todos los componentes interactivos funcionan solo con teclado y tienen foco visible.
@@ -351,6 +374,7 @@ Aprobados el 2026-09-29:
 ## Preguntas abiertas
 
 1. **Tema claro:** se diseña en Claude Design. Hasta tener ese diseño, los tokens claros son provisionales y el tema claro no se ofrece en Ajustes.
+2. **Escritorio:** se diseña en Claude Design (barra lateral, Hoy en 3 columnas, paleta de comandos, captura en panel lateral). Los tokens de layout de arriba son la propuesta de partida.
 
 ## Decisiones cerradas
 

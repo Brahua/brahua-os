@@ -44,7 +44,7 @@
     - Página `/design`: una sección por componente, conmutador de tema para previsualizar, y 404 en producción.
     - Helper `cn`.
     - `Icon` (Lucide).
-    - `Key` e `IconKey` con variantes, tamaños y estados.
+    - `Key` e `IconKey` con variantes, tamaños y estados, incluido hover solo con puntero.
     - Tests de componente.
     - Captura de referencia y axe de la sección.
   - **Aceptación:**
@@ -115,17 +115,25 @@ Estas tareas se pueden hacer en paralelo; todas dependen de T4.
   - **Tamaño:** S
 
 - [ ] **T12: `Sheet`**
-  - **Qué:** hoja inferior (Vaul, o Radix Dialog + Motion si Vaul no se mantiene).
+  - **Qué:** `Sheet` responsive: hoja inferior en el celular (Vaul, o Radix Dialog + Motion si Vaul no se mantiene) y panel lateral o diálogo desde `lg` (Radix Dialog).
   - **Aceptación:**
     - Se cierra arrastrando, con `Esc` y tocando el fondo.
     - El foco queda atrapado dentro y vuelve al disparador al cerrar.
     - Usa `--ease-sheet`.
+    - A 390 px sale desde abajo; a 1280 px, desde la derecha.
   - **Tamaño:** M
 
-Cada tarea de T7 a T12 se verifica con `pnpm test && pnpm test:e2e design`: tests de componente, sección en `/design` con captura aprobada y axe en 0.
+- [ ] **T15: `Kbd` + `Tooltip` + layout de escritorio en `/design`**
+  - **Qué:** tecla de atajo grabada, Radix Tooltip con `Kbd`, tokens de layout (`--sidebar-width`, `--content-max`, `--panel-width`) y `/design` con navegación lateral desde `lg`.
+  - **Aceptación:**
+    - El tooltip aparece con hover o foco y no aparece en pantallas táctiles.
+    - `/design` se ve bien a 390, 768 y 1280 px.
+  - **Tamaño:** M
+
+Cada tarea de T7 a T12 y T15 se verifica con `pnpm test && pnpm test:e2e design`: tests de componente, sección en `/design` con captura aprobada y axe en 0.
 
 ### Checkpoint 3
-- [ ] Los 18 componentes están en `/design` en ambos temas y en 390 y 1280 px, con CI verde.
+- [ ] Los 20 componentes están en `/design` en ambos temas y en 390, 768 y 1280 px, con CI verde.
 
 ## Fase 4 — Protecciones y sincronización
 
@@ -136,7 +144,7 @@ Cada tarea de T7 a T12 se verifica con `pnpm test && pnpm test:e2e design`: test
   - **Aceptación:** la regla falla en un archivo de prueba con un hex suelto; el test pasa.
   - **Verificar:** `pnpm lint && pnpm test:e2e`
   - **Archivos:** `eslint.config.mjs`, `e2e/reduced-motion.spec.ts`
-  - **Depende de:** T5–T12 · **Tamaño:** S
+  - **Depende de:** T5–T12, T15 · **Tamaño:** S
 
 - [ ] **T14: Exportar a Claude Design**
   - **Qué:** `pnpm design:export` genera en `design-sync/` una vista previa HTML por componente, con su comentario `@dsCard` de grupo, más `tokens.json` y `tokens.css`.
