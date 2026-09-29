@@ -37,10 +37,15 @@ En Notion abandonaste hábitos, tareas y gastos diarios. **No fue falta de funci
 
 ## 2. Dirección visual
 
-- **Carácter:** calmado, cálido y enfocado, más "cuaderno premium" que "dashboard corporativo". Mucho espacio en blanco, tipografía protagonista y color con intención: cada **área de vida** tiene su color de acento.
-- **Tipografía:** Geist Sans para la interfaz y Geist Mono para las cifras. Ambas fuentes se cargan con `next/font`.
-- **Tema:** claro y oscuro de primer nivel, ambos diseñados (no uno invertido automáticamente). Los colores son *tokens* semánticos en CSS.
-- **Iteración:** la dirección visual se explora en **Claude Design** antes de implementar las pantallas clave (Login, Hoy, Hábitos, Proyectos). El resultado se vuelca en los tokens de Tailwind y los componentes de shadcn.
+**Panel mono**, diseñada en Claude Design. La app se siente como un instrumento de hardware:
+- Las acciones son teclas físicas que se hunden al presionarlas.
+- Cada área de vida es un LED de color.
+- Los mensajes de estado aparecen en una tira tipo pantalla LCD.
+- Un único color de señal, naranja, marca "hoy" y "acción".
+- La tipografía es Archivo, con IBM Plex Mono para datos y etiquetas.
+- El modo oscuro va primero.
+
+Los tokens, los componentes y las reglas concretas están en [`SPEC-design-system.md`](../SPEC-design-system.md), que prevalece sobre este documento en todo lo visual.
 
 ## 3. Movimiento y animación
 

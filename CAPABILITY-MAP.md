@@ -33,7 +33,8 @@ brahua-os es mi "segundo cerebro" personal: una sola app (web responsive + PWA) 
 
 | Id | Responsabilidad | Depende de |
 |---|---|---|
-| `core` | Shell de la app, autenticación (1 usuario), PWA instalable, navegación, **áreas de vida**, sistema de diseño, convenciones para los módulos. | — |
+| `design-system` | Tokens (color, tipografía, espaciado, radios, sombras, movimiento), componentes base accesibles, guía viva en `/design` y sincronización con Claude Design. Incluye el andamiaje de la app (Next.js + Tailwind). | — |
+| `core` | Shell de la app, autenticación (1 usuario), PWA instalable, navegación, **áreas de vida**, convenciones para los módulos. | design-system |
 | `habits` | Hábitos como entidades, registro diario de un toque, frecuencias (diaria o X veces por semana), rachas, cumplimiento semanal, importación del Habit tracker. | core |
 | `projects` | Proyectos con estado (idea / activo / pausado / terminado), área de vida, objetivo, fechas, notas y enlaces; progreso calculado a partir de sus tareas. | core |
 | `tasks` | Tareas sueltas o dentro de un proyecto, bandeja de entrada, prioridad, fecha límite, recurrencia, área de vida, importación de Tareas del Hogar. | core, projects |
@@ -63,7 +64,7 @@ Ideas guardadas sin spec; se agregan al mapa cuando las pidas:
 ## Orden de construcción
 
 ```
-core → projects → tasks, habits → today → reminders → finance → goals → weekly-review → learning → notes
+design-system → core → projects → tasks, habits → today → reminders → finance → goals → weekly-review → learning → notes
 ```
 
 - El **MVP usable** llega al terminar `today`: ya puedo gestionar proyectos y registrar tareas y hábitos desde el celular a diario.
