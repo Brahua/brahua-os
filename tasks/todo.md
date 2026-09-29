@@ -39,7 +39,7 @@
 
 ## Fase 2 — Rebanada vertical y fidelidad
 
-- [ ] **T4: Guía viva `/design` + `Icon` + `Key` / `IconKey`**
+- [x] **T4: Guía viva `/design` + `Icon` + `Key` / `IconKey`**
   - **Qué:**
     - Página `/design`: una sección por componente, conmutador de tema para previsualizar, y 404 en producción.
     - Helper `cn`.

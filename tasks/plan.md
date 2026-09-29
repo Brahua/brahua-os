@@ -9,8 +9,8 @@ Primero se arma la app vacía, con sus herramientas de calidad y el CI. Luego se
 ## Decisiones de arquitectura
 
 - **Primero una rebanada vertical completa.** La tarea 4 entrega `Key` + `/design` + test de componente + captura + axe. Así se valida todo el proceso antes de multiplicarlo por 18 componentes.
-- **`/design` solo en desarrollo hasta `core`.** La spec pide que sea visible solo para el dueño, pero la autenticación llega en `core`. Mientras tanto, la ruta devuelve 404 en producción (`notFound()` si `NODE_ENV === "production"`) y no se despliega nada público.
-- **Capturas de referencia solo en Linux (CI).** Las fuentes se renderizan distinto en macOS. Las capturas se generan y comparan en el contenedor de Playwright, igual en local (Docker) y en CI.
+- **`/design` solo en desarrollo hasta `core`.** La spec pide que sea visible solo para el dueño, pero la autenticación llega en `core`. Mientras tanto, la ruta devuelve 404 en producción salvo que el build se haga con `DESIGN_GUIDE=enabled`, que solo usan las pruebas E2E. No se despliega nada público.
+- **Capturas de referencia solo en Linux (CI).** Las fuentes se renderizan distinto en macOS. Las capturas se generan y comparan en el contenedor de Playwright, igual en local (`pnpm test:e2e:docker`) y en CI. Fuera de Linux, esas pruebas se omiten.
 - **Ambos temas desde el inicio.** El tema claro está diseñado; los tokens de los dos temas se cargan en T3 y cada componente se prueba en ambos.
 - **Verificar la documentación antes de cada integración** (Next.js 16, Tailwind v4, shadcn, Vaul, NumberFlow), con la skill `source-driven-development`. No se usan APIs de memoria.
 
