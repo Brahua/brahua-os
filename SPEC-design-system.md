@@ -1,7 +1,10 @@
 # Spec: design-system
 
-> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · v1.1 con escritorio **pendiente de aprobación** · tema claro y escritorio pendientes de diseño
-> Fuente visual: Claude Design, proyecto "Tres direcciones de diseño de hábitos", archivo `brahua-os Pantallas.dc.html` (dirección **3A · Panel mono**).
+> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · v1.2 con los diseños de escritorio y tema claro incorporados, **pendiente de revisión**
+> Fuente visual: Claude Design, proyecto "Tres direcciones de diseño de hábitos" (dirección **3A · Panel mono**):
+> - `brahua-os Pantallas.dc.html`: celular, oscuro.
+> - `brahua-os Tema claro.dc.html`: celular, claro junto a oscuro.
+> - `brahua-os Escritorio.dc.html`, que monta `Escritorio App.dc.html` y `Escritorio App Claro.dc.html`: escritorio en ambos temas, más la hoja de componentes de escritorio.
 
 ## Objetivo
 
@@ -33,7 +36,7 @@ Convertir la dirección visual **Panel mono** en un sistema reutilizable: tokens
 | `#6E6E6A` sobre negro: 3,9:1; `#55544F`: 2,6:1 | Solo para elementos decorativos o deshabilitados, nunca para texto que haya que leer |
 | Los 8 colores de área tienen par brillante y oscuro, ambos con AA (≥ 5,1:1) | Se mantienen tal cual: `led` (sobre oscuro) e `ink` (sobre tiza) |
 | Sombra de "tecla" copiada a mano en muchos lugares | Tokens `shadow-key-*` + componente `Key` |
-| El tema claro está en el selector pero no está diseñado | Propuesta de tokens claros con AA verificado; **se valida en Claude Design** antes de darla por buena |
+| Tema claro ("edición blanca") diseñado: teclas blancas con canto gris, activado en negro, LCD gris verdoso | Tokens claros tomados del diseño; contraste verificado |
 
 ## Tokens
 
@@ -60,20 +63,37 @@ Viven en `src/design-system/tokens.css` (Tailwind v4 `@theme`). Los valores base
 
 ### Color semántico
 
-| Token | Oscuro | Claro (propuesta) | Uso | Contraste |
+| Token | Oscuro | Claro | Uso | Contraste (osc. / claro) |
 |---|---|---|---|---|
 | `--bg` | `#0A0A0A` | `#F2F2F0` | Fondo de la app | — |
-| `--surface` | `#161616` | `#FFFFFF` | Teclas, paneles | — |
-| `--surface-pressed` | `#F2F2F0` | `#0A0A0A` | Tecla activada (se invierte) | — |
+| `--surface` | `#161616` | `#FFFFFF` | Teclas, pads | — |
+| `--surface-hover` | `#1C1C1C` | `#FAFAF8` | Tecla con hover (un paso más clara) | — |
+| `--surface-pressed` | `#F2F2F0` | `#0A0A0A` | Tecla activada: se invierte | — |
+| `--sidebar` | `#050505` | `#EAE9E4` | Barra lateral de escritorio | — |
+| `--panel` | `#0F0F0F` | `#FFFFFF` | Panel lateral y diálogos | — |
+| `--overlay` | `rgb(0 0 0 / .55)` | `rgb(0 0 0 / .55)` | Velo de captura y paleta | — |
 | `--border-subtle` | `#1F1F1F` | `#E6E5E0` | Divisores | — |
 | `--border` | `#2A2A2A` | `#D6D6D2` | Bordes, celdas vacías | — |
-| `--text` | `#F2F2F0` | `#0A0A0A` | Texto principal | 17,7:1 / 17,7:1 |
-| `--text-muted` | `#9A9A96` | `#55544F` | Texto secundario, etiquetas | 7,0:1 / 6,8:1 |
-| `--text-disabled` | `#6E6E6A` | `#9A9A96` | Solo deshabilitado o decorativo | — |
+| `--text` | `#F2F2F0` | `#0A0A0A` | Texto principal | 17,7 / 17,7 |
+| `--text-muted` | `#9A9A96` | `#55544F` | Texto secundario, etiquetas | 7,0 / 6,8 |
+| `--text-disabled` | `#6E6E6A` | `#8A8984` | Solo deshabilitado o decorativo | — |
 | `--signal` | `#FF4A1C` | `#FF4A1C` | Relleno de acción y "hoy" | — |
-| `--signal-text` | `#FF4A1C` | `#C2330A` | Texto naranja | 5,9:1 / 5,0:1 |
-| `--on-signal` | `#0A0A0A` | `#0A0A0A` | Texto sobre naranja | 5,9:1 |
-| `--signal-edge` | `#C2330A` | `#C2330A` | Borde inferior de la tecla naranja | — |
+| `--signal-hover` | `#FF5C31` | `#FF5C31` | Tecla naranja con hover | — |
+| `--signal-text` | `#FF4A1C` | `#C2330A` | Texto naranja | 5,9 / 5,0 |
+| `--on-signal` | `#0A0A0A` | `#0A0A0A` | Texto sobre naranja | 5,9 (hover 6,4) |
+| `--signal-edge` | `#C2330A` | `#C2330A` | Canto inferior de la tecla naranja | — |
+| `--kbd-bg` / `--kbd-text` | `#1A1A1A` / `#C9C9C5` | `#FFFFFF` / `#3A3935` | Tecla grabada de atajo | 10,5 / 10,3 |
+| `--tooltip-bg` / `--tooltip-text` | `#1A1A1A` / `#F2F2F0` | `#0A0A0A` / `#F2F2F0` | Tooltip (en claro, invertido a negro) | — |
+| `--lcd-bg` | `#050505` | `#D5DACB` | Tira LCD (en claro, gris verdoso de calculadora) | — |
+| `--lcd-text` | `#9A9A96` | `#161A10` | Texto LCD | 7,0 / 12,4 |
+| `--lcd-signal` | `#FF4A1C` | `#A32B07` | Señal dentro del LCD | 5,9 / 5,1 |
+| `--lcd-off` | `#1F1F1F` | `#BFC4B3` | Segmentos o puntos apagados (siguen visibles) | — |
+| `--lcd-border` | `#242424` | `#B9BEAE` | Borde del LCD, hundido con sombra interior | — |
+
+**Comportamiento del LED por tema.**
+- **Oscuro:** apagado, el LED tiene brillo (`led` + halo); encendido, sobre la tecla invertida, usa `ink` sin halo.
+- **Claro:** sobre blanco el brillo no se ve. Por eso, apagado es un punto plano en `ink`; encendido, sobre la tecla negra, usa `led` con aro y halo (`0 0 0 3px led/28%, 0 0 12px led/80%`).
+- En ambos temas, **los íconos de área van en `ink`** sobre fondo claro, para que el área se distinga por forma y no solo por color.
 
 ### Colores de área (LED)
 
@@ -115,18 +135,21 @@ Se exponen como `--area-<name>-led` y `--area-<name>-ink`, y en Tailwind como `b
 - **Espaciado:** la escala de Tailwind (múltiplos de 4 px), más `0.5` (2 px) y `1.5` (6 px) para ajustes finos.
   - Márgenes de pantalla: 16 px en el celular, 24 px desde 768 px.
   - Área táctil mínima: **44 × 44 px**.
-- **Radios:** `xs` 2 px (LED, celdas, marcas), `sm` 6 px (chips), `md` 10 px (inputs, teclas pequeñas), `lg` 14 px (teclas, tarjetas), `xl` 28 px (bordes superiores de hojas) y `full`.
+- **Radios** (ajustados al diseño): `xs` 2 px (LED, celdas), `sm` 6 px (`Kbd`, chips), `md` 10 px (ítems de barra, inputs), `lg` 12 px (teclas, pads, tarjetas), `xl` 16 px (paneles y diálogos de escritorio), `2xl` 28 px (bordes superiores de la hoja móvil) y `full`.
 - **Sombras de tecla** (la "física" del sistema):
 
-```css
-@theme {
-  --shadow-key: inset 0 -4px 0 var(--color-gray-1000), inset 0 1px 0 var(--color-gray-800), 0 0 0 1px var(--color-gray-850);
-  --shadow-key-pressed: inset 0 -1px 0 var(--color-gray-300);
-  --shadow-key-signal: inset 0 -4px 0 var(--color-signal-700);
-  --shadow-key-signal-pressed: inset 0 -1px 0 var(--color-signal-700);
-  --shadow-led: 0 0 8px currentColor; /* LED glow when the key is off */
-}
-```
+| Sombra | Oscuro | Claro |
+|---|---|---|
+| `--shadow-key` (reposo) | `inset 0 -4px 0 #000, inset 0 1px 0 #2A2A2A, 0 0 0 1px #202020` | `inset 0 -4px 0 #CFCDC6, inset 0 0 0 1px #D6D6D2, 0 1px 2px rgb(10 10 10 / .08)` |
+| `--shadow-key-sm` (teclas de lista) | `inset 0 -3px 0 #000, inset 0 1px 0 #2A2A2A` | `inset 0 -3px 0 #CFCDC6, inset 0 0 0 1px #D6D6D2` |
+| `--shadow-key-pressed` (hundida) | `inset 0 -1px 0 #000, 0 0 0 1px #202020` | `inset 0 -1px 0 #CFCDC6, 0 0 0 1px #D6D6D2` |
+| `--shadow-key-on` (activada, invertida) | `inset 0 -1px 0 #BDBDB8` | `inset 0 -1px 0 #000, 0 0 0 1px #0A0A0A` |
+| `--shadow-key-signal` / `-pressed` | `inset 0 -4px 0 #C2330A` / `inset 0 -1px 0 #C2330A` | Igual |
+| `--shadow-kbd` | `inset 0 -2px 0 #000, inset 0 0 0 1px #2E2E2E` | `inset 0 -2px 0 #CFCDC6, inset 0 0 0 1px #D6D6D2` |
+| `--shadow-lcd` (hundida) | `inset 0 2px 0 #000` | `inset 0 2px 0 #B9BEAE` |
+| `--shadow-popover` (tooltip, paleta) | `0 8px 24px rgb(0 0 0 / .5)` | `0 8px 24px rgb(0 0 0 / .18)` |
+| `--shadow-led-on` | `none` | `0 0 0 3px <led>/28%, 0 0 12px <led>/80%` |
+| `--shadow-led-off` | `0 0 8px <led>` | `none` |
 
 - Al presionar una tecla: `translateY(3px)` y cambio de `shadow-key` a `shadow-key-pressed`.
 
@@ -141,12 +164,30 @@ Mobile-first con los breakpoints por defecto de Tailwind:
 | `lg` | ≥ 1024 px | Escritorio: **barra lateral** (240 px, colapsable a 72 px), hasta 3 columnas, paneles laterales |
 | `xl` | ≥ 1280 px | Escritorio amplio: contenido con ancho máximo de 1200 px, centrado |
 
-- **Tokens:** `--sidebar-width` 240 px, `--sidebar-width-collapsed` 72 px, `--content-max` 1200 px y `--panel-width` 420 px.
+- **Tokens (confirmados por el diseño):** `--sidebar-width` 240 px, `--sidebar-width-collapsed` 72 px, `--content-max` 1200 px y `--panel-width` 420 px.
+- **Barra lateral:**
+  - Ítems de 40 px con radio 10 y separación de 4 px.
+  - Estados: reposo (`--text-muted`), hover (`--surface-hover`) y activo (**tecla en relieve** con `--shadow-key`, no una franja de color).
+  - Colapsada, solo muestra íconos, cada uno con tooltip.
+- **Panel lateral:**
+  - Encabezado de 64 px (título + `Kbd` Esc + cerrar), cuerpo con scroll y padding de 24 px, pie fijo con las acciones.
+  - Borde izquierdo de 1 px `--border`.
+  - El detalle de proyecto se abre **sin velo** (la grilla se reacomoda y sigue clicable); la captura se abre **con velo** (`--overlay`).
 - **Hover:** solo con `@media (hover: hover)` (variante `hover:` de Tailwind v4), para que no quede "pegado" en pantallas táctiles.
 - **Densidad:**
   - Con puntero fino (`pointer: fine`), las filas de lista pueden bajar a 40 px.
   - Las teclas mantienen 44 px mínimo en todos los tamaños.
-- **Atajos de teclado:** toda acción principal tiene su atajo en escritorio. Se muestra con `Kbd` y en el tooltip de su botón.
+- **Atajos de teclado:** toda acción principal tiene su atajo en escritorio. Se muestra con `Kbd` y en el tooltip de su botón. Mapa de referencia (lo implementa `core`):
+
+| Atajo | Acción |
+|---|---|
+| `C` | Captura rápida |
+| `⌘K` | Paleta de comandos (flechas + ↵ ejecutan) |
+| `[` | Contraer o expandir la barra lateral |
+| `1`–`8` | Navegar a la sección N |
+| `Esc` | Cerrar panel o diálogo |
+| `⌥1`–`⌥3` | En captura: cambiar tipo (Tarea, Hábito, Nota) |
+| `↵` / `⌘↵` | Guardar tarea o hábito / guardar nota |
 
 ### Movimiento
 
@@ -157,6 +198,9 @@ Mobile-first con los breakpoints por defecto de Tailwind:
 | `--ease-sheet` | `cubic-bezier(.32, .72, 0, 1)` | Hojas y paneles |
 | `--ease-pop` | `cubic-bezier(.34, 1.56, .64, 1)` | Confirmaciones con rebote leve |
 | `--duration-press` | `90ms` | Tecla |
+| `--duration-hover` | `120ms` | Hover, tooltip (fundido) |
+| `--duration-sidebar` | `240ms` (`--ease-sheet`) | Colapsar o expandir la barra lateral |
+| `--duration-panel` | `320ms` al entrar / `240ms` al salir (`--ease-sheet`) | Panel lateral de escritorio |
 | `--duration-state` | `160ms` | Cambios de color o estado |
 | `--duration-enter` | `400ms` | Aparición de contenido |
 | `--duration-sheet` | `380ms` | Hoja inferior |
@@ -199,8 +243,8 @@ Los que vienen de shadcn/ui (Radix) se reestilizan con los tokens; no se usan co
 | `Sheet` | Panel responsive: **hoja inferior** en el celular, **panel lateral derecho** (`--panel-width`) o diálogo centrado desde `lg` | `side`: `auto`, `bottom`, `right`, `center` · se cierra arrastrando (celular), con `Esc` y tocando el fondo | Vaul (celular) + Radix Dialog (escritorio) |
 | `Toast` | Aviso con acción "Deshacer" | Neutro y éxito · estilo `Lcd` | Sonner |
 | `ListRow` | Fila tocable con divisor | Con acción al inicio y al final · densidad `touch` 56 px o `fine` 40 px | Propio |
-| `Kbd` | Tecla de atajo grabada (`⌘`, `K`, `C`) | Tamaño `sm` y `md` · combinaciones | Propio |
-| `Tooltip` | Nombre y atajo de un control, solo con hover o foco en escritorio | Con `Kbd` opcional · retardo de 400 ms | Radix Tooltip |
+| `Kbd` | Tecla de atajo grabada (`⌘`, `K`, `C`): 22 px de alto, radio 6, Plex Mono 11 px | `default` · `on-signal` (contorno y texto negros sobre naranja) · combinaciones | Propio |
+| `Tooltip` | Nombre y atajo de un control: aparece tras 300 ms de hover, o al instante con foco de teclado; fundido de 120 ms | Con `Kbd` opcional · invertido en claro | Radix Tooltip |
 
 **Patrones de referencia.** No forman parte del design system; los implementa su módulo con estas piezas:
 
@@ -373,10 +417,11 @@ Aprobados el 2026-09-29:
 
 ## Preguntas abiertas
 
-1. **Tema claro:** se diseña en Claude Design. Hasta tener ese diseño, los tokens claros son provisionales y el tema claro no se ofrece en Ajustes.
-2. **Escritorio:** se diseña en Claude Design (barra lateral, Hoy en 3 columnas, paleta de comandos, captura en panel lateral). Los tokens de layout de arriba son la propuesta de partida.
+Ninguna. El escritorio y el tema claro están diseñados y sus valores ya están en esta spec.
 
 ## Decisiones cerradas
 
 - La tipografía es Archivo + IBM Plex Mono.
-- Los íconos salen de Lucide, sin emojis.
+- Los íconos salen de Lucide, sin emojis (el diseño usa los 8 íconos de área definidos arriba).
+- El tema claro ("edición blanca") se ofrece en Ajustes desde el inicio: Oscuro, Claro o Sistema, con oscuro por defecto.
+- Escritorio con barra lateral colapsable, paneles laterales de 420 px y paleta `⌘K`.
