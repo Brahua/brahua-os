@@ -221,7 +221,7 @@ export async function crearArea(input: z.input<typeof crearAreaSchema>) {
 
 1. **Login:** email + contraseña + passkey (aprobado).
 2. **Dominio:** subdominio **`os.brahua.com`**. El dominio raíz `brahua.com` queda libre para el portafolio. En Hostinger solo se agrega un registro `CNAME os → cname.vercel-dns.com`; los nameservers no se tocan.
-3. **Repositorio:** repo privado `jbrahua/brahua-os` en GitHub.
+3. **Repositorio:** repo privado `Brahua/brahua-os` en GitHub (cuenta personal).
 4. **Áreas iniciales:** las 8 del seed (aprobadas).
 
 ## Preguntas abiertas
