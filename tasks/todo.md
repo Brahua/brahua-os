@@ -19,7 +19,7 @@
   - **Archivos:** `vitest.config.ts`, `playwright.config.ts`, `tests/setup.ts`, `.github/workflows/ci.yml`, `package.json`
   - **Depende de:** T1 · **Tamaño:** M
 
-- [ ] **T3: Tokens, fuentes y temas**
+- [x] **T3: Tokens, fuentes y temas**
   - **Qué:**
     - `tokens.css`: grises, señal, semánticos oscuro/claro, 8 áreas `led`/`ink`, radios, sombras de tecla, curvas y duraciones, y utilidades de tipografía.
     - `fonts.ts`: Archivo e IBM Plex Mono.
