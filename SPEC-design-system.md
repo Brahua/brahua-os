@@ -1,6 +1,6 @@
 # Spec: design-system
 
-> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **BORRADOR — pendiente de aprobación**
+> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · tema claro pendiente de diseño
 > Fuente visual: Claude Design, proyecto "Tres direcciones de diseño de hábitos", archivo `brahua-os Pantallas.dc.html` (dirección **3A · Panel mono**).
 
 ## Objetivo
@@ -166,7 +166,8 @@ Los que vienen de shadcn/ui (Radix) se reestilizan con los tokens; no se usan co
 | `Key` | Botón tecla física | `default`, `signal`, `ghost` · `sm`, `md`, `lg` · reposo, presionado, activado (`aria-pressed`), deshabilitado · `asChild` para enlaces | Propio |
 | `IconKey` | Tecla cuadrada de solo ícono | Igual que `Key`; `aria-label` obligatorio | `Key` |
 | `Led` | Punto de color de área | `off` (brillo y color `led`), `on` (color `ink`, sin brillo) · tamaños 6 / 8 / 10 | Propio |
-| `AreaTag` | Código de 2 letras con LED ("SB", "FI") | `sm`, `md` · con o sin nombre | `Led` |
+| `Icon` | Envoltorio de Lucide con los tamaños y el trazo del sistema | `sm` 16, `md` 20, `lg` 24 · `strokeWidth` 1.75 · decorativo (`aria-hidden`) o con `label` | `lucide-react` |
+| `AreaTag` | Ícono del área con LED, y nombre opcional | `sm`, `md` · con o sin nombre | `Led` + `Icon` |
 | `SectionLabel` | Etiqueta mono en mayúsculas, con contador opcional ("HÁBITOS · 2/6") | — | Propio |
 | `StatNumber` | Cifra animada | Tamaños `data` y `title-sm` · formatos de moneda PEN/USD y porcentaje | `@number-flow/react` |
 | `ProgressRing` | Anillo de progreso | Tamaños · color `signal` o de área · `role="progressbar"` | Propio (SVG) |
@@ -203,6 +204,7 @@ src/design-system/
     sheet.tsx  toast.tsx  list-row.tsx
   index.ts                 → public exports (modules import only from here)
   area-colors.ts           → AREA_COLORS = ["amber", …] as const + helpers
+  area-icons.ts            → AREA_ICONS: curated Lucide set (AREA_ICON_NAMES)
 src/app/(app)/design/page.tsx  → living style guide (owner-only)
 design-sync/               → generated previews for Claude Design (@dsCard)
 tests/design-system/       → unit + component tests
@@ -313,7 +315,7 @@ pnpm design:export                # generate design-sync/ previews for Claude De
 
 ## Criterios de éxito
 
-1. `/design` muestra los 17 componentes con todas sus variantes y estados, en tema oscuro y claro, a 390 px y 1280 px.
+1. `/design` muestra los 18 componentes con todas sus variantes y estados, en tema oscuro y claro, a 390 px y 1280 px.
 2. El test de contraste pasa para todos los pares semánticos y de área en ambos temas.
 3. axe reporta 0 violaciones en `/design`.
 4. Todos los componentes interactivos funcionan solo con teclado y tienen foco visible.
@@ -323,17 +325,34 @@ pnpm design:export                # generate design-sync/ previews for Claude De
 8. **Fidelidad:** en la guía viva, la tecla, el LED, la matriz de puntos y la tira LCD se ven como en `brahua-os Pantallas.dc.html`. Lo reviso contigo en una comparación lado a lado.
 9. CI verde: `lint`, `typecheck`, `test`, `test:e2e` y `build`.
 
-## Cambios que esto propone a `SPEC-core.md`
+## Íconos
 
-Requieren tu aprobación:
+- **Librería:** [Lucide](https://lucide.dev) (`lucide-react`). Es el estándar de shadcn/ui, se importa por ícono (el paquete no carga lo que no se usa) y su trazo lineal encaja con la estética de panel.
+- **Estilo:** `strokeWidth` de 1.75 y tamaños 16, 20 y 24 px, siempre a través del componente `Icon`. Los íconos heredan `currentColor`.
+- **Sin emojis** en ningún lugar de la interfaz.
+- **Set curado para áreas:** `AREA_ICONS` en `area-icons.ts` es un mapa explícito `name → componente` de unos 40 íconos. Así se pueden elegir desde la UI sin importar la librería entera. El valor por defecto de cada área:
 
-1. **`LIFE_AREA_COLORS`** pasa a ser los 8 colores de área de este sistema: `amber`, `green`, `teal`, `blue`, `violet`, `pink`, `orange`, `lime`. Sale `slate` y `red`: el rojo se evita a propósito (principio de "sin culpa").
-2. **Áreas: `emoji` → `code`.** El diseño identifica cada área con un **código de 2 letras** y un LED ("SB", "FI", "HB"), no con emoji. Propuesta:
-   - Columna `code char(2) unique`: dos letras en mayúsculas, validadas con Zod.
-   - Se quita `emoji`, porque va contra el principio de diseño "sin emoji en la interfaz".
-3. `core` importa sus componentes de `@/design-system` y no instala shadcn por su cuenta.
+| Área | Ícono | Área | Ícono |
+|---|---|---|---|
+| Hogar | `house` | Trabajo | `briefcase` |
+| Salud y Bienestar | `heart-pulse` | Relaciones y Familia | `users` |
+| Finanzas e Inversiones | `wallet` | Planes y Viajes | `plane` |
+| Aprendizaje | `graduation-cap` | Hobbies | `audio-waveform` |
+
+- **Otros íconos:** los de navegación y acciones (`plus`, `check`, `chevron-right`…) también salen de Lucide. Si el diseño necesita un glifo propio, como el triángulo "Δ", se agrega como SVG en `src/design-system/icons/` con la misma API que `Icon`.
+
+## Cambios aplicados a `SPEC-core.md`
+
+Aprobados el 2026-09-29:
+
+1. Las áreas usan `AREA_COLORS` (8 colores, sin rojo) y `icon` (Lucide, set curado) en lugar de `emoji`.
+2. `core` importa sus componentes de `@/design-system` y no instala shadcn por su cuenta.
 
 ## Preguntas abiertas
 
-1. **Tema claro:** los tokens claros son una propuesta con contraste verificado, pero no están diseñados. ¿Hacemos una pasada en Claude Design de "Hoy" en claro antes de implementarlo? Si no, el claro queda como beta.
-2. **Tipografía:** ¿mantenemos Archivo + IBM Plex Mono tal como vienen del diseño? Recomiendo que sí.
+1. **Tema claro:** se diseña en Claude Design. Hasta tener ese diseño, los tokens claros son provisionales y el tema claro no se ofrece en Ajustes.
+
+## Decisiones cerradas
+
+- La tipografía es Archivo + IBM Plex Mono.
+- Los íconos salen de Lucide, sin emojis.

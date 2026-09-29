@@ -1,6 +1,7 @@
 # Spec: core
 
 > Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO v2** (2026-09-29)
+> v2.1 (2026-09-29): áreas con ícono de Lucide y colores del design system.
 > v2 (2026-09-29): el código pasa a estar en inglés y se incorpora la revisión técnica (auth, driver, migraciones, E2E, PWA, errores, backups y zona horaria).
 
 ## Objetivo
@@ -19,7 +20,7 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 1. Como único usuario, inicio sesión y la sesión se mantiene semanas en mi celular sin volver a pedirme credenciales.
 2. Nadie más puede registrarse ni ver ningún dato, aunque conozca la URL.
 3. Instalo la app en la pantalla de inicio del celular y se abre como una app, sin la barra del navegador.
-4. Creo, edito, reordeno y archivo mis áreas de vida (nombre, emoji, color), y puedo deshacer al instante.
+4. Creo, edito, reordeno y archivo mis áreas de vida (nombre, ícono, color), y puedo deshacer al instante.
 5. Navego entre módulos con una barra inferior en el celular y una barra lateral en el escritorio.
 6. El tema sigue al sistema por defecto y puedo fijarlo en Ajustes.
 
@@ -126,16 +127,14 @@ Reglas:
 
 ```ts
 // src/modules/core/db/schema.ts
-export const LIFE_AREA_COLORS = [
-  "slate", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink",
-] as const;
+import { AREA_COLORS, AREA_ICON_NAMES } from "@/design-system";
 
 export const lifeAreas = pgTable("core_life_areas", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(), // stable key for seeding/imports
   name: text("name").notNull(),
-  emoji: text("emoji").notNull().default("📁"),
-  color: text("color", { enum: LIFE_AREA_COLORS }).notNull().default("slate"),
+  icon: text("icon", { enum: AREA_ICON_NAMES }).notNull().default("circle"), // Lucide icon from the curated set
+  color: text("color", { enum: AREA_COLORS }).notNull().default("blue"),
   sortOrder: integer("sort_order").notNull().default(0),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -159,9 +158,9 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   - `travel` → Planes y Viajes
   - `hobbies` → Hobbies
 - **Sin borrado físico** en `core`: solo se archiva. Un área archivada deja de ofrecerse para elementos nuevos, pero se sigue mostrando en los que ya la usan. Las FK futuras hacia `core_life_areas` usan `onDelete: "restrict"`.
-- **Emoji:** exactamente 1 grafema, validado con `Intl.Segmenter` (así los emojis compuestos no se cortan).
+- **Ícono:** nombre de un ícono de **Lucide** dentro del set curado `AREA_ICON_NAMES` del design system. No se usan emojis en ningún lugar de la app.
 - **Reordenar:** reescribe `sort_order` de todas las áreas dentro de una transacción.
-- **Colores:** cada valor de `LIFE_AREA_COLORS` es un token CSS definido para el tema claro y el oscuro.
+- **Colores:** `AREA_COLORS` viene del design system (`amber`, `green`, `teal`, `blue`, `violet`, `pink`, `orange`, `lime`); cada uno tiene su tono `led` e `ink` para ambos temas.
 - **Tablas de Better Auth**, renombradas con `modelName` para evitar `user`, que es palabra reservada en Postgres: `auth_users`, `auth_sessions`, `auth_accounts`, `auth_verifications`, `auth_passkeys` y `auth_rate_limits`.
 
 ## Autenticación y seguridad
@@ -206,13 +205,14 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { isSingleGrapheme, slugify } from "@/lib/text";
-import { LIFE_AREA_COLORS, lifeAreas, type LifeArea } from "./db/schema";
+import { AREA_COLORS, AREA_ICON_NAMES } from "@/design-system";
+import { slugify } from "@/lib/text";
+import { lifeAreas, type LifeArea } from "./db/schema";
 
 const createLifeAreaSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio").max(60),
-  emoji: z.string().refine(isSingleGrapheme, "Usa un solo emoji"),
-  color: z.enum(LIFE_AREA_COLORS),
+  icon: z.enum(AREA_ICON_NAMES),
+  color: z.enum(AREA_COLORS),
 });
 
 export async function createLifeArea(input: unknown): Promise<ActionResult<LifeArea>> {
@@ -245,7 +245,7 @@ export type ActionResult<T> =
 
 | Nivel | Herramienta | Qué cubre |
 |---|---|---|
-| Unitarias | Vitest | Schemas Zod, `isSingleGrapheme`, `slugify`, helpers de `time.ts`, registro de módulos |
+| Unitarias | Vitest | Schemas Zod, `slugify`, helpers de `time.ts`, registro de módulos |
 | Integración | Vitest + Postgres en contenedor (servicio de GitHub Actions o Docker local) | Server Actions contra la BD real: CRUD de áreas, archivado, reordenar en transacción, seed idempotente, `requireOwner` rechaza sin sesión o con otro email |
 | E2E | Playwright contra `next start` local + Postgres en contenedor, en viewport móvil y de escritorio | Login con el owner de prueba; passkey con el **autenticador virtual de Chromium**; crear, editar, reordenar y archivar un área con Deshacer; sin sesión redirige a `/login`; `/manifest.webmanifest` válido |
 
@@ -329,6 +329,7 @@ export type ActionResult<T> =
 3. **Repositorio:** `Brahua/brahua-os`, privado, en la cuenta personal.
 4. **Áreas iniciales:** las 8 del seed.
 5. **Idioma:** todo el código en inglés, commits incluidos; la interfaz y la documentación en español.
+6. **Áreas (2026-09-29):** ícono de Lucide en lugar de emoji; los 8 colores de área del design system. `core` depende de `design-system`.
 
 ## Preguntas abiertas
 
