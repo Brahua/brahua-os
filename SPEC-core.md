@@ -1,6 +1,6 @@
 # Spec: core
 
-> Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **BORRADOR v2 — pendiente de aprobación**
+> Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO v2** (2026-09-29)
 > v2 (2026-09-29): el código pasa a estar en inglés y se incorpora la revisión técnica (auth, driver, migraciones, E2E, PWA, errores, backups y zona horaria).
 
 ## Objetivo
@@ -332,5 +332,5 @@ export type ActionResult<T> =
 
 ## Preguntas abiertas
 
-1. **Dirección visual:** A "Monolito" o B "Señal", o una mezcla. Define los tokens de color y la tipografía de `core`, y se actualizará `docs/principios-ux.md` §2.
+1. **Dirección visual:** se itera en Claude Design (v3). Define los tokens de color y la tipografía de `core`; no bloquea el plan.
 2. **Driver:** Neon serverless o `pg` con Fluid Compute. Se confirma con la documentación al empezar la implementación; no bloquea la aprobación.
