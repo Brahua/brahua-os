@@ -56,7 +56,7 @@
   - **Archivos:** `src/app/(dev)/design/page.tsx`, `src/lib/cn.ts`, `src/design-system/components/{icon,key}.tsx`, `src/design-system/index.ts`, `tests/design-system/key.test.tsx`, `e2e/design-system.spec.ts`
   - **Depende de:** T3 · **Tamaño:** M
 
-- [ ] **T5: `Led` + `AreaTag` + set de íconos de área**
+- [x] **T5: `Led` + `AreaTag` + set de íconos de área**
   - **Qué:** `area-icons.ts` (unos 40 íconos Lucide curados, con los 8 por defecto), `Led` (on/off con brillo) y `AreaTag` (ícono + LED + nombre opcional).
   - **Aceptación:**
     - Los 8 colores × on/off se ven en `/design` en ambos temas.

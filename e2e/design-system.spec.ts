@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["dark", "light"] as const;
+const SECTIONS = ["key", "icon-key", "icon", "led", "area-tag", "area-icons"];
 
 async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
   await page.goto("/design");
@@ -24,7 +25,7 @@ for (const theme of THEMES) {
       test.skip(process.platform !== "linux", "Visual references are generated on Linux only");
       await page.emulateMedia({ reducedMotion: "reduce" });
       await openGuide(page, theme);
-      for (const id of ["key", "icon-key", "icon"]) {
+      for (const id of SECTIONS) {
         await expect(page.locator(`[data-guide-section="${id}"]`)).toHaveScreenshot(
           `${id}-${theme}.png`,
         );
@@ -65,4 +66,17 @@ test("key does not move while pressed with reduced motion", async ({ page }) => 
   await page.mouse.down();
   await expect(key).toHaveCSS("translate", "none");
   await page.mouse.up();
+});
+
+test("every area LED renders its color", async ({ page }) => {
+  // Guards against Tailwind dropping theme variables that are only referenced from inline styles.
+  await page.goto("/design");
+  const colors = await page
+    .locator('[data-guide-section="led"] [data-led]')
+    .evaluateAll((leds) => leds.map((led) => getComputedStyle(led).backgroundColor));
+
+  expect(colors.length).toBeGreaterThanOrEqual(8);
+  for (const color of colors) {
+    expect(color).not.toBe("rgba(0, 0, 0, 0)");
+  }
 });
