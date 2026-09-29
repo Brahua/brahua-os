@@ -228,7 +228,7 @@ Los que vienen de shadcn/ui (Radix) se reestilizan con los tokens; no se usan co
 | `Key` | Botón tecla física | `default`, `signal`, `ghost` · `sm`, `md`, `lg` · reposo, presionado, activado (`aria-pressed`), deshabilitado · `asChild` para enlaces | Propio |
 | `IconKey` | Tecla cuadrada de solo ícono | Igual que `Key`; `aria-label` obligatorio | `Key` |
 | `Led` | Punto de color de área | `off` (brillo y color `led`), `on` (color `ink`, sin brillo) · tamaños 6 / 8 / 10 | Propio |
-| `Icon` | Envoltorio de Lucide con los tamaños y el trazo del sistema | `sm` 16, `md` 20, `lg` 24 · `strokeWidth` 1.75 · decorativo (`aria-hidden`) o con `label` | `lucide-react` |
+| `Icon` | Envoltorio de Lucide con los tamaños y el trazo del sistema | `sm` 16, `md` 18, `lg` 20, `xl` 24 (según el diseño de escritorio) · `strokeWidth` 1.75 · decorativo (`aria-hidden`) o con `label` | `lucide-react` |
 | `AreaTag` | Ícono del área con LED, y nombre opcional | `sm`, `md` · con o sin nombre | `Led` + `Icon` |
 | `SectionLabel` | Etiqueta mono en mayúsculas, con contador opcional ("HÁBITOS · 2/6") | — | Propio |
 | `StatNumber` | Cifra animada | Tamaños `data` y `title-sm` · formatos de moneda PEN/USD y porcentaje | `@number-flow/react` |
@@ -395,7 +395,7 @@ pnpm design:export                # generate design-sync/ previews for Claude De
 ## Íconos
 
 - **Librería:** [Lucide](https://lucide.dev) (`lucide-react`). Es el estándar de shadcn/ui, se importa por ícono (el paquete no carga lo que no se usa) y su trazo lineal encaja con la estética de panel.
-- **Estilo:** `strokeWidth` de 1.75 y tamaños 16, 20 y 24 px, siempre a través del componente `Icon`. Los íconos heredan `currentColor`.
+- **Estilo:** `strokeWidth` de 1.75 y tamaños 16, 18, 20 y 24 px, siempre a través del componente `Icon`. Los íconos heredan `currentColor`.
 - **Sin emojis** en ningún lugar de la interfaz.
 - **Set curado para áreas:** `AREA_ICONS` en `area-icons.ts` es un mapa explícito `name → componente` de unos 40 íconos. Así se pueden elegir desde la UI sin importar la librería entera. El valor por defecto de cada área:
 

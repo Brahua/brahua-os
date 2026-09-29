@@ -31,5 +31,7 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: false,
     timeout: 180_000,
+    // Enables the dev-only /design living style guide in the production build under test.
+    env: { DESIGN_GUIDE: "enabled" },
   },
 });
