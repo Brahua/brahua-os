@@ -1,5 +1,7 @@
-name: CI
+name: CI/CD
 
+# Trunk-based: short-lived feature branches open PRs against main (CI only).
+# Every push to main runs the same checks and, only if all of them pass, deploys to production.
 on:
   push:
     branches: [main]
@@ -7,7 +9,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded PR runs, but never cancel a run on main (it may be deploying).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -54,3 +57,31 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  deploy:
+    name: Deploy to production
+    needs: [checks, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # One production deploy at a time, in merge order.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Pull production settings and env
+        run: pnpm dlx vercel@61 pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Build (runs database migrations once they exist)
+        run: pnpm dlx vercel@61 build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy
+        run: pnpm dlx vercel@61 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
