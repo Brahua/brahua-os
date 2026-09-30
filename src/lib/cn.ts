@@ -2,7 +2,7 @@ import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 /**
- * tailwind-merge must know our custom token names; otherwise it can't tell
+ * tailwind-merge must know the design system's token names; otherwise it can't tell
  * `text-body` (font size) from `text-text` (color) and would drop one of them.
  */
 const twMerge = extendTailwindMerge({
@@ -10,30 +10,36 @@ const twMerge = extendTailwindMerge({
     theme: {
       text: [
         "display",
+        "title-lg",
         "title",
-        "title-sm",
-        "body-lg",
+        "heading",
+        "subheading",
         "body",
+        "body-strong",
         "body-sm",
+        "caption",
         "label",
-        "label-xs",
+        "label-lg",
+        "data-xl",
+        "data-lg",
         "data",
+        "kbd",
       ],
       shadow: [
         "key",
         "key-sm",
         "key-pressed",
         "key-on",
-        "key-signal",
-        "key-signal-pressed",
+        "key-flat",
+        "signal",
+        "signal-pressed",
         "kbd",
         "lcd",
         "popover",
+        "panel",
+        "sheet",
       ],
-      ease: ["press", "out", "sheet", "pop"],
-    },
-    classGroups: {
-      duration: [{ duration: ["press", "hover", "state", "sheet", "enter"] }],
+      ease: ["press", "standard", "out", "drawer", "pop"],
     },
   },
 });

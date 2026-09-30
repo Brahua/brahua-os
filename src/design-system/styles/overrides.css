@@ -1,0 +1,10 @@
+/*
+ * Local fixes on top of the Claude Design tokens. Every rule here must also be applied in
+ * the "brahua-os Design System" project in Claude Design, then removed from this file.
+ */
+
+/* Light theme focus ring: signal-500 on the light background is 2.998:1, below the 3:1 AA
+   minimum for focus indicators. signal-600 keeps the orange identity at ~4.9:1. */
+[data-theme="light"] {
+  --color-focus: var(--signal-600);
+}

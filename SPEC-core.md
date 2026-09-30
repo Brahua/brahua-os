@@ -134,7 +134,7 @@ export const lifeAreas = pgTable("core_life_areas", {
   slug: text("slug").notNull().unique(), // stable key for seeding/imports
   name: text("name").notNull(),
   icon: text("icon", { enum: AREA_ICON_NAMES }).notNull().default("circle"), // Lucide icon from the curated set
-  color: text("color", { enum: AREA_COLORS }).notNull().default("blue"),
+  color: text("color", { enum: AREA_COLORS }).notNull().default("learning"),
   sortOrder: integer("sort_order").notNull().default(0),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -160,7 +160,7 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
 - **Sin borrado físico** en `core`: solo se archiva. Un área archivada deja de ofrecerse para elementos nuevos, pero se sigue mostrando en los que ya la usan. Las FK futuras hacia `core_life_areas` usan `onDelete: "restrict"`.
 - **Ícono:** nombre de un ícono de **Lucide** dentro del set curado `AREA_ICON_NAMES` del design system. No se usan emojis en ningún lugar de la app.
 - **Reordenar:** reescribe `sort_order` de todas las áreas dentro de una transacción.
-- **Colores:** `AREA_COLORS` viene del design system (`amber`, `green`, `teal`, `blue`, `violet`, `pink`, `orange`, `lime`); cada uno tiene su tono `led` e `ink` para ambos temas.
+- **Colores:** `AREA_COLORS` viene del design system: 8 paletas con nombre de área (`home`, `health`, `finance`, `learning`, `work`, `relationships`, `travel`, `hobbies`). Cada una tiene su tono base y su tono inverso para ambos temas. Las áreas que crees eligen una de estas 8 paletas y pueden compartirla; se distinguen por el ícono.
 - **Tablas de Better Auth**, renombradas con `modelName` para evitar `user`, que es palabra reservada en Postgres: `auth_users`, `auth_sessions`, `auth_accounts`, `auth_verifications`, `auth_passkeys` y `auth_rate_limits`.
 
 ## Autenticación y seguridad
@@ -330,6 +330,7 @@ export type ActionResult<T> =
 4. **Áreas iniciales:** las 8 del seed.
 5. **Idioma:** todo el código en inglés, commits incluidos; la interfaz y la documentación en español.
 6. **Áreas (2026-09-29):** ícono de Lucide en lugar de emoji; los 8 colores de área del design system. `core` depende de `design-system`.
+7. **Colores de áreas propias (2026-09-29):** una área nueva elige una de las 8 paletas existentes; no se agregan colores.
 
 ## Preguntas abiertas
 

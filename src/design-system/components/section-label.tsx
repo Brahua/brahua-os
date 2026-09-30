@@ -1,40 +1,31 @@
 import { cn } from "@/lib/cn";
 
-type SectionLabelProps = React.HTMLAttributes<HTMLElement> & {
-  as?: "h2" | "h3" | "h4" | "p" | "span";
-  /** Optional counter shown after a middle dot, e.g. "2/6" → "HÁBITOS · 2/6". */
-  count?: string;
-  size?: "xs" | "sm";
+type SectionLabelProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
+  title: React.ReactNode;
+  /** Counter on the right, e.g. "2/6". */
+  count?: React.ReactNode;
+  /** Title in the signal color (e.g. "HOY"). */
+  signal?: boolean;
+  /** Use a heading level when the label names a page section. */
+  as?: "div" | "h2" | "h3" | "h4";
 };
 
-/** Mono, uppercase section label. Renders an h2 by default so sections stay navigable. */
+/** Mono uppercase section label with a counter on the right (design system `SectionLabel`). */
 export function SectionLabel({
-  as: Comp = "h2",
+  title,
   count,
-  size = "sm",
+  signal = false,
+  as: Comp = "div",
   className,
-  children,
   ...props
 }: SectionLabelProps) {
   return (
     <Comp
-      className={cn(
-        "m-0 font-mono text-text-muted uppercase",
-        size === "xs" ? "text-label-xs" : "text-label",
-        className,
-      )}
+      className={cn("bo-section-label", signal && "bo-section-label--signal", className)}
       {...props}
     >
-      {children}
-      {count ? (
-        <>
-          <span aria-hidden> · </span>
-          <span className="text-text">
-            <span className="sr-only">, </span>
-            {count}
-          </span>
-        </>
-      ) : null}
+      <span className="bo-section-label__title">{title}</span>
+      {count != null ? <span className="bo-section-label__count">{count}</span> : null}
     </Comp>
   );
 }

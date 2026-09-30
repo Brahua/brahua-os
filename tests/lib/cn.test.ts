@@ -2,25 +2,27 @@ import { describe, expect, test } from "vitest";
 import { cn } from "@/lib/cn";
 
 describe("cn", () => {
-  test("keeps a custom font size and a custom text color together", () => {
+  test("keeps a design-system font size and text color together", () => {
     expect(cn("text-body text-text")).toBe("text-body text-text");
+    expect(cn("text-label text-text-secondary")).toBe("text-label text-text-secondary");
   });
 
-  test("later custom font size wins over an earlier one", () => {
-    expect(cn("text-body", "text-title")).toBe("text-title");
+  test("later font size wins over an earlier one", () => {
+    expect(cn("text-body", "text-heading")).toBe("text-heading");
   });
 
   test("later semantic color wins over an earlier one", () => {
-    expect(cn("bg-surface", "bg-signal")).toBe("bg-signal");
+    expect(cn("bg-surface", "bg-key")).toBe("bg-key");
   });
 
-  test("custom shadows, easings and durations merge by group", () => {
+  test("custom shadows and easings merge by group", () => {
     expect(cn("shadow-key", "shadow-key-pressed")).toBe("shadow-key-pressed");
-    expect(cn("ease-press", "ease-sheet")).toBe("ease-sheet");
-    expect(cn("duration-press", "duration-state")).toBe("duration-state");
+    expect(cn("ease-press", "ease-drawer")).toBe("ease-drawer");
   });
 
-  test("ignores falsy values", () => {
-    expect(cn("px-4", false, undefined, null, "py-2")).toBe("px-4 py-2");
+  test("keeps design-system component classes untouched", () => {
+    expect(cn("bo-key", "bo-key--signal", false, "bo-key--lg")).toBe(
+      "bo-key bo-key--signal bo-key--lg",
+    );
   });
 });

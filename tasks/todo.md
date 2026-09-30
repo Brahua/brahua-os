@@ -79,7 +79,20 @@
 ### Checkpoint 2 — Fidelidad
 - [ ] Comparación lado a lado contigo: `Key`, `Led`, `AreaTag` y tipografía en `/design` frente a `brahua-os Pantallas.dc.html`. Los ajustes se hacen antes de seguir.
 
-## Fase 3 — Resto de componentes
+## Migración al design system de Claude Design (2026-09-29)
+
+El sistema visual pasó a diseñarse en Claude Design. T3–T6 se rehicieron sobre sus tokens y componentes:
+
+- [x] **M1: Tokens** — `styles/tokens/*.css` y `components.css` copiados de Claude Design, `tailwind-theme.css` generado y test de contraste sobre los tokens nuevos. Además, un ajuste local de foco en claro (`overrides.css`).
+- [x] **M2: Teclas** — `Key`, `IconKey`, `Icon`, `Kbd` y `Tooltip` con la API de Claude Design.
+- [x] **M3: Áreas y datos** — `Led`, `AreaTag` (8 paletas + áreas propias) y `SectionLabel`, `StatNumber` (con NumberFlow accesible).
+- [ ] **M4: Progreso y LCD** — `ProgressRing`, `SegmentBar`, `DotMatrix`, `DayCell`, `Lcd`, `Toast`.
+- [ ] **M5: Controles y paneles** — `Switch`, `SegmentedControl`, `TextField`/`TextArea`, `Sheet`, `ListRow`.
+- [ ] **M6: Guía** — `/design` con todas las secciones, reflejando las tarjetas de Claude Design.
+
+Las tareas T7–T12 y T15 quedan reemplazadas por M4–M6. T13 (regla de lint) y T14 (sincronización) siguen vigentes.
+
+## Fase 3 — Resto de componentes (reemplazada por M4–M6)
 
 Estas tareas se pueden hacer en paralelo; todas dependen de T4.
 

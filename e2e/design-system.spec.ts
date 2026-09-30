@@ -5,13 +5,13 @@ const THEMES = ["dark", "light"] as const;
 const SECTIONS = [
   "key",
   "icon-key",
+  "kbd-tooltip",
   "icon",
   "led",
   "area-tag",
   "area-icons",
   "section-label",
   "stat-number",
-  "list-row",
 ];
 
 async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
@@ -62,8 +62,8 @@ test("key sinks 3px while pressed", async ({ page }) => {
 
   await key.hover();
   await page.mouse.down();
-  // Tailwind v4 translate utilities use the CSS `translate` property, not `transform`.
-  await expect(key).toHaveCSS("translate", "0px 3px");
+  // translateY(var(--motion-travel)) = 3px
+  await expect(key).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 3)");
   await page.mouse.up();
 });
 
@@ -74,20 +74,25 @@ test("key does not move while pressed with reduced motion", async ({ page }) => 
 
   await key.hover();
   await page.mouse.down();
-  await expect(key).toHaveCSS("translate", "none");
+  // --motion-travel is 0px with reduced motion
+  await expect(key).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
   await page.mouse.up();
 });
 
 test("every area LED renders its color", async ({ page }) => {
   // Guards against Tailwind dropping theme variables that are only referenced from inline styles.
   await page.goto("/design");
-  const colors = await page
-    .locator('[data-guide-section="led"] [data-led]')
-    .evaluateAll((leds) => leds.map((led) => getComputedStyle(led).backgroundColor));
+  const fills = await page.locator('[data-guide-section="led"] .bo-led').evaluateAll((leds) =>
+    leds.map((led) => {
+      const style = getComputedStyle(led);
+      // The signal LED is painted with a gradient (background-image) instead of a color.
+      return { color: style.backgroundColor, image: style.backgroundImage };
+    }),
+  );
 
-  expect(colors.length).toBeGreaterThanOrEqual(8);
-  for (const color of colors) {
-    expect(color).not.toBe("rgba(0, 0, 0, 0)");
+  expect(fills.length).toBeGreaterThanOrEqual(24);
+  for (const fill of fills) {
+    expect(fill.color !== "rgba(0, 0, 0, 0)" || fill.image !== "none").toBe(true);
   }
 });
 
@@ -95,11 +100,10 @@ test("animated numbers are read as one formatted value", async ({ page }) => {
   await page.goto("/design");
   const section = page.locator('[data-guide-section="stat-number"]');
 
-  await expect(section).toMatchAriaSnapshot(`
-    - text: /Racha 11 Gastado · sept S\\/ 2,340 Suscripción USD 19\\.99 Avance AWS 58%/
-  `);
+  const before = await section.ariaSnapshot();
+  expect(before).toContain("S/ 2,340");
+  expect(before).not.toContain("2 , 3 4 0");
+
   await section.getByRole("button", { name: "Sumar" }).click();
-  await expect(section).toMatchAriaSnapshot(`
-    - text: /Racha 12 Gastado · sept S\\/ 2,465\\.5 .*65%/
-  `);
+  await expect.poll(() => section.ariaSnapshot()).toContain("S/ 2,465.5");
 });

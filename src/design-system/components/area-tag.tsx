@@ -1,58 +1,45 @@
-import { areaColorVar, type AreaColor } from "@/design-system/area-colors";
-import { AREA_ICONS, type AreaIconName } from "@/design-system/area-icons";
 import { cn } from "@/lib/cn";
+import { AREA_ICONS, type AreaIconName } from "../area-icons";
+import { DEFAULT_AREAS, type AreaColor } from "../areas";
 import { Icon } from "./icon";
 import { Led } from "./led";
 
-type AreaTagProps = Omit<React.ComponentProps<"span">, "color"> & {
-  name: string;
-  color: AreaColor;
-  icon: AreaIconName;
-  size?: "sm" | "md";
-  /** Show the area name next to the icon. When hidden it stays available to screen readers. */
-  showName?: boolean;
-  /** The tag sits on an activated (inverted) key. */
-  on?: boolean;
+type AreaTagProps = Omit<React.ComponentProps<"span">, "children" | "color"> & {
+  /** Area palette (color). */
+  area: AreaColor;
+  /** Area icon; defaults to the palette's default area icon. */
+  icon?: AreaIconName;
+  /** Area name; defaults to the palette's default area name. */
+  label?: string;
+  /** inline (metadata), chip (filter) or large (heading). */
+  variant?: "inline" | "chip" | "large";
+  led?: boolean;
 };
 
-/**
- * Identifies a life area by shape (icon) and color (LED), never by color alone.
- * The icon uses the bright `led` tone on dark surfaces and the `ink` tone on light ones.
- */
+/** Area icon + LED + name (design system `AreaTag`). Areas are told apart by icon, never by color alone. */
 export function AreaTag({
-  name,
-  color,
+  area,
   icon,
-  size = "md",
-  showName = true,
-  on = false,
+  label,
+  variant = "inline",
+  led = true,
   className,
-  style,
   ...props
 }: AreaTagProps) {
+  const defaults = DEFAULT_AREAS[area];
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 font-mono uppercase",
-        size === "sm" ? "text-label-xs" : "text-label",
+        "bo-area-tag",
+        `bo-area--${area}`,
+        variant !== "inline" && `bo-area-tag--${variant === "large" ? "lg" : "chip"}`,
         className,
       )}
-      style={
-        {
-          "--led": areaColorVar(color, "led"),
-          "--ink": areaColorVar(color, "ink"),
-          ...style,
-        } as React.CSSProperties
-      }
       {...props}
     >
-      <Led color={color} size={size === "sm" ? "sm" : "md"} on={on} />
-      <Icon
-        icon={AREA_ICONS[icon]}
-        size={size === "sm" ? "sm" : "md"}
-        className={cn(on ? "text-(--ink) light:text-(--led)" : "text-(--led) light:text-(--ink)")}
-      />
-      <span className={showName ? undefined : "sr-only"}>{name}</span>
+      {led ? <Led area={area} size="sm" /> : null}
+      <Icon icon={AREA_ICONS[icon ?? defaults.icon]} size={variant === "large" ? "md" : "xs"} />
+      <span>{label ?? defaults.label}</span>
     </span>
   );
 }

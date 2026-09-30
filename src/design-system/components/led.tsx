@@ -1,45 +1,38 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import { areaColorVar, type AreaColor } from "@/design-system/area-colors";
 import { cn } from "@/lib/cn";
+import type { AreaColor } from "../areas";
+
+type LedProps = Omit<React.ComponentProps<"span">, "children"> & {
+  /** Area palette. Omit it for a neutral LED. */
+  area?: AreaColor;
+  /** Lit: adds the halo. */
+  on?: boolean;
+  /** Orange signal LED instead of an area color. */
+  signal?: boolean;
+  size?: "sm" | "md" | "lg";
+};
 
 /**
- * Life-area LED. `on` means it sits on an activated (inverted) key:
- * - Dark theme: off glows in the bright `led` tone; on uses the flat `ink` tone on the chalk key.
- * - Light theme: glow is invisible on white, so off is a flat `ink` dot; on glows `led` on the black key.
+ * Area LED (design system `Led`). On an activated key it switches to the inverse tone
+ * automatically via CSS. Decorative: pair it with visible text.
  */
-const ledVariants = cva("inline-block shrink-0 rounded-full", {
-  variants: {
-    size: { sm: "size-1.5", md: "size-2", lg: "size-2.5" },
-    on: {
-      false: ["bg-(--led) shadow-[0_0_8px_var(--led)]", "light:bg-(--ink) light:shadow-none"],
-      true: [
-        "bg-(--ink)",
-        "light:bg-(--led) light:shadow-[0_0_0_3px_color-mix(in_srgb,var(--led)_28%,transparent),0_0_12px_color-mix(in_srgb,var(--led)_80%,transparent)]",
-      ],
-    },
-  },
-  defaultVariants: { size: "md", on: false },
-});
-
-type LedProps = Omit<React.ComponentProps<"span">, "color"> &
-  VariantProps<typeof ledVariants> & {
-    color: AreaColor;
-  };
-
-/** Decorative: pair it with visible text or an accessible name elsewhere. */
-export function Led({ color, size, on, className, style, ...props }: LedProps) {
+export function Led({
+  area,
+  on = false,
+  signal = false,
+  size = "md",
+  className,
+  ...props
+}: LedProps) {
   return (
     <span
       aria-hidden
-      data-led={color}
-      className={cn(ledVariants({ size, on }), className)}
-      style={
-        {
-          "--led": areaColorVar(color, "led"),
-          "--ink": areaColorVar(color, "ink"),
-          ...style,
-        } as React.CSSProperties
-      }
+      className={cn(
+        "bo-led",
+        size !== "md" && `bo-led--${size}`,
+        signal ? "bo-led--signal" : area && `bo-area--${area}`,
+        on && "is-on",
+        className,
+      )}
       {...props}
     />
   );

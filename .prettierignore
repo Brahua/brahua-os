@@ -3,3 +3,6 @@ pnpm-lock.yaml
 docs/
 tasks/
 *.md
+src/design-system/styles/tokens/
+src/design-system/styles/components.css
+src/design-system/styles/tailwind-theme.css

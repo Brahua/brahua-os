@@ -1,0 +1,31 @@
+/* brahua-os · generado desde tokens.json · no editar a mano */
+:root {
+  --duration-press: 90ms;
+  --duration-hover: 120ms;
+  --duration-state: 200ms;
+  --duration-sidebar: 240ms;
+  --duration-panel: 320ms;
+  --duration-sheet: 380ms;
+  --duration-celebrate: 1000ms;
+  --ease-press: cubic-bezier(0.3, 0, 0, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --stagger: 24ms;
+  --motion-travel: 3px;
+}
+
+/* prefers-reduced-motion: sin desplazamientos ni rebotes; los cambios de color se mantienen */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-press: 0ms;
+    --duration-sidebar: 0ms;
+    --duration-panel: 0ms;
+    --duration-sheet: 0ms;
+    --duration-celebrate: 0ms;
+    --stagger: 0ms;
+    --motion-travel: 0px;
+    --ease-pop: var(--ease-standard);
+  }
+}

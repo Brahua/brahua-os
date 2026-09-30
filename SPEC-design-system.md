@@ -1,10 +1,18 @@
 # Spec: design-system
 
-> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · v1.2 con los diseños de escritorio y tema claro incorporados, **pendiente de revisión**
+> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · v2: fuente de verdad en Claude Design
 > Fuente visual: Claude Design, proyecto "Tres direcciones de diseño de hábitos" (dirección **3A · Panel mono**):
 > - `brahua-os Pantallas.dc.html`: celular, oscuro.
 > - `brahua-os Tema claro.dc.html`: celular, claro junto a oscuro.
 > - `brahua-os Escritorio.dc.html`, que monta `Escritorio App.dc.html` y `Escritorio App Claro.dc.html`: escritorio en ambos temas, más la hoja de componentes de escritorio.
+
+> **v2 (2026-09-29) — fuente de verdad: Claude Design.** El sistema visual se diseñó en Claude Design (proyecto "Tres direcciones de diseño de hábitos", `README.md` + `tokens/` + `components/`). El código lo replica:
+> - `src/design-system/styles/tokens/*.css` y `components.css` se copian **sin cambios** desde Claude Design.
+> - `tailwind-theme.css` se genera con `pnpm design:theme`.
+> - Las correcciones locales van en `overrides.css` y deben replicarse en Claude Design.
+> - Los componentes (`src/design-system/components/`) son la versión TypeScript de los `.jsx` de Claude Design, con la misma API y las mismas clases `bo-*`, más accesibilidad y pruebas.
+>
+> Cuando esta spec y el README de Claude Design difieran en valores (colores, radios, tipografía, movimiento), **manda el README de Claude Design**. Las secciones de tokens de abajo quedan como historial de la v1.
 
 ## Objetivo
 
