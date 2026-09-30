@@ -35,7 +35,12 @@ test("login with the password lands in the app, survives a reload and signs out"
 
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
+  // Each app load asks the auth handler for the session, which is what renews the cookie.
+  const renewal = page.waitForResponse(
+    (response) => response.url().endsWith("/api/auth/get-session") && response.status() === 200,
+  );
   await page.reload();
+  await renewal;
   await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
 
   // Already signed in: /login sends you back to the app.
@@ -48,41 +53,65 @@ test("login with the password lands in the app, survives a reload and signs out"
   await expect(page).toHaveURL("/login");
 });
 
-test("a wrong password is announced and focus returns to the password", async ({ page }) => {
+async function openLogin(page: Page, theme: "dark" | "light") {
   await page.goto("/login");
-  await signIn(page, "not the right password");
+  await page.evaluate((value) => localStorage.setItem("theme", value), theme);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+}
 
-  // Scoped to main: Next.js adds its own route announcer with role="alert".
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "El email o la contraseña no coinciden",
-  );
-  const password = page.getByLabel("Contraseña");
-  await expect(password).toBeFocused();
-  await expect(password).toHaveValue("");
-  await expect(page).toHaveURL("/login");
-
+async function expectNoAxeViolations(page: Page) {
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
-});
-
-test("empty fields show field errors without calling the server", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Entrar" }).click();
-
-  const email = page.getByLabel("Email");
-  await expect(email).toBeFocused();
-  await expect(email).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByText("Escribe tu contraseña.")).toBeVisible();
-});
+}
 
 for (const theme of ["dark", "light"] as const) {
-  test(`/login has no accessibility violations in the ${theme} theme`, async ({ page }) => {
-    await page.goto("/login");
-    await page.evaluate((value) => localStorage.setItem("theme", value), theme);
-    await page.reload();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  test.describe(`${theme} theme`, () => {
+    test("/login has no accessibility violations", async ({ page }) => {
+      await openLogin(page, theme);
+      await expectNoAxeViolations(page);
+    });
 
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations).toEqual([]);
+    test("a wrong password is announced, focus returns to the password, axe stays at 0", async ({
+      page,
+    }) => {
+      await openLogin(page, theme);
+      await signIn(page, "not the right password");
+
+      // Scoped to main: Next.js adds its own route announcer with role="alert".
+      await expect(page.getByRole("main").getByRole("alert")).toContainText(
+        "El email o la contraseña no coinciden",
+      );
+      const password = page.getByLabel("Contraseña");
+      await expect(password).toBeFocused();
+      await expect(password).toHaveValue("");
+      await expect(password).toHaveAccessibleDescription(/no coinciden/);
+      await expect(page).toHaveURL("/login");
+      await expectNoAxeViolations(page);
+    });
+
+    test("empty fields show field errors without calling the server, axe stays at 0", async ({
+      page,
+    }) => {
+      await openLogin(page, theme);
+      await page.getByRole("button", { name: "Entrar" }).click();
+
+      const email = page.getByLabel("Email");
+      await expect(email).toBeFocused();
+      await expect(email).toHaveAttribute("aria-invalid", "true");
+      await expect(page.getByText("Escribe tu contraseña.")).toBeVisible();
+      await expectNoAxeViolations(page);
+    });
   });
 }
+
+test("every response carries the security headers", async ({ request }) => {
+  for (const path of ["/login", "/", "/api/auth/ok"]) {
+    const response = await request.get(path, { maxRedirects: 0 });
+    const headers = response.headers();
+    expect(headers["content-security-policy"], path).toBe("frame-ancestors 'none'");
+    expect(headers["x-frame-options"], path).toBe("DENY");
+    expect(headers["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
+    expect(headers["x-content-type-options"], path).toBe("nosniff");
+  }
+});

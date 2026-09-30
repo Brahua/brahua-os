@@ -2,7 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { LoginForm } from "@/app/(auth)/login/login-form";
-import { signInErrorMessage, validateLogin } from "@/app/(auth)/login/validation";
+import {
+  CREDENTIALS_MESSAGE,
+  GENERIC_MESSAGE,
+  RATE_LIMIT_MESSAGE,
+  signInErrorMessage,
+  validateLogin,
+} from "@/app/(auth)/login/validation";
 import { authClient } from "@/lib/auth-client";
 
 const router = { replace: vi.fn(), refresh: vi.fn() };
@@ -28,11 +34,26 @@ describe("validateLogin", () => {
 });
 
 describe("signInErrorMessage", () => {
-  test("uses one message for a wrong email or password, and explains the rate limit", () => {
-    expect(signInErrorMessage(401)).toBe(signInErrorMessage(403));
-    expect(signInErrorMessage(401)).toMatch(/no coinciden/);
-    expect(signInErrorMessage(429)).toMatch(/Espera un minuto/);
-    expect(signInErrorMessage(undefined)).toMatch(/conexión/);
+  test("only a credentials rejection says the email or password do not match", () => {
+    expect(signInErrorMessage({ status: 401 })).toBe(CREDENTIALS_MESSAGE);
+    expect(signInErrorMessage({ status: 400, code: "INVALID_EMAIL" })).toBe(CREDENTIALS_MESSAGE);
+  });
+
+  test("429 explains the rate limit", () => {
+    expect(signInErrorMessage({ status: 429 })).toBe(RATE_LIMIT_MESSAGE);
+  });
+
+  test("403, other 400s, 5xx and unknown errors get the generic message", () => {
+    for (const error of [
+      { status: 403 },
+      { status: 400, code: "PASSWORD_TOO_LONG" },
+      { status: 500 },
+      {},
+      null,
+      undefined,
+    ]) {
+      expect(signInErrorMessage(error)).toBe(GENERIC_MESSAGE);
+    }
   });
 });
 
@@ -62,10 +83,14 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText("Contraseña"), "wrong password!");
     await user.click(screen.getByRole("button", { name: "Entrar" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/no coinciden/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(CREDENTIALS_MESSAGE);
+    // The decorative LCD tag is not part of the announcement.
+    expect(screen.getByText("Acceso")).toHaveAttribute("aria-hidden", "true");
     const password = screen.getByLabelText("Contraseña");
     expect(password).toHaveValue("");
     expect(password).toHaveFocus();
+    // The message stays attached to the focused field.
+    expect(password).toHaveAccessibleDescription(CREDENTIALS_MESSAGE);
     expect(signIn).toHaveBeenCalledWith({
       email: "owner@example.com",
       password: "wrong password!",
@@ -74,15 +99,45 @@ describe("LoginForm", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  test("explains the rate limit on a 429", async () => {
+    signIn.mockResolvedValue({ data: null, error: { status: 429 } } as never);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await fillAndSubmit(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(RATE_LIMIT_MESSAGE);
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();
+  });
+
+  test("a network failure shows the generic message and never leaves the form stuck", async () => {
+    signIn.mockRejectedValue(new TypeError("Failed to fetch"));
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await fillAndSubmit(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(GENERIC_MESSAGE);
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();
+    const password = screen.getByLabelText("Contraseña");
+    expect(password).toHaveFocus();
+    expect(password).toHaveAccessibleDescription(GENERIC_MESSAGE);
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   test("goes to the app after a successful sign-in", async () => {
     signIn.mockResolvedValue({ data: {}, error: null } as never);
     const user = userEvent.setup();
     render(<LoginForm />);
 
-    await user.type(screen.getByLabelText("Email"), "owner@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "a correct password");
-    await user.click(screen.getByRole("button", { name: "Entrar" }));
+    await fillAndSubmit(user);
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
   });
 });
+
+async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Email"), "owner@example.com");
+  await user.type(screen.getByLabelText("Contraseña"), "a correct password");
+  await user.click(screen.getByRole("button", { name: "Entrar" }));
+}

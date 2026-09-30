@@ -60,6 +60,30 @@ export function poolConfig(connectionString: string): PoolConfig {
 }
 
 /**
+ * Database URL for `pnpm auth:owner`: only `DATABASE_URL_UNPOOLED`, and a non-local host needs
+ * `ALLOW_PROD_DB=1`. Unlike db:migrate/db:seed, a Vercel build (`VERCEL=1`) is not permission:
+ * the owner is only ever created by a person at a terminal.
+ */
+export function resolveOwnerScriptDatabaseUrl(env: Env): string {
+  const url = env.DATABASE_URL_UNPOOLED;
+  if (!url) {
+    throw new Error("DATABASE_URL_UNPOOLED is not set. Set it explicitly to target a database.");
+  }
+  if (!isLocalDatabaseUrl(url) && env.ALLOW_PROD_DB !== "1") {
+    throw new Error(
+      `Refusing to touch the non-local database ${describeDatabaseTarget(url)}. ` +
+        "Set ALLOW_PROD_DB=1 if you really mean it.",
+    );
+  }
+  return url;
+}
+
+/** Host of a database URL (no port, credentials or path), for typed confirmations. */
+export function databaseHost(url: string): string {
+  return parse(url).host;
+}
+
+/**
  * Database URL for `db:migrate` and `db:seed`: only `DATABASE_URL_UNPOOLED` (direct connection).
  * A non-local host is refused unless running in a Vercel build (`VERCEL=1`) or `ALLOW_PROD_DB=1`.
  */

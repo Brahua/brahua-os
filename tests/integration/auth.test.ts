@@ -9,7 +9,12 @@ import {
   verifyOwnerSession,
   type Auth,
 } from "@/lib/auth";
-import { authAccounts, authSessions, authUsers } from "@/modules/core/db/auth-schema";
+import {
+  authAccounts,
+  authRateLimits,
+  authSessions,
+  authUsers,
+} from "@/modules/core/db/auth-schema";
 import { upsertOwner } from "@/modules/core/owner";
 import { testDb } from "./test-db";
 
@@ -256,5 +261,164 @@ describe("pnpm auth:owner (upsertOwner)", () => {
     await testDb.delete(authUsers).where(eq(authUsers.email, OWNER));
     expect(await testDb.$count(authAccounts)).toBe(0);
     expect(await testDb.$count(authSessions)).toBe(0);
+  });
+});
+
+describe("owner email enumeration", () => {
+  // Every rejection below must look exactly like a wrong password for the owner.
+  async function expectGenericRejection(response: Response) {
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ code: "INVALID_EMAIL_OR_PASSWORD" });
+  }
+
+  test("the owner email with a password over 128 characters gets the generic 401", async () => {
+    const tooLong = "x".repeat(129);
+    await expectGenericRejection(await signIn(auth, OWNER, tooLong));
+    await expectGenericRejection(await signIn(auth, OTHER, tooLong));
+  });
+
+  test("the owner email padded with spaces gets the generic 401", async () => {
+    await expectGenericRejection(await signIn(auth, ` ${OWNER} `, PASSWORD));
+    await expectGenericRejection(await signIn(auth, ` ${OTHER} `, PASSWORD));
+  });
+
+  test("a non-string password gets the generic 401", async () => {
+    await expectGenericRejection(
+      await post(auth, "/sign-in/email", { email: OWNER, password: 12345678901234 }, nextIp()),
+    );
+  });
+
+  test("nothing slips through: no session is created", async () => {
+    await signIn(auth, OWNER, "x".repeat(129));
+    await signIn(auth, ` ${OWNER}`, PASSWORD);
+    expect(await testDb.$count(authSessions)).toBe(0);
+  });
+});
+
+describe("session backstop", () => {
+  test("no session can be created for a user other than the owner, by any path", async () => {
+    await upsertOwner(testDb, { email: OTHER, password: PASSWORD });
+    const [other] = await testDb.select().from(authUsers).where(eq(authUsers.email, OTHER));
+    const context = await auth.$context;
+
+    const session = await context.internalAdapter.createSession(other.id);
+
+    expect(session).toBeFalsy();
+    expect(await testDb.$count(authSessions)).toBe(0);
+  });
+
+  test("the owner still gets a session through the same path", async () => {
+    const [owner] = await testDb.select().from(authUsers).where(eq(authUsers.email, OWNER));
+    const context = await auth.$context;
+    expect(await context.internalAdapter.createSession(owner.id)).toBeTruthy();
+    expect(await testDb.$count(authSessions)).toBe(1);
+  });
+});
+
+describe("session renewal", () => {
+  function getSession(cookie: string) {
+    return auth.handler(
+      new Request(`${BASE_URL}/api/auth/get-session`, {
+        headers: { cookie, "x-forwarded-for": nextIp() },
+      }),
+    );
+  }
+
+  /** Pretends the session was created `days` ago (Better Auth derives its age from expiresAt). */
+  async function ageSession(days: number) {
+    const expiresAt = new Date(Date.now() + (SESSION_EXPIRES_IN - days * 86_400) * 1000);
+    await testDb.update(authSessions).set({ expiresAt });
+    return expiresAt;
+  }
+
+  test("the HTTP handler renews a session older than a day: new cookie, new expiry", async () => {
+    const cookie = sessionCookie(await signIn(auth, OWNER, PASSWORD));
+    const aged = await ageSession(2);
+
+    const response = await getSession(cookie);
+    expect(response.status).toBe(200);
+
+    const renewed = response.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("better-auth.session_token="));
+    expect(Number(/Max-Age=(\d+)/i.exec(renewed ?? "")?.[1])).toBe(SESSION_EXPIRES_IN);
+
+    const [session] = await testDb.select().from(authSessions);
+    expect(session.expiresAt.getTime()).toBeGreaterThan(aged.getTime() + 86_000_000);
+  });
+
+  test("a fresh session is not rewritten on every call", async () => {
+    const cookie = sessionCookie(await signIn(auth, OWNER, PASSWORD));
+    const response = await getSession(cookie);
+    expect(response.status).toBe(200);
+    const setCookies = response.headers.getSetCookie();
+    expect(setCookies.some((value) => value.startsWith("better-auth.session_token="))).toBe(false);
+  });
+
+  test("the server-side check never refreshes (it could not set the cookie)", async () => {
+    const cookie = sessionCookie(await signIn(auth, OWNER, PASSWORD));
+    const aged = await ageSession(2);
+
+    expect(await verifyOwnerSession(auth, new Headers({ cookie }), OWNER)).not.toBeNull();
+
+    const [session] = await testDb.select().from(authSessions);
+    expect(session.expiresAt.getTime()).toBe(aged.getTime());
+  });
+
+  test("get-session is not rate limited, so it writes no counters", async () => {
+    const cookie = sessionCookie(await signIn(auth, OWNER, PASSWORD));
+    await testDb.delete(authRateLimits);
+    for (let i = 0; i < 3; i++) expect((await getSession(cookie)).status).toBe(200);
+    expect(await testDb.$count(authRateLimits)).toBe(0);
+  });
+});
+
+describe("server-side expiry", () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  beforeEach(() => {
+    Object.assign(process.env, ENV);
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    request.headers = new Headers();
+  });
+
+  test("an expired session is rejected even with an intact cookie", async () => {
+    const cookie = sessionCookie(await signIn(auth, OWNER, PASSWORD));
+    await testDb.update(authSessions).set({ expiresAt: new Date(Date.now() - 1000) });
+
+    expect(await verifyOwnerSession(auth, new Headers({ cookie }), OWNER)).toBeNull();
+    request.headers = new Headers({ cookie });
+    await expect(requireOwner()).rejects.toMatchObject({
+      digest: expect.stringMatching(/^NEXT_REDIRECT;.*;\/login;/),
+    });
+  });
+});
+
+describe("rate limit across emails and time", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("failed attempts with other emails also block the owner from that IP", async () => {
+    const ip = nextIp();
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      expect((await signIn(auth, OTHER, PASSWORD, ip)).status).toBe(401);
+    }
+    expect((await signIn(auth, OWNER, PASSWORD, ip)).status).toBe(429);
+  });
+
+  test("the block lifts once the 60 s window has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const ip = nextIp();
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      expect((await signIn(auth, OWNER, `wrong password ${attempt}`, ip)).status).toBe(401);
+    }
+    expect((await signIn(auth, OWNER, PASSWORD, ip)).status).toBe(429);
+
+    vi.setSystemTime(Date.now() + 61_000);
+    expect((await signIn(auth, OWNER, PASSWORD, ip)).status).toBe(200);
   });
 });

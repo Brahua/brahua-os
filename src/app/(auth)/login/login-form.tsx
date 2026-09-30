@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Key, Lcd, TextField } from "@/design-system";
 import { authClient } from "@/lib/auth-client";
-import { signInErrorMessage, validateLogin, type LoginFieldErrors } from "./validation";
+import {
+  GENERIC_MESSAGE,
+  signInErrorMessage,
+  validateLogin,
+  type LoginFieldErrors,
+} from "./validation";
+
+const FORM_ERROR_ID = "login-form-error";
 
 export function LoginForm() {
   const router = useRouter();
@@ -14,6 +21,13 @@ export function LoginForm() {
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  function showFormError(message: string) {
+    setFormError(message);
+    // Keep the email, clear the password and put the cursor back where it is needed.
+    if (passwordRef.current) passwordRef.current.value = "";
+    passwordRef.current?.focus();
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,17 +43,21 @@ export function LoginForm() {
     if (errors.password) return passwordRef.current?.focus();
 
     setPending(true);
-    const { error } = await authClient.signIn.email({ email, password, rememberMe: true });
-    if (error) {
-      setPending(false);
-      setFormError(signInErrorMessage(error.status));
-      // Keep the email, clear the password and put the cursor back where it is needed.
-      if (passwordRef.current) passwordRef.current.value = "";
-      passwordRef.current?.focus();
-      return;
+    let signedIn = false;
+    try {
+      const { error } = await authClient.signIn.email({ email, password, rememberMe: true });
+      if (error) showFormError(signInErrorMessage(error));
+      else signedIn = true;
+    } catch {
+      // Network failure or an unexpected response: never leave the form stuck.
+      showFormError(GENERIC_MESSAGE);
+    } finally {
+      if (!signedIn) setPending(false);
     }
-    router.replace("/");
-    router.refresh();
+    if (signedIn) {
+      router.replace("/");
+      router.refresh();
+    }
   }
 
   return (
@@ -47,7 +65,7 @@ export function LoginForm() {
       {/* Always rendered, so screen readers announce the message as soon as it appears. */}
       <div role="alert" aria-atomic="true">
         {formError ? (
-          <Lcd tag="Acceso" live={false}>
+          <Lcd id={FORM_ERROR_ID} tag={<span aria-hidden>Acceso</span>} live={false}>
             {formError}
           </Lcd>
         ) : null}
@@ -72,6 +90,8 @@ export function LoginForm() {
         autoComplete="current-password"
         required
         error={fieldErrors.password}
+        // The form error stays attached to the field that gets the focus after a failed sign-in.
+        {...(formError ? { "aria-describedby": FORM_ERROR_ID } : {})}
       />
       <Key type="submit" variant="signal" size="lg" block icon={LogIn} disabled={pending}>
         {pending ? "Entrando…" : "Entrar"}

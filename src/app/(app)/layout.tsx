@@ -1,4 +1,5 @@
 import { requireOwner } from "@/lib/auth";
+import { SessionRefresher } from "./_components/session-refresher";
 
 /**
  * Protected area: without an owner session every route redirects to /login.
@@ -6,5 +7,10 @@ import { requireOwner } from "@/lib/auth";
  */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   await requireOwner();
-  return children;
+  return (
+    <>
+      <SessionRefresher />
+      {children}
+    </>
+  );
 }

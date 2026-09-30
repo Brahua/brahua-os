@@ -14,11 +14,22 @@ export function validateLogin({ email, password }: LoginFields): LoginFieldError
   return errors;
 }
 
-/** Message for a failed sign-in, by HTTP status. Never says which of the two fields was wrong. */
-export function signInErrorMessage(status: number | undefined): string {
-  if (status === 429) return "Demasiados intentos seguidos. Espera un minuto y vuelve a probar.";
-  if (status === 400 || status === 401 || status === 403) {
-    return "El email o la contraseña no coinciden. Revísalos y vuelve a probar.";
-  }
-  return "No se pudo iniciar sesión. Revisa tu conexión y vuelve a probar.";
+export const CREDENTIALS_MESSAGE =
+  "El email o la contraseña no coinciden. Revísalos y vuelve a probar.";
+export const RATE_LIMIT_MESSAGE =
+  "Demasiados intentos seguidos. Espera un minuto y vuelve a probar.";
+export const GENERIC_MESSAGE = "No se pudo iniciar sesión. Revisa tu conexión y vuelve a probar.";
+
+/**
+ * Message for a failed sign-in. Only a credentials rejection (401, or Better Auth's 400 for a
+ * malformed email) says "no coinciden", and it never says which field; anything else (403,
+ * 5xx, network) is the generic message.
+ */
+export function signInErrorMessage(
+  error: { status?: number; code?: string } | null | undefined,
+): string {
+  if (error?.status === 429) return RATE_LIMIT_MESSAGE;
+  if (error?.status === 401) return CREDENTIALS_MESSAGE;
+  if (error?.status === 400 && error.code === "INVALID_EMAIL") return CREDENTIALS_MESSAGE;
+  return GENERIC_MESSAGE;
 }
