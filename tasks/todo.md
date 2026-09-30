@@ -1,7 +1,21 @@
 # Tareas: core
 
 > Plan: [`tasks/plan.md`](plan.md) · Spec: [`SPEC-core.md`](../SPEC-core.md)
-> Cada tarea termina con `pnpm lint && pnpm typecheck && pnpm test` (y `pnpm test:e2e` si toca UI) en verde, un PR con el CI verde y el merge. Commits en inglés (`feat(core): …`).
+> Cada tarea termina con `pnpm lint && pnpm typecheck && pnpm test` (y `pnpm test:e2e` si toca UI) en verde, un PR con el CI verde y el merge, que **publica en producción**. Commits en inglés (`feat(core): …`).
+> Las pruebas nunca apuntan a la base de producción.
+
+## Fase 0 — Producción desde el día 1
+
+- [ ] **C0: Despliegue en `os.brahua.com`** *(requiere tu participación)*
+  - **Qué:**
+    - Proyecto en Vercel enlazado al repo `Brahua/brahua-os`, con despliegue a producción en cada push a `main` y los previews desactivados.
+    - Base Neon de producción desde Vercel Marketplace (variables `DATABASE_URL` y `DATABASE_URL_UNPOOLED` solo en producción).
+    - Dominio `os.brahua.com` con `CNAME os` en Hostinger.
+    - Mientras no haya login, la app pública solo muestra la portada; `/design` sigue desactivada en producción.
+  - **Aceptación:**
+    - `https://os.brahua.com` responde con HTTPS y la portada de brahua-os.
+    - Un merge a `main` se publica solo.
+  - **Tamaño:** S
 
 ## Fase 1 — Base segura
 
@@ -10,7 +24,8 @@
     - Drizzle ORM + drizzle-kit, con el driver elegido según la documentación (ADR-002).
     - `drizzle.config.ts` que descubre `src/modules/*/db/schema.ts` y un cliente en `src/lib/db.ts`.
     - Tabla `core_life_areas` y primera migración.
-    - Postgres local con Docker (`docker compose`) y el servicio Postgres en CI para las pruebas de integración.
+    - Postgres desechable para pruebas: Docker (`docker compose`) en local y el servicio Postgres en CI.
+    - `db:migrate` en el build de Vercel: la primera migración llega a producción con este merge.
     - Scripts `db:generate`, `db:migrate` y `db:seed` (8 áreas por defecto, idempotente).
   - **Aceptación:**
     - `pnpm db:migrate && pnpm db:seed` crea las 8 áreas; correrlo dos veces no duplica nada.
@@ -37,7 +52,7 @@
   - **Tamaño:** L. Se divide en C2a (contraseña, protección y owner) y C2b (passkey) si crece.
 
 ### Checkpoint 1
-- [ ] Inicias sesión en local con tu contraseña y registras tu passkey. CI verde.
+- [ ] Inicias sesión en `os.brahua.com` con tu contraseña y registras tu passkey, desde el computador y desde el celular.
 
 ## Fase 2 — App usable
 
@@ -89,7 +104,7 @@
 
 - [ ] **C7: PWA y cabeceras de seguridad**
   - **Qué:** `app/manifest.ts` con íconos de 192, 512 y *maskable* derivados de la marca en Archivo 800, `theme_color` y modo standalone. Cabeceras `frame-ancestors 'none'` y `Referrer-Policy`.
-  - **Aceptación:** una E2E valida el manifest y las cabeceras.
+  - **Aceptación:** una E2E valida el manifest y las cabeceras; la app se instala en tu celular en modo standalone.
   - **Tamaño:** S
 
 - [ ] **C8: Páginas de error**
@@ -98,21 +113,6 @@
   - **Tamaño:** S
 
 ## Fase 4 — Producción
-
-- [ ] **C9: Despliegue en `os.brahua.com`** *(requiere tu participación)*
-  - **Qué:**
-    - Proyecto en Vercel enlazado al repo.
-    - Neon desde Vercel Marketplace, con una rama por preview.
-    - Variables por entorno.
-    - Build que migra antes de `next build`.
-    - Dominio `os.brahua.com` (CNAME en Hostinger).
-    - `pnpm auth:owner` contra producción.
-  - **Aceptación:**
-    - `https://os.brahua.com` responde con HTTPS.
-    - Un preview por PR con su propia base.
-    - Login con passkey en tu celular.
-    - Instalación en modo standalone.
-  - **Tamaño:** M
 
 - [ ] **C10: Operación**
   - **Qué:**

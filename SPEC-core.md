@@ -30,9 +30,9 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 |---|---|---|
 | Framework | Next.js 16 (App Router, Server Components, Server Actions), TypeScript `strict` | Un solo lenguaje de punta a punta. |
 | Runtime | Node.js 24 en Vercel (Fluid Compute) | Es el runtime por defecto actual. |
-| Base de datos | Postgres en **Neon** (Vercel Marketplace). La integración Neon ↔ Vercel crea una rama de BD por preview. | Postgres gestionado; los previews no tocan producción. |
+| Base de datos | Postgres en **Neon** (Vercel Marketplace). **MVP: un solo ambiente, producción** (sin previews ni ramas por preview). Las pruebas usan un Postgres desechable local o del CI, nunca producción. | Agilidad para un solo usuario, sin riesgo para los datos reales. |
 | Driver | Drizzle con el driver serverless de Neon (Pool por WebSocket, que admite transacciones) sobre `DATABASE_URL` *pooled*. **Verificar** en la documentación oficial al implementar si conviene `pg` estándar con Fluid Compute. | Reordenar necesita transacciones. |
-| Migraciones | `drizzle-kit generate` en local. `drizzle-kit migrate` con `DATABASE_URL_UNPOOLED` en el build de Vercel, antes de `next build`; **si la migración falla, falla el deploy**. | Migraciones versionadas y siempre aplicadas. |
+| Migraciones | `drizzle-kit generate` en local. `drizzle-kit migrate` con `DATABASE_URL_UNPOOLED` en el build de Vercel, antes de `next build`; **si la migración falla, falla el deploy**. Durante el MVP solo son aditivas; una que borre o renombre requiere aviso y respaldo previo. | Migraciones versionadas y siempre aplicadas sin perder datos. |
 | Autenticación | **Better Auth**: email + contraseña (mínimo 12 caracteres) + plugin **passkey**. `disableSignUp: true`: el owner solo se crea con `pnpm auth:owner`. | Sin superficie de registro pública; los datos quedan en mi propia base. |
 | UI | Tailwind CSS v4 + shadcn/ui, íconos lucide, `next-themes`, `sonner` (toasts con Deshacer), `@dnd-kit/core` + `@dnd-kit/sortable` (reordenar) | Lo mínimo para cumplir los principios UX en `core`. |
 | Movimiento | `motion` (Motion for React) | Base de animación (ver `docs/principios-ux.md`). |
@@ -251,7 +251,7 @@ export type ActionResult<T> =
 
 - Cada Server Action tiene al menos una prueba del caso feliz y una de validación o autorización.
 - **CI (GitHub Actions)** en cada push y PR: `lint`, `typecheck`, `test`, `test:e2e` y `build`.
-- **Previews de Vercel:** solo un smoke test manual; no se corre E2E contra ellos.
+- **Despliegue continuo a producción:** todo merge a `main` con el CI verde se publica en `os.brahua.com`. No hay previews durante el MVP.
 
 ## Operación
 
@@ -284,7 +284,7 @@ export type ActionResult<T> =
   - Commitear secretos (`.env*` en `.gitignore`).
   - Exponer datos sin sesión.
   - Borrar migraciones ya aplicadas.
-  - Migrar la BD de producción desde un preview.
+  - Correr pruebas contra la base de datos de producción.
   - Desactivar tests o reglas de lint para "pasar".
   - Escribir en Notion (solo se lee para importar).
 
@@ -315,7 +315,7 @@ export type ActionResult<T> =
    - Con `prefers-reduced-motion: reduce` no hay animaciones de escala ni de desplazamiento.
 7. **Despliegue:**
    - `https://os.brahua.com` responde con HTTPS.
-   - Neon está conectado y cada preview usa su propia rama de BD.
+   - Neon está conectado y cada merge a `main` con el CI verde se despliega solo a producción.
    - El build falla si una migración falla.
 8. **Extensibilidad:** agregar un módulo de prueba solo requiere crear `src/modules/<id>/` y registrarlo en `src/lib/modules.ts`, sin tocar el layout.
 9. **Errores:**
@@ -331,6 +331,7 @@ export type ActionResult<T> =
 5. **Idioma:** todo el código en inglés, commits incluidos; la interfaz y la documentación en español.
 6. **Áreas (2026-09-29):** ícono de Lucide en lugar de emoji; los 8 colores de área del design system. `core` depende de `design-system`.
 7. **Colores de áreas propias (2026-09-29):** una área nueva elige una de las 8 paletas existentes; no se agregan colores.
+8. **Ambiente (2026-09-30):** durante el MVP se trabaja directo sobre producción. El despliegue va primero y cada merge a `main` con el CI verde se publica. Sin previews.
 
 ## Preguntas abiertas
 
