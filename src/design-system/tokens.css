@@ -12,7 +12,7 @@
 @custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 
 /* 1. Primitives ------------------------------------------------------------ */
-@theme {
+@theme static {
   /* Drop Tailwind's default palette: only our tokens are available. */
   --color-*: initial;
 

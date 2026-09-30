@@ -27,7 +27,7 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const primitives = readBlock(/@theme/);
+const primitives = readBlock(/@theme static/);
 const themes = {
   dark: readBlock(/:root,\s*\[data-theme="dark"\]/),
   light: readBlock(/\[data-theme="light"\]/),
