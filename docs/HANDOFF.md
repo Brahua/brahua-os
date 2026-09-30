@@ -6,7 +6,7 @@
 ## Cómo retomar
 
 1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-core.md`).
-2. Verificar la cuenta de GitHub: `gh auth switch -u Brahua` (el `GH_TOKEN` de `~/.zshrc` no ve el repo; usar `gh api` REST si GraphQL falla).
+2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
    - Revisores en paralelo: `code-reviewer`, `test-engineer` y `security-auditor` si toca auth, datos o secretos; accesibilidad si toca UI.
