@@ -46,7 +46,7 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 ```bash
 pnpm install                 # Install dependencies
 pnpm dev                     # Dev server (http://localhost:3000)
-pnpm build                   # next build (Vercel runs scripts/vercel-build.sh: db:migrate in production, then build)
+pnpm build                   # next build (Vercel runs scripts/vercel-build.sh: db:migrate + db:seed in production, then build)
 pnpm lint                    # ESLint
 pnpm typecheck               # tsc --noEmit
 pnpm test                    # Vitest (unit, no database)
