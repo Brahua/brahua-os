@@ -5,4 +5,8 @@ export { AreaTag } from "./components/area-tag";
 export { Icon, type IconSize } from "./components/icon";
 export { IconKey, Key, keyVariants, type IconKeyProps, type KeyProps } from "./components/key";
 export { Led } from "./components/led";
+export { ListRow } from "./components/list-row";
+export { SectionLabel } from "./components/section-label";
+export { StatNumber } from "./components/stat-number";
+export { formatStat, type StatCurrency, type StatKind } from "./stat-format";
 export { ThemeProvider, THEMES, type Theme } from "./theme-provider";

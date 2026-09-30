@@ -2,7 +2,17 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 const THEMES = ["dark", "light"] as const;
-const SECTIONS = ["key", "icon-key", "icon", "led", "area-tag", "area-icons"];
+const SECTIONS = [
+  "key",
+  "icon-key",
+  "icon",
+  "led",
+  "area-tag",
+  "area-icons",
+  "section-label",
+  "stat-number",
+  "list-row",
+];
 
 async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
   await page.goto("/design");
@@ -79,4 +89,17 @@ test("every area LED renders its color", async ({ page }) => {
   for (const color of colors) {
     expect(color).not.toBe("rgba(0, 0, 0, 0)");
   }
+});
+
+test("animated numbers are read as one formatted value", async ({ page }) => {
+  await page.goto("/design");
+  const section = page.locator('[data-guide-section="stat-number"]');
+
+  await expect(section).toMatchAriaSnapshot(`
+    - text: /Racha 11 Gastado · sept S\\/ 2,340 Suscripción USD 19\\.99 Avance AWS 58%/
+  `);
+  await section.getByRole("button", { name: "Sumar" }).click();
+  await expect(section).toMatchAriaSnapshot(`
+    - text: /Racha 12 Gastado · sept S\\/ 2,465\\.5 .*65%/
+  `);
 });

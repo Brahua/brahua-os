@@ -6,6 +6,7 @@ import { GuideSection, Specimen } from "./_components/guide-section";
 import { CaptureKeyDemo, ToggleKeyDemo } from "./_components/key-demos";
 import { ThemeSwitch } from "./_components/theme-switch";
 import { AreaIconsSection, AreaTagSection, LedSection } from "./_sections/area-sections";
+import { ListRowSection, SectionLabelSection, StatNumberSection } from "./_sections/data-sections";
 
 export const metadata: Metadata = {
   title: "Design system · brahua-os",
@@ -132,6 +133,9 @@ export default function DesignGuidePage() {
         <LedSection />
         <AreaTagSection />
         <AreaIconsSection />
+        <SectionLabelSection />
+        <StatNumberSection />
+        <ListRowSection />
       </main>
     </div>
   );

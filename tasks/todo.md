@@ -66,7 +66,7 @@
   - **Archivos:** `src/design-system/{area-icons.ts,components/led.tsx,components/area-tag.tsx}`, tests
   - **Depende de:** T4 · **Tamaño:** S
 
-- [ ] **T6: `SectionLabel`, `StatNumber` y `ListRow`**
+- [x] **T6: `SectionLabel`, `StatNumber` y `ListRow`**
   - **Qué:** etiqueta mono con contador, cifra animada con NumberFlow (formatos PEN/USD y %) y fila tocable con divisor.
   - **Aceptación:**
     - `StatNumber` anima al cambiar y respeta reduced motion.
