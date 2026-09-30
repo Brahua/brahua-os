@@ -73,6 +73,8 @@ export function SidebarDemo({ initialCollapsed = false, name }: SidebarDemoProps
         pathname={CURRENT}
         collapsed={collapsed}
         onToggle={() => setCollapsed((current) => !current)}
+        // The demo keys aren't bound, so no hints (the app's own sidebar shows the real ones).
+        shortcuts={false}
         labels={{ main: name, footer: `${name}: secundaria` }}
         className="h-full rounded-xl"
       />

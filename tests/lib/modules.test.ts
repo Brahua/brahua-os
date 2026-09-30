@@ -2,6 +2,7 @@ import { Circle } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import {
   isActiveHref,
+  itemForShortcut,
   MODULES,
   navItems,
   splitBottomNav,
@@ -14,9 +15,8 @@ function manifest(id: string, extra: Partial<ModuleManifest> = {}): ModuleManife
 }
 
 describe("registry", () => {
-  test("every module has a unique id, an absolute href and a label", () => {
-    const ids = MODULES.map((entry) => entry.id);
-    expect(new Set(ids).size).toBe(ids.length);
+  test("every module has a unique id and href, an absolute href and a label", () => {
+    expect(() => navItems(MODULES)).not.toThrow();
     for (const entry of MODULES) {
       expect(entry.href).toMatch(/^\//);
       expect(entry.label.trim()).not.toBe("");
@@ -28,8 +28,14 @@ describe("registry", () => {
       ["Hoy", "/", "1"],
     ]);
     expect(
-      MODULES.filter((entry) => entry.status === "planned").map((entry) => entry.label),
-    ).toEqual(["Áreas", "Ajustes"]);
+      MODULES.filter((entry) => entry.status === "planned").map((entry) => [
+        entry.label,
+        entry.shortcut,
+      ]),
+    ).toEqual([
+      ["Áreas", 7],
+      ["Ajustes", 8],
+    ]);
   });
 });
 
@@ -42,47 +48,42 @@ describe("navItems", () => {
       manifest("today", { navOrder: 10 }),
       manifest("projects", { navOrder: 20 }),
     ]);
-    expect(items.map((item) => [item.id, item.group, item.shortcut])).toEqual([
-      ["today", "main", "1"],
-      ["projects", "main", "2"],
-      ["habits", "main", "3"],
-      ["areas", "footer", "4"],
-      ["settings", "footer", "5"],
+    expect(items.map((item) => [item.id, item.group])).toEqual([
+      ["today", "main"],
+      ["projects", "main"],
+      ["habits", "main"],
+      ["areas", "footer"],
+      ["settings", "footer"],
     ]);
   });
 
-  test("leaves planned modules out and numbers only what is shown", () => {
+  test("shortcuts are fixed per module: they don't shift when others are planned", () => {
     const items = navItems([
-      manifest("today", { navOrder: 10 }),
-      manifest("projects", { navOrder: 20, status: "planned" }),
-      manifest("habits", { navOrder: 30, status: "available" }),
+      manifest("today", { navOrder: 10, shortcut: 1 }),
+      manifest("projects", { navOrder: 20, shortcut: 2, status: "planned" }),
+      manifest("habits", { navOrder: 30, shortcut: 3, status: "available" }),
+      manifest("notes", { navOrder: 40 }),
+      manifest("settings", { navOrder: 10, navGroup: "footer", shortcut: 8 }),
     ]);
     expect(items.map((item) => [item.id, item.shortcut])).toEqual([
       ["today", "1"],
-      ["habits", "2"],
+      ["habits", "3"],
+      ["notes", undefined],
+      ["settings", "8"],
     ]);
+    expect(itemForShortcut(items, 8)?.id).toBe("settings");
+    expect(itemForShortcut(items, 2)).toBeUndefined();
   });
 
-  test("only the first eight items get a number shortcut", () => {
-    const items = navItems(
-      Array.from({ length: 10 }, (_, i) => manifest(`m${i}`, { navOrder: i })),
+  test("rejects duplicate ids, hrefs and shortcuts, and shortcuts outside 1–8", () => {
+    expect(() => navItems([manifest("today"), manifest("today")])).toThrow(/Duplicate module id/);
+    expect(() => navItems([manifest("a", { href: "/x" }), manifest("b", { href: "/x" })])).toThrow(
+      /Duplicate module href/,
     );
-    expect(items.map((item) => item.shortcut)).toEqual([
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
-      undefined,
-      undefined,
-    ]);
-  });
-
-  test("rejects duplicate ids", () => {
-    expect(() => navItems([manifest("today"), manifest("today")])).toThrow(/Duplicate/);
+    expect(() =>
+      navItems([manifest("a", { shortcut: 2 }), manifest("b", { shortcut: 2, status: "planned" })]),
+    ).toThrow(/Duplicate module shortcut/);
+    expect(() => navItems([manifest("a", { shortcut: 9 as never })])).toThrow(/Invalid shortcut/);
   });
 });
 

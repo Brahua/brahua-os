@@ -1,5 +1,5 @@
-// Navigation manifests of `core`. Only descriptions: the registry in @/lib/modules decides
-// what shows up and in which order.
+// Navigation manifests of `core`. Only descriptions (client-safe data + icon): the registry in
+// @/lib/modules decides what shows up and in which order.
 import { LayoutGrid, Settings, Sun } from "lucide-react";
 import type { ModuleManifest } from "@/lib/modules";
 
@@ -10,6 +10,7 @@ export const homeModule = {
   icon: Sun,
   href: "/",
   navOrder: 10,
+  shortcut: 1,
 } satisfies ModuleManifest;
 
 /** Life areas: C5 builds /areas and switches it to available. */
@@ -20,6 +21,7 @@ export const areasModule = {
   href: "/areas",
   navOrder: 10,
   navGroup: "footer",
+  shortcut: 7,
   status: "planned",
 } satisfies ModuleManifest;
 
@@ -31,5 +33,6 @@ export const settingsModule = {
   href: "/settings",
   navOrder: 20,
   navGroup: "footer",
+  shortcut: 8,
   status: "planned",
 } satisfies ModuleManifest;

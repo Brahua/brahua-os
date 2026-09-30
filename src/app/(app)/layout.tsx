@@ -3,7 +3,12 @@ import { cookies } from "next/headers";
 import { requireOwner } from "@/lib/auth";
 import { AppNav } from "@/modules/core/components/app-nav";
 import { NAV_COPY } from "@/modules/core/copy";
-import { isSidebarCollapsed, SIDEBAR_COOKIE } from "@/modules/core/sidebar-state";
+import {
+  areShortcutsEnabled,
+  isSidebarCollapsed,
+  SHORTCUTS_COOKIE,
+  SIDEBAR_COOKIE,
+} from "@/modules/core/nav-preferences";
 import { SessionRefresher } from "./_components/session-refresher";
 
 // Draw under the notch and home indicator; the shell pads itself with the safe-area insets.
@@ -18,19 +23,21 @@ export const viewport: Viewport = { viewportFit: "cover" };
  */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   await requireOwner();
-  const collapsed = isSidebarCollapsed((await cookies()).get(SIDEBAR_COOKIE)?.value);
+  const cookieStore = await cookies();
+  const collapsed = isSidebarCollapsed(cookieStore.get(SIDEBAR_COOKIE)?.value);
+  const shortcutsEnabled = areShortcutsEnabled(cookieStore.get(SHORTCUTS_COOKIE)?.value);
 
   return (
     <>
       <SessionRefresher />
       <a
         href="#content"
-        className="sr-only z-50 rounded-md bg-key px-4 py-3 text-text shadow-key focus:not-sr-only focus:fixed focus:top-4 focus:left-4"
+        className="sr-only z-50 rounded-md bg-key px-4 py-3 text-text shadow-key focus:not-sr-only focus:fixed focus:top-[max(1rem,env(safe-area-inset-top))] focus:left-[max(1rem,env(safe-area-inset-left))]"
       >
         {NAV_COPY.skipToContent}
       </a>
       <div className="flex flex-1">
-        <AppNav initialCollapsed={collapsed} />
+        <AppNav initialCollapsed={collapsed} shortcutsEnabled={shortcutsEnabled} />
         <main
           id="content"
           tabIndex={-1}

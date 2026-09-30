@@ -28,7 +28,8 @@ const DATE_KEY_FORMAT = new Intl.DateTimeFormat("en-CA", {
 
 /** Hour of the day (0–23) in Lima. */
 export function ownerHour(date: Date): number {
-  return Number(HOUR_FORMAT.format(date));
+  const hour = HOUR_FORMAT.formatToParts(date).find((part) => part.type === "hour");
+  return Number(hour?.value);
 }
 
 export type Greeting = "Buenos días" | "Buenas tardes" | "Buenas noches";

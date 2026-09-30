@@ -9,5 +9,7 @@ export const NAV_COPY = {
   collapseSidebar: "Contraer barra lateral",
   expandSidebar: "Expandir barra lateral",
   more: "Más",
+  moreSections: "Más secciones",
+  moreCurrent: (label: string) => `Más (actual: ${label})`,
   skipToContent: "Saltar al contenido",
 } as const;

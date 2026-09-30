@@ -1,51 +1,63 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { navItems } from "@/lib/modules";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { itemForShortcut, navItems } from "@/lib/modules";
 import { navShortcutFor } from "@/lib/shortcuts";
-import { sidebarCookie } from "../sidebar-state";
+import { sidebarCookie } from "../nav-preferences";
 import { BottomNav } from "./bottom-nav";
 import { Sidebar } from "./sidebar";
 
 // Same breakpoint as Tailwind's `lg`, where the sidebar replaces the bottom bar.
 const DESKTOP_QUERY = "(min-width: 1024px)";
+// The CSS default (extensions.css) covers the first paint; this keeps it exact when the bar
+// grows (larger text) so content and scroll targets are never hidden behind it.
+const BOTTOM_OFFSET_VAR = "--shell-bottom-offset";
 const ITEMS = navItems();
 
 type AppNavProps = {
   /** Read from the cookie on the server, so the first paint has the right width. */
   initialCollapsed: boolean;
+  /** Single-key shortcuts on/off (cookie, WCAG 2.1.4). Off: no listener and no hints. */
+  shortcutsEnabled: boolean;
 };
 
 /**
  * The app's navigation: sidebar from 1024 px, bottom bar below (CSS decides which one shows,
- * so there is no flash). Owns the collapsed state and the global shortcuts `[` and `1`–`8`.
+ * so there is no flash). Owns the collapsed state and the global shortcuts `[` and `1`–`8`,
+ * which only act from 1024 px, where the sidebar that shows them is on screen.
  */
-export function AppNav({ initialCollapsed }: AppNavProps) {
+export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const collapsedRef = useRef(initialCollapsed);
+  const bottomNav = useRef<HTMLElement>(null);
 
-  // Remember the choice on this device; the layout reads it back on the next request.
-  useEffect(() => {
-    document.cookie = sidebarCookie(collapsed, window.location.protocol === "https:");
-  }, [collapsed]);
+  // Writes the cookie only on a real toggle (never on mount).
+  const toggleSidebar = useCallback(() => {
+    const next = !collapsedRef.current;
+    collapsedRef.current = next;
+    document.cookie = sidebarCookie(next, window.location.protocol === "https:");
+    setCollapsed(next);
+  }, []);
 
   useEffect(() => {
+    if (!shortcutsEnabled) return;
     function onKeyDown(event: KeyboardEvent) {
       const shortcut = navShortcutFor(event);
       if (!shortcut) return;
+      // Below 1024 px there is no sidebar showing the keys: leave them alone.
+      if (!window.matchMedia(DESKTOP_QUERY).matches) return;
       if (shortcut.type === "toggle-sidebar") {
-        // Below 1024 px the sidebar isn't on screen: don't change it invisibly.
-        if (!window.matchMedia(DESKTOP_QUERY).matches) return;
         event.preventDefault();
-        setCollapsed((current) => !current);
+        toggleSidebar();
         return;
       }
-      const item = ITEMS[shortcut.index];
+      const item = itemForShortcut(ITEMS, shortcut.digit);
       if (!item) return;
       event.preventDefault();
-      router.push(item.href);
+      if (window.location.pathname !== item.href) router.push(item.href);
     }
 
     window.addEventListener("keydown", onKeyDown);
@@ -55,21 +67,44 @@ export function AppNav({ initialCollapsed }: AppNavProps) {
       window.removeEventListener("keydown", onKeyDown);
       delete document.documentElement.dataset.navShortcuts;
     };
-  }, [router]);
+  }, [router, shortcutsEnabled, toggleSidebar]);
+
+  useEffect(() => {
+    const bar = bottomNav.current;
+    if (!bar || typeof ResizeObserver === "undefined") return;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => {
+      const height = bar.getBoundingClientRect().height;
+      // 0 when hidden (≥ 1024 px): fall back to the stylesheet.
+      if (height > 0) root.style.setProperty(BOTTOM_OFFSET_VAR, `${height}px`);
+      else root.style.removeProperty(BOTTOM_OFFSET_VAR);
+    });
+    observer.observe(bar);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty(BOTTOM_OFFSET_VAR);
+    };
+  }, []);
 
   return (
     <>
-      <div className="sticky top-0 hidden h-dvh shrink-0 lg:block">
+      <div className="sticky top-0 z-40 hidden h-dvh shrink-0 lg:block">
         <Sidebar
           items={ITEMS}
           pathname={pathname}
           collapsed={collapsed}
-          onToggle={() => setCollapsed((current) => !current)}
+          onToggle={toggleSidebar}
+          shortcuts={shortcutsEnabled}
           className="h-full"
         />
       </div>
       <div className="lg:hidden">
-        <BottomNav items={ITEMS} pathname={pathname} className="bo-bottomnav--fixed" />
+        <BottomNav
+          ref={bottomNav}
+          items={ITEMS}
+          pathname={pathname}
+          className="bo-bottomnav--fixed"
+        />
       </div>
     </>
   );

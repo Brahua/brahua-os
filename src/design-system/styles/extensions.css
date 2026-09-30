@@ -34,14 +34,33 @@
 :root {
   /* Bottom padding of the phone bar: the design's 28 px, or the device's safe area if larger. */
   --shell-safe-bottom: max(28px, env(safe-area-inset-bottom));
-  /* Height of the fixed bottom bar, which the content keeps clear. */
-  --shell-bottom-offset: calc(var(--bottom-nav-height) - 28px + var(--shell-safe-bottom));
+  /* Designed height of the fixed bottom bar (98 px plus any extra safe area). */
+  --shell-bottom-min: calc(var(--bottom-nav-height) - 28px + var(--shell-safe-bottom));
+  /* Space the content keeps clear. AppNav overwrites it with the measured height if the bar grows. */
+  --shell-bottom-offset: var(--shell-bottom-min);
 }
-.bo-bottomnav--fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: var(--shell-bottom-offset);
+/* WCAG 2.4.11: focused elements scrolled into view never end up under the bottom bar. */
+html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: var(--shell-bottom-offset); }
+@media (min-width: 1024px) {
+  html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: 0; }
+}
+/* min-height, not height: with larger text the bar grows instead of clipping its labels. */
+.bo-bottomnav--fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: auto; min-height: var(--shell-bottom-min);
   padding-bottom: var(--shell-safe-bottom); padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
 .bo-bottomnav .bo-bottomnav__capture { width: 62px; }
 /* Disabled keys drop their transform; the capture key keeps its lift so the bar doesn't shift. */
 .bo-bottomnav .bo-bottomnav__capture.is-disabled { transform: translateY(-10px); }
+/* Narrow phones (320 px): labels truncate; the full name is the link's aria-label. */
+.bo-bottomnav__item { position: relative; min-width: 0; max-width: 100%; padding: 0 2px; }
+.bo-bottomnav__label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "Más" when the current section is inside it: same look as the current item (not aria-current). */
+.bo-bottomnav__item[data-active] { color: var(--color-text); font-weight: 600; }
+/* Current item: a dot under it too, so it isn't told apart by color and weight alone. */
+.bo-bottomnav__item[aria-current="page"]::after, .bo-bottomnav__item[data-active]::after {
+  content: ""; position: absolute; bottom: 2px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: var(--radius-full); background: currentColor; }
+/* Bottom sheets clear the home indicator and the side insets (landscape). */
+.bo-sheet--bottom { padding-bottom: max(34px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 .bo-sidebar .bo-tooltip-anchor { display: flex; }
 .bo-sidebar__header { display: flex; align-items: center; justify-content: space-between; height: 36px; }
 .bo-sidebar.is-collapsed .bo-sidebar__header { justify-content: center; }

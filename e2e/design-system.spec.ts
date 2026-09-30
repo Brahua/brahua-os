@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { fontsLoaded } from "./support/fonts";
 
 const THEMES = ["dark", "light"] as const;
 const SECTIONS = [
@@ -29,7 +30,7 @@ async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
   await page.evaluate((value) => localStorage.setItem("theme", value), theme);
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-  await page.evaluate(() => document.fonts.ready);
+  await fontsLoaded(page);
 }
 
 for (const theme of THEMES) {

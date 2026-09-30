@@ -10,7 +10,7 @@ export function NavigationSection() {
     <GuideSection
       id="navigation"
       title="Navegación"
-      description="Patrones de core. Celular: barra inferior con la tecla de captura al centro; con más de 4 secciones, el resto va en «Más». Escritorio (desde 1024 px): barra lateral de 240 px que se contrae a 72 px con [, y atajos 1–8. El ítem actual es una tecla en relieve. La captura aparece desactivada hasta que exista la captura rápida."
+      description="Patrones de core. Celular: barra inferior con la tecla de captura al centro; con más de 4 secciones, el resto va en «Más». Escritorio (desde 1024 px): barra lateral de 240 px que se contrae a 72 px con [, y atajos 1–8 que se pueden desactivar (los ejemplos no los muestran). El ítem actual es una tecla en relieve; en la barra inferior, además, un punto. La captura aparece desactivada hasta que exista la captura rápida."
     >
       <div className="flex flex-col gap-8">
         <Specimen label="Barra inferior · celular">

@@ -1,13 +1,38 @@
 // Global single-key shortcuts (SPEC-design-system "Atajos de teclado"). Pure functions, so the
 // rules about when a key press counts are unit-tested without a browser.
 
-/** Elements where a key press is text entry (or belongs to an open dialog), not a shortcut. */
+/** Inputs that take typed text. Checkboxes, radios, buttons, ranges… don't, so keys stay free. */
+const NON_TEXT_INPUT_TYPES = [
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+  "range",
+  "color",
+  "file",
+  "image",
+  "hidden",
+];
+
+/**
+ * Elements where a key press is text entry or drives a widget of its own (lists, menus, grids,
+ * sliders…), or belongs to an open dialog: there a key is never a navigation shortcut.
+ */
 const IGNORED_TARGETS = [
-  "input",
+  `input${NON_TEXT_INPUT_TYPES.map((type) => `:not([type="${type}" i])`).join("")}`,
   "textarea",
   "select",
   '[contenteditable]:not([contenteditable="false"])',
   '[role="textbox"]',
+  '[role="searchbox"]',
+  '[role="combobox"]',
+  '[role="listbox"]',
+  '[role="menu"]',
+  '[role="grid"]',
+  '[role="tree"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
 ].join(",");
@@ -18,11 +43,12 @@ export function isShortcutFreeTarget(target: EventTarget | null): boolean {
   return element.isContentEditable || element.closest(IGNORED_TARGETS) !== null;
 }
 
-export type NavShortcut = { type: "toggle-sidebar" } | { type: "go"; index: number };
+export type NavShortcut = { type: "toggle-sidebar" } | { type: "go"; digit: number };
 
 type ShortcutEvent = Pick<
   KeyboardEvent,
   | "key"
+  | "code"
   | "altKey"
   | "ctrlKey"
   | "metaKey"
@@ -34,10 +60,12 @@ type ShortcutEvent = Pick<
 > & { getModifierState?: (key: string) => boolean };
 
 /**
- * `[` toggles the sidebar and `1`–`8` go to the Nth navigation item. Nothing fires while typing
- * (inputs, textareas, contenteditable), inside a dialog, on auto-repeat or with ⌘/Ctrl/⌥.
- * The one exception: `[` is accepted with ⌥ or AltGr, because many layouts (Spanish and Latin
- * American among them) need that modifier just to type the character.
+ * `[` toggles the sidebar and `1`–`8` go to the section with that number. Nothing fires while
+ * typing or inside a widget/dialog (see IGNORED_TARGETS), on auto-repeat, or with ⌘/Ctrl/Shift.
+ * Two ⌥ cases are accepted on purpose:
+ * - `[` with ⌥ or AltGr: many layouts (Spanish and Latin American among them) need that
+ *   modifier just to type the character.
+ * - ⌥ + digit (matched by physical key, `Digit1`…): an alternative to the bare digit.
  */
 export function navShortcutFor(event: ShortcutEvent): NavShortcut | null {
   if (event.defaultPrevented || event.repeat || event.isComposing) return null;
@@ -47,8 +75,13 @@ export function navShortcutFor(event: ShortcutEvent): NavShortcut | null {
   if (event.metaKey || (event.ctrlKey && !altGraph)) return null;
 
   if (event.key === "[") return { type: "toggle-sidebar" };
+  if (event.shiftKey || altGraph) return null;
 
-  if (event.altKey || altGraph || event.shiftKey) return null;
-  if (/^[1-8]$/.test(event.key)) return { type: "go", index: Number(event.key) - 1 };
+  if (event.altKey) {
+    // ⌥ changes `key` ("¡" on a Mac), so use the physical key.
+    const match = /^Digit([1-8])$/.exec(event.code);
+    return match ? { type: "go", digit: Number(match[1]) } : null;
+  }
+  if (/^[1-8]$/.test(event.key)) return { type: "go", digit: Number(event.key) };
   return null;
 }

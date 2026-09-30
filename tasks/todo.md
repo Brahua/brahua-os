@@ -63,7 +63,7 @@
 
 ## Fase 2 — App usable
 
-- [x] **C3: Navegación (shell)** (PR `feat/core-c3-navigation`). Registro en `src/lib/modules.ts` (`ModuleManifest`, `navItems`, `splitBottomNav`, `isActiveHref`); manifiestos de `core` en `src/modules/core/module.ts` (Hoy disponible; Áreas y Ajustes declarados como `planned`, fuera de la navegación). `BottomNav` y `Sidebar` en `src/modules/core/components/`, portados de Claude Design con enlaces reales y `aria-current="page"`. Barra lateral desde 1024 px, colapsable con `[` (estado en la cookie `bo_sidebar`, leída en el servidor: sin parpadeo) y atajos 1–8; barra inferior fija abajo con zona segura. La tecla de captura se ve pero queda `aria-disabled` con la explicación "Próximamente" hasta que exista la captura rápida. Portada con saludo y fecha en hora de Lima (`src/lib/time.ts`). Sección "Navegación" en `/design`. Pruebas unitarias (registro, hora, atajos, componentes) y E2E (barras por ancho, `aria-current`, `[`, 1–8, atajos ignorados en inputs, axe y capturas en ambos temas).
+- [x] **C3: Navegación (shell)** (PR `feat/core-c3-navigation`). Registro en `src/lib/modules.ts` (`ModuleManifest`, `navItems`, `splitBottomNav`, `isActiveHref`); manifiestos de `core` en `src/modules/core/module.ts` (Hoy disponible; Áreas y Ajustes declarados como `planned`, fuera de la navegación). `BottomNav` y `Sidebar` en `src/modules/core/components/`, portados de Claude Design con enlaces reales y `aria-current="page"`. Barra lateral desde 1024 px, colapsable con `[` (estado en la cookie `bo_sidebar`, leída en el servidor: sin parpadeo) y atajos 1–8 fijos por módulo (⌥ + número también), solo desde 1024 px y desactivables con la cookie `bo_shortcuts` (el interruptor llega en C4); barra inferior fija abajo con zona segura y "Más" cuando no caben las secciones. Tooltip del design system accesible al pasar el puntero y cerrable con Esc (WCAG 1.4.13; pendiente de subir a Claude Design). La tecla de captura se ve pero queda `aria-disabled` con la explicación "Próximamente" hasta que exista la captura rápida. Portada con saludo y fecha en hora de Lima (`src/lib/time.ts`). Sección "Navegación" en `/design`. Pruebas unitarias (registro, hora, atajos, componentes) y E2E (barras por ancho, `aria-current`, `[`, 1–8, atajos ignorados en inputs, axe y capturas en ambos temas).
   - Cuando C4 y C5 construyan `/settings` y `/areas`, basta con quitar `status: "planned"` de su manifiesto.
   - **Qué:**
     - Registro de módulos (`src/lib/modules.ts`, `ModuleManifest`).
@@ -78,8 +78,10 @@
 
 - [ ] **C4: Ajustes**
   - **Qué:** `/settings` con el tema (Oscuro, Claro o Sistema), la gestión de passkeys (registrar, listar, borrar) y cerrar sesión.
+    - Interruptor "Atajos de teclado" (WCAG 2.1.4): escribe la cookie `bo_shortcuts` con `shortcutsCookie()` de `src/modules/core/nav-preferences.ts` (`off` los desactiva) y hace `router.refresh()`. Por defecto, activos.
+    - Cambiar `settingsModule` a disponible (quitar `status: "planned"`).
     - Mover aquí la sección provisional de passkeys (ya registra, lista y elimina) y el botón "Cerrar sesión" de la portada (C2b), y quitarlos de `/`. No hay que construir la gestión de passkeys de nuevo.
-  - **Aceptación:** el tema persiste; puedes registrar y borrar una passkey; cerrar sesión te lleva a `/login`.
+  - **Aceptación:** el tema persiste; puedes registrar y borrar una passkey; cerrar sesión te lleva a `/login`; con los atajos desactivados, `[` y `1`–`8` no hacen nada y no se muestran sus pistas (E2E).
   - **Tamaño:** M
 
 - [ ] **C5: Áreas de vida — ver y crear**

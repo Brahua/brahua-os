@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { listPasskeys } from "@/modules/core/passkeys";
 import { PasskeySection } from "./_components/passkey-section";
 import { SignOutButton } from "./_components/sign-out-button";
+
+export const metadata: Metadata = { title: "Hoy · brahua-os" };
 
 /**
  * Placeholder home ("Hoy") until the `today` module. The greeting and date are rendered on the
