@@ -8,6 +8,7 @@ Personal "second brain" app (single user). Specs drive the work:
 - `SPEC-<module>.md` — approved spec per module
 - `tasks/plan.md`, `tasks/todo.md` — current implementation plan
 - `docs/principios-ux.md` — UX principles
+- `docs/HANDOFF.md` — **read first when resuming**: exact status and work in flight
 
 ## Rules
 
