@@ -16,7 +16,7 @@
 ## Estado
 
 - **design-system:** ✅ completado. Fuente de verdad en Claude Design (skill `design-sync-pull`).
-  - Pendiente del usuario: aplicar en Claude Design los 2 ajustes de `src/design-system/styles/overrides.css` (foco en claro y texto blanco en teclas naranjas); luego sincronizar y borrar esos overrides.
+  - Los 2 ajustes locales (foco en claro y texto blanco en teclas naranjas) ya están en Claude Design; `overrides.css` quedó vacío (sincronizado el 2026-09-30).
 - **core:** en curso.
   - ✅ C0: producción en https://os.brahua.com; deploy desde GitHub Actions solo con todos los checks en verde.
   - ✅ C1 (base de datos): PR #10 integrado; la primera migración (`core_life_areas`) se aplicó en producción el 2026-09-30.

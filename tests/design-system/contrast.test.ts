@@ -5,8 +5,6 @@ import { AREA_COLORS } from "@/design-system";
 
 const stylesDir = path.join(process.cwd(), "src/design-system/styles");
 const css = readFileSync(path.join(stylesDir, "tokens/colors.css"), "utf8");
-// Local fixes (overrides.css) apply on top of the Claude Design tokens.
-const overrides = readFileSync(path.join(stylesDir, "overrides.css"), "utf8");
 
 /** Collects `--name: value;` declarations inside the first block whose selector matches. */
 function readBlock(selector: RegExp, source = css): Record<string, string> {
@@ -21,15 +19,9 @@ function readBlock(selector: RegExp, source = css): Record<string, string> {
 
 // The first :root block holds the primitives (grays, signal, LCD, area tones).
 const primitives = readBlock(/:root/);
-// Theme-independent local tokens (signal keys) from overrides.css.
-const localTokens = readBlock(/:root/, overrides);
 const themes = {
-  dark: { ...readBlock(/:root,\s*\[data-theme="dark"\]/), ...localTokens },
-  light: {
-    ...readBlock(/\[data-theme="light"\]/),
-    ...readBlock(/\[data-theme="light"\]/, overrides),
-    ...localTokens,
-  },
+  dark: readBlock(/:root,\s*\[data-theme="dark"\]/),
+  light: readBlock(/\[data-theme="light"\]/),
 };
 
 /** Resolves `var(--x)` chains down to a hex color within one theme. */
