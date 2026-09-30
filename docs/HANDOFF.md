@@ -20,8 +20,8 @@
 - **core:** en curso.
   - ✅ C0: producción en https://os.brahua.com; deploy desde GitHub Actions solo con todos los checks en verde.
   - ✅ C1 (base de datos): PR #10 integrado; la primera migración (`core_life_areas`) se aplicó en producción el 2026-09-30.
-  - **Próximo paso inmediato:** sembrar las 8 áreas en producción. Propuesta: que `scripts/vercel-build` ejecute `pnpm db:seed` (idempotente) después de `db:migrate` en los builds de producción, en vez de un seed manual con credenciales. Va en un PR pequeño o al inicio de C2.
-  - Siguiente: C2 (login). `OWNER_EMAIL=josuebh62@gmail.com`; el usuario ejecuta `pnpm auth:owner` en su terminal (los secretos nunca pasan por la sesión).
+  - ✅ Seed en producción: `scripts/vercel-build.sh` ejecuta `pnpm db:seed` (idempotente) después de `db:migrate` en cada build de producción.
+  - **Próximo paso inmediato:** C2 (login). `OWNER_EMAIL=josuebh62@gmail.com`; el usuario ejecuta `pnpm auth:owner` en su terminal (los secretos nunca pasan por la sesión).
 
 ## Decisiones recientes a respetar
 
