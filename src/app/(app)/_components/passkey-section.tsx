@@ -248,7 +248,7 @@ function DeleteConfirmation({
       aria-labelledby={textId}
       className="flex flex-col gap-3 bg-surface px-4 py-3"
       onKeyDown={(event) => {
-        if (event.key === "Escape") onCancel();
+        if (event.key === "Escape" && !pending) onCancel();
       }}
     >
       <p id={textId} className="bo-text-body-sm">

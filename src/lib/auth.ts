@@ -151,11 +151,13 @@ export function createAuth(db: Database, env: AuthEnv) {
           const session = await getSessionFromCtx(ctx, { disableRefresh: true });
           if (session) {
             const age = Date.now() - new Date(session.session.createdAt).getTime();
-            if (age >= RECENT_SESSION_MAX_AGE * 1000) throw sessionNotFresh();
+            // Negated so an invalid createdAt (NaN age) is treated as not fresh.
+            if (!(age < RECENT_SESSION_MAX_AGE * 1000)) throw sessionNotFresh();
           }
-          // The label is shown in the list; the plugin puts no limit on it.
+          // The label is shown in the list; the plugin puts no limit on it and stores it
+          // untrimmed, so the raw length is what counts.
           const name = (ctx.body as { name?: unknown } | undefined)?.name;
-          if (typeof name === "string" && name.trim().length > PASSKEY_NAME_MAX_LENGTH) {
+          if (typeof name === "string" && name.length > PASSKEY_NAME_MAX_LENGTH) {
             throw passkeyNameTooLong();
           }
           return;
