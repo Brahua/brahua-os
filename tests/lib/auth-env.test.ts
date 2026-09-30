@@ -46,7 +46,7 @@ describe("resolveAuthEnv", () => {
     ).toThrow(/https/);
   });
 
-  test("production: secure cookies and only the production origin", () => {
+  test("production: secure cookies, only the production origin, passkeys on os.brahua.com", () => {
     const env = resolveAuthEnv({ ...VALID, VERCEL_ENV: "production", NODE_ENV: "production" });
     expect(env).toEqual({
       secret: SECRET,
@@ -54,6 +54,38 @@ describe("resolveAuthEnv", () => {
       ownerEmail: "owner@example.com",
       trustedOrigins: [PRODUCTION_ORIGIN],
       secureCookies: true,
+      passkey: { rpID: "os.brahua.com", rpName: "brahua-os", origin: PRODUCTION_ORIGIN },
+    });
+  });
+
+  test("production refuses any other origin, since passkeys would be bound to it", () => {
+    expect(() =>
+      resolveAuthEnv({
+        ...VALID,
+        BETTER_AUTH_URL: "https://brahua-os.vercel.app",
+        VERCEL_ENV: "production",
+      }),
+    ).toThrow(/must be https:\/\/os\.brahua\.com in production/);
+    // A trailing slash or path is still the same origin.
+    expect(
+      resolveAuthEnv({
+        ...VALID,
+        BETTER_AUTH_URL: "https://os.brahua.com/",
+        VERCEL_ENV: "production",
+      }).passkey.rpID,
+    ).toBe("os.brahua.com");
+  });
+
+  test("development and tests bind passkeys to localhost, with the port only in the origin", () => {
+    const env = resolveAuthEnv({
+      ...VALID,
+      BETTER_AUTH_URL: "http://localhost:3417",
+      NODE_ENV: "test",
+    });
+    expect(env.passkey).toEqual({
+      rpID: "localhost",
+      rpName: "brahua-os",
+      origin: "http://localhost:3417",
     });
   });
 

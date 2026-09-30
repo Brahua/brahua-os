@@ -5,7 +5,7 @@ import { resolveAuthEnv } from "@/lib/auth-env";
 
 try {
   const env = resolveAuthEnv(process.env);
-  console.log(`Auth configuration OK (base URL ${env.baseURL}).`);
+  console.log(`Auth configuration OK (base URL ${env.baseURL}, passkey rpID ${env.passkey.rpID}).`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);

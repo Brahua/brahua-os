@@ -2,7 +2,6 @@
 // because `user` is a reserved word in Postgres.
 // Property keys are the Better Auth field names (camelCase), which the Drizzle adapter looks up;
 // columns are snake_case like the rest of the database. The adapter validates this shape at startup.
-// The `auth_passkeys` table arrives with the passkey plugin (C2b).
 import { bigint, boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 const timestamps = {
@@ -80,6 +79,37 @@ export const authRateLimits = pgTable("auth_rate_limits", {
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
+/**
+ * WebAuthn credentials (`@better-auth/passkey`). Only the public key is stored; the private key
+ * never leaves the owner's device. Fields mirror the plugin's schema.
+ */
+export const authPasskeys = pgTable(
+  "auth_passkeys",
+  {
+    id: text("id").primaryKey(),
+    /** Optional label chosen when registering it. */
+    name: text("name"),
+    /** COSE public key, base64. */
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    /** base64url credential id sent by the authenticator; unique across every authenticator. */
+    credentialID: text("credential_id").notNull().unique(),
+    /** Signature counter (0 for most synced passkeys). */
+    counter: integer("counter").notNull(),
+    /** `singleDevice` or `multiDevice` (synced). */
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    /** Comma-separated transports (`internal,hybrid`…). */
+    transports: text("transports"),
+    /** Authenticator model (all zeros when the platform hides it). */
+    aaguid: text("aaguid"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("auth_passkeys_user_id_idx").on(table.userId)],
+);
+
 /** Drizzle adapter schema, keyed by the Better Auth `modelName` of each table. */
 export const authSchema = {
   auth_users: authUsers,
@@ -87,6 +117,8 @@ export const authSchema = {
   auth_accounts: authAccounts,
   auth_verifications: authVerifications,
   auth_rate_limits: authRateLimits,
+  auth_passkeys: authPasskeys,
 };
 
 export type AuthUser = typeof authUsers.$inferSelect;
+export type AuthPasskey = typeof authPasskeys.$inferSelect;

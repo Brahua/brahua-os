@@ -1,6 +1,7 @@
 // Better Auth configuration (SPEC-core: "Autenticación y seguridad") and the owner guard.
 // Single user: only OWNER_EMAIL can sign in; sign-up is disabled and the owner is created
 // with `pnpm auth:owner`.
+import { passkey } from "@better-auth/passkey";
 import { waitUntil } from "@vercel/functions";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -26,6 +27,18 @@ export const SESSION_EXPIRES_IN = 30 * DAY;
 export const SESSION_UPDATE_AGE = DAY;
 /** SPEC-core: the 6th sign-in attempt within 60 s from the same IP gets a 429. */
 export const SIGN_IN_RATE_LIMIT = { window: 60, max: 5 } as const;
+/**
+ * Passkey endpoints (the plugin declares no limits, so they would get the global 100 per 10 s).
+ * Signing in with a passkey counts like a password attempt; the other three each write a
+ * challenge row, so they are capped too: the login page asks for options once per load
+ * (autofill) and once per button press.
+ */
+export const PASSKEY_RATE_LIMITS = {
+  "/passkey/verify-authentication": SIGN_IN_RATE_LIMIT,
+  "/passkey/generate-authenticate-options": { window: 60, max: 10 },
+  "/passkey/generate-register-options": { window: 60, max: 10 },
+  "/passkey/verify-registration": { window: 60, max: 10 },
+} as const;
 
 export const LOGIN_PATH = "/login";
 
@@ -80,6 +93,7 @@ export function createAuth(db: Database, env: AuthEnv) {
       modelName: "auth_rate_limits",
       customRules: {
         "/sign-in/email": { ...SIGN_IN_RATE_LIMIT },
+        ...PASSKEY_RATE_LIMITS,
         // Called on every app load to renew the cookie (SessionRefresher); a database write per
         // call would buy nothing: it needs a valid session and never checks credentials.
         "/get-session": false,
@@ -114,8 +128,8 @@ export function createAuth(db: Database, env: AuthEnv) {
     databaseHooks: {
       session: {
         create: {
-          // Backstop for every sign-in method (the passkey plugin arrives in C2b):
-          // no session is ever created for anyone but the owner.
+          // Backstop for every sign-in method (password and passkey alike): no session is ever
+          // created for anyone but the owner. A passkey of another user verifies, then fails here.
           before: async (session) => {
             const [user] = await db
               .select({ email: authUsers.email })
@@ -126,8 +140,23 @@ export function createAuth(db: Database, env: AuthEnv) {
         },
       },
     },
-    // nextCookies must stay the last plugin (lets Server Actions set auth cookies).
-    plugins: [nextCookies()],
+    plugins: [
+      passkey({
+        // Bound to the configured origin, never to the request (SPEC-core: rpID os.brahua.com).
+        rpID: env.passkey.rpID,
+        rpName: env.passkey.rpName,
+        origin: env.passkey.origin,
+        // Discoverable credentials: sign-in starts without an email, so the device must be able
+        // to find the passkey on its own.
+        authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+        // Registering needs a session (the default, explicit here): only the signed-in owner,
+        // with a session younger than a day (Better Auth's freshAge), can add a passkey.
+        registration: { requireSession: true },
+        schema: { passkey: { modelName: "auth_passkeys" } },
+      }),
+      // nextCookies must stay the last plugin (lets Server Actions set auth cookies).
+      nextCookies(),
+    ],
   });
 }
 
