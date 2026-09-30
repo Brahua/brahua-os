@@ -251,7 +251,11 @@ export type ActionResult<T> =
 
 - Cada Server Action tiene al menos una prueba del caso feliz y una de validación o autorización.
 - **CI (GitHub Actions)** en cada push y PR: `lint`, `typecheck`, `test`, `test:e2e` y `build`.
-- **Despliegue continuo a producción:** todo merge a `main` con el CI verde se publica en `os.brahua.com`. No hay previews durante el MVP.
+- **Trunk-based + CI/CD (2026-09-30):**
+  - Ramas cortas por cambio, con PR a `main`.
+  - Cada push a `main` vuelve a correr el CI, y el job `deploy` de GitHub Actions publica en producción **solo si pasan todos los checks** (`vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`).
+  - El auto-deploy de Vercel está desactivado (`vercel.json`).
+  - No hay previews durante el MVP.
 
 ## Operación
 
@@ -325,7 +329,7 @@ export type ActionResult<T> =
 ## Decisiones cerradas
 
 1. **Login:** email + contraseña + passkey, con registro deshabilitado.
-2. **Dominio:** **`os.brahua.com`**. `brahua.com` queda para el portafolio. En Hostinger solo se agrega un `CNAME os → cname.vercel-dns.com`.
+2. **Dominio:** **`os.brahua.com`**. `brahua.com` queda para el portafolio. En Hostinger solo se agrega un registro `A os → 76.76.21.21` (lo que indica Vercel); los nameservers no se tocan.
 3. **Repositorio:** `Brahua/brahua-os`, privado, en la cuenta personal.
 4. **Áreas iniciales:** las 8 del seed.
 5. **Idioma:** todo el código en inglés, commits incluidos; la interfaz y la documentación en español.
