@@ -56,11 +56,14 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import type { AreaIconName } from "./areas";
+
+export type { AreaIconName } from "./areas";
 
 /**
  * Curated icon set for life areas. Explicit imports keep the bundle small:
  * the UI can offer these without loading all of Lucide.
- * Keys are stored in the database, so never rename an existing key.
+ * Keys must match AREA_ICON_NAMES in ./areas (the server-safe list stored in the database).
  */
 export const AREA_ICONS = {
   house: House,
@@ -118,9 +121,4 @@ export const AREA_ICONS = {
   trophy: Trophy,
   utensils: Utensils,
   wrench: Wrench,
-} as const satisfies Record<string, LucideIcon>;
-
-export type AreaIconName = keyof typeof AREA_ICONS;
-
-/** Tuple of icon names, usable in `z.enum(AREA_ICON_NAMES)` and Drizzle text enums. */
-export const AREA_ICON_NAMES = Object.keys(AREA_ICONS) as [AreaIconName, ...AreaIconName[]];
+} as const satisfies Record<AreaIconName, LucideIcon>;

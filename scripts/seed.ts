@@ -1,8 +1,9 @@
 // Seeds the 8 default life areas. Idempotent: existing slugs are left untouched.
 //   DATABASE_URL_UNPOOLED=… pnpm db:seed
 import { pathToFileURL } from "node:url";
-import { AREA_COLORS, DEFAULT_AREAS } from "@/design-system";
+import { AREA_COLORS, DEFAULT_AREAS } from "@/design-system/areas";
 import { createDb, type Database } from "@/lib/db";
+import { describeDatabaseTarget, resolveScriptDatabaseUrl } from "@/lib/db-config";
 import { lifeAreas, type NewLifeArea } from "@/modules/core/db/schema";
 
 /** Spanish names from SPEC-core (the design system's labels are shorter for some areas). */
@@ -35,12 +36,15 @@ export async function seed(db: Database): Promise<number> {
 }
 
 async function main() {
-  // No silent default: the target database must be named explicitly.
-  const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
-  if (!url) {
-    console.error("Set DATABASE_URL_UNPOOLED or DATABASE_URL explicitly to seed a database.");
+  // No silent default: DATABASE_URL_UNPOOLED only, and non-local hosts need ALLOW_PROD_DB=1.
+  let url: string;
+  try {
+    url = resolveScriptDatabaseUrl(process.env);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   }
+  console.log(`Target database: ${describeDatabaseTarget(url)}`);
   const db = createDb(url);
   try {
     const count = await seed(db);

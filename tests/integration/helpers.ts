@@ -1,21 +1,37 @@
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Database } from "@/lib/db";
+import { databaseName, describeDatabaseTarget, isLocalDatabaseUrl } from "@/lib/db-config";
 
 export const MIGRATIONS_FOLDER = "./drizzle";
 
-/** URL of the throwaway test database. Refuses anything that looks like Neon (production). */
-export function testDatabaseUrl(): string {
-  const url = process.env.TEST_DATABASE_URL;
+type Env = Record<string, string | undefined>;
+
+/**
+ * Allowlist for the throwaway test database: a local host (or the CI service), a database
+ * name ending in `_test`, and never the app's own DATABASE_URL / DATABASE_URL_UNPOOLED.
+ */
+export function assertTestDatabaseUrl(url: string | undefined, env: Env): string {
   if (!url) {
     throw new Error(
       "TEST_DATABASE_URL is not set. Start the test Postgres with `docker compose up -d` (see .env.example).",
     );
   }
-  if (new URL(url).hostname.endsWith("neon.tech")) {
-    throw new Error("TEST_DATABASE_URL points to Neon. Integration tests never run against it.");
+  const target = describeDatabaseTarget(url);
+  if (!isLocalDatabaseUrl(url)) {
+    throw new Error(`Test database must be local, got ${target}.`);
+  }
+  if (!databaseName(url).endsWith("_test")) {
+    throw new Error(`Test database name must end in "_test", got ${target}.`);
+  }
+  if (url === env.DATABASE_URL || url === env.DATABASE_URL_UNPOOLED) {
+    throw new Error("TEST_DATABASE_URL must differ from DATABASE_URL and DATABASE_URL_UNPOOLED.");
   }
   return url;
+}
+
+export function testDatabaseUrl(): string {
+  return assertTestDatabaseUrl(process.env.TEST_DATABASE_URL, process.env);
 }
 
 /** Drops every table, including Drizzle's migration journal, leaving an empty database. */

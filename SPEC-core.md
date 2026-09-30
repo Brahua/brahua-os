@@ -46,7 +46,7 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 ```bash
 pnpm install                 # Install dependencies
 pnpm dev                     # Dev server (http://localhost:3000)
-pnpm build                   # next build (Vercel runs `pnpm db:migrate && pnpm build`, see vercel.json)
+pnpm build                   # next build (Vercel runs scripts/vercel-build.sh: db:migrate in production, then build)
 pnpm lint                    # ESLint
 pnpm typecheck               # tsc --noEmit
 pnpm test                    # Vitest (unit, no database)
@@ -54,7 +54,7 @@ pnpm test:integration        # Vitest against TEST_DATABASE_URL (docker compose 
 pnpm test:e2e                # Playwright against local `next start`
 pnpm db:generate             # drizzle-kit generate → new SQL migration
 pnpm db:migrate              # drizzle-kit migrate (DATABASE_URL_UNPOOLED)
-pnpm db:seed                 # Seed default life areas (idempotent, explicit DB URL required)
+pnpm db:seed                 # Seed default life areas (idempotent, DATABASE_URL_UNPOOLED only)
 pnpm db:export               # Dump every table to JSON (manual backup)
 pnpm auth:owner              # Create/reset the owner (OWNER_EMAIL + interactive password)
 vercel env pull .env.local   # Pull env vars from Vercel

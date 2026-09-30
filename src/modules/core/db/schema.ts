@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { AREA_COLORS, AREA_ICON_NAMES } from "@/design-system";
+// Server-safe data module, not the barrel: keeps React components out of drizzle-kit and scripts.
+import { AREA_COLORS, AREA_ICON_NAMES } from "@/design-system/areas";
 
 export const lifeAreas = pgTable("core_life_areas", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -14,7 +16,8 @@ export const lifeAreas = pgTable("core_life_areas", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
-    .$onUpdate(() => new Date()),
+    // Stamped by the database clock on every Drizzle update. Raw SQL updates must set it themselves.
+    .$onUpdate(() => sql`now()`),
 });
 
 export type LifeArea = typeof lifeAreas.$inferSelect;

@@ -12,10 +12,12 @@ La guía de Neon para Vercel recomienda `node-postgres` con Fluid Compute y `att
 ## Decisión
 
 - **Driver:** `pg` (node-postgres) + Drizzle (`drizzle-orm/node-postgres`).
-- **Cliente:** `src/lib/db.ts` crea un `Pool` de forma perezosa con `getDb()` (el build nunca necesita base de datos) y llama a `attachDatabasePool(pool)`.
-- **Conexiones:** la app usa `DATABASE_URL` (*pooled*, PgBouncer de Neon). Las migraciones y el seed usan `DATABASE_URL_UNPOOLED` (directa).
-- **Migraciones:** `pnpm db:generate` (drizzle-kit) en local; `pnpm db:migrate` corre en el build de Vercel (`buildCommand` de `vercel.json`: `pnpm db:migrate && pnpm build`). Si la migración falla, falla el despliegue.
-- **Pruebas:** Postgres 17 desechable (Docker en local, servicio en GitHub Actions) con `TEST_DATABASE_URL`. Nunca la base de producción.
+- **Cliente:** `src/lib/db.ts` crea un `Pool` de forma perezosa con `getDb()` (el build nunca necesita base de datos), con `idleTimeoutMillis` explícito, y llama a `attachDatabasePool(pool)`. Fuera de producción el cliente se guarda en `globalThis` para sobrevivir al *hot reload*. Con un host no local se fuerza TLS verificado (`ssl: { rejectUnauthorized: true }`).
+- **Conexiones:** la app usa `DATABASE_URL` (*pooled*, PgBouncer de Neon). Las migraciones y el seed usan **solo** `DATABASE_URL_UNPOOLED` (directa), sin volver a `DATABASE_URL`.
+- **Migraciones:** `pnpm db:generate` (drizzle-kit) en local. El `buildCommand` de `vercel.json` (`scripts/vercel-build.sh`) corre `pnpm db:migrate` solo cuando `VERCEL_ENV=production` y después `next build`. Si la migración falla, falla el despliegue.
+- **Protección local:** `db:migrate` y `db:seed` se niegan a tocar un host no local salvo en el build de Vercel (`VERCEL=1`) o con `ALLOW_PROD_DB=1`, y muestran el host y la base (nunca credenciales) antes de escribir.
+- **`updated_at`:** Drizzle lo sella con `now()` de la base en cada `update`. Los `UPDATE` en SQL crudo deben ponerlo ellos mismos.
+- **Pruebas:** Postgres 17 desechable (Docker en local, servicio en GitHub Actions) con `TEST_DATABASE_URL`, que solo acepta un host local, una base terminada en `_test` y una URL distinta de las de la app. Nunca la base de producción.
 
 ## Consecuencias
 

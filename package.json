@@ -18,7 +18,7 @@
     "design:lock": "node scripts/design-lock.mjs",
     "design:check": "node scripts/design-lock.mjs --check",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/check-db-target.ts && drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
     "test:integration": "vitest run --config vitest.integration.config.mts"
   },
