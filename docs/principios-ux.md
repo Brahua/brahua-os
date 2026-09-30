@@ -69,8 +69,8 @@ Los tokens, los componentes y las reglas concretas están en [`SPEC-design-syste
 | **Motion** (`motion/react`) | Animaciones de layout, gestos (deslizar para completar), `AnimatePresence`, springs | Base de todo el movimiento |
 | **React View Transitions** (`<ViewTransition>` de React 19.2 + `experimental.viewTransition` de Next.js) | Transiciones fluidas entre rutas y elementos compartidos | Navegación |
 | **shadcn/ui** (Radix) + Tailwind v4 | Componentes accesibles y editables | Ya definido en `nucleo` |
-| **Sonner** | Toasts con acción "Deshacer" | UI optimista (principio 12) |
-| **Vaul** (Drawer de shadcn) | Hojas inferiores nativas en el celular | Captura rápida (principio 14) |
+| **`Toast` del design system** | Aviso estilo LCD con acción "Deshacer" (la cola de avisos se agrega en `core`) | UI optimista (principio 12) |
+| **Radix Dialog** (`Sheet` del design system) | Hoja inferior en el celular y panel lateral en escritorio | Captura rápida (principio 14) |
 | **NumberFlow** (`@number-flow/react`) | Números que cambian animados (rachas, progreso, montos) | Recompensa (principios 2 y 3) |
 | **canvas-confetti** | Celebraciones puntuales | Solo en hitos (principio 15) |
 | **cmdk** | Paleta de comandos (`⌘K`) para capturar y buscar | Escritorio |

@@ -1,6 +1,6 @@
 # Spec: design-system
 
-> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO** (2026-09-29) · v2: fuente de verdad en Claude Design
+> Módulo `design-system` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **COMPLETADO** (2026-09-29) · v2: fuente de verdad en Claude Design
 > Fuente visual: Claude Design, proyecto "Tres direcciones de diseño de hábitos" (dirección **3A · Panel mono**):
 > - `brahua-os Pantallas.dc.html`: celular, oscuro.
 > - `brahua-os Tema claro.dc.html`: celular, claro junto a oscuro.
@@ -13,6 +13,8 @@
 > - `extensions.css` agrega lo que las tarjetas de diseño no necesitan pero la app sí (por ejemplo, posicionar el `Sheet` sobre Radix Dialog en la pantalla).
 > - Los estilos `bo-*` no están en una capa de Tailwind, así que ganan sobre las utilidades: para variar un componente se usan sus props o sus modificadores, no clases de Tailwind encima.
 > - Los componentes (`src/design-system/components/`) son la versión TypeScript de los `.jsx` de Claude Design, con la misma API y las mismas clases `bo-*`, más accesibilidad y pruebas.
+>
+> - Sincronizar: skill `design-sync-pull`. `pnpm design:check` (en CI) verifica que los archivos copiados no se editen a mano.
 >
 > Cuando esta spec y el README de Claude Design difieran en valores (colores, radios, tipografía, movimiento), **manda el README de Claude Design**. Las secciones de tokens de abajo quedan como historial de la v1.
 
