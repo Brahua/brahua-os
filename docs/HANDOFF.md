@@ -22,7 +22,9 @@
   - ✅ C1 (base de datos): PR #10 integrado; la primera migración (`core_life_areas`) se aplicó en producción el 2026-09-30.
   - ✅ Seed en producción: `scripts/vercel-build.sh` ejecuta `pnpm db:seed` (idempotente) después de `db:migrate` en cada build de producción.
   - ✅ C2a (contraseña, protección y owner): PR #14 integrado; login con contraseña en producción.
-  - 🟡 C2b (passkey): PR `feat/core-c2b-passkey` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, `security-auditor`, accesibilidad). No necesita variables nuevas. Después del deploy: Checkpoint 1 en dispositivos reales (ver abajo).
+  - ✅ C2b (passkey): PRs #16 y #17 integrados y en producción.
+  - ✅ Checkpoint 1 (2026-09-30): el owner entra con contraseña y con passkey (Touch ID en el computador, Face ID en el celular).
+  - **Próximo paso:** C3 (navegación).
   - Siguiente: C3 (navegación).
 
 ## C2a: pasos del usuario (en orden)
@@ -78,7 +80,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - Contador de firmas: si baja (posible clon), `@simplewebauthn/server` rechaza el inicio de sesión y el plugin lo registra como error ("Failed to verify authentication"). No hay registro de seguridad aparte.
 - E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar → cerrar sesión → entrar con passkey, y axe en ambos temas.
 - `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de cualquier pregunta: tiene que ser `postgres://` o `postgresql://` con un host real y una base (rechaza marcadores como `…`). `channel_binding` en la URL se acepta: `pg` lo ignora.
-- Sin verificar todavía: comportamiento en iPhone y Android reales, y dentro de la PWA instalada (C7). Es parte del Checkpoint 1.
+- Verificado en dispositivos reales (Checkpoint 1): Touch ID en el computador y Face ID en el iPhone. Falta probarla dentro de la PWA instalada (C7).
 
 ## Decisiones recientes a respetar
 
