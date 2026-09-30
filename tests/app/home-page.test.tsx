@@ -38,7 +38,7 @@ test("lists only the signed-in owner's passkeys", async () => {
   render(await Home());
 
   expect(listPasskeys).toHaveBeenCalledWith(expect.anything(), "owner-id");
-  expect(screen.getByText("MacBook")).toBeInTheDocument();
+  expect(screen.getByRole("list", { name: "Tus passkeys" })).toHaveTextContent("MacBook");
 });
 
 test("home page does not render without the owner (requireOwner redirects)", async () => {
