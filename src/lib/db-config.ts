@@ -87,13 +87,10 @@ export function assertDatabaseUrl(name: string, url: string): void {
   }
   const host = parse(url).host;
   if (!host || !isValidHostname(host)) {
-    let shown = host;
-    try {
-      shown = decodeURIComponent(host);
-    } catch {
-      // Keep the encoded form.
-    }
-    throw new Error(`${name} has no valid host (got "${shown}"). ${fix}`);
+    // The host is not echoed: a mangled paste can put a password where the host should be.
+    throw new Error(
+      `${name} has no valid host (empty, a placeholder like "…", or not a hostname). ${fix}`,
+    );
   }
   if (!databaseName(url)) {
     throw new Error(`${name} has no database name. ${fix}`);

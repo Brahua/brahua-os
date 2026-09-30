@@ -1,6 +1,7 @@
 // Creates the owner account, or resets its password (SPEC-core: no email reset; recovery is
 // running this script again). The password is typed in the terminal, hidden, and never read
-// from arguments or environment variables. Resetting signs out every existing session.
+// from arguments or environment variables. Resetting signs out every existing session
+// and removes every passkey (the owner registers them again).
 //   OWNER_EMAIL=… DATABASE_URL_UNPOOLED=… pnpm auth:owner
 // Non-local databases need ALLOW_PROD_DB=1 (a Vercel build is never permission) and typing the
 // database host back before the password prompt. A malformed URL (e.g. a placeholder host such
@@ -119,7 +120,8 @@ async function main() {
     console.log(
       result.created
         ? "Owner created. You can sign in at /login."
-        : `Owner password reset. ${result.revokedSessions} session(s) signed out.`,
+        : `Owner password reset. ${result.revokedSessions} session(s) signed out, ` +
+            `${result.revokedPasskeys} passkey(s) removed: register yours again after signing in.`,
     );
   } finally {
     await db.$client.end();

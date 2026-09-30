@@ -36,6 +36,10 @@ const FLAG_USER_PRESENT = 0x01;
 const FLAG_USER_VERIFIED = 0x04;
 const FLAG_ATTESTED_DATA = 0x40;
 
+/** UP always; UV only when the "person" proved who they are (`userVerified: false` = UP only). */
+const userFlags = (userVerified: boolean) =>
+  FLAG_USER_PRESENT | (userVerified ? FLAG_USER_VERIFIED : 0);
+
 export class SoftwareAuthenticator {
   readonly credentialId = randomBytes(16);
   private readonly privateKey: KeyObject;
@@ -68,10 +72,10 @@ export class SoftwareAuthenticator {
     );
   }
 
-  private authenticatorData(flags: number, attested?: Buffer): Buffer {
+  private authenticatorData(flags: number, rpID: string, attested?: Buffer): Buffer {
     const counter = Buffer.alloc(4); // 0, like most synced passkeys
     const extra = attested ?? Buffer.alloc(0);
-    return Buffer.concat([sha256(this.rpID), Buffer.from([flags]), counter, extra]);
+    return Buffer.concat([sha256(rpID), Buffer.from([flags]), counter, extra]);
   }
 
   private clientData(type: "webauthn.create" | "webauthn.get", challenge: string, origin: string) {
@@ -79,7 +83,7 @@ export class SoftwareAuthenticator {
   }
 
   /** navigator.credentials.create(), serialized like @simplewebauthn/browser does. */
-  register(options: { challenge: string }, { origin = this.origin } = {}) {
+  register(options: { challenge: string }, { origin = this.origin, userVerified = true } = {}) {
     const credentialIdLength = Buffer.from([0, this.credentialId.length]);
     const attested = Buffer.concat([
       Buffer.alloc(16), // AAGUID: all zeros, like platforms that hide it
@@ -88,7 +92,8 @@ export class SoftwareAuthenticator {
       this.cosePublicKey(),
     ]);
     const authData = this.authenticatorData(
-      FLAG_USER_PRESENT | FLAG_USER_VERIFIED | FLAG_ATTESTED_DATA,
+      userFlags(userVerified) | FLAG_ATTESTED_DATA,
+      this.rpID,
       attested,
     );
     const attestationObject = cbor(
@@ -113,8 +118,12 @@ export class SoftwareAuthenticator {
   }
 
   /** navigator.credentials.get(), serialized like @simplewebauthn/browser does. */
-  authenticate(options: { challenge: string }, { origin = this.origin } = {}) {
-    const authData = this.authenticatorData(FLAG_USER_PRESENT | FLAG_USER_VERIFIED);
+  authenticate(
+    options: { challenge: string },
+    // `rpID` forges an assertion made for another relying party with this same key.
+    { origin = this.origin, userVerified = true, rpID = this.rpID } = {},
+  ) {
+    const authData = this.authenticatorData(userFlags(userVerified), rpID);
     const clientDataJSON = this.clientData("webauthn.get", options.challenge, origin);
     const signature = sign("sha256", Buffer.concat([authData, sha256(clientDataJSON)]), {
       key: this.privateKey,

@@ -4,16 +4,20 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
 import { normalizeEmail } from "@/lib/auth-env";
 import type { Database } from "@/lib/db";
-import { authAccounts, authSessions, authUsers } from "./db/auth-schema";
+import { authAccounts, authPasskeys, authSessions, authUsers } from "./db/auth-schema";
 
 /** Better Auth's provider id for email + password accounts. */
 export const CREDENTIAL_PROVIDER = "credential";
 
-export type UpsertOwnerResult = { created: boolean; revokedSessions: number };
+export type UpsertOwnerResult = {
+  created: boolean;
+  revokedSessions: number;
+  revokedPasskeys: number;
+};
 
 /**
  * Creates the owner (verified email + credential account) or replaces its password hash.
- * Either way every existing session of that user is signed out.
+ * Either way every existing session and every passkey of that user is removed (recovery).
  */
 export async function upsertOwner(
   db: Database,
@@ -60,6 +64,16 @@ export async function upsertOwner(
       .delete(authSessions)
       .where(eq(authSessions.userId, user.id))
       .returning({ id: authSessions.id });
-    return { created, revokedSessions: revoked.length };
+    // Recovery means the account may be compromised: a passkey someone else added would be a
+    // way back in, so every passkey goes too. The owner registers theirs again after signing in.
+    const revokedPasskeys = await tx
+      .delete(authPasskeys)
+      .where(eq(authPasskeys.userId, user.id))
+      .returning({ id: authPasskeys.id });
+    return {
+      created,
+      revokedSessions: revoked.length,
+      revokedPasskeys: revokedPasskeys.length,
+    };
   });
 }

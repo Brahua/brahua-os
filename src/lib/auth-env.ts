@@ -35,6 +35,8 @@ export type PasskeyRelyingParty = {
 };
 
 export const PASSKEY_RP_NAME = "brahua-os";
+/** Longest label for a passkey in the list (checked by the server and the form). */
+export const PASSKEY_NAME_MAX_LENGTH = 50;
 
 /**
  * Relying party for the passkey plugin. Passkeys are bound to `rpID` for good: a passkey created

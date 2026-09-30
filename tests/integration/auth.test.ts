@@ -247,7 +247,7 @@ describe("pnpm auth:owner (upsertOwner)", () => {
       email: " OWNER@example.com",
       password: "a brand new password",
     });
-    expect(result).toEqual({ created: false, revokedSessions: 1 });
+    expect(result).toEqual({ created: false, revokedSessions: 1, revokedPasskeys: 0 });
     expect(await testDb.$count(authUsers)).toBe(1);
     expect(await testDb.$count(authAccounts)).toBe(1);
     expect(await testDb.$count(authSessions)).toBe(0);

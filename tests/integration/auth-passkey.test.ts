@@ -2,8 +2,14 @@
 // authenticator standing in for the browser (the E2E uses Chromium's virtual authenticator).
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test } from "vitest";
-import { createAuth, PASSKEY_RATE_LIMITS, verifyOwnerSession, type Auth } from "@/lib/auth";
-import { resolveAuthEnv } from "@/lib/auth-env";
+import {
+  createAuth,
+  PASSKEY_RATE_LIMITS,
+  RECENT_SESSION_MAX_AGE,
+  verifyOwnerSession,
+  type Auth,
+} from "@/lib/auth";
+import { PASSKEY_NAME_MAX_LENGTH, resolveAuthEnv } from "@/lib/auth-env";
 import { authPasskeys, authSessions, authUsers } from "@/modules/core/db/auth-schema";
 import { upsertOwner } from "@/modules/core/owner";
 import { listPasskeys } from "@/modules/core/passkeys";
@@ -70,27 +76,41 @@ function post(path: string, body: unknown, { cookie = "", ip = nextIp() } = {}) 
   );
 }
 
+async function expectError(response: Response, status: number, code: string) {
+  expect(response.status).toBe(status);
+  expect(await response.json()).toMatchObject({ code });
+}
+
 async function signInWithPassword(): Promise<string> {
   const response = await post("/sign-in/email", { email: OWNER, password: PASSWORD });
   expect(response.status).toBe(200);
   return withCookies(response);
 }
 
+/** Makes every session look like it was created `seconds` ago. */
+async function ageSessions(seconds: number) {
+  await testDb.update(authSessions).set({ createdAt: new Date(Date.now() - seconds * 1000) });
+}
+
+/** Registration options for the signed-in owner, plus the cookie with the challenge. */
+async function registrationOptions(session: string) {
+  const optionsResponse = await get("/passkey/generate-register-options", { cookie: session });
+  expect(optionsResponse.status).toBe(200);
+  return { options: await optionsResponse.json(), cookie: withCookies(optionsResponse, session) };
+}
+
 /** Full registration ceremony for the signed-in owner. */
 async function registerPasskey(
   authenticator: SoftwareAuthenticator,
   session: string,
-  name?: string,
+  { name, userVerified }: { name?: string; userVerified?: boolean } = {},
 ) {
-  const optionsResponse = await get("/passkey/generate-register-options", { cookie: session });
-  expect(optionsResponse.status).toBe(200);
-  const options = await optionsResponse.json();
-  const cookie = withCookies(optionsResponse, session);
+  const { options, cookie } = await registrationOptions(session);
   return {
     options,
     response: await post(
       "/passkey/verify-registration",
-      { response: authenticator.register(options), name },
+      { response: authenticator.register(options, { userVerified }), name },
       { cookie },
     ),
   };
@@ -99,16 +119,29 @@ async function registerPasskey(
 /** Full sign-in ceremony, signed out. `origin` lets a test forge where the browser was. */
 async function signInWithPasskey(
   authenticator: SoftwareAuthenticator,
-  { origin, ip = nextIp() }: { origin?: string; ip?: string } = {},
+  {
+    origin,
+    userVerified,
+    rpID,
+    ip = nextIp(),
+  }: { origin?: string; userVerified?: boolean; rpID?: string; ip?: string } = {},
 ) {
   const optionsResponse = await get("/passkey/generate-authenticate-options", { ip });
   expect(optionsResponse.status).toBe(200);
   const options = await optionsResponse.json();
   return post(
     "/passkey/verify-authentication",
-    { response: authenticator.authenticate(options, { origin }) },
+    { response: authenticator.authenticate(options, { origin, userVerified, rpID }) },
     { cookie: withCookies(optionsResponse), ip },
   );
+}
+
+/** Registers a passkey for the owner, then signs out everywhere. */
+async function ownerWithPasskey(authenticator = new SoftwareAuthenticator(RP_ID, BASE_URL)) {
+  const { response } = await registerPasskey(authenticator, await signInWithPassword());
+  expect(response.status).toBe(200);
+  await testDb.delete(authSessions);
+  return authenticator;
 }
 
 async function userId(email: string): Promise<string> {
@@ -134,11 +167,18 @@ describe("passkey registration", () => {
     const session = await signInWithPassword();
     const authenticator = new SoftwareAuthenticator(RP_ID, BASE_URL);
 
-    const { options, response } = await registerPasskey(authenticator, session, "MacBook");
+    const { options, response } = await registerPasskey(authenticator, session, {
+      name: "MacBook",
+    });
 
     expect(options.rp).toEqual({ id: RP_ID, name: "brahua-os" });
-    // Discoverable credential: sign-in starts without an email.
-    expect(options.authenticatorSelection).toMatchObject({ residentKey: "required" });
+    // Discoverable and user-verified: the passkey is the only factor.
+    expect(options.authenticatorSelection).toMatchObject({
+      residentKey: "required",
+      userVerification: "required",
+    });
+    // The keychain entry is named after the owner, never after the label.
+    expect(options.user.name).toBe(OWNER);
     expect(response.status).toBe(200);
     const [passkey] = await testDb.select().from(authPasskeys);
     expect(passkey).toMatchObject({
@@ -150,30 +190,142 @@ describe("passkey registration", () => {
     expect(passkey.createdAt).toBeInstanceOf(Date);
   });
 
-  test("needs a fresh session: one older than a day must sign in with the password again", async () => {
+  test("a passkey without user verification (presence only) is refused", async () => {
     const session = await signInWithPassword();
-    await testDb.update(authSessions).set({ createdAt: new Date(Date.now() - 2 * 86_400_000) });
-
-    const response = await get("/passkey/generate-register-options", { cookie: session });
-    expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ code: "SESSION_NOT_FRESH" });
+    const { response } = await registerPasskey(
+      new SoftwareAuthenticator(RP_ID, BASE_URL),
+      session,
+      { userVerified: false },
+    );
+    await expectError(response, 400, "FAILED_TO_VERIFY_REGISTRATION");
+    expect(await testDb.$count(authPasskeys)).toBe(0);
   });
 
-  test("a response made for another origin is rejected", async () => {
+  test("a response made for another origin is refused", async () => {
     const session = await signInWithPassword();
     const authenticator = new SoftwareAuthenticator(RP_ID, "https://evil.example");
 
     const { response } = await registerPasskey(authenticator, session);
-    expect(response.status).toBeGreaterThanOrEqual(400);
+    // The plugin reports a failed WebAuthn check during registration as a 500.
+    await expectError(response, 500, "FAILED_TO_VERIFY_REGISTRATION");
+    expect(await testDb.$count(authPasskeys)).toBe(0);
+  });
+
+  test("a response signed for another rpID is refused", async () => {
+    const session = await signInWithPassword();
+    const authenticator = new SoftwareAuthenticator("evil.example", BASE_URL);
+
+    const { response } = await registerPasskey(authenticator, session);
+    await expectError(response, 500, "FAILED_TO_VERIFY_REGISTRATION");
+    expect(await testDb.$count(authPasskeys)).toBe(0);
+  });
+
+  test("labels longer than the limit are refused by the server", async () => {
+    const session = await signInWithPassword();
+    const { response } = await registerPasskey(
+      new SoftwareAuthenticator(RP_ID, BASE_URL),
+      session,
+      { name: "x".repeat(PASSKEY_NAME_MAX_LENGTH + 1) },
+    );
+    await expectError(response, 400, "PASSKEY_NAME_TOO_LONG");
+    expect(await testDb.$count(authPasskeys)).toBe(0);
+  });
+});
+
+describe("recent sign-in required to change passkeys", () => {
+  const STALE = RECENT_SESSION_MAX_AGE + 60;
+
+  test("the limit is 10 minutes", () => {
+    expect(RECENT_SESSION_MAX_AGE).toBe(10 * 60);
+  });
+
+  test("a session a few minutes old can still register", async () => {
+    const session = await signInWithPassword();
+    await ageSessions(RECENT_SESSION_MAX_AGE - 60);
+    const { response } = await registerPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL), session);
+    expect(response.status).toBe(200);
+  });
+
+  test("generate-register-options needs a session younger than 10 minutes", async () => {
+    const session = await signInWithPassword();
+    await ageSessions(STALE);
+    await expectError(
+      await get("/passkey/generate-register-options", { cookie: session }),
+      403,
+      "SESSION_NOT_FRESH",
+    );
+  });
+
+  test("verify-registration re-checks it: options fetched in time are not enough", async () => {
+    const session = await signInWithPassword();
+    const { options, cookie } = await registrationOptions(session);
+    await ageSessions(STALE);
+
+    const authenticator = new SoftwareAuthenticator(RP_ID, BASE_URL);
+    const response = await post(
+      "/passkey/verify-registration",
+      { response: authenticator.register(options) },
+      { cookie },
+    );
+    await expectError(response, 403, "SESSION_NOT_FRESH");
+    expect(await testDb.$count(authPasskeys)).toBe(0);
+  });
+
+  test("renaming and deleting need it too", async () => {
+    const session = await signInWithPassword();
+    await registerPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL), session);
+    const [passkey] = await testDb.select().from(authPasskeys);
+    await ageSessions(STALE);
+
+    await expectError(
+      await post(
+        "/passkey/update-passkey",
+        { id: passkey.id, name: "iPhone" },
+        { cookie: session },
+      ),
+      403,
+      "SESSION_NOT_FRESH",
+    );
+    await expectError(
+      await post("/passkey/delete-passkey", { id: passkey.id }, { cookie: session }),
+      403,
+      "SESSION_NOT_FRESH",
+    );
+    expect(await testDb.$count(authPasskeys)).toBe(1);
+  });
+
+  test("with a recent session the owner renames (capped) and deletes a passkey", async () => {
+    const session = await signInWithPassword();
+    await registerPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL), session);
+    const [passkey] = await testDb.select().from(authPasskeys);
+
+    await expectError(
+      await post(
+        "/passkey/update-passkey",
+        { id: passkey.id, name: "x".repeat(PASSKEY_NAME_MAX_LENGTH + 1) },
+        { cookie: session },
+      ),
+      400,
+      "PASSKEY_NAME_TOO_LONG",
+    );
+    const renamed = await post(
+      "/passkey/update-passkey",
+      { id: passkey.id, name: "iPhone" },
+      { cookie: session },
+    );
+    expect(renamed.status).toBe(200);
+    const [row] = await testDb.select().from(authPasskeys);
+    expect(row.name).toBe("iPhone");
+
+    const deleted = await post("/passkey/delete-passkey", { id: passkey.id }, { cookie: session });
+    expect(deleted.status).toBe(200);
     expect(await testDb.$count(authPasskeys)).toBe(0);
   });
 });
 
 describe("passkey sign-in", () => {
   test("the owner signs in with a registered passkey and gets a 30-day session", async () => {
-    const authenticator = new SoftwareAuthenticator(RP_ID, BASE_URL);
-    await registerPasskey(authenticator, await signInWithPassword());
-    await testDb.delete(authSessions);
+    const authenticator = await ownerWithPasskey();
 
     const response = await signInWithPasskey(authenticator);
 
@@ -189,9 +341,21 @@ describe("passkey sign-in", () => {
     expect(Number(maxAge)).toBe(30 * 24 * 60 * 60);
   });
 
-  test("the challenge is bound to the rpID: options name localhost", async () => {
+  // The plugin always sends userVerification "preferred" here; the client asks for "required"
+  // and the afterVerification hook enforces it (next test).
+  test("options are bound to the rpID", async () => {
     const response = await get("/passkey/generate-authenticate-options");
     expect(await response.json()).toMatchObject({ rpId: RP_ID });
+  });
+
+  test("an assertion without user verification (presence only) is refused", async () => {
+    const authenticator = await ownerWithPasskey();
+
+    const response = await signInWithPasskey(authenticator, { userVerified: false });
+
+    await expectError(response, 401, "AUTHENTICATION_FAILED");
+    expect(hasSessionCookie(response)).toBe(false);
+    expect(await testDb.$count(authSessions)).toBe(0);
   });
 
   test("a passkey that belongs to another user never gets a session (database hook)", async () => {
@@ -203,33 +367,37 @@ describe("passkey sign-in", () => {
 
     const response = await signInWithPasskey(authenticator);
 
-    expect(response.status).not.toBe(200);
-    expect(await response.json()).toMatchObject({ code: "UNABLE_TO_CREATE_SESSION" });
+    await expectError(response, 500, "UNABLE_TO_CREATE_SESSION");
     expect(hasSessionCookie(response)).toBe(false);
     expect(await testDb.$count(authSessions)).toBe(0);
   });
 
   test("an unknown passkey is rejected without a session", async () => {
     const response = await signInWithPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL));
-    expect(response.status).toBe(401);
+    await expectError(response, 401, "PASSKEY_NOT_FOUND");
     expect(hasSessionCookie(response)).toBe(false);
     expect(await testDb.$count(authSessions)).toBe(0);
   });
 
   test("an assertion made on another origin is rejected", async () => {
-    const authenticator = new SoftwareAuthenticator(RP_ID, BASE_URL);
-    await registerPasskey(authenticator, await signInWithPassword());
-    await testDb.delete(authSessions);
+    const authenticator = await ownerWithPasskey();
 
     const response = await signInWithPasskey(authenticator, { origin: "https://evil.example" });
-    expect(response.status).toBe(400);
+    await expectError(response, 400, "AUTHENTICATION_FAILED");
+    expect(await testDb.$count(authSessions)).toBe(0);
+  });
+
+  test("an assertion signed for another rpID is rejected", async () => {
+    const authenticator = await ownerWithPasskey();
+
+    // Same key and credential id, but the authenticator data names another relying party.
+    const response = await signInWithPasskey(authenticator, { rpID: "evil.example" });
+    await expectError(response, 400, "AUTHENTICATION_FAILED");
     expect(await testDb.$count(authSessions)).toBe(0);
   });
 
   test("a challenge works once: replaying the same assertion fails", async () => {
-    const authenticator = new SoftwareAuthenticator(RP_ID, BASE_URL);
-    await registerPasskey(authenticator, await signInWithPassword());
-    await testDb.delete(authSessions);
+    const authenticator = await ownerWithPasskey();
 
     const ip = nextIp();
     const optionsResponse = await get("/passkey/generate-authenticate-options", { ip });
@@ -239,8 +407,30 @@ describe("passkey sign-in", () => {
 
     expect((await post("/passkey/verify-authentication", body, { cookie, ip })).status).toBe(200);
     const replay = await post("/passkey/verify-authentication", body, { cookie, ip });
-    expect(replay.status).toBe(400);
-    expect(await replay.json()).toMatchObject({ code: "CHALLENGE_NOT_FOUND" });
+    await expectError(replay, 400, "CHALLENGE_NOT_FOUND");
+  });
+});
+
+describe("recovery (pnpm auth:owner)", () => {
+  test("resetting the password removes every passkey, which then stops working", async () => {
+    const authenticator = await ownerWithPasskey();
+    expect(await testDb.$count(authPasskeys)).toBe(1);
+
+    const result = await upsertOwner(testDb, { email: OWNER, password: "a brand new password" });
+
+    expect(result).toEqual({ created: false, revokedSessions: 0, revokedPasskeys: 1 });
+    expect(await testDb.$count(authPasskeys)).toBe(0);
+    await expectError(await signInWithPasskey(authenticator), 401, "PASSKEY_NOT_FOUND");
+  });
+
+  test("other users' passkeys are left alone", async () => {
+    await upsertOwner(testDb, { email: OTHER, password: PASSWORD });
+    const other = new SoftwareAuthenticator(RP_ID, BASE_URL);
+    await testDb.insert(authPasskeys).values(other.passkeyRow(await userId(OTHER)));
+
+    const result = await upsertOwner(testDb, { email: OWNER, password: PASSWORD });
+    expect(result.revokedPasskeys).toBe(0);
+    expect(await testDb.$count(authPasskeys)).toBe(1);
   });
 });
 
@@ -248,7 +438,9 @@ describe("listPasskeys (home page list)", () => {
   test("returns only that user's passkeys, oldest first, without key material", async () => {
     await upsertOwner(testDb, { email: OTHER, password: PASSWORD });
     const session = await signInWithPassword();
-    await registerPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL), session, "MacBook");
+    await registerPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL), session, {
+      name: "MacBook",
+    });
     await registerPasskey(new SoftwareAuthenticator(RP_ID, BASE_URL), session);
     const foreign = new SoftwareAuthenticator(RP_ID, BASE_URL);
     await testDb.insert(authPasskeys).values(foreign.passkeyRow(await userId(OTHER)));

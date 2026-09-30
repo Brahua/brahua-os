@@ -105,7 +105,7 @@ describe("owner script database target", () => {
     ]) {
       expect(() =>
         resolveOwnerScriptDatabaseUrl({ DATABASE_URL_UNPOOLED: url, ALLOW_PROD_DB: "1" }),
-      ).toThrow(/DATABASE_URL_UNPOOLED has no valid host \(got "…"\)/);
+      ).toThrow(/DATABASE_URL_UNPOOLED has no valid host/);
     }
   });
 
@@ -153,9 +153,11 @@ describe("assertDatabaseUrl", () => {
   });
 
   test("rejects placeholder, empty or malformed hosts", () => {
-    expect(check("postgresql://u:p@…/neondb")).toThrow(/no valid host \(got "…"\)/);
+    expect(check("postgresql://u:p@…/neondb")).toThrow(/no valid host/);
+    // Never echoes what was in the host position.
+    expect(check("postgresql://u:p@s3cr3t_value/neondb")).toThrow(/^(?!.*s3cr3t_value)/);
     expect(check("postgresql://u:p@host.../neondb")).toThrow(/no valid host/);
-    expect(check("postgresql:///neondb")).toThrow(/no valid host \(got ""\)/);
+    expect(check("postgresql:///neondb")).toThrow(/no valid host/);
     expect(check("postgresql://u:p@/neondb")).toThrow(/DATABASE_URL_UNPOOLED/);
     expect(check("postgresql://u:p@-bad-.neon.tech/neondb")).toThrow(/no valid host/);
     expect(check("postgresql://u:p@ep_x.neon.tech/neondb")).toThrow(/no valid host/);
