@@ -12,6 +12,13 @@ const SECTIONS = [
   "area-icons",
   "section-label",
   "stat-number",
+  "progress",
+  "week",
+  "lcd",
+  "controls",
+  "text-field",
+  "sheet",
+  "list-row",
 ];
 
 async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
@@ -107,3 +114,26 @@ test("animated numbers are read as one formatted value", async ({ page }) => {
   await section.getByRole("button", { name: "Sumar" }).click();
   await expect.poll(() => section.ariaSnapshot()).toContain("S/ 2,465.5");
 });
+
+for (const { trigger, name } of [
+  { trigger: "Capturar", name: "Captura rápida" },
+  { trigger: "Ver proyecto", name: "Certificación AWS" },
+]) {
+  test(`sheet "${name}" opens accessibly, closes with Esc and returns focus`, async ({ page }) => {
+    await page.goto("/design");
+    const button = page
+      .locator('[data-guide-section="sheet"]')
+      .getByRole("button", { name: trigger });
+
+    await button.click();
+    const dialog = page.getByRole("dialog", { name });
+    await expect(dialog).toBeVisible();
+
+    const results = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(button).toBeFocused();
+  });
+}

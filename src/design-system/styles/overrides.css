@@ -13,11 +13,24 @@
    the 4.5:1 AA minimum for 15px text, so signal keys use a slightly deeper orange. Hover goes
    deeper (not lighter) to keep AA; the rest of the signal (ring, LEDs, LCD) stays signal-500. */
 :root {
-  --color-signal-key: #D93B0F;
-  --color-signal-key-hover: #D2380E;
-  --color-on-signal-key: #FFFFFF;
+  --color-signal-key: #d93b0f;
+  --color-signal-key-hover: #d2380e;
+  --color-on-signal-key: #ffffff;
 }
-.bo-key--signal { background: var(--color-signal-key); color: var(--color-on-signal-key); box-shadow: inset 0 -4px 0 var(--signal-700); }
-.bo-key--signal:hover, .bo-key--signal.is-hover { background: var(--color-signal-key-hover); }
-.bo-key--signal:active, .bo-key--signal.is-pressed { box-shadow: inset 0 -1px 0 var(--signal-700); }
-.bo-key--signal .bo-kbd--on-signal { color: var(--color-on-signal-key); box-shadow: inset 0 0 0 1.5px var(--color-on-signal-key); }
+.bo-key--signal {
+  background: var(--color-signal-key);
+  color: var(--color-on-signal-key);
+  box-shadow: inset 0 -4px 0 var(--signal-700);
+}
+.bo-key--signal:hover,
+.bo-key--signal.is-hover {
+  background: var(--color-signal-key-hover);
+}
+.bo-key--signal:active,
+.bo-key--signal.is-pressed {
+  box-shadow: inset 0 -1px 0 var(--signal-700);
+}
+.bo-key--signal .bo-kbd--on-signal {
+  color: var(--color-on-signal-key);
+  box-shadow: inset 0 0 0 1.5px var(--color-on-signal-key);
+}

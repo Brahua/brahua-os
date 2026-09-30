@@ -10,6 +10,8 @@
 > - `src/design-system/styles/tokens/*.css` y `components.css` se copian **sin cambios** desde Claude Design.
 > - `tailwind-theme.css` se genera con `pnpm design:theme`.
 > - Las correcciones locales van en `overrides.css` y deben replicarse en Claude Design.
+> - `extensions.css` agrega lo que las tarjetas de diseño no necesitan pero la app sí (por ejemplo, posicionar el `Sheet` sobre Radix Dialog en la pantalla).
+> - Los estilos `bo-*` no están en una capa de Tailwind, así que ganan sobre las utilidades: para variar un componente se usan sus props o sus modificadores, no clases de Tailwind encima.
 > - Los componentes (`src/design-system/components/`) son la versión TypeScript de los `.jsx` de Claude Design, con la misma API y las mismas clases `bo-*`, más accesibilidad y pruebas.
 >
 > Cuando esta spec y el README de Claude Design difieran en valores (colores, radios, tipografía, movimiento), **manda el README de Claude Design**. Las secciones de tokens de abajo quedan como historial de la v1.
