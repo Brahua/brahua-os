@@ -1,0 +1,28 @@
+/*
+ * Local additions on top of the Claude Design components (not overrides): runtime concerns the
+ * design cards don't need, such as positioning the Radix-based Sheet in the viewport.
+ */
+
+/* Sheet: Radix renders it in a portal, so it is positioned against the viewport. */
+.bo-sheet-overlay { position: fixed; inset: 0; z-index: 50; }
+.bo-sheet-position--side { position: fixed; top: 0; right: 0; bottom: 0; z-index: 51; }
+.bo-sheet-position--bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 92dvh; }
+.bo-sheet__close { box-shadow: none; gap: 8px; }
+
+.bo-sheet-overlay[data-state="open"] { animation: bo-fade-in var(--duration-panel) var(--ease-drawer); }
+.bo-sheet-overlay[data-state="closed"] { animation: bo-fade-out var(--duration-panel) var(--ease-drawer); }
+.bo-sheet-position--side[data-state="open"] { animation: bo-slide-in-right var(--duration-panel) var(--ease-drawer); }
+.bo-sheet-position--side[data-state="closed"] { animation: bo-slide-out-right 240ms var(--ease-drawer); }
+.bo-sheet-position--bottom[data-state="open"] { animation: bo-slide-in-up var(--duration-sheet) var(--ease-drawer); }
+.bo-sheet-position--bottom[data-state="closed"] { animation: bo-slide-out-down var(--duration-sheet) var(--ease-drawer); }
+
+@keyframes bo-fade-in { from { opacity: 0; } }
+@keyframes bo-fade-out { to { opacity: 0; } }
+@keyframes bo-slide-in-right { from { transform: translateX(105%); } }
+@keyframes bo-slide-out-right { to { transform: translateX(105%); } }
+@keyframes bo-slide-in-up { from { transform: translateY(105%); } }
+@keyframes bo-slide-out-down { to { transform: translateY(105%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bo-sheet-overlay, .bo-sheet-position--side, .bo-sheet-position--bottom { animation-duration: 1ms !important; }
+}

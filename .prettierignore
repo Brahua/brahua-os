@@ -6,3 +6,4 @@ tasks/
 src/design-system/styles/tokens/
 src/design-system/styles/components.css
 src/design-system/styles/tailwind-theme.css
+src/design-system/styles/extensions.css

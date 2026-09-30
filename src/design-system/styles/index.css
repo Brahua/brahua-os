@@ -10,6 +10,7 @@
 @import "./tokens/spacing.css";
 @import "./tokens/motion.css";
 @import "./components.css";
+@import "./extensions.css";
 @import "./overrides.css";
 
 @layer base {

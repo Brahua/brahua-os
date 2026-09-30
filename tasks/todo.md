@@ -86,9 +86,9 @@ El sistema visual pasó a diseñarse en Claude Design. T3–T6 se rehicieron sob
 - [x] **M1: Tokens** — `styles/tokens/*.css` y `components.css` copiados de Claude Design, `tailwind-theme.css` generado y test de contraste sobre los tokens nuevos. Además, un ajuste local de foco en claro (`overrides.css`).
 - [x] **M2: Teclas** — `Key`, `IconKey`, `Icon`, `Kbd` y `Tooltip` con la API de Claude Design.
 - [x] **M3: Áreas y datos** — `Led`, `AreaTag` (8 paletas + áreas propias) y `SectionLabel`, `StatNumber` (con NumberFlow accesible).
-- [ ] **M4: Progreso y LCD** — `ProgressRing`, `SegmentBar`, `DotMatrix`, `DayCell`, `Lcd`, `Toast`.
-- [ ] **M5: Controles y paneles** — `Switch`, `SegmentedControl`, `TextField`/`TextArea`, `Sheet`, `ListRow`.
-- [ ] **M6: Guía** — `/design` con todas las secciones, reflejando las tarjetas de Claude Design.
+- [x] **M4: Progreso y LCD** — `ProgressRing`, `SegmentBar`, `DotMatrix`, `DayCell`, `Lcd`, `Toast`.
+- [x] **M5: Controles y paneles** — `Switch`, `SegmentedControl`, `TextField`/`TextArea`, `Sheet`, `ListRow`.
+- [x] **M6: Guía** — `/design` con todas las secciones, reflejando las tarjetas de Claude Design.
 
 Las tareas T7–T12 y T15 quedan reemplazadas por M4–M6. T13 (regla de lint) y T14 (sincronización) siguen vigentes.
 

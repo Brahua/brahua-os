@@ -8,7 +8,14 @@ import {
   KeySection,
 } from "./_sections/action-sections";
 import { AreaIconsSection, AreaTagSection, LedSection } from "./_sections/area-sections";
+import {
+  ControlsSection,
+  ListRowSection,
+  SheetSection,
+  TextFieldSection,
+} from "./_sections/control-sections";
 import { SectionLabelSection, StatNumberSection } from "./_sections/data-sections";
+import { LcdSection, ProgressSection, WeekSection } from "./_sections/progress-sections";
 
 export const metadata: Metadata = {
   title: "Design system · brahua-os",
@@ -45,6 +52,13 @@ export default function DesignGuidePage() {
         <AreaIconsSection />
         <SectionLabelSection />
         <StatNumberSection />
+        <ProgressSection />
+        <WeekSection />
+        <LcdSection />
+        <ControlsSection />
+        <TextFieldSection />
+        <SheetSection />
+        <ListRowSection />
       </main>
     </div>
   );

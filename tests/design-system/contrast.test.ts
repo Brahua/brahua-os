@@ -21,11 +21,14 @@ function readBlock(selector: RegExp, source = css): Record<string, string> {
 
 // The first :root block holds the primitives (grays, signal, LCD, area tones).
 const primitives = readBlock(/:root/);
+// Theme-independent local tokens (signal keys) from overrides.css.
+const localTokens = readBlock(/:root/, overrides);
 const themes = {
-  dark: readBlock(/:root,\s*\[data-theme="dark"\]/),
+  dark: { ...readBlock(/:root,\s*\[data-theme="dark"\]/), ...localTokens },
   light: {
     ...readBlock(/\[data-theme="light"\]/),
     ...readBlock(/\[data-theme="light"\]/, overrides),
+    ...localTokens,
   },
 };
 
@@ -70,6 +73,8 @@ const PAIRS: [string, string, number][] = [
   ["color-on-signal", "color-signal", 4.5],
   ["color-on-signal", "color-signal-hover", 4.5],
   ["color-on-key-on", "color-key-on", 4.5],
+  ["color-on-signal-key", "color-signal-key", 4.5],
+  ["color-on-signal-key", "color-signal-key-hover", 4.5],
   ["color-kbd-text", "color-kbd-bg", 4.5],
   ["color-tooltip-text", "color-tooltip-bg", 4.5],
   ["color-lcd-text", "color-lcd-bg", 4.5],
