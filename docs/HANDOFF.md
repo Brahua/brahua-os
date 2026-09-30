@@ -24,8 +24,8 @@
   - ✅ C2a (contraseña, protección y owner): PR #14 integrado; login con contraseña en producción.
   - ✅ C2b (passkey): PRs #16 y #17 integrados y en producción.
   - ✅ Checkpoint 1 (2026-09-30): el owner entra con contraseña y con passkey (Touch ID en el computador, Face ID en el celular).
-  - **Próximo paso:** C3 (navegación).
-  - Siguiente: C3 (navegación).
+  - 🟡 C3 (navegación): PR `feat/core-c3-navigation` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, accesibilidad).
+  - Siguiente: C4 (ajustes).
 
 ## C2a: pasos del usuario (en orden)
 
@@ -81,6 +81,19 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar → cerrar sesión → entrar con passkey, y axe en ambos temas.
 - `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de cualquier pregunta: tiene que ser `postgres://` o `postgresql://` con un host real y una base (rechaza marcadores como `…`). `channel_binding` en la URL se acepta: `pg` lo ignora.
 - Verificado en dispositivos reales (Checkpoint 1): Touch ID en el computador y Face ID en el iPhone. Falta probarla dentro de la PWA instalada (C7).
+
+## Cómo funciona la navegación (C3)
+
+- **Registro:** `src/lib/modules.ts` define `ModuleManifest` (`id`, `label`, `icon`, `href`, `navOrder`, `navGroup` `main`/`footer`, `status` `available`/`planned`) y la lista `MODULES`. `navItems()` ordena primero `main` y luego `footer` (cada grupo por `navOrder`), descarta los `planned` y numera los primeros 8 (atajos 1–8). Los manifiestos de `core` están en `src/modules/core/module.ts`: Hoy (`/`) disponible; Áreas y Ajustes declarados como `planned` (C4 y C5 solo quitan esa línea).
+- **Componentes** (`src/modules/core/components/`, son patrones de `core`, no del design system):
+  - `Sidebar`: `<header>` (landmark banner) con marca, botón contraer/expandir, tecla de captura y dos `<nav>` ("Principal" y "Secundaria"). Colapsada, cada enlace tiene tooltip y conserva su nombre con `aria-label`.
+  - `BottomNav`: 5 celdas con la captura al centro; con más de 4 secciones, las 3 primeras + "Más" (hoja con el resto).
+  - `AppNav`: decide qué se ve por CSS (`lg:`), guarda el estado colapsado y escucha los atajos. `[` solo actúa desde 1024 px. Ningún atajo actúa dentro de inputs, textareas, contenteditable o diálogos, ni con ⌘/Ctrl/⌥/Shift; la excepción es `[` con ⌥ o AltGr, porque los teclados en español lo necesitan para escribirlo (`src/lib/shortcuts.ts`).
+- **Estado colapsado:** cookie `bo_sidebar` (no `HttpOnly`, 1 año, por dispositivo). El layout la lee en el servidor, así que la primera pintura ya tiene el ancho correcto.
+- **Captura:** la tecla se muestra (para que el diseño no cambie cuando llegue) pero con `aria-disabled`, alcanzable con Tab y con el tooltip "Próximamente" como descripción. Cuando exista la captura rápida, se le pasa `onCapture` a `BottomNav`/`Sidebar` y se agrega el atajo `C`.
+- **Layout** (`src/app/(app)/layout.tsx`): enlace "Saltar al contenido", `<main id="content">` con las zonas seguras (`viewport-fit=cover` solo en `(app)`) y el espacio de la barra inferior (`--shell-bottom-offset` en `extensions.css`). Las páginas ya no ponen su propio `<main>`.
+- **Hora:** `src/lib/time.ts` usa `Intl` con `America/Lima` (sin dependencias nuevas): `greetingFor` (días desde las 5:00, tardes desde las 12:00, noches desde las 19:00), `formatLongDate` y `ownerDateKey`. La portada los calcula en el servidor, así que no hay desajuste de hidratación. La spec menciona `@date-fns/tz`; se agregará cuando haga falta aritmética de fechas.
+- **E2E:** `e2e/home.spec.ts` espera `data-nav-shortcuts="ready"` en `<html>` antes de pulsar teclas (los atajos existen solo tras hidratar). Las capturas de `/design` ocultan la barra inferior fija (`e2e/support/hide-app-nav.css`); las de escritorio cambiaron porque ahora hay barra lateral.
 
 ## Decisiones recientes a respetar
 

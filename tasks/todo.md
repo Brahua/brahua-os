@@ -63,7 +63,8 @@
 
 ## Fase 2 — App usable
 
-- [ ] **C3: Navegación (shell)**
+- [x] **C3: Navegación (shell)** (PR `feat/core-c3-navigation`). Registro en `src/lib/modules.ts` (`ModuleManifest`, `navItems`, `splitBottomNav`, `isActiveHref`); manifiestos de `core` en `src/modules/core/module.ts` (Hoy disponible; Áreas y Ajustes declarados como `planned`, fuera de la navegación). `BottomNav` y `Sidebar` en `src/modules/core/components/`, portados de Claude Design con enlaces reales y `aria-current="page"`. Barra lateral desde 1024 px, colapsable con `[` (estado en la cookie `bo_sidebar`, leída en el servidor: sin parpadeo) y atajos 1–8; barra inferior fija abajo con zona segura. La tecla de captura se ve pero queda `aria-disabled` con la explicación "Próximamente" hasta que exista la captura rápida. Portada con saludo y fecha en hora de Lima (`src/lib/time.ts`). Sección "Navegación" en `/design`. Pruebas unitarias (registro, hora, atajos, componentes) y E2E (barras por ancho, `aria-current`, `[`, 1–8, atajos ignorados en inputs, axe y capturas en ambos temas).
+  - Cuando C4 y C5 construyan `/settings` y `/areas`, basta con quitar `status: "planned"` de su manifiesto.
   - **Qué:**
     - Registro de módulos (`src/lib/modules.ts`, `ModuleManifest`).
     - `BottomNav` (celular, 5 ítems como máximo, tecla de captura) y `Sidebar` (escritorio, colapsable con `[`, atajos 1–8), portados de `components/patterns/Navigation` de Claude Design.
