@@ -1,6 +1,7 @@
 # Spec: core
 
 > Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO v2** (2026-09-29)
+> v2.4 (2026-09-30): C5. Slug único con sufijo (`-2`, `-3`…) y estable al renombrar; una área nueva va al final (`max + 1`) en una transacción con *advisory lock*; las acciones usan `requireOwnerAction()`, que devuelve el error de autorización como `ActionResult`.
 > v2.3 (2026-09-30): C4. El tema es oscuro por defecto (como dice `SPEC-design-system.md`, que prevalece en lo visual); en Ajustes se elige Oscuro, Claro o Sistema.
 > v2.2 (2026-09-30): C3. El manifiesto de módulo gana `navGroup`, `shortcut` y `status`; los atajos de una tecla se pueden desactivar (preferencia en Ajustes); la hora de Lima usa `Intl`.
 > v2.1 (2026-09-29): áreas con ícono de Lucide y colores del design system.
@@ -175,7 +176,9 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   - `hobbies` → Hobbies
 - **Sin borrado físico** en `core`: solo se archiva. Un área archivada deja de ofrecerse para elementos nuevos, pero se sigue mostrando en los que ya la usan. Las FK futuras hacia `core_life_areas` usan `onDelete: "restrict"`.
 - **Ícono:** nombre de un ícono de **Lucide** dentro del set curado `AREA_ICON_NAMES` del design system. No se usan emojis en ningún lugar de la app.
-- **Reordenar:** reescribe `sort_order` de todas las áreas dentro de una transacción.
+- **Slug (C5):** `slugify(name)` (sin tildes, ñ → n, solo `a-z0-9` y guiones; `area` si no queda nada). Si ya existe, se agrega `-2`, `-3`… (incluye los del seed: "Home" → `home-2`). Renombrar **no** cambia el slug. Dos áreas pueden tener el mismo nombre.
+- **Crear (C5):** una área nueva va al final (`sort_order` = máximo + 1, archivadas incluidas) dentro de una transacción con `pg_advisory_xact_lock`; si un escritor sin el lock (seed, importadores) gana la carrera del slug, se reintenta.
+- **Reordenar:** reescribe `sort_order` de todas las áreas dentro de una transacción (con el mismo lock que crear).
 - **Colores:** `AREA_COLORS` viene del design system: 8 paletas con nombre de área (`home`, `health`, `finance`, `learning`, `work`, `relationships`, `travel`, `hobbies`). Cada una tiene su tono base y su tono inverso para ambos temas. Las áreas que crees eligen una de estas 8 paletas y pueden compartirla; se distinguen por el ícono.
 - **Tablas de Better Auth**, renombradas con `modelName` para evitar `user`, que es palabra reservada en Postgres: `auth_users`, `auth_sessions`, `auth_accounts`, `auth_verifications`, `auth_passkeys` y `auth_rate_limits`.
 
@@ -187,7 +190,7 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   - No hay reseteo por email: la recuperación es volver a ejecutar el script.
 - **`requireOwner()`:**
   - Valida la sesión y que `session.user.email === OWNER_EMAIL`.
-  - En páginas hace `redirect("/login")`; en acciones devuelve un error de autorización.
+  - En páginas hace `redirect("/login")`; en acciones, `requireOwnerAction()` devuelve `null` y la acción responde `unauthorized()` (un `ActionResult` con el error de autorización), sin validar el input.
   - La sesión se verifica en el layout de `(app)` y en cada acción o query, **nunca solo en `proxy.ts`**.
 - **Sesión:** `expiresIn` de 30 días, `updateAge` de 1 día.
 - **Cookies:** `secure` y `sameSite: "lax"`. Se usa el plugin `nextCookies()`.
