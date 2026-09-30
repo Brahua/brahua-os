@@ -36,10 +36,11 @@
   - **Archivos:** `drizzle.config.ts`, `src/lib/db.ts`, `src/modules/core/db/schema.ts`, `drizzle/`, `scripts/seed.ts`, `docker-compose.yml`, `.github/workflows/ci.yml`, `tests/integration/`
   - **Tamaño:** M
 
-- [ ] **C2: Login de un solo usuario** — dividida en dos:
-  - [x] **C2a: contraseña, protección y owner** (PR `feat/core-c2a-login`, pendiente de merge). Better Auth 1.7 con email + contraseña, tablas `auth_*` (migración `0001_core_auth`), rate limit en base de datos, `requireOwner()`, `pnpm auth:owner`, `/login`, `(app)` protegido (incluye `/` y `/design`). Pruebas unitarias, de integración y E2E (login, redirección y axe en ambos temas).
+- [x] **C2: Login de un solo usuario** — dividida en dos:
+  - [x] **C2a: contraseña, protección y owner** (PR #14, integrado). Better Auth 1.7 con email + contraseña, tablas `auth_*` (migración `0001_core_auth`), rate limit en base de datos, `requireOwner()`, `pnpm auth:owner`, `/login`, `(app)` protegido (incluye `/` y `/design`). Pruebas unitarias, de integración y E2E (login, redirección y axe en ambos temas).
     - Antes del merge, el usuario agrega en Vercel (Production) `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` y `OWNER_EMAIL`; sin ellas el build de producción falla a propósito. Después del deploy ejecuta `pnpm auth:owner` contra producción (ver `docs/HANDOFF.md`).
-  - [ ] **C2b: passkey.** Plugin de passkey (`rpID: "os.brahua.com"`), tabla `auth_passkeys`, E2E con el autenticador virtual de Chromium. Pendiente.
+  - [x] **C2b: passkey** (PR `feat/core-c2b-passkey`). `@better-auth/passkey` 1.7.6 (en Better Auth 1.7 el plugin es un paquete aparte) con `rpID`, `rpName` y `origin` derivados de `BETTER_AUTH_URL` (`os.brahua.com` en producción, `localhost` en desarrollo y pruebas; en producción `BETTER_AUTH_URL` debe ser exactamente `https://os.brahua.com`). Tabla `auth_passkeys` (migración aditiva `0002_core_auth_passkeys`). "Entrar con passkey" y autocompletado (`autocomplete="username webauthn"`) en `/login`; cancelar el aviso del navegador no muestra error; sin soporte, el botón se desactiva con una explicación. Registrar exige la sesión del owner con menos de un día (`freshAge`). El hook de sesión bloquea passkeys de otros usuarios (prueba de integración). Rate limit: 5/min en `/passkey/verify-authentication` y 10/min en los otros tres endpoints de passkey. Arreglo extra: `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de preguntar nada.
+    - [ ] **Provisional:** registrar y listar passkeys vive en la portada (`src/app/(app)/_components/passkey-section.tsx`), junto a "Cerrar sesión". **C4 lo mueve a `/settings`** y agrega borrar.
   - **Qué:**
     - Better Auth con email + contraseña (`disableSignUp`, mínimo 12 caracteres), plugin de passkey, rate limit en base de datos, cookies seguras y `trustedOrigins`.
     - Tablas `auth_*`.
@@ -58,7 +59,7 @@
   - **Tamaño:** L. Se divide en C2a (contraseña, protección y owner) y C2b (passkey) si crece.
 
 ### Checkpoint 1
-- [ ] Inicias sesión en `os.brahua.com` con tu contraseña y registras tu passkey, desde el computador y desde el celular.
+- [ ] Inicias sesión en `os.brahua.com` con tu contraseña y registras tu passkey, desde el computador y desde el celular. (Tras el merge de C2b: en la portada, "Registrar passkey"; luego "Cerrar sesión" y "Entrar con passkey". Pendiente de verificar en dispositivos reales, iOS y Android.)
 
 ## Fase 2 — App usable
 
@@ -76,6 +77,7 @@
 
 - [ ] **C4: Ajustes**
   - **Qué:** `/settings` con el tema (Oscuro, Claro o Sistema), la gestión de passkeys (registrar, listar, borrar) y cerrar sesión.
+    - Mover aquí la sección provisional de passkeys y el botón "Cerrar sesión" de la portada (C2b) y quitarlos de `/`.
   - **Aceptación:** el tema persiste; puedes registrar y borrar una passkey; cerrar sesión te lleva a `/login`.
   - **Tamaño:** M
 

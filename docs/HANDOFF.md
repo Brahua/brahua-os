@@ -21,8 +21,9 @@
   - ✅ C0: producción en https://os.brahua.com; deploy desde GitHub Actions solo con todos los checks en verde.
   - ✅ C1 (base de datos): PR #10 integrado; la primera migración (`core_life_areas`) se aplicó en producción el 2026-09-30.
   - ✅ Seed en producción: `scripts/vercel-build.sh` ejecuta `pnpm db:seed` (idempotente) después de `db:migrate` en cada build de producción.
-  - 🟡 C2a (contraseña, protección y owner): PR `feat/core-c2a-login` abierto, **sin merge**. Pendiente: revisores, y que el usuario configure las variables de abajo **antes** del merge.
-  - Siguiente: C2b (passkey).
+  - ✅ C2a (contraseña, protección y owner): PR #14 integrado; login con contraseña en producción.
+  - 🟡 C2b (passkey): PR `feat/core-c2b-passkey` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, `security-auditor`, accesibilidad). No necesita variables nuevas. Después del deploy: Checkpoint 1 en dispositivos reales (ver abajo).
+  - Siguiente: C3 (navegación).
 
 ## C2a: pasos del usuario (en orden)
 
@@ -58,6 +59,19 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - Cabeceras de seguridad en `next.config.ts` para todas las rutas (adelantadas de C7).
 - `/login` es la única página pública. Todo `(app)` (incluidos `/` y `/design`) exige sesión del owner: layout + cada página llaman `requireOwner()`.
 - E2E: `e2e/global-setup.ts` prepara la base desechable (`TEST_DATABASE_URL`) con un owner de prueba; `e2e/auth.setup.ts` inicia sesión por el formulario y guarda la sesión para el resto. En local: `docker compose up -d` y luego `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test pnpm test:e2e`, o `pnpm test:e2e:docker` (capturas; usa `host.docker.internal`).
+
+## Cómo funciona la passkey (C2b)
+
+- Plugin: en Better Auth 1.7 la passkey es un paquete aparte, `@better-auth/passkey` (fijado a la misma versión que `better-auth`); el cliente es `@better-auth/passkey/client`. Tabla `auth_passkeys` (migración `0002_core_auth_passkeys`, aditiva). Solo guarda la llave pública.
+- Relying party: `rpID`, `rpName` (`brahua-os`) y `origin` salen de `BETTER_AUTH_URL` (`passkeyRelyingParty` en `src/lib/auth-env.ts`), nunca de la petición. Producción: `os.brahua.com`; desarrollo y pruebas: `localhost`. En producción `BETTER_AUTH_URL` tiene que ser exactamente `https://os.brahua.com` (si no, `auth:check-env` corta el build): una passkey queda atada para siempre al dominio donde se creó. Por eso no funcionan en previews.
+- Entrar: `/login` tiene "Entrar con passkey" y, si el navegador lo soporta, ofrece la passkey en el autocompletado del campo Email (`autocomplete="username webauthn"`, *conditional UI*). Cerrar el aviso del navegador no muestra ningún error; sin WebAuthn, el botón se desactiva con una explicación. Las credenciales son *discoverable* (`residentKey: "required"`): no hace falta escribir el email.
+- Solo el owner: la passkey de otro usuario se verifica, pero el hook de base de datos de sesiones la rechaza (`UNABLE_TO_CREATE_SESSION`, sin cookie). Probado en `tests/integration/auth-passkey.test.ts` con un autenticador por software (`tests/integration/support/software-authenticator.ts`).
+- Registrar: exige la sesión del owner y que tenga menos de un día (`freshAge` por defecto de Better Auth). Si es más vieja, la UI pide cerrar sesión y volver a entrar con la contraseña.
+- **Provisional:** registrar y listar (nombre + fecha de creación en hora de Lima) está en la portada, junto a "Cerrar sesión". C4 lo mueve a `/settings` y agrega borrar.
+- Rate limit (base de datos, por IP): `/passkey/verify-authentication` 5 por minuto (como la contraseña); `/passkey/generate-authenticate-options`, `/passkey/generate-register-options` y `/passkey/verify-registration` 10 por minuto (cada uno escribe un desafío). El plugin no trae reglas propias.
+- E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar → cerrar sesión → entrar con passkey, y axe en ambos temas.
+- `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de cualquier pregunta: tiene que ser `postgres://` o `postgresql://` con un host real y una base (rechaza marcadores como `…`). `channel_binding` en la URL se acepta: `pg` lo ignora.
+- Sin verificar todavía: comportamiento en iPhone y Android reales, y dentro de la PWA instalada (C7). Es parte del Checkpoint 1.
 
 ## Decisiones recientes a respetar
 
