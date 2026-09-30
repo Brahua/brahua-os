@@ -1,6 +1,12 @@
 // Public API of the design system. Modules import only from "@/design-system".
-export { AREA_ICON_NAMES, AREA_ICONS, type AreaIconName } from "./area-icons";
-export { AREA_COLORS, DEFAULT_AREAS, type AreaColor } from "./areas";
+export { AREA_ICONS } from "./area-icons";
+export {
+  AREA_COLORS,
+  AREA_ICON_NAMES,
+  DEFAULT_AREAS,
+  type AreaColor,
+  type AreaIconName,
+} from "./areas";
 export { AreaTag } from "./components/area-tag";
 export {
   SegmentedControl,

@@ -29,6 +29,11 @@ describe("areas", () => {
     ]);
   });
 
+  test("the server-safe icon names match the icon components", () => {
+    expect(Object.keys(AREA_ICONS)).toEqual([...AREA_ICON_NAMES]);
+    expect(new Set(AREA_ICON_NAMES).size).toBe(AREA_ICON_NAMES.length);
+  });
+
   test("every default area icon exists in the curated set", () => {
     for (const area of AREA_COLORS) {
       expect(AREA_ICON_NAMES).toContain(DEFAULT_AREAS[area].icon);

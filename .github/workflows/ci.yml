@@ -19,6 +19,7 @@ jobs:
   checks:
     name: Lint, types, unit tests, build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -37,6 +38,7 @@ jobs:
   e2e:
     name: E2E (Playwright + axe)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Same Linux image locally (Docker) and in CI, so screenshots match.
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
@@ -58,11 +60,57 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  integration:
+    name: Integration tests (Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Throwaway database for this job only; never production.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brahua_os_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d brahua_os_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/brahua_os_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Schema and committed migrations are in sync
+        run: |
+          pnpm db:generate
+          if [ -n "$(git status --porcelain -- drizzle)" ]; then
+            git status --porcelain -- drizzle
+            echo "::error::The schema changed without a migration. Run pnpm db:generate and commit drizzle/."
+            exit 1
+          fi
+      # Same command as the production build, against the service database. Scoped to this step:
+      # the integration tests refuse a TEST_DATABASE_URL equal to DATABASE_URL_UNPOOLED.
+      - name: Apply migrations with pnpm db:migrate (production path)
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ env.TEST_DATABASE_URL }}
+      - run: pnpm test:integration
+
   deploy:
     name: Deploy to production
-    needs: [checks, e2e]
+    needs: [checks, e2e, integration]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # One production deploy at a time, in merge order.
     concurrency:
       group: deploy-production
@@ -72,6 +120,16 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
+      - name: Check deploy secrets
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name repository secret"
+              missing=1
+            fi
+          done
+          exit $missing
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -80,8 +138,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Pull production settings and env
-        run: pnpm dlx vercel@61 pull --yes --environment=production --token="$VERCEL_TOKEN"
-      - name: Build (runs database migrations once they exist)
-        run: pnpm dlx vercel@61 build --prod --token="$VERCEL_TOKEN"
+        run: pnpm dlx vercel@61.1.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+      # vercel.json runs scripts/vercel-build.sh: db:migrate (production only), then next build.
+      # A failed migration fails the deploy.
+      - name: Build (migrates the production database, then next build)
+        run: pnpm dlx vercel@61.1.0 build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_ENV: production
       - name: Deploy
-        run: pnpm dlx vercel@61 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        run: pnpm dlx vercel@61.1.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"

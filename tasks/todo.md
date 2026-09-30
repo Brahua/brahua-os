@@ -22,7 +22,7 @@
 
 ## Fase 1 — Base segura
 
-- [ ] **C1: Base de datos**
+- [x] **C1: Base de datos**
   - **Qué:**
     - Drizzle ORM + drizzle-kit, con el driver elegido según la documentación (ADR-002).
     - `drizzle.config.ts` que descubre `src/modules/*/db/schema.ts` y un cliente en `src/lib/db.ts`.
