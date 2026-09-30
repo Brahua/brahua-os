@@ -26,3 +26,26 @@
 @media (prefers-reduced-motion: reduce) {
   .bo-sheet-overlay, .bo-sheet-position--side, .bo-sheet-position--bottom { animation-duration: 1ms !important; }
 }
+
+/*
+ * Navigation (core): placement of the Claude Design BottomNav and Sidebar patterns inside the
+ * real app shell. The patterns' look stays in components.css.
+ */
+:root {
+  /* Bottom padding of the phone bar: the design's 28 px, or the device's safe area if larger. */
+  --shell-safe-bottom: max(28px, env(safe-area-inset-bottom));
+  /* Height of the fixed bottom bar, which the content keeps clear. */
+  --shell-bottom-offset: calc(var(--bottom-nav-height) - 28px + var(--shell-safe-bottom));
+}
+.bo-bottomnav--fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: var(--shell-bottom-offset);
+  padding-bottom: var(--shell-safe-bottom); padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+.bo-bottomnav .bo-bottomnav__capture { width: 62px; }
+/* Disabled keys drop their transform; the capture key keeps its lift so the bar doesn't shift. */
+.bo-bottomnav .bo-bottomnav__capture.is-disabled { transform: translateY(-10px); }
+.bo-sidebar .bo-tooltip-anchor { display: flex; }
+.bo-sidebar__header { display: flex; align-items: center; justify-content: space-between; height: 36px; }
+.bo-sidebar.is-collapsed .bo-sidebar__header { justify-content: center; }
+.bo-sidebar .bo-sidebar__toggle { flex: none; width: 36px; padding: 0; justify-content: center; }
+.bo-sidebar__capture { flex: 1; justify-content: flex-start; }
+.bo-sidebar__capture-label { flex: 1; text-align: left; }
+.bo-sidebar.is-collapsed .bo-sidebar__capture { flex: none; width: 44px; min-height: 44px; padding: 0; justify-content: center; }
