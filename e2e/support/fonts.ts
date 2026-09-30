@@ -9,6 +9,7 @@ const FACES = [
   '600 15px "Archivo"',
   '700 15px "Archivo"',
   '800 15px "Archivo"',
+  '400 11px "IBM Plex Mono"',
   '500 11px "IBM Plex Mono"',
   '600 11px "IBM Plex Mono"',
 ];

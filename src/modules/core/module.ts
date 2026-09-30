@@ -25,7 +25,7 @@ export const areasModule = {
   status: "planned",
 } satisfies ModuleManifest;
 
-/** Settings: C4 builds /settings and switches it to available. */
+/** Settings (/settings): theme, keyboard shortcuts, passkeys and session. */
 export const settingsModule = {
   id: "settings",
   label: "Ajustes",
@@ -34,5 +34,4 @@ export const settingsModule = {
   navOrder: 20,
   navGroup: "footer",
   shortcut: 8,
-  status: "planned",
 } satisfies ModuleManifest;

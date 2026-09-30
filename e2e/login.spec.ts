@@ -19,7 +19,7 @@ async function signIn(page: Page, password: string) {
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
 }
 
-for (const path of ["/", "/design"]) {
+for (const path of ["/", "/design", "/settings"]) {
   test(`without a session ${path} redirects to /login`, async ({ page }) => {
     await page.goto(path);
     await expect(page).toHaveURL("/login");
@@ -47,6 +47,8 @@ test("login with the password lands in the app, survives a reload and signs out"
   await page.goto("/login");
   await expect(page).toHaveURL("/");
 
+  // "Cerrar sesión" lives in Ajustes.
+  await page.goto("/settings");
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
   await expect(page).toHaveURL("/login");
   await page.goto("/");

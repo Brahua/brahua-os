@@ -6,13 +6,15 @@ import { useState } from "react";
 import { Key } from "@/design-system";
 import { authClient } from "@/lib/auth-client";
 
-/** Temporary sign-out until Ajustes (C4) owns it. */
+/** "Cerrar sesión" in Ajustes: ends the session on this device and goes to /login. */
 export function SignOutButton() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
 
   async function signOut() {
+    // aria-disabled keeps the key focusable (a failure leaves focus where it was): guard here.
+    if (pending) return;
     setPending(true);
     setFailed(false);
     let signedOut = false;
@@ -34,8 +36,14 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <Key variant="ghost" icon={LogOut} onClick={signOut} disabled={pending}>
+    <div className="flex flex-col items-start gap-2">
+      <Key
+        variant="ghost"
+        icon={LogOut}
+        onClick={signOut}
+        aria-disabled={pending}
+        className={pending ? "is-disabled" : undefined}
+      >
         Cerrar sesión
       </Key>
       <p role="status" className="bo-text-body-sm text-text-secondary">

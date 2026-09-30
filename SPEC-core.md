@@ -1,6 +1,7 @@
 # Spec: core
 
 > Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO v2** (2026-09-29)
+> v2.3 (2026-09-30): C4. El tema es oscuro por defecto (como dice `SPEC-design-system.md`, que prevalece en lo visual); en Ajustes se elige Oscuro, Claro o Sistema.
 > v2.2 (2026-09-30): C3. El manifiesto de módulo gana `navGroup`, `shortcut` y `status`; los atajos de una tecla se pueden desactivar (preferencia en Ajustes); la hora de Lima usa `Intl`.
 > v2.1 (2026-09-29): áreas con ícono de Lucide y colores del design system.
 > v2 (2026-09-29): el código pasa a estar en inglés y se incorpora la revisión técnica (auth, driver, migraciones, E2E, PWA, errores, backups y zona horaria).
@@ -23,7 +24,7 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 3. Instalo la app en la pantalla de inicio del celular y se abre como una app, sin la barra del navegador.
 4. Creo, edito, reordeno y archivo mis áreas de vida (nombre, ícono, color), y puedo deshacer al instante.
 5. Navego entre módulos con una barra inferior en el celular y una barra lateral en el escritorio.
-6. El tema sigue al sistema por defecto y puedo fijarlo en Ajustes.
+6. El tema es oscuro por defecto y en Ajustes puedo fijarlo en Claro o hacer que siga al sistema.
 
 ## Decisiones técnicas
 
