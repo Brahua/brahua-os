@@ -3,8 +3,17 @@ import type { PoolConfig } from "pg";
 
 type Env = Record<string, string | undefined>;
 
-/** Hosts treated as a local, throwaway database (`postgres` is the CI service name). */
-export const LOCAL_DATABASE_HOSTS = ["localhost", "127.0.0.1", "::1", "postgres"] as const;
+/**
+ * Hosts treated as a local, throwaway database: loopback, `postgres` (the CI service name) and
+ * `host.docker.internal` (the Docker Compose database seen from `pnpm test:e2e:docker`).
+ */
+export const LOCAL_DATABASE_HOSTS = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "postgres",
+  "host.docker.internal",
+] as const;
 
 /** Close idle clients quickly so Fluid Compute instances can release them (attachDatabasePool). */
 export const POOL_IDLE_TIMEOUT_MS = 5_000;
@@ -48,6 +57,30 @@ export function poolConfig(connectionString: string): PoolConfig {
     ssl: { rejectUnauthorized: true },
     idleTimeoutMillis: POOL_IDLE_TIMEOUT_MS,
   };
+}
+
+/**
+ * Database URL for `pnpm auth:owner`: only `DATABASE_URL_UNPOOLED`, and a non-local host needs
+ * `ALLOW_PROD_DB=1`. Unlike db:migrate/db:seed, a Vercel build (`VERCEL=1`) is not permission:
+ * the owner is only ever created by a person at a terminal.
+ */
+export function resolveOwnerScriptDatabaseUrl(env: Env): string {
+  const url = env.DATABASE_URL_UNPOOLED;
+  if (!url) {
+    throw new Error("DATABASE_URL_UNPOOLED is not set. Set it explicitly to target a database.");
+  }
+  if (!isLocalDatabaseUrl(url) && env.ALLOW_PROD_DB !== "1") {
+    throw new Error(
+      `Refusing to touch the non-local database ${describeDatabaseTarget(url)}. ` +
+        "Set ALLOW_PROD_DB=1 if you really mean it.",
+    );
+  }
+  return url;
+}
+
+/** Host of a database URL (no port, credentials or path), for typed confirmations. */
+export function databaseHost(url: string): string {
+  return parse(url).host;
 }
 
 /**

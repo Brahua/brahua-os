@@ -1,18 +1,19 @@
-import { afterEach, expect, test, vi } from "vitest";
-import DesignGuidePage from "@/app/(dev)/design/page";
+import { beforeEach, expect, test, vi } from "vitest";
+import DesignGuidePage from "@/app/(app)/design/page";
+import { requireOwner } from "@/lib/auth";
 
-afterEach(() => {
-  vi.unstubAllEnvs();
+vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+
+beforeEach(() => {
+  vi.mocked(requireOwner).mockReset();
 });
 
-test("design guide is not available in production builds by default", () => {
-  vi.stubEnv("NODE_ENV", "production");
-  vi.stubEnv("DESIGN_GUIDE", "");
-  expect(() => DesignGuidePage()).toThrow();
+test("design guide is only rendered for the owner", async () => {
+  await expect(DesignGuidePage()).resolves.toBeTruthy();
+  expect(requireOwner).toHaveBeenCalled();
 });
 
-test("design guide renders in production when explicitly enabled", () => {
-  vi.stubEnv("NODE_ENV", "production");
-  vi.stubEnv("DESIGN_GUIDE", "enabled");
-  expect(() => DesignGuidePage()).not.toThrow();
+test("design guide does not render without the owner (requireOwner redirects)", async () => {
+  vi.mocked(requireOwner).mockRejectedValue(new Error("NEXT_REDIRECT"));
+  await expect(DesignGuidePage()).rejects.toThrow("NEXT_REDIRECT");
 });

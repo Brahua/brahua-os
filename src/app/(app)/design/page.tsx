@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { requireOwner } from "@/lib/auth";
 import { ThemeSwitch } from "./_components/theme-switch";
 import {
   IconKeySection,
@@ -24,13 +24,10 @@ export const metadata: Metadata = {
 
 /**
  * Living style guide, mirroring the "brahua-os Design System" in Claude Design.
- * Dev-only until `core` adds owner-only auth: production builds return 404 unless
- * built with DESIGN_GUIDE=enabled (used by E2E).
+ * Owner-only (behind the login), in every environment.
  */
-export default function DesignGuidePage() {
-  if (process.env.NODE_ENV === "production" && process.env.DESIGN_GUIDE !== "enabled") {
-    notFound();
-  }
+export default async function DesignGuidePage() {
+  await requireOwner();
 
   return (
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col px-4 md:px-6">

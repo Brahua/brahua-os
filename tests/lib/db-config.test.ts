@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
+  databaseHost,
   describeDatabaseTarget,
+  resolveOwnerScriptDatabaseUrl,
   isLocalDatabaseUrl,
   poolConfig,
   POOL_IDLE_TIMEOUT_MS,
@@ -42,6 +44,9 @@ describe("test database guard", () => {
     expect(assertTestDatabaseUrl(LOCAL_TEST, {})).toBe(LOCAL_TEST);
     expect(assertTestDatabaseUrl("postgres://u:p@postgres:5432/ci_test", {})).toBeTruthy();
     expect(assertTestDatabaseUrl("postgres://u:p@[::1]:5432/a_test", {})).toBeTruthy();
+    expect(
+      assertTestDatabaseUrl("postgres://u:p@host.docker.internal:54329/a_test", {}),
+    ).toBeTruthy();
   });
 });
 
@@ -68,6 +73,31 @@ describe("script database target", () => {
     const target = describeDatabaseTarget(REMOTE);
     expect(target).toBe("ep-x-pooler.us-east-1.aws.neon.tech/neondb");
     expect(target).not.toContain("secret");
+  });
+});
+
+describe("owner script database target", () => {
+  test("requires DATABASE_URL_UNPOOLED and allows local hosts", () => {
+    expect(() => resolveOwnerScriptDatabaseUrl({ DATABASE_URL: LOCAL_TEST })).toThrow(
+      /DATABASE_URL_UNPOOLED is not set/,
+    );
+    expect(resolveOwnerScriptDatabaseUrl({ DATABASE_URL_UNPOOLED: LOCAL_TEST })).toBe(LOCAL_TEST);
+  });
+
+  test("a Vercel build is not permission for a remote host; only ALLOW_PROD_DB=1 is", () => {
+    expect(() => resolveOwnerScriptDatabaseUrl({ DATABASE_URL_UNPOOLED: REMOTE })).toThrow(
+      /Refusing/,
+    );
+    expect(() =>
+      resolveOwnerScriptDatabaseUrl({ DATABASE_URL_UNPOOLED: REMOTE, VERCEL: "1" }),
+    ).toThrow(/Refusing/);
+    expect(
+      resolveOwnerScriptDatabaseUrl({ DATABASE_URL_UNPOOLED: REMOTE, ALLOW_PROD_DB: "1" }),
+    ).toBe(REMOTE);
+  });
+
+  test("databaseHost returns only the host", () => {
+    expect(databaseHost(REMOTE)).toBe("ep-x-pooler.us-east-1.aws.neon.tech");
   });
 });
 

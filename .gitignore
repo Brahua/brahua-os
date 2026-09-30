@@ -27,3 +27,6 @@ next-env.d.ts
 
 # agent worktrees
 .claude/worktrees/
+
+# playwright signed-in state (e2e/auth.setup.ts)
+/e2e/.auth/

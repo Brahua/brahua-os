@@ -14,7 +14,7 @@
     - [x] Dominio `os.brahua.com` agregado en Vercel.
     - [x] Registro `A os → 76.76.21.21` en Hostinger.
     - [x] Secreto `VERCEL_TOKEN` (scope Brahua Lab) en GitHub. Primer despliegue exitoso el 2026-09-30.
-    - Mientras no haya login, la app pública solo muestra la portada; `/design` sigue desactivada en producción.
+    - Mientras no haya login, la app pública solo muestra la portada; `/design` sigue desactivada en producción. *(Desde C2a, `/` y `/design` están detrás del login.)*
   - **Aceptación:**
     - `https://os.brahua.com` responde con HTTPS y la portada de brahua-os.
     - Un merge a `main` se publica solo.
@@ -36,7 +36,10 @@
   - **Archivos:** `drizzle.config.ts`, `src/lib/db.ts`, `src/modules/core/db/schema.ts`, `drizzle/`, `scripts/seed.ts`, `docker-compose.yml`, `.github/workflows/ci.yml`, `tests/integration/`
   - **Tamaño:** M
 
-- [ ] **C2: Login de un solo usuario**
+- [ ] **C2: Login de un solo usuario** — dividida en dos:
+  - [x] **C2a: contraseña, protección y owner** (PR `feat/core-c2a-login`, pendiente de merge). Better Auth 1.7 con email + contraseña, tablas `auth_*` (migración `0001_core_auth`), rate limit en base de datos, `requireOwner()`, `pnpm auth:owner`, `/login`, `(app)` protegido (incluye `/` y `/design`). Pruebas unitarias, de integración y E2E (login, redirección y axe en ambos temas).
+    - Antes del merge, el usuario agrega en Vercel (Production) `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` y `OWNER_EMAIL`; sin ellas el build de producción falla a propósito. Después del deploy ejecuta `pnpm auth:owner` contra producción (ver `docs/HANDOFF.md`).
+  - [ ] **C2b: passkey.** Plugin de passkey (`rpID: "os.brahua.com"`), tabla `auth_passkeys`, E2E con el autenticador virtual de Chromium. Pendiente.
   - **Qué:**
     - Better Auth con email + contraseña (`disableSignUp`, mínimo 12 caracteres), plugin de passkey, rate limit en base de datos, cookies seguras y `trustedOrigins`.
     - Tablas `auth_*`.
@@ -107,6 +110,7 @@
 
 - [ ] **C7: PWA y cabeceras de seguridad**
   - **Qué:** `app/manifest.ts` con íconos de 192, 512 y *maskable* derivados de la marca en Archivo 800, `theme_color` y modo standalone. Cabeceras `frame-ancestors 'none'` y `Referrer-Policy`.
+    - [x] Cabeceras de seguridad: adelantadas en C2a (`next.config.ts`: `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`), con su E2E en `e2e/login.spec.ts`. Queda el manifest.
   - **Aceptación:** una E2E valida el manifest y las cabeceras; la app se instala en tu celular en modo standalone.
   - **Tamaño:** S
 

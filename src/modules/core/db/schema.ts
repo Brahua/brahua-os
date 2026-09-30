@@ -22,3 +22,6 @@ export const lifeAreas = pgTable("core_life_areas", {
 
 export type LifeArea = typeof lifeAreas.$inferSelect;
 export type NewLifeArea = typeof lifeAreas.$inferInsert;
+
+// Better Auth tables live in their own file; re-exported so drizzle-kit and `db` see them.
+export * from "./auth-schema";
