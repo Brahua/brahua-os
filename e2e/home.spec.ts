@@ -199,14 +199,38 @@ test("a tooltip stays open while hovered and Esc dismisses it (WCAG 1.4.13)", as
   const tooltip = sidebar(page).locator(".bo-tooltip", { hasText: "Hoy" });
   // Not showing yet: it must not catch the pointer (it sits over the content next to it).
   await expect(tooltip).toHaveCSS("visibility", "hidden");
+  // The time of the pointer entering is taken in the page, so a slow round trip can't make the
+  // check run after the 300 ms delay: it only counts when it ran well inside it.
+  await tooltip.evaluate((element) => {
+    element.parentElement!.addEventListener(
+      "pointerenter",
+      () => ((window as unknown as { __enteredAt: number }).__enteredAt = performance.now()),
+      { once: true },
+    );
+  });
   await link.hover();
-  const hidden = await tooltip.evaluate((element) => {
+  const during = await tooltip.evaluate((element) => {
     const box = element.getBoundingClientRect();
     const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-    return { visibility: getComputedStyle(element).visibility, caught: element.contains(hit) };
+    return {
+      elapsed: performance.now() - (window as unknown as { __enteredAt: number }).__enteredAt,
+      visibility: getComputedStyle(element).visibility,
+      caught: element.contains(hit),
+    };
   });
-  // Right after hovering, during the 300 ms delay, it is still hidden and lets the pointer through.
-  expect(hidden).toEqual({ visibility: "hidden", caught: false });
+  // During the 300 ms delay it is still hidden and lets the pointer through.
+  expect(during.elapsed).toBeGreaterThanOrEqual(0);
+  if (during.elapsed < 250) {
+    expect({ visibility: during.visibility, caught: during.caught }).toEqual({
+      visibility: "hidden",
+      caught: false,
+    });
+  } else {
+    testInfo.annotations.push({
+      type: "skipped-check",
+      description: `hidden-tooltip check ran ${Math.round(during.elapsed)} ms after hover`,
+    });
+  }
   await expect(tooltip).toHaveCSS("opacity", "1");
   await expect(tooltip).toHaveCSS("visibility", "visible");
 

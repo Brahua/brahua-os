@@ -36,12 +36,13 @@ test("shows Apariencia, Teclado, Passkeys and Sesión as named sections", async 
   render(await SettingsPage());
 
   expect(screen.getByRole("heading", { level: 1, name: "Ajustes" })).toBeInTheDocument();
-  expect(
-    within(screen.getByRole("region", { name: "Apariencia" })).getByRole("radiogroup", {
-      name: "Tema",
-      hidden: true,
-    }),
-  ).toBeInTheDocument();
+  // Named by the visible heading and described by the hint below it.
+  const themes = within(screen.getByRole("region", { name: "Apariencia" })).getByRole(
+    "radiogroup",
+    { name: "Apariencia" },
+  );
+  expect(themes).not.toHaveAttribute("aria-label");
+  expect(themes).toHaveAccessibleDescription(/«Sistema» sigue el modo claro u oscuro/);
   expect(
     within(screen.getByRole("region", { name: "Teclado" })).getByRole("switch", {
       name: "Atajos de teclado",

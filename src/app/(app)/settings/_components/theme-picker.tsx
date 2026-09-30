@@ -35,7 +35,15 @@ export function themePreference(value: string | undefined): ThemePreference {
  * browser: until mounted the group keeps its place but stays invisible, so it never shows a
  * wrong selection.
  */
-export function ThemePicker() {
+export function ThemePicker({
+  labelledBy,
+  describedBy,
+}: {
+  /** Id of the visible heading that names the group. */
+  labelledBy: string;
+  /** Id of the hint that explains the options. */
+  describedBy?: string;
+}) {
   const { theme, setTheme } = useTheme();
   const mounted = useMounted();
 
@@ -46,7 +54,11 @@ export function ThemePicker() {
       key={mounted ? "mounted" : "placeholder"}
       mode="radio"
       touch
+      // Named by the visible heading, not a hidden aria-label (the component requires `label`).
       label="Tema"
+      aria-label={undefined}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
       options={OPTIONS}
       // Hydration must match the server HTML, which can't know the stored theme: React would
       // keep the server's aria-checked. So a fixed value until mounted, then the real one.

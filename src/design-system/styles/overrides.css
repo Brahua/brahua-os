@@ -69,3 +69,14 @@
 .bo-bottomnav {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
+
+/*
+ * PENDING UPSTREAM (Claude Design): Switch with reduced motion. components.css slides the knob
+ * (`transform`, --duration-state), which the motion tokens don't zero. Under
+ * prefers-reduced-motion the knob jumps; the color change keeps its fade.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .bo-switch::after {
+    transition-duration: 0ms, var(--duration-state);
+  }
+}

@@ -18,12 +18,24 @@ beforeEach(() => {
   themeState.setTheme.mockReset();
 });
 
+/** The picker as the page uses it: named by a heading, described by a hint. */
+function Labelled() {
+  return (
+    <>
+      <h2 id="heading">Apariencia</h2>
+      <ThemePicker labelledBy="heading" describedBy="hint" />
+      <p id="hint">Sigue a tu dispositivo.</p>
+    </>
+  );
+}
+
 describe("ThemePicker", () => {
   test("is a radio group with Oscuro, Claro and Sistema; the stored theme is checked", () => {
     themeState.theme = "system";
-    render(<ThemePicker />);
-    const group = screen.getByRole("radiogroup", { name: "Tema" });
+    render(<Labelled />);
+    const group = screen.getByRole("radiogroup", { name: "Apariencia" });
     expect(group).toBeVisible();
+    expect(group).toHaveAccessibleDescription("Sigue a tu dispositivo.");
     expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
       "Oscuro",
       "Claro",
@@ -36,7 +48,7 @@ describe("ThemePicker", () => {
 
   test("clicking or moving with the arrow keys applies the theme", async () => {
     const user = userEvent.setup();
-    render(<ThemePicker />);
+    render(<Labelled />);
     await user.click(screen.getByRole("radio", { name: "Claro" }));
     expect(themeState.setTheme).toHaveBeenLastCalledWith("light");
 
@@ -50,7 +62,7 @@ describe("ThemePicker", () => {
   test("the server HTML is the same whatever is stored: hidden, with a fixed value", () => {
     // The stored theme only exists in the browser; hydration must match this HTML exactly.
     themeState.theme = "light";
-    const html = renderToString(<ThemePicker />);
+    const html = renderToString(<ThemePicker labelledBy="heading" />);
     expect(html).toContain("invisible");
     expect(html).toContain('aria-hidden="true"');
     expect(html).toMatch(/aria-checked="true"[^>]*>Oscuro</);
@@ -86,6 +98,17 @@ describe("ShortcutsSwitch", () => {
     expect(toggle).toHaveAttribute("aria-checked", "true");
     expect(document.cookie).toContain(`${SHORTCUTS_COOKIE}=on`);
     expect(router.refresh).toHaveBeenCalledTimes(2);
+  });
+
+  test("clicking its visible label toggles it too", async () => {
+    const user = userEvent.setup();
+    render(<ShortcutsSwitch initialEnabled />);
+    await user.click(screen.getByText("Atajos de teclado"));
+    expect(screen.getByRole("switch", { name: "Atajos de teclado" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(router.refresh).toHaveBeenCalledTimes(1);
   });
 
   test("starts off when the server says so, and Space turns it on", async () => {

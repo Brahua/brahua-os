@@ -10,7 +10,7 @@ import { HOME_HEADING } from "./support/owner";
 const THEMES = ["dark", "light"] as const;
 const isDesktop = (testInfo: TestInfo) => testInfo.project.name === "desktop";
 const sidebar = (page: Page) => page.getByRole("banner");
-const themeGroup = (page: Page) => page.getByRole("radiogroup", { name: "Tema" });
+const themeGroup = (page: Page) => page.getByRole("radiogroup", { name: "Apariencia" });
 const shortcutsSwitch = (page: Page) => page.getByRole("switch", { name: "Atajos de teclado" });
 
 /**
@@ -220,6 +220,12 @@ for (const theme of THEMES) {
 
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
+
+    // Reduced motion: the switch knob jumps instead of sliding (its color may still fade).
+    const knob = await shortcutsSwitch(page).evaluate(
+      (element) => getComputedStyle(element, "::after").transitionDuration,
+    );
+    expect(knob.split(",")[0].trim()).toBe("0s");
 
     // Fonts render differently per OS; references are only valid inside the Linux container.
     if (process.platform !== "linux") return;

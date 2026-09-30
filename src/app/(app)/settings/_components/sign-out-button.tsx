@@ -13,6 +13,8 @@ export function SignOutButton() {
   const [failed, setFailed] = useState(false);
 
   async function signOut() {
+    // aria-disabled keeps the key focusable (a failure leaves focus where it was): guard here.
+    if (pending) return;
     setPending(true);
     setFailed(false);
     let signedOut = false;
@@ -35,7 +37,13 @@ export function SignOutButton() {
 
   return (
     <div className="flex flex-col items-start gap-2">
-      <Key variant="ghost" icon={LogOut} onClick={signOut} disabled={pending}>
+      <Key
+        variant="ghost"
+        icon={LogOut}
+        onClick={signOut}
+        aria-disabled={pending}
+        className={pending ? "is-disabled" : undefined}
+      >
         Cerrar sesión
       </Key>
       <p role="status" className="bo-text-body-sm text-text-secondary">

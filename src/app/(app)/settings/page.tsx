@@ -44,8 +44,8 @@ export default async function SettingsPage() {
       <h1 className="bo-text-display">Ajustes</h1>
 
       <SettingsSection id="settings-appearance" title="Apariencia">
-        <ThemePicker />
-        <p className="bo-text-body-sm text-text-secondary">
+        <ThemePicker labelledBy="settings-appearance" describedBy="settings-theme-hint" />
+        <p id="settings-theme-hint" className="bo-text-body-sm text-text-secondary">
           «Sistema» sigue el modo claro u oscuro de tu dispositivo.
         </p>
       </SettingsSection>

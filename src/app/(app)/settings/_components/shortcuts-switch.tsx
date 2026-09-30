@@ -12,7 +12,7 @@ import { shortcutsCookie } from "@/modules/core/nav-preferences";
  */
 export function ShortcutsSwitch({ initialEnabled }: { initialEnabled: boolean }) {
   const router = useRouter();
-  const labelId = useId();
+  const switchId = useId();
   const descriptionId = useId();
   const [enabled, setEnabled] = useState(initialEnabled);
 
@@ -25,9 +25,10 @@ export function ShortcutsSwitch({ initialEnabled }: { initialEnabled: boolean })
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex flex-col gap-1">
-        <span id={labelId} className="bo-text-body-strong">
+        {/* A real <label>: it names the switch and clicking it toggles the switch too. */}
+        <label htmlFor={switchId} className="bo-text-body-strong cursor-pointer">
           Atajos de teclado
-        </span>
+        </label>
         <p id={descriptionId} className="bo-text-body-sm text-text-secondary">
           En pantallas anchas, [ contrae la barra lateral y los números del 1 al 8 abren cada
           sección. Desactívalos si chocan con tu lector de pantalla o tu control por voz.
@@ -36,7 +37,7 @@ export function ShortcutsSwitch({ initialEnabled }: { initialEnabled: boolean })
       <Switch
         checked={enabled}
         onCheckedChange={change}
-        aria-labelledby={labelId}
+        id={switchId}
         aria-describedby={descriptionId}
       />
     </div>
