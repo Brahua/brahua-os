@@ -1,0 +1,31 @@
+/* brahua-os · generado desde tokens.json · no editar a mano */
+:root,
+[data-theme="dark"] {
+  --shadow-key: inset 0 -4px 0 var(--gray-1000), inset 0 1px 0 var(--gray-750), 0 0 0 1px var(--gray-800);
+  --shadow-key-sm: inset 0 -3px 0 var(--gray-1000), inset 0 1px 0 var(--gray-750), 0 0 0 1px var(--gray-800);
+  --shadow-key-pressed: inset 0 -1px 0 var(--gray-1000), 0 0 0 1px var(--gray-800);
+  --shadow-key-on: inset 0 -1px 0 var(--gray-400);
+  --shadow-key-flat: 0 0 0 1px var(--gray-800);
+  --shadow-signal: inset 0 -4px 0 var(--signal-600);
+  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-600);
+  --shadow-kbd: inset 0 -2px 0 var(--gray-1000), inset 0 0 0 1px var(--gray-750);
+  --shadow-lcd: inset 0 2px 0 var(--gray-1000);
+  --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+  --shadow-panel: -24px 0 48px rgb(0 0 0 / 0.4);
+  --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 0.5);
+}
+
+[data-theme="light"] {
+  --shadow-key: inset 0 -4px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200), 0 1px 2px rgb(10 10 10 / 0.08);
+  --shadow-key-sm: inset 0 -3px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
+  --shadow-key-pressed: inset 0 -1px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
+  --shadow-key-on: inset 0 -1px 0 var(--gray-1000), 0 0 0 1px var(--gray-925);
+  --shadow-key-flat: inset 0 0 0 1px var(--gray-200);
+  --shadow-signal: inset 0 -4px 0 var(--signal-600), 0 2px 4px rgb(194 51 10 / 0.2);
+  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-600);
+  --shadow-kbd: inset 0 -2px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
+  --shadow-lcd: inset 0 2px 4px rgb(0 0 0 / 0.14);
+  --shadow-popover: 0 8px 24px rgb(10 10 10 / 0.16);
+  --shadow-panel: -24px 0 48px rgb(10 10 10 / 0.12);
+  --shadow-sheet: 0 -12px 40px rgb(10 10 10 / 0.12);
+}

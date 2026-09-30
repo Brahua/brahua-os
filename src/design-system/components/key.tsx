@@ -1,74 +1,98 @@
 import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Icon, type IconSize } from "./icon";
+import { Kbd } from "./kbd";
 
-/**
- * A physical key: sits on a 4px bottom edge, sinks 3px while pressed and
- * flips to chalk (inverted) when toggled on via `aria-pressed`.
- * Hover styles only apply to fine pointers (Tailwind v4 `hover:` uses `@media (hover: hover)`).
- */
-export const keyVariants = cva(
-  [
-    "inline-flex select-none items-center justify-center gap-2 rounded-lg font-sans font-semibold",
-    "transition-[translate,box-shadow,background-color,color] duration-press ease-press",
-    "cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
-    "enabled:active:translate-y-[3px] motion-reduce:enabled:active:translate-none",
-  ],
-  {
-    variants: {
-      variant: {
-        default: [
-          "bg-surface text-text shadow-key",
-          "hover:bg-surface-hover enabled:active:shadow-key-pressed",
-          "aria-pressed:translate-y-[3px] aria-pressed:bg-surface-pressed aria-pressed:text-bg aria-pressed:shadow-key-on",
-          "motion-reduce:aria-pressed:translate-none",
-        ],
-        signal: [
-          "bg-signal font-bold text-on-signal shadow-key-signal",
-          "hover:bg-signal-hover enabled:active:shadow-key-signal-pressed",
-        ],
-        ghost: [
-          "bg-transparent text-text-muted",
-          "hover:bg-surface-hover hover:text-text enabled:active:translate-y-0",
-        ],
-      },
-      size: {
-        sm: "h-11 px-3 text-body-sm",
-        md: "h-12 px-4 text-body",
-        lg: "h-14 px-5 text-body",
-      },
-    },
-    defaultVariants: { variant: "default", size: "md" },
-  },
-);
+export type KeyVariant = "default" | "signal" | "ghost";
+export type KeySize = "sm" | "md" | "lg";
 
-export type KeyProps = React.ComponentProps<"button"> &
-  VariantProps<typeof keyVariants> & {
-    /** Render the child element (e.g. a Next.js `<Link>`) with key styles. */
-    asChild?: boolean;
-  };
+const ICON_SIZE: Record<KeySize, IconSize> = { sm: "sm", md: "md", lg: "lg" };
 
-export function Key({ variant, size, asChild = false, className, type, ...props }: KeyProps) {
-  const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      // Default to type="button" so keys never submit forms by accident.
-      type={asChild ? type : (type ?? "button")}
-      className={cn(keyVariants({ variant, size }), className)}
-      {...props}
-    />
+export type KeyProps = Omit<React.ComponentProps<"button">, "onClick"> & {
+  variant?: KeyVariant;
+  /** sm 36 px (desktop with a pointer only) · md 48 px · lg 58 px */
+  size?: KeySize;
+  /** Toggle mode: exposes aria-pressed and stays sunk and inverted while pressed. */
+  toggle?: boolean;
+  pressed?: boolean;
+  onPressedChange?: (pressed: boolean) => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  /** Lucide icon on the left. */
+  icon?: LucideIcon;
+  iconRight?: LucideIcon;
+  /** Shortcut shown as Kbd: "C" or ["⌘", "↵"]. */
+  shortcut?: string | string[];
+  block?: boolean;
+  /** Render the child element (e.g. a Next.js Link) with key styles. */
+  asChild?: boolean;
+};
+
+export function keyClasses({
+  variant = "default",
+  size = "md",
+  block = false,
+  className,
+}: Pick<KeyProps, "variant" | "size" | "block" | "className">) {
+  return cn(
+    "bo-key",
+    variant !== "default" && `bo-key--${variant}`,
+    size !== "md" && `bo-key--${size}`,
+    block && "bo-key--block",
+    className,
   );
 }
 
-const ICON_KEY_SIZES = { sm: "size-11", md: "size-12", lg: "size-14" } as const;
+/** Physical key (design system `Key`): sinks 3 px when pressed; in toggle mode it inverts while on. */
+export function Key({
+  variant = "default",
+  size = "md",
+  toggle = false,
+  pressed = false,
+  onPressedChange,
+  icon,
+  iconRight,
+  shortcut,
+  block = false,
+  asChild = false,
+  className,
+  children,
+  onClick,
+  type,
+  ...props
+}: KeyProps) {
+  const classes = keyClasses({ variant, size, block, className });
 
-export type IconKeyProps = Omit<KeyProps, "size" | "aria-label"> & {
-  size?: keyof typeof ICON_KEY_SIZES;
-  /** Required: icon-only keys have no visible text. */
-  "aria-label": string;
-};
+  if (asChild) {
+    return (
+      <Slot className={classes} {...props}>
+        {children}
+      </Slot>
+    );
+  }
 
-/** Square key that holds a single icon. */
-export function IconKey({ size = "md", className, ...props }: IconKeyProps) {
-  return <Key className={cn(ICON_KEY_SIZES[size], "px-0", className)} {...props} />;
+  return (
+    <button
+      type={type ?? "button"}
+      aria-pressed={toggle ? pressed : undefined}
+      // Only attach a handler when there is one: static keys stay renderable from Server Components.
+      onClick={
+        onClick || (toggle && onPressedChange)
+          ? (event) => {
+              if (toggle) onPressedChange?.(!pressed);
+              onClick?.(event);
+            }
+          : undefined
+      }
+      className={classes}
+      {...props}
+    >
+      {icon ? <Icon icon={icon} size={ICON_SIZE[size]} /> : null}
+      {children}
+      {iconRight ? <Icon icon={iconRight} size={ICON_SIZE[size]} /> : null}
+      {shortcut ? (
+        <Kbd keys={shortcut} tone={variant === "signal" ? "signal" : "default"} aria-hidden />
+      ) : null}
+    </button>
+  );
 }

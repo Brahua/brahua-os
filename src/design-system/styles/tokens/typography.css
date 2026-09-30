@@ -1,0 +1,112 @@
+/* brahua-os · generado desde tokens.json · no editar a mano
+ * Fonts are self-hosted with next/font (src/design-system/fonts.ts) instead of the Google Fonts @import. */
+:root {
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  --text-display: 38px;
+  --text-display--line-height: 40px;
+  --text-display--font-weight: 800;
+  --text-display--letter-spacing: -0.01em;
+  --text-display--font-stretch: 125%;
+  --text-display--font-family: var(--font-sans);
+  --text-title-lg: 34px;
+  --text-title-lg--line-height: 36px;
+  --text-title-lg--font-weight: 800;
+  --text-title-lg--letter-spacing: -0.01em;
+  --text-title-lg--font-stretch: 125%;
+  --text-title-lg--font-family: var(--font-sans);
+  --text-title: 26px;
+  --text-title--line-height: 28px;
+  --text-title--font-weight: 700;
+  --text-title--letter-spacing: -0.01em;
+  --text-title--font-stretch: 125%;
+  --text-title--font-family: var(--font-sans);
+  --text-heading: 20px;
+  --text-heading--line-height: 24px;
+  --text-heading--font-weight: 700;
+  --text-heading--letter-spacing: 0;
+  --text-heading--font-stretch: 115%;
+  --text-heading--font-family: var(--font-sans);
+  --text-subheading: 16px;
+  --text-subheading--line-height: 20px;
+  --text-subheading--font-weight: 600;
+  --text-subheading--letter-spacing: 0;
+  --text-subheading--font-stretch: 100%;
+  --text-subheading--font-family: var(--font-sans);
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+  --text-body--font-weight: 400;
+  --text-body--letter-spacing: 0;
+  --text-body--font-stretch: 100%;
+  --text-body--font-family: var(--font-sans);
+  --text-body-strong: 15px;
+  --text-body-strong--line-height: 22px;
+  --text-body-strong--font-weight: 600;
+  --text-body-strong--letter-spacing: 0;
+  --text-body-strong--font-stretch: 100%;
+  --text-body-strong--font-family: var(--font-sans);
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body-sm--font-weight: 400;
+  --text-body-sm--letter-spacing: 0;
+  --text-body-sm--font-stretch: 100%;
+  --text-body-sm--font-family: var(--font-sans);
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+  --text-caption--font-weight: 400;
+  --text-caption--letter-spacing: 0;
+  --text-caption--font-stretch: 100%;
+  --text-caption--font-family: var(--font-sans);
+  --text-label: 11px;
+  --text-label--line-height: 14px;
+  --text-label--font-weight: 500;
+  --text-label--letter-spacing: 0.1em;
+  --text-label--font-stretch: 100%;
+  --text-label--font-family: var(--font-mono);
+  --text-label-lg: 12px;
+  --text-label-lg--line-height: 16px;
+  --text-label-lg--font-weight: 500;
+  --text-label-lg--letter-spacing: 0.08em;
+  --text-label-lg--font-stretch: 100%;
+  --text-label-lg--font-family: var(--font-mono);
+  --text-data-xl: 40px;
+  --text-data-xl--line-height: 40px;
+  --text-data-xl--font-weight: 600;
+  --text-data-xl--letter-spacing: -0.01em;
+  --text-data-xl--font-stretch: 100%;
+  --text-data-xl--font-family: var(--font-mono);
+  --text-data-lg: 26px;
+  --text-data-lg--line-height: 28px;
+  --text-data-lg--font-weight: 600;
+  --text-data-lg--letter-spacing: 0;
+  --text-data-lg--font-stretch: 100%;
+  --text-data-lg--font-family: var(--font-mono);
+  --text-data: 15px;
+  --text-data--line-height: 20px;
+  --text-data--font-weight: 600;
+  --text-data--letter-spacing: 0;
+  --text-data--font-stretch: 100%;
+  --text-data--font-family: var(--font-mono);
+  --text-kbd: 11px;
+  --text-kbd--line-height: 14px;
+  --text-kbd--font-weight: 500;
+  --text-kbd--letter-spacing: 0;
+  --text-kbd--font-stretch: 100%;
+  --text-kbd--font-family: var(--font-mono);
+}
+
+.bo-text-display { font-family: var(--text-display--font-family); font-size: var(--text-display); line-height: var(--text-display--line-height); font-weight: var(--text-display--font-weight); letter-spacing: var(--text-display--letter-spacing); font-stretch: var(--text-display--font-stretch); }
+.bo-text-title-lg { font-family: var(--text-title-lg--font-family); font-size: var(--text-title-lg); line-height: var(--text-title-lg--line-height); font-weight: var(--text-title-lg--font-weight); letter-spacing: var(--text-title-lg--letter-spacing); font-stretch: var(--text-title-lg--font-stretch); }
+.bo-text-title { font-family: var(--text-title--font-family); font-size: var(--text-title); line-height: var(--text-title--line-height); font-weight: var(--text-title--font-weight); letter-spacing: var(--text-title--letter-spacing); font-stretch: var(--text-title--font-stretch); }
+.bo-text-heading { font-family: var(--text-heading--font-family); font-size: var(--text-heading); line-height: var(--text-heading--line-height); font-weight: var(--text-heading--font-weight); letter-spacing: var(--text-heading--letter-spacing); font-stretch: var(--text-heading--font-stretch); }
+.bo-text-subheading { font-family: var(--text-subheading--font-family); font-size: var(--text-subheading); line-height: var(--text-subheading--line-height); font-weight: var(--text-subheading--font-weight); letter-spacing: var(--text-subheading--letter-spacing); font-stretch: var(--text-subheading--font-stretch); }
+.bo-text-body { font-family: var(--text-body--font-family); font-size: var(--text-body); line-height: var(--text-body--line-height); font-weight: var(--text-body--font-weight); letter-spacing: var(--text-body--letter-spacing); font-stretch: var(--text-body--font-stretch); }
+.bo-text-body-strong { font-family: var(--text-body-strong--font-family); font-size: var(--text-body-strong); line-height: var(--text-body-strong--line-height); font-weight: var(--text-body-strong--font-weight); letter-spacing: var(--text-body-strong--letter-spacing); font-stretch: var(--text-body-strong--font-stretch); }
+.bo-text-body-sm { font-family: var(--text-body-sm--font-family); font-size: var(--text-body-sm); line-height: var(--text-body-sm--line-height); font-weight: var(--text-body-sm--font-weight); letter-spacing: var(--text-body-sm--letter-spacing); font-stretch: var(--text-body-sm--font-stretch); }
+.bo-text-caption { font-family: var(--text-caption--font-family); font-size: var(--text-caption); line-height: var(--text-caption--line-height); font-weight: var(--text-caption--font-weight); letter-spacing: var(--text-caption--letter-spacing); font-stretch: var(--text-caption--font-stretch); }
+.bo-text-label { font-family: var(--text-label--font-family); font-size: var(--text-label); line-height: var(--text-label--line-height); font-weight: var(--text-label--font-weight); letter-spacing: var(--text-label--letter-spacing); font-stretch: var(--text-label--font-stretch); text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.bo-text-label-lg { font-family: var(--text-label-lg--font-family); font-size: var(--text-label-lg); line-height: var(--text-label-lg--line-height); font-weight: var(--text-label-lg--font-weight); letter-spacing: var(--text-label-lg--letter-spacing); font-stretch: var(--text-label-lg--font-stretch); text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.bo-text-data-xl { font-family: var(--text-data-xl--font-family); font-size: var(--text-data-xl); line-height: var(--text-data-xl--line-height); font-weight: var(--text-data-xl--font-weight); letter-spacing: var(--text-data-xl--letter-spacing); font-stretch: var(--text-data-xl--font-stretch); font-variant-numeric: tabular-nums; }
+.bo-text-data-lg { font-family: var(--text-data-lg--font-family); font-size: var(--text-data-lg); line-height: var(--text-data-lg--line-height); font-weight: var(--text-data-lg--font-weight); letter-spacing: var(--text-data-lg--letter-spacing); font-stretch: var(--text-data-lg--font-stretch); font-variant-numeric: tabular-nums; }
+.bo-text-data { font-family: var(--text-data--font-family); font-size: var(--text-data); line-height: var(--text-data--line-height); font-weight: var(--text-data--font-weight); letter-spacing: var(--text-data--letter-spacing); font-stretch: var(--text-data--font-stretch); font-variant-numeric: tabular-nums; }
+.bo-text-kbd { font-family: var(--text-kbd--font-family); font-size: var(--text-kbd); line-height: var(--text-kbd--line-height); font-weight: var(--text-kbd--font-weight); letter-spacing: var(--text-kbd--letter-spacing); font-stretch: var(--text-kbd--font-stretch); font-variant-numeric: tabular-nums; }

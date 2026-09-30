@@ -1,0 +1,21 @@
+/*
+ * brahua-os design system (Panel mono).
+ * Source of truth: the "brahua-os Design System" in Claude Design. The files in tokens/ and
+ * components.css are copied from it unchanged; tailwind-theme.css is generated from them.
+ */
+@import "./tailwind-theme.css";
+@import "./tokens/typography.css";
+@import "./tokens/colors.css";
+@import "./tokens/shadows.css";
+@import "./tokens/spacing.css";
+@import "./tokens/motion.css";
+@import "./components.css";
+@import "./overrides.css";
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+  }
+}

@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:docker": "docker run --rm --ipc=host -v \"$PWD\":/work -v /work/node_modules -v /work/.next -w /work mcr.microsoft.com/playwright:v1.63.0-noble bash -c 'corepack enable && CI=1 pnpm install --frozen-lockfile >/dev/null && pnpm test:e2e \"$@\"' --"
+    "test:e2e:docker": "docker run --rm --ipc=host -v \"$PWD\":/work -v /work/node_modules -v /work/.next -w /work mcr.microsoft.com/playwright:v1.63.0-noble bash -c 'corepack enable && CI=1 pnpm install --frozen-lockfile >/dev/null && pnpm test:e2e \"$@\"' --",
+    "design:theme": "node scripts/build-tailwind-theme.mjs"
   },
   "dependencies": {
     "@number-flow/react": "^0.6.2",

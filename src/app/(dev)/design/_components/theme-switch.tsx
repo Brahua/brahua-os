@@ -28,8 +28,9 @@ export function ThemeSwitch() {
         <Key
           key={option.value}
           size="sm"
-          aria-pressed={hydrated && theme === option.value}
-          onClick={() => setTheme(option.value)}
+          toggle
+          pressed={hydrated && theme === option.value}
+          onPressedChange={() => setTheme(option.value)}
         >
           {option.label}
         </Key>

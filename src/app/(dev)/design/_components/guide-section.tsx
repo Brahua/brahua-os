@@ -13,14 +13,14 @@ export function GuideSection({ id, title, description, children }: GuideSectionP
       id={id}
       aria-labelledby={headingId}
       data-guide-section={id}
-      className="flex flex-col gap-5 border-t border-border-subtle py-8"
+      className="flex flex-col gap-5 border-t border-divider py-8"
     >
       <div className="flex flex-col gap-1">
-        <h2 id={headingId} className="font-mono text-label text-text-muted uppercase">
+        <h2 id={headingId} className="bo-text-heading">
           {title}
         </h2>
         {description ? (
-          <p className="max-w-prose text-body-sm text-text-muted">{description}</p>
+          <p className="max-w-prose bo-text-body-sm text-text-secondary">{description}</p>
         ) : null}
       </div>
       {children}
@@ -33,7 +33,7 @@ export function Specimen({ label, children }: { label: string; children: React.R
   return (
     <div className="flex flex-col items-start gap-2">
       {children}
-      <span className="font-mono text-label-xs text-text-muted uppercase">{label}</span>
+      <span className="bo-text-label text-text-secondary">{label}</span>
     </div>
   );
 }
