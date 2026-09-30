@@ -3,8 +3,17 @@ import type { PoolConfig } from "pg";
 
 type Env = Record<string, string | undefined>;
 
-/** Hosts treated as a local, throwaway database (`postgres` is the CI service name). */
-export const LOCAL_DATABASE_HOSTS = ["localhost", "127.0.0.1", "::1", "postgres"] as const;
+/**
+ * Hosts treated as a local, throwaway database: loopback, `postgres` (the CI service name) and
+ * `host.docker.internal` (the Docker Compose database seen from `pnpm test:e2e:docker`).
+ */
+export const LOCAL_DATABASE_HOSTS = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "postgres",
+  "host.docker.internal",
+] as const;
 
 /** Close idle clients quickly so Fluid Compute instances can release them (attachDatabasePool). */
 export const POOL_IDLE_TIMEOUT_MS = 5_000;

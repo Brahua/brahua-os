@@ -7,7 +7,10 @@ set -euo pipefail
 env_name="${VERCEL_ENV:-}"
 
 if [ "$env_name" = "production" ]; then
-  echo "Production build: applying database migrations and seeding default life areas."
+  echo "Production build: checking auth variables, applying migrations and seeding life areas."
+  # Fails before touching the database if BETTER_AUTH_SECRET, BETTER_AUTH_URL or OWNER_EMAIL
+  # is missing or invalid.
+  pnpm auth:check-env
   pnpm db:migrate
   pnpm db:seed
 elif [ "${VERCEL:-}" = "1" ] && [ -z "$env_name" ]; then
