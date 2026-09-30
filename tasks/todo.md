@@ -150,7 +150,7 @@ Cada tarea de T7 a T12 y T15 se verifica con `pnpm test && pnpm test:e2e design`
 
 ## Fase 4 — Protecciones y sincronización
 
-- [ ] **T13: Regla de lint y reduced motion**
+- [x] **T13: Regla de lint y reduced motion**
   - **Qué:**
     - Regla ESLint que prohíbe `#hex` y `cubic-bezier` fuera de `src/design-system/`.
     - Test E2E global: con `reducedMotion: "reduce"`, ningún componente aplica `transform` al interactuar.
@@ -159,7 +159,9 @@ Cada tarea de T7 a T12 y T15 se verifica con `pnpm test && pnpm test:e2e design`
   - **Archivos:** `eslint.config.mjs`, `e2e/reduced-motion.spec.ts`
   - **Depende de:** T5–T12, T15 · **Tamaño:** S
 
-- [ ] **T14: Exportar a Claude Design**
+- [x] **T14: Sincronización con Claude Design** (replanteada: el diseño nace en Claude Design, así que se sincroniza desde allá)
+  - Hecho: `claude-design.lock.json` + `pnpm design:check` en CI (detecta ediciones a mano de los archivos copiados) y la skill `.claude/skills/design-sync-pull` con el procedimiento para bajar cambios.
+- ~~T14 original: Exportar a Claude Design~~
   - **Qué:** `pnpm design:export` genera en `design-sync/` una vista previa HTML por componente, con su comentario `@dsCard` de grupo, más `tokens.json` y `tokens.css`.
   - **Aceptación:**
     - Hay una tarjeta por componente con el grupo correcto (Colors, Type, Components…).
@@ -169,5 +171,5 @@ Cada tarea de T7 a T12 y T15 se verifica con `pnpm test && pnpm test:e2e design`
   - **Depende de:** T13 · **Tamaño:** M
 
 ### Checkpoint final
-- [ ] Se cumplen los 9 criterios de éxito de `SPEC-design-system.md`.
-- [ ] Revisión contigo antes de empezar `core`.
+- [x] Se cumplen los criterios de éxito de `SPEC-design-system.md` (el 7 se replanteó con T14).
+- [x] Revisión contigo antes de empezar `core` (2026-09-29: aprobado, con texto blanco en teclas naranjas).

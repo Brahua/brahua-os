@@ -1,0 +1,33 @@
+{
+  "source": {
+    "tool": "Claude Design",
+    "projectId": "3787b11d-b9b0-4ea2-bd5d-26d0f072f863"
+  },
+  "syncedAt": "2026-09-30T04:09:57.986Z",
+  "files": {
+    "src/design-system/styles/tokens/colors.css": {
+      "remote": "tokens/colors.css",
+      "sha256": "25cf0d2d2d094f38fe617308af03aec5831d236719d99ada9265deafc8fb148a"
+    },
+    "src/design-system/styles/tokens/shadows.css": {
+      "remote": "tokens/shadows.css",
+      "sha256": "70390a90cfd80c08bb6ce3a81e01a44092f6636f435aa6348dc1a226a03327b0"
+    },
+    "src/design-system/styles/tokens/spacing.css": {
+      "remote": "tokens/spacing.css",
+      "sha256": "b45153cf727c1e02d0ab6606eae04fc58ad340e813fae2c3fef2cbfea3c031be"
+    },
+    "src/design-system/styles/tokens/motion.css": {
+      "remote": "tokens/motion.css",
+      "sha256": "bb423d0a7332401518c0b707e4c43f108346347970a8a4a39d48060e80b56417"
+    },
+    "src/design-system/styles/tokens/typography.css": {
+      "remote": "tokens/typography.css",
+      "sha256": "244421bda55a05d13481002be7627b40a7d4444f15e020122554014c150c303c"
+    },
+    "src/design-system/styles/components.css": {
+      "remote": "components/components.css",
+      "sha256": "0f373fe894eae361b560bc2fe1333e78978ef777b2909e2e3d578b4007e5a3b4"
+    }
+  }
+}
