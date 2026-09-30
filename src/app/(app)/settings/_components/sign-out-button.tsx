@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Key } from "@/design-system";
 import { authClient } from "@/lib/auth-client";
 
-/** Temporary sign-out until Ajustes (C4) owns it. */
+/** "Cerrar sesión" in Ajustes: ends the session on this device and goes to /login. */
 export function SignOutButton() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -34,7 +34,7 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-start gap-2">
       <Key variant="ghost" icon={LogOut} onClick={signOut} disabled={pending}>
         Cerrar sesión
       </Key>

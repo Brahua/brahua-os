@@ -79,8 +79,14 @@ test("the navigation comes from the registry and marks the current page", async 
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy today. Planned ones (Áreas, Ajustes) are not shown.
-  await expect(nav.getByRole("link")).toHaveCount(1);
+  // Only available modules: Hoy and Ajustes. Planned ones (Áreas) are not shown. On the phone
+  // both fit in the bottom bar; on desktop Ajustes is pinned to the sidebar footer.
+  const links = page.getByRole("navigation").getByRole("link");
+  await expect(links).toHaveCount(2);
+  await expect(links.nth(0)).toHaveAccessibleName("Hoy");
+  await expect(links.nth(1)).toHaveAccessibleName("Ajustes");
+  const footer = desktop ? page.getByRole("navigation", { name: "Secundaria" }) : nav;
+  await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("link", { name: "Áreas" })).toHaveCount(0);
 
@@ -191,8 +197,18 @@ test("a tooltip stays open while hovered and Esc dismisses it (WCAG 1.4.13)", as
 
   const link = sidebar(page).getByRole("link", { name: "Hoy" });
   const tooltip = sidebar(page).locator(".bo-tooltip", { hasText: "Hoy" });
+  // Not showing yet: it must not catch the pointer (it sits over the content next to it).
+  await expect(tooltip).toHaveCSS("visibility", "hidden");
   await link.hover();
+  const hidden = await tooltip.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return { visibility: getComputedStyle(element).visibility, caught: element.contains(hit) };
+  });
+  // Right after hovering, during the 300 ms delay, it is still hidden and lets the pointer through.
+  expect(hidden).toEqual({ visibility: "hidden", caught: false });
   await expect(tooltip).toHaveCSS("opacity", "1");
+  await expect(tooltip).toHaveCSS("visibility", "visible");
 
   // Move onto the tooltip itself, crossing the 8 px gap: it stays.
   const box = (await tooltip.boundingBox())!;

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { PasskeySection } from "@/app/(app)/_components/passkey-section";
+import { PasskeySection } from "@/app/(app)/settings/_components/passkey-section";
 import { authClient } from "@/lib/auth-client";
 import {
   PASSKEY_DELETED_MESSAGE,

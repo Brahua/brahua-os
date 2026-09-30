@@ -8,7 +8,7 @@ const ONE_YEAR = 60 * 60 * 24 * 365;
 export const SIDEBAR_COOKIE = "bo_sidebar";
 /**
  * Single-key shortcuts (`[`, `1`–`8`) on or off. WCAG 2.1.4 requires a way to turn them off;
- * the switch lives in Ajustes (C4). Default on: the design relies on them.
+ * the switch lives in Ajustes (/settings). Default on: the design relies on them.
  */
 export const SHORTCUTS_COOKIE = "bo_shortcuts";
 
@@ -29,7 +29,7 @@ export function sidebarCookie(collapsed: boolean, secure: boolean): string {
   return cookie(SIDEBAR_COOKIE, collapsed ? "collapsed" : "expanded", secure);
 }
 
-/** `document.cookie` assignment for the shortcuts preference (used by Ajustes in C4). */
+/** `document.cookie` assignment for the shortcuts preference (the switch in Ajustes). */
 export function shortcutsCookie(enabled: boolean, secure: boolean): string {
   return cookie(SHORTCUTS_COOKIE, enabled ? "on" : "off", secure);
 }

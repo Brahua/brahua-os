@@ -24,8 +24,9 @@
   - ✅ C2a (contraseña, protección y owner): PR #14 integrado; login con contraseña en producción.
   - ✅ C2b (passkey): PRs #16 y #17 integrados y en producción.
   - ✅ Checkpoint 1 (2026-09-30): el owner entra con contraseña y con passkey (Touch ID en el computador, Face ID en el celular).
-  - 🟡 C3 (navegación): PR `feat/core-c3-navigation` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, accesibilidad).
-  - Siguiente: C4 (ajustes).
+  - ✅ C3 (navegación): PR #19 integrado.
+  - 🟡 C4 (ajustes): PR `feat/core-c4-settings` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, `security-auditor` porque mueve la gestión de passkeys y el cierre de sesión, y accesibilidad).
+  - Siguiente: C5 (áreas: ver y crear).
 
 ## C2a: pasos del usuario (en orden)
 
@@ -75,28 +76,28 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - Solo el owner: la passkey de otro usuario se verifica, pero el hook de base de datos de sesiones la rechaza (500 `UNABLE_TO_CREATE_SESSION`, sin cookie). Probado en `tests/integration/auth-passkey.test.ts` con un autenticador por software (`tests/integration/support/software-authenticator.ts`).
 - Cambiar passkeys (registrar, renombrar, eliminar) exige una sesión creada hace **menos de 10 minutos** (hook `before` en `auth.ts`, 403 `SESSION_NOT_FRESH`); la UI pide volver a entrar con la contraseña. El nombre es solo una etiqueta: se registra sin `name` (que el plugin usaría como nombre de cuenta en el llavero; ahí queda el email) y luego se pone con `update-passkey`, máximo 50 caracteres (también validado en el servidor).
 - Recuperación: `pnpm auth:owner` borra las passkeys del owner en la misma transacción que cierra sus sesiones, y dice cuántas borró.
-- **Provisional:** registrar, listar (nombre + fecha de creación en hora de Lima) y eliminar (con confirmación dentro de la página) está en la portada, junto a "Cerrar sesión". C4 solo lo mueve a `/settings`.
+- Registrar, listar (nombre + fecha de creación en hora de Lima) y eliminar (con confirmación dentro de la página) está en Ajustes (`/settings`), junto a "Cerrar sesión" (desde C4; antes, en la portada).
 - Rate limit (base de datos, por IP): `/passkey/verify-authentication` 5 por minuto (como la contraseña); `/passkey/generate-authenticate-options`, `/passkey/generate-register-options` y `/passkey/verify-registration` 10 por minuto (los de opciones escriben un desafío y el de registro, una passkey). El plugin no trae reglas propias.
 - Contador de firmas: si baja (posible clon), `@simplewebauthn/server` rechaza el inicio de sesión y el plugin lo registra como error ("Failed to verify authentication"). No hay registro de seguridad aparte.
-- E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar → cerrar sesión → entrar con passkey, y axe en ambos temas.
+- E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar en `/settings` → cerrar sesión → entrar con passkey, y axe en ambos temas.
 - `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de cualquier pregunta: tiene que ser `postgres://` o `postgresql://` con un host real y una base (rechaza marcadores como `…`). `channel_binding` en la URL se acepta: `pg` lo ignora.
 - Verificado en dispositivos reales (Checkpoint 1): Touch ID en el computador y Face ID en el iPhone. Falta probarla dentro de la PWA instalada (C7).
 
 ## Cómo funciona la navegación (C3)
 
-- **Registro:** `src/lib/modules.ts` define `ModuleManifest` (`id`, `label`, `icon`, `href`, `navOrder`, `navGroup` `main`/`footer`, `shortcut` 1–8, `status` `available`/`planned`) y la lista `MODULES`. `navItems()` ordena primero `main` y luego `footer` (cada grupo por `navOrder`), descarta los `planned` y rechaza ids, hrefs o atajos duplicados. El atajo es **fijo por módulo** (Hoy = 1, Áreas = 7, Ajustes = 8), así que no se corre cuando aparecen otros. Los manifiestos son client-safe (solo datos e ícono). Los de `core` están en `src/modules/core/module.ts`: Hoy (`/`) disponible; Áreas y Ajustes `planned` (C4 y C5 solo quitan esa línea).
+- **Registro:** `src/lib/modules.ts` define `ModuleManifest` (`id`, `label`, `icon`, `href`, `navOrder`, `navGroup` `main`/`footer`, `shortcut` 1–8, `status` `available`/`planned`) y la lista `MODULES`. `navItems()` ordena primero `main` y luego `footer` (cada grupo por `navOrder`), descarta los `planned` y rechaza ids, hrefs o atajos duplicados. El atajo es **fijo por módulo** (Hoy = 1, Áreas = 7, Ajustes = 8), así que no se corre cuando aparecen otros. Los manifiestos son client-safe (solo datos e ícono). Los de `core` están en `src/modules/core/module.ts`: Hoy (`/`) y Ajustes (`/settings`, desde C4) disponibles; Áreas `planned` (C5 solo quita esa línea).
 - **Componentes** (`src/modules/core/components/`; son patrones de `core`, no del design system):
   - `Sidebar`: `<header>` (landmark banner) con marca, botón contraer/expandir, tecla de captura y dos `<nav>` ("Principal" y "Secundaria"). Contraída, cada enlace tiene tooltip y conserva su nombre con `aria-label`. Prop `shortcuts` para mostrar u ocultar las pistas de teclado.
   - `BottomNav`: 5 celdas con la captura al centro; con más de 4 secciones, las 3 primeras + "Más". "Más" abre `MoreSheet` (cargado con `next/dynamic` solo si hace falta), con `<nav aria-label="Más secciones">`; el foco vuelve a "Más" al cerrar (`returnFocusRef` del `Sheet`, por Safari). "Más" no usa `aria-current`: si la sección actual está dentro, su nombre es "Más (actual: X)" y se marca con `data-active`. El ítem actual lleva un punto debajo (no solo color). Las etiquetas se truncan en pantallas angostas; el nombre completo va en `aria-label`.
   - `AppNav`: decide qué se ve por CSS (`lg:`), guarda el estado colapsado y escucha los atajos. `[`, `1`–`8` y ⌥ + número (por `event.code`) solo actúan desde 1024 px. Ningún atajo actúa dentro de inputs de texto, textareas, selects, contenteditable, ni widgets con rol propio (textbox, searchbox, combobox, listbox, menu, grid, tree, slider, spinbutton) o diálogos; tampoco con ⌘/Ctrl/Shift. La excepción es `[` con ⌥ o AltGr, porque los teclados en español lo necesitan para escribirlo (`src/lib/shortcuts.ts`). Un número de la página actual no vuelve a navegar.
 - **Preferencias por dispositivo** (`src/modules/core/nav-preferences.ts`, cookies de 1 año leídas por el layout en el servidor, sin parpadeo):
   - `bo_sidebar`: contraída o no. Solo se escribe al cambiarla, nunca al montar.
-  - `bo_shortcuts`: `off` apaga los atajos de una tecla (WCAG 2.1.4); por defecto están activos. Apagados: sin listener, sin `Kbd` ni `aria-keyshortcuts`. **El interruptor en Ajustes lo agrega C4** (`shortcutsCookie()`).
+  - `bo_shortcuts`: `off` apaga los atajos de una tecla (WCAG 2.1.4); por defecto están activos. Apagados: sin listener, sin `Kbd` ni `aria-keyshortcuts`. El interruptor está en Ajustes (C4).
 - **Captura:** la tecla se muestra (para que el diseño no cambie cuando llegue) pero con `aria-disabled`, alcanzable con Tab y con el tooltip "Próximamente" como descripción. Como en táctil no hay hover, tocarla muestra el tooltip 2 segundos. Cuando exista la captura rápida, se pasa `onCapture` a `BottomNav`/`Sidebar` y se agrega el atajo `C`.
 - **Layout** (`src/app/(app)/layout.tsx`): enlace "Saltar al contenido" (respeta la zona segura), `<main id="content">` con las zonas seguras (`viewport-fit=cover` solo en `(app)`) y el espacio de la barra inferior (`--shell-bottom-offset`; `AppNav` lo ajusta a la altura real si la barra crece con texto más grande). `scroll-padding-bottom` en `<html>` bajo 1024 px para que el foco nunca quede tapado (WCAG 2.4.11). La hoja inferior también respeta las zonas seguras. Las páginas ya no ponen su propio `<main>` y cada una tiene su `metadata.title`.
 - **Hora:** `src/lib/time.ts` usa `Intl` con `America/Lima` (sin dependencias nuevas; la hora sale de `formatToParts`): `greetingFor` (días desde las 5:00, tardes desde las 12:00, noches desde las 19:00), `formatLongDate` y `ownerDateKey`. La portada los calcula en el servidor, así que no hay desajuste de hidratación.
 - **Pendiente en Claude Design** (reglas en `src/design-system/styles/overrides.css`; aplicarlas allá y luego borrarlas de aquí):
-  - `Tooltip` (WCAG 1.4.13): se puede pasar el puntero al tooltip sin que se cierre (`pointer-events` mientras se ve y un `::before` transparente que cubre los 8 px de separación). Además, `tooltip.tsx` cierra el tooltip con Esc hasta que el puntero sale o el foco se va.
+  - `Tooltip` (WCAG 1.4.13): se puede pasar el puntero al tooltip sin que se cierre (`pointer-events` mientras se ve y un `::before` transparente que cubre los 8 px de separación). Oculto usa `visibility: hidden`, que pasa a `visible` con el mismo retraso de 300 ms: así no captura el puntero antes de verse (C4). Además, `tooltip.tsx` cierra el tooltip con Esc hasta que el puntero sale o el foco se va.
   - `BottomNav` (WCAG 1.4.10): columnas `repeat(5, minmax(0, 1fr))` para que las etiquetas se trunquen a 320 px en vez de desbordar.
 - **Visto de paso, sin arreglar:** a 320 px, `/design` tiene desborde horizontal por secciones que ya existían (SectionLabel `w-80`, Lcd y ProgressRing). No es de la navegación.
 - **E2E** (`e2e/home.spec.ts`):
@@ -104,6 +105,14 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   - Las pruebas negativas registran, con un listener propio puesto después del de `AppNav`, si alguien llamó a `preventDefault()`, y después comprueban que una tecla válida sí actúa. Así pueden fallar de verdad.
   - Los tamaños (`--sidebar-width`, `--bottom-nav-height`…) se leen de las variables CSS.
   - Las capturas de `/design` ocultan la barra inferior fija (`e2e/support/hide-app-nav.css`).
+
+## Cómo funcionan los ajustes (C4)
+
+- `/settings` (`src/app/(app)/settings/`): `requireOwner()`, título "Ajustes · brahua-os" y cuatro secciones (`<section>` nombrada por su `SectionLabel` h2): Apariencia, Teclado, Passkeys y Sesión. Ajustes aparece en la navegación (pie de la barra lateral, atajo 8; en el celular, en la barra inferior).
+- **Tema** (`theme-picker.tsx`): `SegmentedControl` en modo radio (flechas, Inicio y Fin) sobre `next-themes`. **Oscuro por defecto** (`SPEC-design-system.md`, que prevalece en lo visual; `SPEC-core.md` se alineó en v2.3). La elección vive en `localStorage` (`theme`) y el script de next-themes la aplica antes de pintar, así que no hay parpadeo. El servidor no conoce el tema guardado: hasta montar, el grupo se dibuja invisible con un valor fijo (si no, la hidratación dejaría el `aria-checked` del servidor) y al montar se vuelve a crear (`key`) para que la opción elegida no se anime desde el valor provisional.
+- **Atajos** (`shortcuts-switch.tsx`): `Switch` con nombre y descripción visibles. Escribe `bo_shortcuts` con `shortcutsCookie()` y llama a `router.refresh()`: el layout vuelve a leer la cookie en el servidor y `AppNav` quita (o vuelve a poner) el listener, los `Kbd` y los `aria-keyshortcuts` sin recargar la página.
+- Passkeys y "Cerrar sesión": los mismos componentes de C2b, movidos a `settings/_components/`. La portada solo tiene el saludo.
+- E2E (`e2e/settings.spec.ts`): el tema persiste tras recargar en las tres opciones y un `MutationObserver` puesto antes de cargar comprueba que `<html>` nunca tuvo otro tema (sin parpadeo); "Sistema" con `emulateMedia({ colorScheme })`. Las capturas solo toman Apariencia, Teclado y Sesión, porque la lista de passkeys cambia con otras pruebas. Cerrar sesión se prueba en `login.spec.ts` y `passkey.spec.ts` con sesiones propias: hacerlo con la sesión compartida la cerraría para las demás pruebas.
 
 ## Decisiones recientes a respetar
 

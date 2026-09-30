@@ -23,9 +23,9 @@ type Message = { tone: "status" | "error"; text: string };
 type Pending = "register" | "delete" | null;
 
 /**
- * Temporary passkey management on the home page until Ajustes (C4) takes it over: register a
- * passkey for this device, list the existing ones and delete them. Every change needs the owner
- * session, signed in less than 10 minutes ago (the server checks both).
+ * Passkey management in Ajustes: register a passkey for this device, list the existing ones and
+ * delete them. Every change needs the owner session, signed in less than 10 minutes ago (the
+ * server checks both).
  */
 export function PasskeySection({ passkeys }: { passkeys: PasskeySummary[] }) {
   const router = useRouter();

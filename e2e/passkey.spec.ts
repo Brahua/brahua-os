@@ -55,9 +55,10 @@ function passkeySection(page: Page) {
   return page.getByRole("region", { name: /^Passkeys/ });
 }
 
-/** Password sign-in, then registers a passkey from the home page section. */
+/** Password sign-in, then registers a passkey from Ajustes (/settings). */
 async function registerPasskey(page: Page, name: string) {
   await signInWithPassword(page);
+  await page.goto("/settings");
   const section = passkeySection(page);
   await section.getByLabel("Nombre (opcional)").fill(name);
   await section.getByRole("button", { name: "Registrar passkey" }).click();
@@ -276,6 +277,7 @@ test("a browser without passkeys: disabled but reachable keys that say why, axe 
   await expect(signInKey).toBeFocused();
 
   await signInWithPassword(page);
+  await page.goto("/settings");
   const registerKey = passkeySection(page).getByRole("button", { name: "Registrar passkey" });
   for (const theme of THEMES) {
     await setTheme(page, theme);

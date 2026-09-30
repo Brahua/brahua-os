@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
-import { SignOutButton } from "@/app/(app)/_components/sign-out-button";
+import { SignOutButton } from "@/app/(app)/settings/_components/sign-out-button";
 import { authClient } from "@/lib/auth-client";
 
 const router = { replace: vi.fn(), refresh: vi.fn() };
