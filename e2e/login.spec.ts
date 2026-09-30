@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 async function signIn(page: Page, password: string) {
   await page.getByLabel("Email").fill(E2E_OWNER.email);
   await page.getByLabel("Contraseña").fill(password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
 }
 
 for (const path of ["/", "/design"]) {
@@ -94,7 +94,7 @@ for (const theme of ["dark", "light"] as const) {
       page,
     }) => {
       await openLogin(page, theme);
-      await page.getByRole("button", { name: "Entrar" }).click();
+      await page.getByRole("button", { name: "Entrar", exact: true }).click();
 
       const email = page.getByLabel("Email");
       await expect(email).toBeFocused();

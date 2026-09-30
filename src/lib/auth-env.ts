@@ -21,7 +21,32 @@ export type AuthEnv = {
   trustedOrigins: string[];
   /** `Secure` cookies (always on over HTTPS; forced in Vercel production). */
   secureCookies: boolean;
+  /** WebAuthn relying party, derived from the base URL (SPEC-core: `rpID: "os.brahua.com"`). */
+  passkey: PasskeyRelyingParty;
 };
+
+export type PasskeyRelyingParty = {
+  /** Domain the passkeys are bound to: the base URL hostname (`localhost` in dev and tests). */
+  rpID: string;
+  /** Name the browser shows in its passkey prompt. */
+  rpName: string;
+  /** The only origin whose WebAuthn responses are accepted: the base URL origin. */
+  origin: string;
+};
+
+export const PASSKEY_RP_NAME = "brahua-os";
+/** Longest label for a passkey in the list (checked by the server and the form). */
+export const PASSKEY_NAME_MAX_LENGTH = 50;
+
+/**
+ * Relying party for the passkey plugin. Passkeys are bound to `rpID` for good: a passkey created
+ * on one domain never works on another, so it comes from the one configured origin, never from
+ * the request.
+ */
+export function passkeyRelyingParty(baseURL: string): PasskeyRelyingParty {
+  const url = new URL(baseURL);
+  return { rpID: url.hostname, rpName: PASSKEY_RP_NAME, origin: url.origin };
+}
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -73,6 +98,9 @@ export function resolveAuthEnv(env: Env): AuthEnv {
       baseURL = url.origin;
       if (production && url.protocol !== "https:") {
         problems.push("BETTER_AUTH_URL must use https in production");
+      } else if (production && url.origin !== PRODUCTION_ORIGIN) {
+        // Passkeys are bound to this domain: a different origin would register them elsewhere.
+        problems.push(`BETTER_AUTH_URL must be ${PRODUCTION_ORIGIN} in production`);
       }
     } catch {
       problems.push("BETTER_AUTH_URL is not a valid URL");
@@ -97,6 +125,7 @@ export function resolveAuthEnv(env: Env): AuthEnv {
     ownerEmail,
     trustedOrigins: [...trustedOrigins],
     secureCookies: production || baseURL.startsWith("https://"),
+    passkey: passkeyRelyingParty(baseURL),
   };
 }
 

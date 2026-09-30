@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  assertDatabaseUrl,
   databaseHost,
   describeDatabaseTarget,
   resolveOwnerScriptDatabaseUrl,
@@ -96,8 +97,80 @@ describe("owner script database target", () => {
     ).toBe(REMOTE);
   });
 
+  test("rejects a placeholder host before anything else, even with ALLOW_PROD_DB=1", () => {
+    // What the user pasted in production: `new URL` percent-encodes "…" as the host.
+    for (const url of [
+      "postgresql://neondb_owner:secret@…/neondb?sslmode=require",
+      "postgresql://…",
+    ]) {
+      expect(() =>
+        resolveOwnerScriptDatabaseUrl({ DATABASE_URL_UNPOOLED: url, ALLOW_PROD_DB: "1" }),
+      ).toThrow(/DATABASE_URL_UNPOOLED has no valid host/);
+    }
+  });
+
+  test("the validation error never includes the credentials", () => {
+    try {
+      resolveOwnerScriptDatabaseUrl({
+        DATABASE_URL_UNPOOLED: "postgresql://neondb_owner:secret@…/neondb",
+        ALLOW_PROD_DB: "1",
+      });
+      expect.unreachable();
+    } catch (error) {
+      expect(String(error)).not.toContain("secret");
+      expect(String(error)).not.toContain("neondb_owner");
+    }
+  });
+
   test("databaseHost returns only the host", () => {
     expect(databaseHost(REMOTE)).toBe("ep-x-pooler.us-east-1.aws.neon.tech");
+  });
+});
+
+describe("assertDatabaseUrl", () => {
+  const check = (url: string) => () => assertDatabaseUrl("DATABASE_URL_UNPOOLED", url);
+
+  test("accepts Neon URLs (with sslmode and channel_binding), local and IP hosts", () => {
+    expect(check(REMOTE)).not.toThrow();
+    expect(
+      check(
+        "postgresql://neondb_owner:p%40ss@ep-cool-name-a1b2c3.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+      ),
+    ).not.toThrow();
+    expect(check(LOCAL_TEST)).not.toThrow();
+    expect(check("postgres://u:p@127.0.0.1:5432/db")).not.toThrow();
+    expect(check("postgres://u:p@[::1]:5432/db")).not.toThrow();
+  });
+
+  test("rejects text that is not a URL", () => {
+    expect(check("…")).toThrow(/DATABASE_URL_UNPOOLED is not a valid URL/);
+    expect(check("")).toThrow(/not a valid URL/);
+  });
+
+  test("rejects other protocols", () => {
+    expect(check("https://ep-x.neon.tech/neondb")).toThrow(/postgres:\/\/ or postgresql:\/\//);
+    expect(check("mysql://u:p@db.example.com/x")).toThrow(/postgres:\/\//);
+  });
+
+  test("rejects placeholder, empty or malformed hosts", () => {
+    expect(check("postgresql://u:p@…/neondb")).toThrow(/no valid host/);
+    // Never echoes what was in the host position.
+    expect(check("postgresql://u:p@s3cr3t_value/neondb")).toThrow(/^(?!.*s3cr3t_value)/);
+    expect(check("postgresql://u:p@host.../neondb")).toThrow(/no valid host/);
+    expect(check("postgresql:///neondb")).toThrow(/no valid host/);
+    expect(check("postgresql://u:p@/neondb")).toThrow(/DATABASE_URL_UNPOOLED/);
+    expect(check("postgresql://u:p@-bad-.neon.tech/neondb")).toThrow(/no valid host/);
+    expect(check("postgresql://u:p@ep_x.neon.tech/neondb")).toThrow(/no valid host/);
+  });
+
+  test("requires a database name", () => {
+    expect(check("postgresql://u:p@ep-x.neon.tech")).toThrow(/no database name/);
+    expect(check("postgresql://u:p@ep-x.neon.tech/")).toThrow(/no database name/);
+  });
+
+  test("pg connects with channel_binding in the URL: the pool config passes it through", () => {
+    // Checked against pg 8.23: unknown URL parameters are ignored (channel_binding=require works).
+    expect(poolConfig(REMOTE).connectionString).toContain("channel_binding=require");
   });
 });
 

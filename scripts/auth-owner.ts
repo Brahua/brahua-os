@@ -1,9 +1,11 @@
 // Creates the owner account, or resets its password (SPEC-core: no email reset; recovery is
 // running this script again). The password is typed in the terminal, hidden, and never read
-// from arguments or environment variables. Resetting signs out every existing session.
+// from arguments or environment variables. Resetting signs out every existing session
+// and removes every passkey (the owner registers them again).
 //   OWNER_EMAIL=… DATABASE_URL_UNPOOLED=… pnpm auth:owner
 // Non-local databases need ALLOW_PROD_DB=1 (a Vercel build is never permission) and typing the
-// database host back before the password prompt.
+// database host back before the password prompt. A malformed URL (e.g. a placeholder host such
+// as `…`) is rejected before any prompt.
 import { pathToFileURL } from "node:url";
 import { checkOwnerPassword, isEmail, normalizeEmail } from "@/lib/auth-env";
 import { createDb } from "@/lib/db";
@@ -62,18 +64,24 @@ function prompt(question: string, { hidden }: { hidden: boolean }): Promise<stri
   });
 }
 
+/**
+ * Every check that needs no keyboard input, run before the first prompt: the database URL (set,
+ * well formed, with a real host, and allowed) and the owner email. Throws with a clear message.
+ */
+export function preflight(env: Record<string, string | undefined>): { url: string; email: string } {
+  const url = resolveOwnerScriptDatabaseUrl(env);
+  const email = normalizeEmail(env.OWNER_EMAIL ?? "");
+  if (!isEmail(email)) throw new Error("OWNER_EMAIL is not set or is not a valid email address.");
+  return { url, email };
+}
+
 async function main() {
   let url: string;
+  let email: string;
   try {
-    url = resolveOwnerScriptDatabaseUrl(process.env);
+    ({ url, email } = preflight(process.env));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
-  }
-
-  const email = normalizeEmail(process.env.OWNER_EMAIL ?? "");
-  if (!isEmail(email)) {
-    console.error("OWNER_EMAIL is not set or is not a valid email address.");
     process.exit(1);
   }
   if (!process.stdin.isTTY) {
@@ -112,7 +120,8 @@ async function main() {
     console.log(
       result.created
         ? "Owner created. You can sign in at /login."
-        : `Owner password reset. ${result.revokedSessions} session(s) signed out.`,
+        : `Owner password reset. ${result.revokedSessions} session(s) signed out, ` +
+            `${result.revokedPasskeys} passkey(s) removed: register yours again after signing in.`,
     );
   } finally {
     await db.$client.end();

@@ -59,16 +59,56 @@ export function poolConfig(connectionString: string): PoolConfig {
   };
 }
 
+// One DNS label: letters, digits and inner hyphens (RFC 1123), at most 63 characters.
+const HOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+
+function isValidHostname(host: string): boolean {
+  if (host.includes(":")) return /^[0-9a-f:.]+$/i.test(host); // IPv6 literal (brackets removed)
+  return host.length <= 253 && host.split(".").every((label) => HOST_LABEL.test(label));
+}
+
+/**
+ * Checks the shape of a connection string before anything uses it: `postgres://` or
+ * `postgresql://`, a real hostname and a database name. Catches a half-pasted or placeholder URL
+ * (e.g. `postgresql://…`, whose host `new URL` turns into `%E2%80%A6`) up front, instead of a
+ * `getaddrinfo EINVAL` after the prompts. Throws a message naming the variable, never the
+ * credentials. Unknown parameters such as Neon's `channel_binding` are accepted: pg ignores them.
+ */
+export function assertDatabaseUrl(name: string, url: string): void {
+  const fix = `Paste the full connection string into ${name} (postgresql://user:password@host/database).`;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${name} is not a valid URL. ${fix}`);
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+    throw new Error(`${name} must start with postgres:// or postgresql://. ${fix}`);
+  }
+  const host = parse(url).host;
+  if (!host || !isValidHostname(host)) {
+    // The host is not echoed: a mangled paste can put a password where the host should be.
+    throw new Error(
+      `${name} has no valid host (empty, a placeholder like "…", or not a hostname). ${fix}`,
+    );
+  }
+  if (!databaseName(url)) {
+    throw new Error(`${name} has no database name. ${fix}`);
+  }
+}
+
 /**
  * Database URL for `pnpm auth:owner`: only `DATABASE_URL_UNPOOLED`, and a non-local host needs
  * `ALLOW_PROD_DB=1`. Unlike db:migrate/db:seed, a Vercel build (`VERCEL=1`) is not permission:
- * the owner is only ever created by a person at a terminal.
+ * the owner is only ever created by a person at a terminal. The URL is validated here, before
+ * the script asks for anything.
  */
 export function resolveOwnerScriptDatabaseUrl(env: Env): string {
   const url = env.DATABASE_URL_UNPOOLED;
   if (!url) {
     throw new Error("DATABASE_URL_UNPOOLED is not set. Set it explicitly to target a database.");
   }
+  assertDatabaseUrl("DATABASE_URL_UNPOOLED", url);
   if (!isLocalDatabaseUrl(url) && env.ALLOW_PROD_DB !== "1") {
     throw new Error(
       `Refusing to touch the non-local database ${describeDatabaseTarget(url)}. ` +
