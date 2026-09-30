@@ -23,7 +23,7 @@ export default async function LoginPage() {
           </p>
           <h1 className="bo-text-display">Iniciar sesión</h1>
           <p className="bo-text-body text-text-secondary">
-            Tu sistema personal. Entra con tu email y tu contraseña.
+            Tu sistema personal. Entra con tu email y tu contraseña, o con tu passkey.
           </p>
         </header>
         <LoginForm />

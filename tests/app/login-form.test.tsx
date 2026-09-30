@@ -9,17 +9,38 @@ import {
   signInErrorMessage,
   validateLogin,
 } from "@/app/(auth)/login/validation";
+import { browserSupportsWebAuthnAutofill, WebAuthnAbortService } from "@simplewebauthn/browser";
 import { authClient } from "@/lib/auth-client";
+import {
+  PASSKEY_RATE_LIMIT_MESSAGE,
+  PASSKEY_SIGN_IN_FAILED_MESSAGE,
+  PASSKEY_UNSUPPORTED_MESSAGE,
+} from "@/lib/passkey-messages";
+import { usePasskeySupport } from "@/lib/passkey-support";
 
 const router = { replace: vi.fn(), refresh: vi.fn() };
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
-vi.mock("@/lib/auth-client", () => ({ authClient: { signIn: { email: vi.fn() } } }));
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { signIn: { email: vi.fn(), passkey: vi.fn() } },
+}));
+vi.mock("@/lib/passkey-support", () => ({ usePasskeySupport: vi.fn() }));
+vi.mock("@simplewebauthn/browser", () => ({
+  browserSupportsWebAuthnAutofill: vi.fn(),
+  WebAuthnAbortService: { cancelCeremony: vi.fn() },
+}));
 
 const signIn = vi.mocked(authClient.signIn.email);
+const signInPasskey = vi.mocked(authClient.signIn.passkey);
+const autofillSupported = vi.mocked(browserSupportsWebAuthnAutofill);
 
 beforeEach(() => {
   signIn.mockReset();
+  signInPasskey.mockReset();
   router.replace.mockReset();
+  // jsdom has no WebAuthn; each passkey test opts in.
+  vi.mocked(usePasskeySupport).mockReturnValue(false);
+  autofillSupported.mockReset();
+  autofillSupported.mockResolvedValue(false);
 });
 
 describe("validateLogin", () => {
@@ -133,6 +154,109 @@ describe("LoginForm", () => {
     await fillAndSubmit(user);
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+  });
+});
+
+describe("LoginForm with a passkey", () => {
+  const passkeyButton = () => screen.getByRole("button", { name: "Entrar con passkey" });
+
+  beforeEach(() => {
+    vi.mocked(usePasskeySupport).mockReturnValue(true);
+  });
+
+  test("the email field offers passkeys in its autofill list", () => {
+    render(<LoginForm />);
+    expect(screen.getByLabelText("Email")).toHaveAttribute("autocomplete", "username webauthn");
+  });
+
+  test("goes to the app after signing in with a passkey", async () => {
+    signInPasskey.mockResolvedValue({ data: {}, error: null } as never);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.click(passkeyButton());
+
+    expect(signInPasskey).toHaveBeenCalledWith();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+  });
+
+  test("closing the browser prompt shows nothing and leaves everything usable", async () => {
+    signInPasskey.mockResolvedValue({
+      data: null,
+      error: { status: 400, code: "ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY" },
+    } as never);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.click(passkeyButton());
+
+    await waitFor(() => expect(passkeyButton()).toBeEnabled());
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  test("a rejected passkey is announced without touching the password field", async () => {
+    signInPasskey.mockResolvedValue({
+      data: null,
+      error: { status: 401, code: "PASSKEY_NOT_FOUND" },
+    } as never);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.click(passkeyButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(PASSKEY_SIGN_IN_FAILED_MESSAGE);
+    expect(screen.getByLabelText("Contraseña")).not.toHaveAccessibleDescription(
+      PASSKEY_SIGN_IN_FAILED_MESSAGE,
+    );
+    expect(passkeyButton()).toBeEnabled();
+  });
+
+  test("explains the rate limit and survives a network failure", async () => {
+    signInPasskey.mockResolvedValueOnce({ data: null, error: { status: 429 } } as never);
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    await user.click(passkeyButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent(PASSKEY_RATE_LIMIT_MESSAGE);
+
+    signInPasskey.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await user.click(passkeyButton());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/No se pudo usar/));
+    expect(passkeyButton()).toBeEnabled();
+  });
+
+  test("with autofill support, a background request waits for a passkey from the list", async () => {
+    autofillSupported.mockResolvedValue(true);
+    signInPasskey.mockResolvedValue({ data: {}, error: null } as never);
+    render(<LoginForm />);
+
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith({ autoFill: true }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+  });
+
+  test("a cancelled background request is silent, and leaving the page cancels it", async () => {
+    autofillSupported.mockResolvedValue(true);
+    signInPasskey.mockResolvedValue({
+      data: null,
+      error: { status: 400, code: "ERROR_CEREMONY_ABORTED" },
+    } as never);
+    const { unmount } = render(<LoginForm />);
+
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalled());
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+    unmount();
+    expect(WebAuthnAbortService.cancelCeremony).toHaveBeenCalled();
+  });
+
+  test("an unsupported browser disables the button and says why", () => {
+    vi.mocked(usePasskeySupport).mockReturnValue(false);
+    render(<LoginForm />);
+
+    expect(passkeyButton()).toBeDisabled();
+    expect(passkeyButton()).toHaveAccessibleDescription(PASSKEY_UNSUPPORTED_MESSAGE);
+    expect(autofillSupported).not.toHaveBeenCalled();
   });
 });
 

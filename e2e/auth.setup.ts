@@ -7,7 +7,7 @@ setup("owner signs in with the password", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(E2E_OWNER.email);
   await page.getByLabel("Contraseña").fill(E2E_OWNER.password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
 
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
