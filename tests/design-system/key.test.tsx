@@ -139,6 +139,38 @@ describe("Tooltip", () => {
     );
     expect(tooltip).toHaveTextContent("Contraer barra");
   });
+
+  test("Esc dismisses it until focus leaves (WCAG 1.4.13)", async () => {
+    render(
+      <>
+        <Tooltip label="Contraer barra">
+          <button type="button">Barra</button>
+        </Tooltip>
+        <button type="button">Otro</button>
+      </>,
+    );
+    const anchor = screen.getByRole("tooltip").parentElement!;
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Barra" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(anchor).toHaveClass("is-dismissed");
+    await userEvent.tab();
+    expect(anchor).not.toHaveClass("is-dismissed");
+  });
+
+  test("Esc dismisses it while hovered, until the pointer leaves", async () => {
+    render(
+      <Tooltip label="Contraer barra">
+        <button type="button">Barra</button>
+      </Tooltip>,
+    );
+    const anchor = screen.getByRole("tooltip").parentElement!;
+    await userEvent.hover(screen.getByRole("button", { name: "Barra" }));
+    await userEvent.keyboard("{Escape}");
+    expect(anchor).toHaveClass("is-dismissed");
+    await userEvent.unhover(screen.getByRole("button", { name: "Barra" }));
+    expect(anchor).not.toHaveClass("is-dismissed");
+  });
 });
 
 describe("Icon", () => {

@@ -1,5 +1,5 @@
 import { expect, test as setup } from "@playwright/test";
-import { E2E_OWNER, OWNER_STORAGE_STATE } from "./support/owner";
+import { E2E_OWNER, HOME_HEADING, OWNER_STORAGE_STATE } from "./support/owner";
 
 // Signs in once through the real login form and saves the session for the app specs.
 setup("owner signs in with the password", async ({ page }) => {
@@ -10,6 +10,6 @@ setup("owner signs in with the password", async ({ page }) => {
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
 
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: HOME_HEADING })).toBeVisible();
   await page.context().storageState({ path: OWNER_STORAGE_STATE });
 });

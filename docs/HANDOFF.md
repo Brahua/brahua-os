@@ -24,8 +24,8 @@
   - ✅ C2a (contraseña, protección y owner): PR #14 integrado; login con contraseña en producción.
   - ✅ C2b (passkey): PRs #16 y #17 integrados y en producción.
   - ✅ Checkpoint 1 (2026-09-30): el owner entra con contraseña y con passkey (Touch ID en el computador, Face ID en el celular).
-  - **Próximo paso:** C3 (navegación).
-  - Siguiente: C3 (navegación).
+  - 🟡 C3 (navegación): PR `feat/core-c3-navigation` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, accesibilidad).
+  - Siguiente: C4 (ajustes).
 
 ## C2a: pasos del usuario (en orden)
 
@@ -81,6 +81,29 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar → cerrar sesión → entrar con passkey, y axe en ambos temas.
 - `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de cualquier pregunta: tiene que ser `postgres://` o `postgresql://` con un host real y una base (rechaza marcadores como `…`). `channel_binding` en la URL se acepta: `pg` lo ignora.
 - Verificado en dispositivos reales (Checkpoint 1): Touch ID en el computador y Face ID en el iPhone. Falta probarla dentro de la PWA instalada (C7).
+
+## Cómo funciona la navegación (C3)
+
+- **Registro:** `src/lib/modules.ts` define `ModuleManifest` (`id`, `label`, `icon`, `href`, `navOrder`, `navGroup` `main`/`footer`, `shortcut` 1–8, `status` `available`/`planned`) y la lista `MODULES`. `navItems()` ordena primero `main` y luego `footer` (cada grupo por `navOrder`), descarta los `planned` y rechaza ids, hrefs o atajos duplicados. El atajo es **fijo por módulo** (Hoy = 1, Áreas = 7, Ajustes = 8), así que no se corre cuando aparecen otros. Los manifiestos son client-safe (solo datos e ícono). Los de `core` están en `src/modules/core/module.ts`: Hoy (`/`) disponible; Áreas y Ajustes `planned` (C4 y C5 solo quitan esa línea).
+- **Componentes** (`src/modules/core/components/`; son patrones de `core`, no del design system):
+  - `Sidebar`: `<header>` (landmark banner) con marca, botón contraer/expandir, tecla de captura y dos `<nav>` ("Principal" y "Secundaria"). Contraída, cada enlace tiene tooltip y conserva su nombre con `aria-label`. Prop `shortcuts` para mostrar u ocultar las pistas de teclado.
+  - `BottomNav`: 5 celdas con la captura al centro; con más de 4 secciones, las 3 primeras + "Más". "Más" abre `MoreSheet` (cargado con `next/dynamic` solo si hace falta), con `<nav aria-label="Más secciones">`; el foco vuelve a "Más" al cerrar (`returnFocusRef` del `Sheet`, por Safari). "Más" no usa `aria-current`: si la sección actual está dentro, su nombre es "Más (actual: X)" y se marca con `data-active`. El ítem actual lleva un punto debajo (no solo color). Las etiquetas se truncan en pantallas angostas; el nombre completo va en `aria-label`.
+  - `AppNav`: decide qué se ve por CSS (`lg:`), guarda el estado colapsado y escucha los atajos. `[`, `1`–`8` y ⌥ + número (por `event.code`) solo actúan desde 1024 px. Ningún atajo actúa dentro de inputs de texto, textareas, selects, contenteditable, ni widgets con rol propio (textbox, searchbox, combobox, listbox, menu, grid, tree, slider, spinbutton) o diálogos; tampoco con ⌘/Ctrl/Shift. La excepción es `[` con ⌥ o AltGr, porque los teclados en español lo necesitan para escribirlo (`src/lib/shortcuts.ts`). Un número de la página actual no vuelve a navegar.
+- **Preferencias por dispositivo** (`src/modules/core/nav-preferences.ts`, cookies de 1 año leídas por el layout en el servidor, sin parpadeo):
+  - `bo_sidebar`: contraída o no. Solo se escribe al cambiarla, nunca al montar.
+  - `bo_shortcuts`: `off` apaga los atajos de una tecla (WCAG 2.1.4); por defecto están activos. Apagados: sin listener, sin `Kbd` ni `aria-keyshortcuts`. **El interruptor en Ajustes lo agrega C4** (`shortcutsCookie()`).
+- **Captura:** la tecla se muestra (para que el diseño no cambie cuando llegue) pero con `aria-disabled`, alcanzable con Tab y con el tooltip "Próximamente" como descripción. Como en táctil no hay hover, tocarla muestra el tooltip 2 segundos. Cuando exista la captura rápida, se pasa `onCapture` a `BottomNav`/`Sidebar` y se agrega el atajo `C`.
+- **Layout** (`src/app/(app)/layout.tsx`): enlace "Saltar al contenido" (respeta la zona segura), `<main id="content">` con las zonas seguras (`viewport-fit=cover` solo en `(app)`) y el espacio de la barra inferior (`--shell-bottom-offset`; `AppNav` lo ajusta a la altura real si la barra crece con texto más grande). `scroll-padding-bottom` en `<html>` bajo 1024 px para que el foco nunca quede tapado (WCAG 2.4.11). La hoja inferior también respeta las zonas seguras. Las páginas ya no ponen su propio `<main>` y cada una tiene su `metadata.title`.
+- **Hora:** `src/lib/time.ts` usa `Intl` con `America/Lima` (sin dependencias nuevas; la hora sale de `formatToParts`): `greetingFor` (días desde las 5:00, tardes desde las 12:00, noches desde las 19:00), `formatLongDate` y `ownerDateKey`. La portada los calcula en el servidor, así que no hay desajuste de hidratación.
+- **Pendiente en Claude Design** (reglas en `src/design-system/styles/overrides.css`; aplicarlas allá y luego borrarlas de aquí):
+  - `Tooltip` (WCAG 1.4.13): se puede pasar el puntero al tooltip sin que se cierre (`pointer-events` mientras se ve y un `::before` transparente que cubre los 8 px de separación). Además, `tooltip.tsx` cierra el tooltip con Esc hasta que el puntero sale o el foco se va.
+  - `BottomNav` (WCAG 1.4.10): columnas `repeat(5, minmax(0, 1fr))` para que las etiquetas se trunquen a 320 px en vez de desbordar.
+- **Visto de paso, sin arreglar:** a 320 px, `/design` tiene desborde horizontal por secciones que ya existían (SectionLabel `w-80`, Lcd y ProgressRing). No es de la navegación.
+- **E2E** (`e2e/home.spec.ts`):
+  - Espera `data-nav-shortcuts="ready"` en `<html>` antes de pulsar teclas (los atajos existen solo tras hidratar).
+  - Las pruebas negativas registran, con un listener propio puesto después del de `AppNav`, si alguien llamó a `preventDefault()`, y después comprueban que una tecla válida sí actúa. Así pueden fallar de verdad.
+  - Los tamaños (`--sidebar-width`, `--bottom-nav-height`…) se leen de las variables CSS.
+  - Las capturas de `/design` ocultan la barra inferior fija (`e2e/support/hide-app-nav.css`).
 
 ## Decisiones recientes a respetar
 

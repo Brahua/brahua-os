@@ -12,3 +12,6 @@ export const OWNER_STORAGE_STATE = "e2e/.auth/owner.json";
 export function clientIp(workerIndex: number, retry: number, n: number): string {
   return `10.${workerIndex % 256}.${retry % 256}.${n % 256}`;
 }
+
+/** The home page's h1 is a greeting that depends on the time of day in Lima. */
+export const HOME_HEADING = /^(Buenos días|Buenas tardes|Buenas noches)$/;

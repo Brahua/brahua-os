@@ -1,5 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { fontsLoaded } from "./support/fonts";
 
 const THEMES = ["dark", "light"] as const;
 const SECTIONS = [
@@ -19,14 +21,16 @@ const SECTIONS = [
   "text-field",
   "sheet",
   "list-row",
+  "navigation",
 ];
+const HIDE_APP_NAV = path.join(__dirname, "support/hide-app-nav.css");
 
 async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
   await page.goto("/design");
   await page.evaluate((value) => localStorage.setItem("theme", value), theme);
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-  await page.evaluate(() => document.fonts.ready);
+  await fontsLoaded(page);
 }
 
 for (const theme of THEMES) {
@@ -45,6 +49,7 @@ for (const theme of THEMES) {
       for (const id of SECTIONS) {
         await expect(page.locator(`[data-guide-section="${id}"]`)).toHaveScreenshot(
           `${id}-${theme}.png`,
+          { stylePath: HIDE_APP_NAV },
         );
       }
     });

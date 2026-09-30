@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { clientIp, E2E_OWNER } from "./support/owner";
+import { clientIp, E2E_OWNER, HOME_HEADING } from "./support/owner";
 
 // Signed out: these specs start without the owner session.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -34,14 +34,14 @@ test("login with the password lands in the app, survives a reload and signs out"
   await signIn(page, E2E_OWNER.password);
 
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: HOME_HEADING })).toBeVisible();
   // Each app load asks the auth handler for the session, which is what renews the cookie.
   const renewal = page.waitForResponse(
     (response) => response.url().endsWith("/api/auth/get-session") && response.status() === 200,
   );
   await page.reload();
   await renewal;
-  await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: HOME_HEADING })).toBeVisible();
 
   // Already signed in: /login sends you back to the app.
   await page.goto("/login");

@@ -14,6 +14,7 @@ import {
   SheetSection,
   TextFieldSection,
 } from "./_sections/control-sections";
+import { NavigationSection } from "./_sections/navigation-sections";
 import { SectionLabelSection, StatNumberSection } from "./_sections/data-sections";
 import { LcdSection, ProgressSection, WeekSection } from "./_sections/progress-sections";
 
@@ -39,7 +40,7 @@ export default async function DesignGuidePage() {
         <ThemeSwitch />
       </header>
 
-      <main className="flex flex-col">
+      <div className="flex flex-col">
         <KeySection />
         <IconKeySection />
         <KbdTooltipSection />
@@ -56,7 +57,8 @@ export default async function DesignGuidePage() {
         <TextFieldSection />
         <SheetSection />
         <ListRowSection />
-      </main>
+        <NavigationSection />
+      </div>
     </div>
   );
 }

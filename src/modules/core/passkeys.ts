@@ -2,6 +2,7 @@
 import { getAuthenticatorName } from "@better-auth/passkey";
 import { asc, eq } from "drizzle-orm";
 import type { Database } from "@/lib/db";
+import { OWNER_TIME_ZONE } from "@/lib/time";
 import { authPasskeys } from "./db/auth-schema";
 
 /** What the UI shows of a passkey: never the key material or the credential id. */
@@ -21,7 +22,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat("es-PE", {
   day: "numeric",
   month: "long",
   year: "numeric",
-  timeZone: "America/Lima",
+  timeZone: OWNER_TIME_ZONE,
 });
 
 export function formatPasskeyDate(date: Date): string {

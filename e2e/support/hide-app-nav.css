@@ -1,0 +1,4 @@
+/* Section screenshots of /design: the app's fixed bottom bar would cover parts of a section. */
+.bo-bottomnav--fixed {
+  visibility: hidden !important;
+}

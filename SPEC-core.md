@@ -1,6 +1,7 @@
 # Spec: core
 
 > Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO v2** (2026-09-29)
+> v2.2 (2026-09-30): C3. El manifiesto de módulo gana `navGroup`, `shortcut` y `status`; los atajos de una tecla se pueden desactivar (preferencia en Ajustes); la hora de Lima usa `Intl`.
 > v2.1 (2026-09-29): áreas con ícono de Lucide y colores del design system.
 > v2 (2026-09-29): el código pasa a estar en inglés y se incorpora la revisión técnica (auth, driver, migraciones, E2E, PWA, errores, backups y zona horaria).
 
@@ -38,7 +39,7 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 | Movimiento | `motion` (Motion for React) | Base de animación (ver `docs/principios-ux.md`). |
 | PWA | Solo `app/manifest.ts` + íconos (192, 512 y *maskable*). **Sin service worker en `core`**: se pospone al módulo `reminders`, que lo necesita para push. | Instalar no lo requiere, y un SW que cachea HTML autenticado arriesga mostrar datos viejos. |
 | Validación | **Zod**, con `safeParse` en cada Server Action | Una sola fuente para tipos y validación. |
-| Fechas | `timestamptz` en UTC; "hoy" se calcula en `America/Lima` con `@date-fns/tz` (`TZDate`) desde `src/lib/time.ts`. En el servidor nunca se usa `new Date()` para decidir el día. | El servidor corre en UTC. |
+| Fechas | `timestamptz` en UTC; "hoy" se calcula en `America/Lima` desde `src/lib/time.ts`, con `Intl.DateTimeFormat` y `timeZone` explícito (C3). `@date-fns/tz` (`TZDate`) se agrega cuando haga falta aritmética de fechas. En el servidor nunca se usa la zona horaria del proceso para decidir el día. | El servidor corre en UTC. |
 | Gestor de paquetes | pnpm | |
 
 ## Comandos
@@ -114,8 +115,18 @@ export const projectsModule = {
   icon: FolderKanban,
   href: "/projects",
   navOrder: 20,
+  shortcut: 2, // number key 1–8, fixed per module
 } satisfies ModuleManifest;
 ```
+
+Campos del manifiesto (`src/lib/modules.ts`):
+
+- `id`, `label` (en español), `icon` (Lucide), `href` y `navOrder`: obligatorios. `id`, `href` y `shortcut` son únicos; el registro rechaza duplicados.
+- `navGroup`: `main` (por defecto, arriba en la barra lateral) o `footer` (fijos abajo: Áreas y Ajustes).
+- `shortcut`: tecla numérica **fija** del módulo (1–8). No se recalcula cuando otros módulos aparecen: Hoy = 1, Áreas = 7, Ajustes = 8, como en el diseño. Sin `shortcut`, el módulo no tiene atajo.
+- `status`: `available` (por defecto) o `planned`. Un módulo `planned` se declara antes de construirlo y no aparece en la navegación.
+- Los manifiestos se importan desde la navegación, que es un Client Component: **solo datos y el ícono**, nunca código de servidor (base de datos, auth, `server-only`).
+- Los manifiestos de `core` son `homeModule` (Hoy, `/`, provisional hasta el módulo `today`), `areasModule` y `settingsModule`, en `src/modules/core/module.ts`.
 
 Reglas:
 
@@ -123,6 +134,7 @@ Reglas:
 - Los esquemas se descubren con `drizzle.config.ts` → `schema: "./src/modules/*/db/schema.ts"`.
 - Nombres de tabla en `snake_case`: prefijo `<module>_` solo si el nombre no empieza ya por el módulo (`core_life_areas`, `projects`, `tasks`, `habit_logs`).
 - La barra inferior tiene como máximo 5 ítems; el resto va en "Más".
+- **Atajos de una tecla** (`[`, `1`–`8`, y ⌥ + número como alternativa): solo desde 1024 px, nunca al escribir ni dentro de listas, menús, grillas o diálogos. Se pueden **desactivar** en Ajustes (WCAG 2.1.4): la preferencia vive en la cookie `bo_shortcuts` (`off` los apaga; por defecto están activos) y el layout la lee en el servidor. Apagados, no se registra ningún listener ni se muestran pistas (`Kbd`, `aria-keyshortcuts`). El estado de la barra lateral (contraída o no) también es una cookie por dispositivo (`bo_sidebar`).
 
 ## Modelo de datos (core)
 
@@ -242,7 +254,7 @@ export type ActionResult<T> =
 **Nombres de `core`:**
 - Acciones: `createLifeArea`, `updateLifeArea`, `reorderLifeAreas`, `archiveLifeArea`, `unarchiveLifeArea`.
 - Queries: `listLifeAreas({ includeArchived })`.
-- Manifiesto: `coreModule`.
+- Manifiestos: `homeModule`, `areasModule`, `settingsModule` (ver "Convención de módulos").
 
 ## Estrategia de pruebas
 

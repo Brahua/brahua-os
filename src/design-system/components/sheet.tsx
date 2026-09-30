@@ -20,6 +20,11 @@ type SheetProps = {
    * (e.g. project detail next to the project grid).
    */
   modal?: boolean;
+  /**
+   * Where focus goes on close. By default, whatever had focus when it opened; but Safari doesn't
+   * focus a button on click, so pass the opener here to be sure.
+   */
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
   className?: string;
   children: React.ReactNode;
 };
@@ -36,6 +41,7 @@ export function Sheet({
   subtitle,
   footer,
   modal = true,
+  returnFocusRef,
   className,
   children,
 }: SheetProps) {
@@ -55,7 +61,7 @@ export function Sheet({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocusTo.current?.focus();
+            (returnFocusRef?.current ?? returnFocusTo.current)?.focus();
             returnFocusTo.current = null;
           }}
           className={cn(

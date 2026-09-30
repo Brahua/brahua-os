@@ -1,5 +1,52 @@
 /*
  * Local fixes on top of the Claude Design tokens. Every rule here must also be applied in
  * the "brahua-os Design System" project in Claude Design, then removed from this file.
- * Currently empty: the light focus ring and the white-text signal keys are now upstream.
  */
+
+/*
+ * PENDING UPSTREAM (Claude Design): Tooltip, WCAG 1.4.13 (content on hover or focus).
+ * components.css sets `pointer-events: none` on .bo-tooltip, so moving the pointer from the
+ * trigger onto the tooltip closes it. While it is showing, it takes the pointer, and a
+ * transparent ::before bridges the 8 px gap to the trigger so it doesn't close on the way.
+ * `.is-dismissed` (Esc, see tooltip.tsx) hides it until the pointer leaves or focus moves.
+ */
+.bo-tooltip-anchor:hover > .bo-tooltip,
+.bo-tooltip-anchor:focus-within > .bo-tooltip,
+.bo-tooltip-anchor.is-open > .bo-tooltip {
+  pointer-events: auto;
+}
+.bo-tooltip-anchor > .bo-tooltip::before {
+  content: "";
+  position: absolute;
+}
+.bo-tooltip-anchor > .bo-tooltip--right::before {
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 8px;
+}
+.bo-tooltip-anchor > .bo-tooltip--top::before {
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 8px;
+}
+.bo-tooltip-anchor > .bo-tooltip--bottom::before {
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: 8px;
+}
+.bo-tooltip-anchor.is-dismissed > .bo-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition-delay: 0ms;
+}
+
+/*
+ * PENDING UPSTREAM (Claude Design): BottomNav reflow (WCAG 1.4.10). With `repeat(5, 1fr)` a long
+ * label ("PROYECTOS") can't shrink below its text width and the bar overflows at 320 px.
+ */
+.bo-bottomnav {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}

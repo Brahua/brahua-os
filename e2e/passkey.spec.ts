@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type CDPSession, type Page } from "@playwright/test";
-import { clientIp, E2E_OWNER } from "./support/owner";
+import { clientIp, E2E_OWNER, HOME_HEADING } from "./support/owner";
 
 // Signed out: every test starts from /login in a context of its own.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -76,7 +76,7 @@ async function signOut(page: Page) {
 
 async function expectSignedIn(page: Page) {
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { level: 1, name: "brahua-os" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: HOME_HEADING })).toBeVisible();
   // A real session: reloading keeps you in.
   await page.reload();
   await expect(page).toHaveURL("/");
