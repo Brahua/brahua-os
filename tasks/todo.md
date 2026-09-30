@@ -6,14 +6,14 @@
 
 ## Fase 0 — Producción desde el día 1
 
-- [ ] **C0: Despliegue en `os.brahua.com`** *(requiere tu participación)*
+- [x] **C0: Despliegue en `os.brahua.com`** *(requiere tu participación)*
   - **Qué:**
     - [x] Proyecto `brahua-os` en Vercel (equipo Brahua Lab), enlazado al repo.
     - [x] Auto-deploy de Vercel desactivado: despliega el job `deploy` de GitHub Actions, solo con todos los checks en verde.
     - [x] Base Neon `brahua-os-db` desde Vercel Marketplace, con las variables solo en producción.
     - [x] Dominio `os.brahua.com` agregado en Vercel.
-    - [ ] Registro `A os → 76.76.21.21` en Hostinger *(tú)*.
-    - [ ] Secreto `VERCEL_TOKEN` en GitHub *(tú)*.
+    - [x] Registro `A os → 76.76.21.21` en Hostinger.
+    - [x] Secreto `VERCEL_TOKEN` (scope Brahua Lab) en GitHub. Primer despliegue exitoso el 2026-09-30.
     - Mientras no haya login, la app pública solo muestra la portada; `/design` sigue desactivada en producción.
   - **Aceptación:**
     - `https://os.brahua.com` responde con HTTPS y la portada de brahua-os.
