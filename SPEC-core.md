@@ -31,7 +31,7 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 | Framework | Next.js 16 (App Router, Server Components, Server Actions), TypeScript `strict` | Un solo lenguaje de punta a punta. |
 | Runtime | Node.js 24 en Vercel (Fluid Compute) | Es el runtime por defecto actual. |
 | Base de datos | Postgres en **Neon** (Vercel Marketplace). **MVP: un solo ambiente, producción** (sin previews ni ramas por preview). Las pruebas usan un Postgres desechable local o del CI, nunca producción. | Agilidad para un solo usuario, sin riesgo para los datos reales. |
-| Driver | Drizzle con el driver serverless de Neon (Pool por WebSocket, que admite transacciones) sobre `DATABASE_URL` *pooled*. **Verificar** en la documentación oficial al implementar si conviene `pg` estándar con Fluid Compute. | Reordenar necesita transacciones. |
+| Driver | Drizzle con `pg` (node-postgres) y `attachDatabasePool` de `@vercel/functions` en Fluid Compute, sobre `DATABASE_URL` *pooled* ([ADR-002](docs/adr/002-database-driver.md)). | Reordenar necesita transacciones; es lo que recomienda Neon para Vercel. |
 | Migraciones | `drizzle-kit generate` en local. `drizzle-kit migrate` con `DATABASE_URL_UNPOOLED` en el build de Vercel, antes de `next build`; **si la migración falla, falla el deploy**. Durante el MVP solo son aditivas; una que borre o renombre requiere aviso y respaldo previo. | Migraciones versionadas y siempre aplicadas sin perder datos. |
 | Autenticación | **Better Auth**: email + contraseña (mínimo 12 caracteres) + plugin **passkey**. `disableSignUp: true`: el owner solo se crea con `pnpm auth:owner`. | Sin superficie de registro pública; los datos quedan en mi propia base. |
 | UI | Tailwind CSS v4 + shadcn/ui, íconos lucide, `next-themes`, `sonner` (toasts con Deshacer), `@dnd-kit/core` + `@dnd-kit/sortable` (reordenar) | Lo mínimo para cumplir los principios UX en `core`. |
@@ -46,14 +46,15 @@ Construir la base sobre la que se montan todos los demás módulos de brahua-os:
 ```bash
 pnpm install                 # Install dependencies
 pnpm dev                     # Dev server (http://localhost:3000)
-pnpm build                   # db:migrate + next build (Vercel uses this)
+pnpm build                   # next build (Vercel runs `pnpm db:migrate && pnpm build`, see vercel.json)
 pnpm lint                    # ESLint
 pnpm typecheck               # tsc --noEmit
-pnpm test                    # Vitest (unit + integration)
+pnpm test                    # Vitest (unit, no database)
+pnpm test:integration        # Vitest against TEST_DATABASE_URL (docker compose up -d)
 pnpm test:e2e                # Playwright against local `next start`
 pnpm db:generate             # drizzle-kit generate → new SQL migration
 pnpm db:migrate              # drizzle-kit migrate (DATABASE_URL_UNPOOLED)
-pnpm db:seed                 # Seed default life areas (idempotent)
+pnpm db:seed                 # Seed default life areas (idempotent, explicit DB URL required)
 pnpm db:export               # Dump every table to JSON (manual backup)
 pnpm auth:owner              # Create/reset the owner (OWNER_EMAIL + interactive password)
 vercel env pull .env.local   # Pull env vars from Vercel
@@ -133,8 +134,9 @@ export const lifeAreas = pgTable("core_life_areas", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(), // stable key for seeding/imports
   name: text("name").notNull(),
-  icon: text("icon", { enum: AREA_ICON_NAMES }).notNull().default("circle"), // Lucide icon from the curated set
-  color: text("color", { enum: AREA_COLORS }).notNull().default("learning"),
+  // No defaults: actions and the seed always provide a valid icon and color.
+  icon: text("icon", { enum: AREA_ICON_NAMES }).notNull(), // Lucide icon from the curated set
+  color: text("color", { enum: AREA_COLORS }).notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -148,6 +150,7 @@ export type LifeArea = typeof lifeAreas.$inferSelect;
 export type NewLifeArea = typeof lifeAreas.$inferInsert;
 ```
 
+- **Sin valores por defecto en `icon` y `color`** (C1): el `"circle"` de la versión anterior no está en el set curado; las acciones y el seed siempre los envían.
 - **Seed inicial** (idempotente, con `onConflictDoNothing({ target: lifeAreas.slug })`):
   - `home` → Hogar
   - `health` → Salud y Bienestar
@@ -340,4 +343,4 @@ export type ActionResult<T> =
 ## Preguntas abiertas
 
 1. **Dirección visual:** se itera en Claude Design (v3). Define los tokens de color y la tipografía de `core`; no bloquea el plan.
-2. **Driver:** Neon serverless o `pg` con Fluid Compute. Se confirma con la documentación al empezar la implementación; no bloquea la aprobación.
+2. ~~**Driver:**~~ resuelto en C1: `pg` con Fluid Compute ([ADR-002](docs/adr/002-database-driver.md)).
