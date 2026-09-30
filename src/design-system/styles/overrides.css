@@ -9,11 +9,29 @@
  * trigger onto the tooltip closes it. While it is showing, it takes the pointer, and a
  * transparent ::before bridges the 8 px gap to the trigger so it doesn't close on the way.
  * `.is-dismissed` (Esc, see tooltip.tsx) hides it until the pointer leaves or focus moves.
+ *
+ * A hidden tooltip must never catch the pointer: it sits over its neighbours (the next sidebar
+ * item, the content). opacity 0 alone still takes clicks, so it is also `visibility: hidden`,
+ * which ignores the pointer whatever `pointer-events` says. On hover, `visible` waits the same
+ * 300 ms as the fade-in, so the pointer only goes to it once it shows; on leave, it stays
+ * visible until the fade-out ends. Focus and `.is-open` show it right away.
  */
-.bo-tooltip-anchor:hover > .bo-tooltip,
+.bo-tooltip-anchor > .bo-tooltip {
+  visibility: hidden;
+  transition:
+    opacity var(--duration-hover) var(--ease-standard),
+    visibility 0s linear var(--duration-hover);
+}
+.bo-tooltip-anchor:hover > .bo-tooltip {
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 300ms, 300ms;
+}
 .bo-tooltip-anchor:focus-within > .bo-tooltip,
 .bo-tooltip-anchor.is-open > .bo-tooltip {
+  visibility: visible;
   pointer-events: auto;
+  transition-delay: 0ms, 0ms;
 }
 .bo-tooltip-anchor > .bo-tooltip::before {
   content: "";
@@ -39,8 +57,9 @@
 }
 .bo-tooltip-anchor.is-dismissed > .bo-tooltip {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition-delay: 0ms;
+  transition-delay: 0ms, 0ms;
 }
 
 /*
