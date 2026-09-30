@@ -33,9 +33,9 @@ svg.lucide, .bo-icon { width: 18px; height: 18px; stroke-width: 1.75; flex: none
 .bo-key:active, .bo-key.is-pressed { transform: translateY(var(--motion-travel)); box-shadow: var(--shadow-key-pressed); }
 .bo-key[aria-pressed="true"], .bo-key.is-on { background: var(--color-key-on); color: var(--color-on-key-on); box-shadow: var(--shadow-key-on); transform: translateY(var(--motion-travel)); }
 .bo-key[aria-pressed="true"] .bo-key__sub, .bo-key.is-on .bo-key__sub { color: var(--color-on-key-on-secondary); }
-.bo-key--signal { background: var(--color-signal); color: var(--color-on-signal); box-shadow: var(--shadow-signal); font-weight: 700; }
-.bo-key--signal:hover, .bo-key--signal.is-hover { background: var(--color-signal-hover); }
-.bo-key--signal:active, .bo-key--signal.is-pressed { box-shadow: var(--shadow-signal-pressed); }
+.bo-key--signal { background: var(--color-signal-key); color: var(--color-on-signal-key); box-shadow: inset 0 -4px 0 var(--signal-700); font-weight: 700; }
+.bo-key--signal:hover, .bo-key--signal.is-hover { background: var(--color-signal-key-hover); }
+.bo-key--signal:active, .bo-key--signal.is-pressed { box-shadow: inset 0 -1px 0 var(--signal-700); }
 .bo-key--ghost { background: transparent; box-shadow: inset 0 0 0 1px var(--color-border); }
 .bo-key--ghost:hover, .bo-key--ghost.is-hover { background: var(--color-surface-hover); }
 .bo-key--ghost:active, .bo-key--ghost.is-pressed { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
@@ -47,7 +47,7 @@ svg.lucide, .bo-icon { width: 18px; height: 18px; stroke-width: 1.75; flex: none
 /* Kbd + Tooltip */
 .bo-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--radius-sm);
   background: var(--color-kbd-bg); color: var(--color-kbd-text); box-shadow: var(--shadow-kbd); font: 500 11px/1 var(--font-mono); flex: none; }
-.bo-kbd--on-signal { background: transparent; color: var(--color-on-signal); box-shadow: inset 0 0 0 1.5px var(--color-on-signal); font-weight: 600; }
+.bo-kbd--on-signal { background: transparent; color: var(--color-on-signal-key); box-shadow: inset 0 0 0 1.5px var(--color-on-signal-key); font-weight: 600; }
 .bo-kbd--on-tooltip { background: var(--gray-750); color: var(--gray-150); box-shadow: inset 0 -2px 0 var(--gray-1000), inset 0 0 0 1px var(--gray-700); }
 .bo-kbd-group { display: inline-flex; gap: 4px; }
 .bo-tooltip { display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 10px; border-radius: var(--radius-sm);

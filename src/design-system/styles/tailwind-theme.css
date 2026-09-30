@@ -49,6 +49,9 @@
   --color-lcd-segment-dim: var(--gray-450);
   --color-lcd-segment-on: var(--gray-75);
   --color-focus: var(--signal-500);
+  --color-signal-key: #D93B0F;
+  --color-signal-key-hover: #D2380E;
+  --color-on-signal-key: #FFFFFF;
   --color-area-home: var(--area-home);
   --color-area-home-inverse: var(--area-home-inverse);
   --color-area-health: var(--area-health);
@@ -70,8 +73,8 @@
   --shadow-key-pressed: inset 0 -1px 0 var(--gray-1000), 0 0 0 1px var(--gray-800);
   --shadow-key-on: inset 0 -1px 0 var(--gray-400);
   --shadow-key-flat: 0 0 0 1px var(--gray-800);
-  --shadow-signal: inset 0 -4px 0 var(--signal-600);
-  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-600);
+  --shadow-signal: inset 0 -4px 0 var(--signal-700);
+  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-700);
   --shadow-kbd: inset 0 -2px 0 var(--gray-1000), inset 0 0 0 1px var(--gray-750);
   --shadow-lcd: inset 0 2px 0 var(--gray-1000);
   --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);

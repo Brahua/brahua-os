@@ -104,6 +104,9 @@
   --color-lcd-segment-dim: var(--gray-450);
   --color-lcd-segment-on: var(--gray-75);
   --color-focus: var(--signal-500);
+  --color-signal-key: #D93B0F;
+  --color-signal-key-hover: #D2380E;
+  --color-on-signal-key: #FFFFFF;
   /* Áreas: color sobre la superficie base y sobre una tecla activada (invertida) */
   --area-home: var(--area-home-bright);
   --area-home-inverse: var(--area-home-ink);
@@ -168,7 +171,10 @@
   --color-lcd-segment-off: var(--lcd-300);
   --color-lcd-segment-dim: var(--lcd-800);
   --color-lcd-segment-on: var(--lcd-900);
-  --color-focus: var(--signal-500);
+  --color-focus: var(--signal-600);
+  --color-signal-key: #D93B0F;
+  --color-signal-key-hover: #D2380E;
+  --color-on-signal-key: #FFFFFF;
   /* Áreas: color sobre la superficie base y sobre una tecla activada (invertida) */
   --area-home: var(--area-home-ink);
   --area-home-inverse: var(--area-home-bright);

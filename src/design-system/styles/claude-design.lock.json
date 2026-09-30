@@ -3,15 +3,15 @@
     "tool": "Claude Design",
     "projectId": "3787b11d-b9b0-4ea2-bd5d-26d0f072f863"
   },
-  "syncedAt": "2026-09-30T04:09:57.986Z",
+  "syncedAt": "2026-09-30T15:12:32.659Z",
   "files": {
     "src/design-system/styles/tokens/colors.css": {
       "remote": "tokens/colors.css",
-      "sha256": "25cf0d2d2d094f38fe617308af03aec5831d236719d99ada9265deafc8fb148a"
+      "sha256": "6f3abbf98b76854430ed6547baf616c35393a20aba2a0ab9730ff062e76ae01b"
     },
     "src/design-system/styles/tokens/shadows.css": {
       "remote": "tokens/shadows.css",
-      "sha256": "70390a90cfd80c08bb6ce3a81e01a44092f6636f435aa6348dc1a226a03327b0"
+      "sha256": "de25c58acd100daac21eb2eb42444b5e3b8e82dae59b3f54732843bf8ef4e46b"
     },
     "src/design-system/styles/tokens/spacing.css": {
       "remote": "tokens/spacing.css",
@@ -27,7 +27,7 @@
     },
     "src/design-system/styles/components.css": {
       "remote": "components/components.css",
-      "sha256": "0f373fe894eae361b560bc2fe1333e78978ef777b2909e2e3d578b4007e5a3b4"
+      "sha256": "bf9ac4ee4577633d5e96fde94740768d8671bf7608bd28c56309053dcf62e067"
     }
   }
 }

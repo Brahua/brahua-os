@@ -6,8 +6,8 @@
   --shadow-key-pressed: inset 0 -1px 0 var(--gray-1000), 0 0 0 1px var(--gray-800);
   --shadow-key-on: inset 0 -1px 0 var(--gray-400);
   --shadow-key-flat: 0 0 0 1px var(--gray-800);
-  --shadow-signal: inset 0 -4px 0 var(--signal-600);
-  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-600);
+  --shadow-signal: inset 0 -4px 0 var(--signal-700);
+  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-700);
   --shadow-kbd: inset 0 -2px 0 var(--gray-1000), inset 0 0 0 1px var(--gray-750);
   --shadow-lcd: inset 0 2px 0 var(--gray-1000);
   --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
@@ -21,8 +21,8 @@
   --shadow-key-pressed: inset 0 -1px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
   --shadow-key-on: inset 0 -1px 0 var(--gray-1000), 0 0 0 1px var(--gray-925);
   --shadow-key-flat: inset 0 0 0 1px var(--gray-200);
-  --shadow-signal: inset 0 -4px 0 var(--signal-600), 0 2px 4px rgb(194 51 10 / 0.2);
-  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-600);
+  --shadow-signal: inset 0 -4px 0 var(--signal-700), 0 2px 4px rgb(163 43 7 / 0.2);
+  --shadow-signal-pressed: inset 0 -1px 0 var(--signal-700);
   --shadow-kbd: inset 0 -2px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
   --shadow-lcd: inset 0 2px 4px rgb(0 0 0 / 0.14);
   --shadow-popover: 0 8px 24px rgb(10 10 10 / 0.16);
