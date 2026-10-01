@@ -7,7 +7,7 @@
 #
 # Retries the whole round a few times (SMOKE_ATTEMPTS, SMOKE_DELAY seconds apart) to absorb
 # propagation; exits 1 if the last round still fails. Worst case with the defaults: 6 rounds of
-# 5 requests × 8 s plus 5 pauses of 10 s ≈ 5 min (ci.yml's smoke job allows 15).
+# 8 requests × 8 s plus 5 pauses of 10 s ≈ 7 min (ci.yml's smoke job allows 15).
 set -uo pipefail
 
 BASE_URL="${SMOKE_BASE_URL:-https://os.brahua.com}"
@@ -63,6 +63,16 @@ expect_redirect_to_login() {
   security_headers "$path"
 }
 
+# A missing page answers 404 with the app's own page, also without a session.
+expect_not_found() {
+  local path="$1"
+  fetch "$path"
+  [[ "$STATUS" == "404" ]] || fail "$path: status $STATUS, expected 404"
+  grep -Eq '<h1[^>]*>Nada por aquí</h1>' "$WORK/body" ||
+    fail "$path: no <h1>Nada por aquí</h1> (the app's 404 page)"
+  security_headers "$path"
+}
+
 round() {
   failures=()
 
@@ -82,13 +92,20 @@ round() {
   grep -Eq '"ok": ?true' "$WORK/body" || fail "/api/auth/ok: body is not {\"ok\":true}"
   security_headers /api/auth/ok
 
+  expect_not_found /no-existe
+  # The routes that force errors exist only in E2E builds (src/lib/e2e-error-routes.ts). Shipped by
+  # mistake, /e2e/error would redirect to /login (it is under the (app) layout) and /e2e/root-error
+  # would answer 500.
+  expect_not_found /e2e/error
+  expect_not_found /e2e/root-error
+
   ((${#failures[@]} == 0))
 }
 
 echo "Smoke test: $BASE_URL"
 for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
   if round; then
-    echo "OK (attempt $attempt): / /areas /settings → /login, /login 200, /api/auth/ok, security headers."
+    echo "OK (attempt $attempt): / /areas /settings → /login, /login 200, /api/auth/ok, 404s (test routes absent), security headers."
     exit 0
   fi
   echo "Attempt $attempt/$ATTEMPTS failed:"

@@ -22,3 +22,6 @@ else
 fi
 
 pnpm build
+# The routes that force errors (E2E only) must never ship; next.config.ts already refuses
+# E2E_ERROR_ROUTES on Vercel, this checks the result.
+node scripts/check-no-e2e-routes.mjs

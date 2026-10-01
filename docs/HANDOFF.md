@@ -30,6 +30,7 @@
   - ✅ C5 (áreas: ver y crear): PR #21 integrado.
   - 🟡 Mejoras de proceso (PR `chore/faster-e2e`, **sin merge**): E2E nativa sin Docker, capturas generadas en GitHub, menos capturas, smoke test después del deploy y registro de errores sin mensajes de Postgres. Ver "Pruebas E2E" y "Smoke test en producción".
   - 🟡 C6 (áreas: reordenar y archivar): PR `feat/core-c6-areas-order`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan el orden y el archivo (C6)".
+  - 🟡 C8 (páginas de error): PR `feat/core-c8-error-pages`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan las páginas de error (C8)".
   - Siguiente: Checkpoint 2 (recorrido completo con el owner), luego C7.
 
 ## C2a: pasos del usuario (en orden)
@@ -168,6 +169,30 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   - Los arrastres esperan los anuncios de dnd-kit (`[id^="DndLiveRegion"]`) entre teclas: mide las filas justo después de tomar una y las teclas anteriores se pierden. Antes de arrastrar con el ratón, se espera a que Radix quite `pointer-events: none` del `body` tras cerrar la hoja.
   - Capturas: cambian las 4 de la lista (asa y teclas en cada fila); se toman después de `sortableReady` (con dnd-kit cargado). No hay capturas nuevas: el aviso y las archivadas tienen nombres únicos por prueba; se cubren con axe en ambos temas.
   - Toque (solo celular, `hasTouch`): por CDP, un deslizamiento sobre el asa hace scroll y una presión con arrastre mueve la fila.
+
+## Cómo funcionan las páginas de error (C8)
+
+- **Vista común** (`src/modules/core/components/`): `StatusScreen` (LCD con la etiqueta y el estado, `<h1>` con `tabIndex={-1}`, una línea sin culpa y las salidas; sin hooks ni movimiento), `NotFoundScreen` y `ErrorScreen` (cliente). Textos en `STATUS_COPY` (`src/modules/core/copy.ts`).
+- **404:**
+  - `app/not-found.tsx` atiende toda URL que no existe. Se dibuja en el layout raíz, así que mira la sesión él mismo (`getOwnerSession()`, sin redirigir): **con sesión, dentro del shell** (`AppShell`, extraído del layout de `(app)`: navegación, `<main id="content">`, `SessionRefresher`, que se movió a `modules/core/components`) y con "Volver a Hoy"; **sin sesión, una página sola con "Ir a iniciar sesión"**. Si buscar la sesión falla (base caída), sale la versión sin sesión.
+  - Por qué no un *catch-all* en `(app)`: daría el shell, pero sin sesión redirigiría a `/login` (307) y el smoke test no podría distinguir una ruta inexistente de una protegida. Así, una ruta que no existe responde 404 siempre; revela qué rutas existen, lo que no es secreto en esta app.
+  - `(app)/not-found.tsx`: para `notFound()` desde una página con sesión (p. ej. un elemento que no existe en módulos futuros); ya está dentro del shell.
+  - Título "Página no encontrada · brahua-os" y `noindex` por `metadata`.
+- **Errores:**
+  - `(app)/error.tsx`: errores de las páginas con sesión, dentro del shell (la navegación sigue sirviendo).
+  - `app/error.tsx`: lo que queda fuera del shell: el propio layout de `(app)` (p. ej. `requireOwner()` con la base caída; el `error.tsx` de un segmento no envuelve su layout), `/login` y el 404 raíz. Usa el layout raíz (tema y fuentes).
+  - `global-error.tsx`: solo un error del layout raíz. Documento propio (`<html lang="es" data-theme="dark">`, `globals.css`, fuentes) sin `ThemeProvider`: arranca oscuro y antes de pintar aplica el tema guardado (`storedTheme()`, `src/lib/stored-theme.ts`, misma clave que next-themes). Título con `<title>` de React (no admite `metadata`).
+  - "Reintentar" llama a `retry()` (Next 16.3: estable; vuelve a pedir y dibujar el segmento, sin recargar). "Volver a Hoy" es un `<a href="/">` (carga completa a propósito: el estado que falló empieza de cero).
+  - **Sin detalles técnicos:** nunca se muestra `error.message` (en producción Next ya lo reemplaza en errores de servidor, pero un error de un componente cliente conserva el original). Solo el `digest` como "Código del error: …" en letra chica: es un hash opaco que coincide con el registro del servidor (Vercel), útil para el owner, que también mantiene la app; no dice nada del error. Sin `digest` (error de cliente) no se muestra código.
+  - Accesibilidad: al aparecer, el foco pasa al `<h1>` y `document.title` cambia a "Algo no salió bien · brahua-os". La LCD va con `live={false}` (la página entera es el aviso). Sin animaciones propias.
+- **Rutas de prueba (solo E2E):** `/e2e/error` (en `(app)`, lanza mientras exista la cookie `bo_e2e_error=1`; sin ella dice "Todo en orden", lo que trae "Reintentar") y `/e2e/root-error` (fuera del shell, lanza siempre). Dos candados (`src/lib/e2e-error-routes.ts`):
+  1. **Build:** los archivos son `page.e2e.tsx` y `next.config.ts` solo agrega la extensión `e2e.tsx` con `E2E_ERROR_ROUTES=1` (lo pone `playwright.config.ts` en el build y el servidor de la E2E). Cualquier otro build, producción incluida, no tiene esas rutas. Con la variable puesta en Vercel (`VERCEL=1`), `next.config.ts` corta el build.
+  2. **Ejecución:** aun en un build que las tenga, responden `notFound()` sin la variable.
+  - CI (job `checks`, después de `pnpm build`) y `scripts/vercel-build.sh` corren `node scripts/check-no-e2e-routes.mjs`, que falla si el build tiene rutas `/e2e/*` (lee `.next/app-path-routes-manifest.json`).
+  - El smoke test (`scripts/smoke-production.sh`) ahora también pide `/no-existe`, `/e2e/error` y `/e2e/root-error` y espera 404 con `<h1>Nada por aquí</h1>` y las cabeceras de seguridad. Si se publicaran por error, `/e2e/error` daría 307 (layout de `(app)`) y `/e2e/root-error` 500. La ronda pasó de 5 a 8 peticiones (peor caso ≈ 7 min; el job tiene 15).
+- **E2E** (`e2e/error-pages.spec.ts`): 404 con sesión (404, título, shell, "Volver a Hoy") y sin sesión (sin shell, "Ir a iniciar sesión", axe en ambos temas); error en el shell (foco en el `<h1>`, código, ni el mensaje ni rastros de stack en la respuesta HTTP, el DOM ni la consola; "Reintentar" con la causa activa vuelve a fallar y sin ella recupera la página en el mismo documento); error raíz (500, sin shell, sin detalles, axe en ambos temas). **8 capturas nuevas** (404 y error, por tema y viewport, de `<main>` sin la barra inferior; el código del error va enmascarado): el total pasa de 30 a 38.
+- **Unitarias:** `tests/app/error-pages.test.tsx` (las cuatro páginas y `global-error` con `renderToStaticMarkup`), `tests/lib/e2e-error-routes.test.ts`, `tests/lib/stored-theme.test.ts`; `tests/app/protected-pages.test.ts` también exige `requireOwner()` en los `page.e2e.tsx` de `(app)`.
+- **Pendiente fuera de C8:** la estructura de `SPEC-core.md` lista `error.tsx` y `not-found.tsx` solo en `(app)`; ahora también hay `app/error.tsx` y `app/not-found.tsx`. Las secciones "Pruebas E2E" (cantidad de capturas) y "Smoke test en producción" de este archivo no se tocaron en este PR (para no chocar con C7): lo nuevo está aquí.
 
 ## Pruebas E2E
 
