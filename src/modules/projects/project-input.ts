@@ -73,6 +73,12 @@ export type ProjectSummary = {
   area: ProjectAreaSummary;
 };
 
+/**
+ * A project as its page reads it: the summary plus the columns only the detail shows, so the
+ * list never loads them. P5 adds `notes: string | null` here (and to DETAIL in projects.ts).
+ */
+export type ProjectDetail = ProjectSummary;
+
 /** What the list's "Proyecto eliminado" notice needs of a deleted project. */
 export type DeletedProject = { id: string; name: string };
 

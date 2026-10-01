@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Icon, Key } from "@/design-system";
 import { fail, type ActionResult } from "@/lib/action-result";
+import { cn } from "@/lib/cn";
 import { deleteProject } from "@/modules/projects/actions";
 import type { DeletedProject } from "@/modules/projects/project-input";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
@@ -72,10 +73,7 @@ export function ProjectDeleteSection() {
   }
 
   return (
-    <section
-      aria-label={PROJECTS_COPY.delete}
-      className="flex flex-col gap-3 border-t border-divider pt-6"
-    >
+    <div className="flex flex-col gap-3 border-t border-divider pt-6">
       {confirming ? (
         <div
           role="group"
@@ -106,6 +104,7 @@ export function ProjectDeleteSection() {
               ref={cancelKey}
               variant="ghost"
               aria-disabled={pending || undefined}
+              className={cn(pending && "is-disabled")}
               onClick={cancel}
             >
               {PROJECTS_COPY.cancel}
@@ -114,6 +113,7 @@ export function ProjectDeleteSection() {
               variant="signal"
               icon={Trash2}
               aria-disabled={pending || undefined}
+              className={cn(pending && "is-disabled")}
               onClick={confirm}
             >
               {pending ? PROJECTS_COPY.deleting : PROJECTS_COPY.deleteConfirm}
@@ -129,6 +129,6 @@ export function ProjectDeleteSection() {
           {PROJECTS_COPY.delete}
         </Key>
       )}
-    </section>
+    </div>
   );
 }

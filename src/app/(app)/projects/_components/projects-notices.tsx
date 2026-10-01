@@ -73,6 +73,9 @@ export function ProjectsNotices({ headingId, deleted }: ProjectsNoticesProps) {
         title: PROJECTS_COPY.deletedTitle,
         text: PROJECTS_COPY.deleted(project.name),
         action: { label: PROJECTS_COPY.undo, run: undo },
+        // Stays until dismissed ("Deshacer", Esc) or the list goes away: deleting is the one
+        // change here that can't be redone by hand.
+        duration: Number.POSITIVE_INFINITY,
       });
     }, ANNOUNCE_DELAY_MS);
     return () => window.clearTimeout(timer);

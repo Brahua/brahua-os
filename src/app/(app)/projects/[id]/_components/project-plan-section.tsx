@@ -13,7 +13,7 @@ import {
 import { showsDueDate } from "@/modules/projects/project-status";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
 import { EditorForm, fieldErrorsOf, useInlineEditor } from "./inline-editor";
-import { useProjectDetail } from "./project-detail-context";
+import { useProjectDetail, useSaveProjectField } from "./project-detail-context";
 
 type ProjectPlanSectionProps = {
   /**
@@ -64,7 +64,8 @@ function FieldRow({
 }
 
 function ObjectiveField() {
-  const { project, save } = useProjectDetail();
+  const { project } = useProjectDetail();
+  const save = useSaveProjectField();
   const trigger = useRef<HTMLButtonElement>(null);
   const editor = useInlineEditor(trigger);
   const [draft, setDraft] = useState("");
@@ -90,14 +91,22 @@ function ObjectiveField() {
     }
     editor.close();
     if (parsed.data.objective === project.objective) return;
-    save("objective", { objective: parsed.data.objective }, () =>
-      updateProjectObjective(parsed.data),
+    save(
+      "objective",
+      { objective: parsed.data.objective },
+      () => updateProjectObjective(parsed.data),
+      { announceSaved: true },
     );
   }
 
   if (editor.editing) {
     return (
-      <EditorForm label={PROJECTS_COPY.editObjective} onSubmit={submit} onCancel={editor.close}>
+      <EditorForm
+        label={PROJECTS_COPY.editObjective}
+        onSubmit={submit}
+        onCancel={editor.close}
+        error={error}
+      >
         <TextArea
           ref={input}
           id={fieldId}
@@ -143,7 +152,8 @@ const DATE_FIELDS = ["startDate", "dueDate"] as const;
 type DateField = (typeof DATE_FIELDS)[number];
 
 function DatesField() {
-  const { project, save } = useProjectDetail();
+  const { project } = useProjectDetail();
+  const save = useSaveProjectField();
   const trigger = useRef<HTMLButtonElement>(null);
   const editor = useInlineEditor(trigger);
   const [start, setStart] = useState("");
@@ -184,7 +194,9 @@ function DatesField() {
     editor.close();
     const { startDate, dueDate } = parsed.data;
     if (startDate === project.startDate && dueDate === project.dueDate) return;
-    save("dates", { startDate, dueDate }, () => updateProjectDates(parsed.data));
+    save("dates", { startDate, dueDate }, () => updateProjectDates(parsed.data), {
+      announceSaved: true,
+    });
   }
 
   function clearError(field: DateField) {
@@ -199,12 +211,18 @@ function DatesField() {
 
   if (editor.editing) {
     return (
-      <EditorForm label={PROJECTS_COPY.editDates} onSubmit={submit} onCancel={editor.close}>
+      <EditorForm
+        label={PROJECTS_COPY.editDates}
+        onSubmit={submit}
+        onCancel={editor.close}
+        error={errors.startDate ?? errors.dueDate}
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             ref={startInput}
             id={`${ids}-start`}
             type="date"
+            className="bo-date-field"
             label={PROJECTS_COPY.startLabel}
             value={start}
             autoFocus
@@ -220,6 +238,7 @@ function DatesField() {
               ref={dueInput}
               id={`${ids}-due`}
               type="date"
+              className="bo-date-field"
               label={PROJECTS_COPY.dueLabel}
               value={due}
               min={start || undefined}

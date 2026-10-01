@@ -56,7 +56,7 @@ test("edit every field in place; each survives a reload", async ({ page }, testI
   await untilSaved(page, () => statusGroup(page).getByRole("radio", { name: "Pausado" }).click());
 
   // Area: only active ones.
-  await page.getByRole("button", { name: "Cambiar área" }).click();
+  await page.getByRole("button", { name: /^Cambiar área/ }).click();
   await page
     .getByRole("radiogroup", { name: "Área" })
     .getByRole("radio", { name: "Trabajo" })
@@ -181,12 +181,21 @@ test("a deleted project is a 404 and isn't in the list", async ({ page }, testIn
   await openProject(page, id);
   await page.getByRole("button", { name: "Eliminar proyecto" }).click();
   await page.getByRole("button", { name: "Sí, eliminar" }).click();
-  await expect(page).toHaveURL("/projects");
   await expect(notices(page)).toContainText(`«${name}» se eliminó.`);
+  // The parameter left the URL, so a reload has nothing to repeat.
+  expect(new URL(page.url()).search).toBe("");
 
-  // Reloading the list doesn't repeat the notice (the parameter is gone).
+  // Positive control: a full load that still has `?deleted=<id>` does show the notice (and
+  // cleans the URL again), so its absence after the reload below means something.
+  await page.goto(`/projects?deleted=${id}`);
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+  await expect(notices(page)).toContainText(`«${name}» se eliminó.`);
+  await expect.poll(() => new URL(page.url()).search).toBe("");
+
   await page.reload();
-  await expect(page.getByRole("heading", { level: 1, name: "Proyectos" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+  // Well past the notice's delay (ANNOUNCE_DELAY_MS, 150 ms).
+  await page.waitForTimeout(1_000);
   await expect(page.getByRole("link", { name })).toHaveCount(0);
   await expect(notices(page)).not.toContainText(name);
 
@@ -227,7 +236,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: "Cambiar área" }).click();
+    await page.getByRole("button", { name: /^Cambiar área/ }).click();
     await page.getByRole("button", { name: "Editar fechas" }).click();
     expect(await axeViolations(page)).toEqual([]);
 

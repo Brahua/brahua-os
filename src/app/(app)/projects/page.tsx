@@ -36,14 +36,15 @@ type ProjectsPageProps = {
  */
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   await requireOwner();
-  const [search, projects, areas] = await Promise.all([
+  const [{ area: areaParam }, projects, areas, deleted] = await Promise.all([
     searchParams,
     listProjects(),
     listLifeAreas(),
+    // Just deleted from its page: the undo notice needs its name (only while it is deleted).
+    searchParams.then(({ [DELETED_PARAM]: id }) =>
+      typeof id === "string" ? getDeletedProject(id) : null,
+    ),
   ]);
-  const { area: areaParam, [DELETED_PARAM]: deletedParam } = search;
-  // Just deleted from its page: the undo notice needs its name (only while it is still deleted).
-  const deleted = typeof deletedParam === "string" ? await getDeletedProject(deletedParam) : null;
   const options = areaFilterOptions(areas, projects);
   const selected = selectedAreaFilter(options, areaParam);
   const visible = selected

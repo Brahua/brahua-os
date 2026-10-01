@@ -2,7 +2,7 @@
 // callers check the owner and validate first (the actions through ownerAction(), the queries
 // with requireOwner()).
 import "server-only";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
@@ -11,6 +11,7 @@ import type { ProjectPriority, ProjectStatus } from "./project-constants";
 import type {
   CreateProjectInput,
   DeletedProject,
+  ProjectDetail,
   ProjectAreaSummary,
   ProjectSummary,
   UpdateProjectDatesInput,
@@ -61,7 +62,32 @@ export async function selectProjectById(
   return project ?? null;
 }
 
-/** A deleted project's id and name (for the undo notice), or null if it isn't deleted. */
+/**
+ * What a project's page reads: the summary plus the detail-only columns. Kept apart from SUMMARY
+ * so the list never loads them (P5 adds `notes: projects.notes` here, and to ProjectDetail).
+ */
+const DETAIL = { ...SUMMARY };
+
+/** One project for its page, unless it doesn't exist or is deleted. */
+export async function selectProjectDetailById(
+  db: Database,
+  id: string,
+): Promise<ProjectDetail | null> {
+  const [project] = await db
+    .select(DETAIL)
+    .from(projects)
+    .innerJoin(lifeAreas, eq(projects.lifeAreaId, lifeAreas.id))
+    .where(and(eq(projects.id, id), isNull(projects.deletedAt)));
+  return project ?? null;
+}
+
+/** How long after a delete the list still offers its "Deshacer" (`?deleted=<id>`). */
+export const RECENT_DELETE_MINUTES = 10;
+
+/**
+ * A project deleted in the last minutes (for the list's undo notice), or null if it isn't
+ * deleted or was deleted earlier: an old `?deleted=` link (history, a bookmark) offers nothing.
+ */
 export async function selectDeletedProjectById(
   db: Database,
   id: string,
@@ -69,7 +95,13 @@ export async function selectDeletedProjectById(
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
-    .where(and(eq(projects.id, id), isNotNull(projects.deletedAt)));
+    .where(
+      and(
+        eq(projects.id, id),
+        isNotNull(projects.deletedAt),
+        gt(projects.deletedAt, sql`now() - make_interval(mins => ${RECENT_DELETE_MINUTES})`),
+      ),
+    );
   return project ?? null;
 }
 

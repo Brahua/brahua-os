@@ -8,7 +8,10 @@ import { ProjectDeleteSection } from "@/app/(app)/projects/[id]/_components/proj
 import { ProjectDetailProvider } from "@/app/(app)/projects/[id]/_components/project-detail-context";
 import { ProjectHeader } from "@/app/(app)/projects/[id]/_components/project-header";
 import { ProjectPlanSection } from "@/app/(app)/projects/[id]/_components/project-plan-section";
-import { ProjectStateSection } from "@/app/(app)/projects/[id]/_components/project-state-section";
+import {
+  ProjectStateSection,
+  STATUS_SETTLE_MS,
+} from "@/app/(app)/projects/[id]/_components/project-state-section";
 import ProjectNotFound from "@/app/(app)/projects/[id]/not-found";
 import ProjectPage, { generateMetadata } from "@/app/(app)/projects/[id]/page";
 import { fail, ok, UNEXPECTED_ERROR_MESSAGE, type ActionResult } from "@/lib/action-result";
@@ -211,6 +214,7 @@ const heading = () => screen.getByRole("heading", { level: 1 });
 const statusGroup = () => screen.getByRole("radiogroup", { name: "Estado" });
 const priorityGroup = () => screen.getByRole("radiogroup", { name: "Prioridad" });
 const notices = () => screen.getByRole("region", { name: "Avisos" });
+const announcer = () => document.querySelector("[data-detail-announcer]")!;
 
 describe("page", () => {
   const params = (id: string, search: Record<string, string> = {}) => ({
@@ -300,19 +304,26 @@ describe("name", () => {
     expect(renameProject).toHaveBeenCalledWith({ id: PROJECT.id, name: "Mudanza a Miraflores" });
     expect(screen.getByRole("button", { name: "Editar nombre" })).toHaveFocus();
 
+    expect(announcer()).toBeEmptyDOMElement();
     await server.answer();
     expect(heading()).toHaveTextContent("Mudanza a Miraflores");
+    // Saved: said politely once the server agreed.
+    await waitFor(() => expect(announcer()).toHaveTextContent("Se guardó el nombre."));
   });
 
-  test("invalid: the error shows on the field and nothing is sent", async () => {
+  test("invalid: the error shows on the field, is announced, and nothing is sent", async () => {
     const user = renderDetail();
     await user.click(screen.getByRole("button", { name: "Editar nombre" }));
     const field = screen.getByRole("textbox", { name: "Nombre" });
+    const form = screen.getByRole("form", { name: "Editar nombre" });
+    expect(within(form).getByRole("status")).toBeEmptyDOMElement();
     await user.clear(field);
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    // Enter keeps focus on the field, so only the live region says what went wrong.
+    await user.keyboard("{Enter}");
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAccessibleDescription(PROJECT_ERRORS.nameRequired);
     expect(field).toHaveFocus();
+    expect(within(form).getByRole("status")).toHaveTextContent(PROJECT_ERRORS.nameRequired);
     expect(renameProject).not.toHaveBeenCalled();
   });
 
@@ -337,7 +348,11 @@ describe("name", () => {
     await server.answer(fail(UNEXPECTED_ERROR_MESSAGE));
     expect(heading()).toHaveTextContent("Mudanza");
     expect(notices()).toHaveTextContent("Sin guardar");
-    expect(notices()).toHaveTextContent(UNEXPECTED_ERROR_MESSAGE);
+    // Always which edit failed and that it rolled back, then the server's reason.
+    expect(notices()).toHaveTextContent(
+      `No se pudo guardar el nombre; volvió a como estaba. ${UNEXPECTED_ERROR_MESSAGE}`,
+    );
+    expect(announcer()).toBeEmptyDOMElement();
   });
 });
 
@@ -373,15 +388,44 @@ describe("status", () => {
     expect(server.project.completedAt).toBeNull();
   });
 
-  test("arrowing through the states sends the one in flight and then only the last", async () => {
+  test("arrows show each state at once but save only where they rest", async () => {
+    const user = renderDetail({ status: "active" });
+    within(statusGroup()).getByRole("radio", { name: "Activo" }).focus();
+    // Activo → Pausado → Mantenimiento → Terminado → Cancelado, passing Terminado.
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
+    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toHaveFocus();
+    expect(changeProjectStatus).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(changeProjectStatus).toHaveBeenCalledTimes(1), {
+      timeout: STATUS_SETTLE_MS * 3,
+    });
+    expect(changeProjectStatus).toHaveBeenCalledWith({ id: PROJECT.id, status: "canceled" });
+    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    await server.answer();
+    expect(server.project).toMatchObject({ status: "canceled", completedAt: null });
+  });
+
+  test("Tab away from a resting pick saves it right away", async () => {
+    const user = renderDetail({ status: "active" });
+    within(statusGroup()).getByRole("radio", { name: "Activo" }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(changeProjectStatus).not.toHaveBeenCalled();
+    await user.tab();
+    expect(changeProjectStatus).toHaveBeenCalledWith({ id: PROJECT.id, status: "paused" });
+  });
+
+  test("quick clicks: the one in flight, then only the last; the screen keeps the last", async () => {
     const user = renderDetail({ status: "idea" });
-    within(statusGroup()).getByRole("radio", { name: "Idea" }).focus();
-    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
-    expect(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" })).toBeChecked();
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Activo" }));
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Pausado" }));
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" }));
     expect(changeProjectStatus).toHaveBeenCalledTimes(1);
     expect(changeProjectStatus).toHaveBeenLastCalledWith({ id: PROJECT.id, status: "active" });
 
     await server.answer();
+    // The server's answer for Activo doesn't pull the screen back while Mantenimiento is pending.
+    expect(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" })).toBeChecked();
     await waitFor(() => expect(changeProjectStatus).toHaveBeenCalledTimes(2));
     expect(changeProjectStatus).toHaveBeenLastCalledWith({
       id: PROJECT.id,
@@ -389,14 +433,31 @@ describe("status", () => {
     });
     await server.answer();
     expect(server.project.status).toBe("maintenance");
-    expect(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" })).toHaveFocus();
+    expect(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" })).toBeChecked();
+  });
+
+  test("the save in flight fails while a newer one waits: no notice, the newer one wins", async () => {
+    const user = renderDetail({ status: "active" });
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Pausado" }));
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Cancelado" }));
+    await server.answer(fail(UNEXPECTED_ERROR_MESSAGE));
+    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    await waitFor(() => expect(changeProjectStatus).toHaveBeenCalledTimes(2));
+    await server.answer();
+    expect(server.project.status).toBe("canceled");
+    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    expect(notices()).not.toHaveTextContent("Sin guardar");
   });
 
   test("a network failure rolls back with a notice", async () => {
     const user = renderDetail();
     vi.mocked(changeProjectStatus).mockRejectedValueOnce(new Error("offline"));
     await user.click(within(statusGroup()).getByRole("radio", { name: "Pausado" }));
-    await waitFor(() => expect(notices()).toHaveTextContent("No se pudo guardar el estado"));
+    await waitFor(() =>
+      expect(notices()).toHaveTextContent(
+        "No se pudo guardar el estado; volvió a como estaba. Revisa tu conexión e inténtalo de nuevo.",
+      ),
+    );
     expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked();
   });
 
@@ -435,9 +496,30 @@ describe("priority", () => {
 });
 
 describe("area", () => {
+  test("the pencil names the area it changes (name and tooltip)", () => {
+    renderDetail();
+    const pencil = screen.getByRole("button", { name: "Cambiar área (Hogar)" });
+    // The tooltip is the key's sibling, hidden from screen readers (the name already says it).
+    expect(pencil.parentElement).toHaveTextContent("Cambiar área (Hogar)");
+  });
+
+  test("without active areas: the reason and only Cancelar", async () => {
+    const user = renderDetail({ area: OLD }, []);
+    await user.click(screen.getByRole("button", { name: "Cambiar área (Antigua)" }));
+    const form = screen.getByRole("form", { name: "Cambiar área" });
+    expect(form).toHaveTextContent("No tienes otras áreas activas.");
+    expect(
+      within(form)
+        .getAllByRole("button")
+        .map((key) => key.textContent),
+    ).toEqual(["Cancelar"]);
+    await user.click(within(form).getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("button", { name: "Cambiar área (Antigua)" })).toHaveFocus();
+  });
+
   test("offers the active areas; the pick shows at once", async () => {
     const user = renderDetail();
-    await user.click(screen.getByRole("button", { name: "Cambiar área" }));
+    await user.click(screen.getByRole("button", { name: /^Cambiar área/ }));
     const group = screen.getByRole("radiogroup", { name: "Área" });
     expect(within(group).getByRole("radio", { name: "Hogar" })).toHaveFocus();
     expect(
@@ -449,14 +531,14 @@ describe("area", () => {
     await user.click(screen.getByRole("button", { name: "Guardar" }));
     expect(screen.getByText("Trabajo")).toBeInTheDocument();
     expect(changeProjectArea).toHaveBeenCalledWith({ id: PROJECT.id, lifeAreaId: WORK.id });
-    expect(screen.getByRole("button", { name: "Cambiar área" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: /^Cambiar área/ })).toHaveFocus();
   });
 
   test("an archived area stays until another is picked (none comes picked)", async () => {
     const user = renderDetail({ area: OLD });
     expect(screen.getByText("Antigua")).toBeInTheDocument();
     expect(screen.getByText("(archivada)")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Cambiar área" }));
+    await user.click(screen.getByRole("button", { name: /^Cambiar área/ }));
     const group = screen.getByRole("radiogroup", { name: "Área" });
     expect(within(group).queryByRole("radio", { checked: true })).toBeNull();
     expect(within(group).queryByRole("radio", { name: "Antigua" })).toBeNull();
@@ -468,7 +550,7 @@ describe("area", () => {
 
   test("an area archived meanwhile: the server's message, and it rolls back", async () => {
     const user = renderDetail();
-    await user.click(screen.getByRole("button", { name: "Cambiar área" }));
+    await user.click(screen.getByRole("button", { name: /^Cambiar área/ }));
     await user.click(screen.getByRole("radio", { name: "Trabajo" }));
     await user.click(screen.getByRole("button", { name: "Guardar" }));
     await server.answer({

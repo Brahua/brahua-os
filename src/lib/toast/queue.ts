@@ -18,7 +18,7 @@ export type Notice = {
   action?: ToastAction;
   /** Errors stay longer (TOAST_DURATION.error). */
   tone?: "info" | "error";
-  /** How long it stays on screen (paused while hovered or focused). */
+  /** How long it stays on screen (paused while hovered or focused); Infinity: until dismissed. */
   duration: number;
 };
 

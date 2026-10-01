@@ -10,6 +10,7 @@ import {
   RadioGrid,
   type RadioGridOption,
 } from "@/modules/core/components/radio-grid";
+import { FieldError } from "@/modules/core/components/field-error";
 import { changeProjectArea, renameProject } from "@/modules/projects/actions";
 import { dueState } from "@/modules/projects/progress";
 import {
@@ -19,8 +20,7 @@ import {
 } from "@/modules/projects/project-input";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
 import { EditorForm, fieldErrorsOf, useInlineEditor } from "./inline-editor";
-import { useProjectDetail } from "./project-detail-context";
-import { FieldError } from "./field-error";
+import { useProjectDetail, useSaveProjectField } from "./project-detail-context";
 
 type ProjectHeaderProps = {
   /** Id of the page's `<h1>` (focused right after creating). */
@@ -50,7 +50,8 @@ export function ProjectHeader({ headingId, areas, blockedBy }: ProjectHeaderProp
 }
 
 function ProjectNameField({ headingId }: { headingId: string }) {
-  const { project, save } = useProjectDetail();
+  const { project } = useProjectDetail();
+  const save = useSaveProjectField();
   const trigger = useRef<HTMLButtonElement>(null);
   const editor = useInlineEditor(trigger);
   const [draft, setDraft] = useState("");
@@ -73,7 +74,9 @@ function ProjectNameField({ headingId }: { headingId: string }) {
     }
     editor.close();
     if (parsed.data.name === project.name) return;
-    save("name", { name: parsed.data.name }, () => renameProject(parsed.data));
+    save("name", { name: parsed.data.name }, () => renameProject(parsed.data), {
+      announceSaved: true,
+    });
   }
 
   return (
@@ -90,7 +93,12 @@ function ProjectNameField({ headingId }: { headingId: string }) {
         {project.name}
       </h1>
       {editor.editing ? (
-        <EditorForm label={PROJECTS_COPY.editName} onSubmit={submit} onCancel={editor.close}>
+        <EditorForm
+          label={PROJECTS_COPY.editName}
+          onSubmit={submit}
+          onCancel={editor.close}
+          error={error}
+        >
           <TextField
             ref={input}
             id={fieldId}
@@ -121,7 +129,8 @@ function ProjectNameField({ headingId }: { headingId: string }) {
 }
 
 function ProjectAreaField({ areas }: { areas: readonly ProjectAreaSummary[] }) {
-  const { project, save } = useProjectDetail();
+  const { project } = useProjectDetail();
+  const save = useSaveProjectField();
   const trigger = useRef<HTMLButtonElement>(null);
   const editor = useInlineEditor(trigger);
   const [picked, setPicked] = useState<string | null>(null);
@@ -155,7 +164,9 @@ function ProjectAreaField({ areas }: { areas: readonly ProjectAreaSummary[] }) {
     }
     editor.close();
     if (area.id === project.area.id) return;
-    save("area", { area }, () => changeProjectArea({ id: project.id, lifeAreaId: area.id }));
+    save("area", { area }, () => changeProjectArea({ id: project.id, lifeAreaId: area.id }), {
+      announceSaved: true,
+    });
   }
 
   const options: RadioGridOption<string>[] = areas.map((area) => ({
@@ -174,7 +185,13 @@ function ProjectAreaField({ areas }: { areas: readonly ProjectAreaSummary[] }) {
 
   if (editor.editing) {
     return (
-      <EditorForm label={PROJECTS_COPY.changeArea} onSubmit={submit} onCancel={editor.close}>
+      <EditorForm
+        label={PROJECTS_COPY.changeArea}
+        onSubmit={submit}
+        onCancel={editor.close}
+        error={error}
+        canSave={areas.length > 0}
+      >
         <div className={cn("bo-field", error && "is-error")}>
           <span id={labelId} className="bo-field__label">
             {PROJECTS_COPY.areaLabel}
@@ -226,7 +243,7 @@ function ProjectAreaField({ areas }: { areas: readonly ProjectAreaSummary[] }) {
       <IconKey
         ref={trigger}
         icon={Pencil}
-        label={PROJECTS_COPY.changeArea}
+        label={PROJECTS_COPY.changeAreaOf(project.area.name)}
         variant="ghost"
         onClick={start}
       />

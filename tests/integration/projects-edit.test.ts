@@ -271,7 +271,35 @@ describe("soft delete and undo", () => {
     expect(await getProject(project.id)).toBeNull();
     expect(await getDeletedProject(project.id)).toEqual({ id: project.id, name: "Mudanza" });
     expect(await getDeletedProject(other.id)).toBeNull();
-    expectRevalidated(project.id);
+    // Only the list: the page being viewed must not turn into its 404 before the client leaves.
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/projects"]]);
+  });
+
+  test("the list's undo is only offered for a recent delete (10 minutes)", async () => {
+    const recent = await insertRaw({
+      name: "Reciente",
+      deletedAt: new Date(Date.now() - 9 * 60_000),
+    });
+    const old = await insertRaw({ name: "Viejo", deletedAt: new Date(Date.now() - 11 * 60_000) });
+    expect(await getDeletedProject(recent.id)).toEqual({ id: recent.id, name: "Reciente" });
+    expect(await getDeletedProject(old.id)).toBeNull();
+    // Still restorable by the action (the window only limits the notice).
+    expect((await restoreProject({ id: old.id })).ok).toBe(true);
+  });
+
+  test("malformed ids are field errors on delete and undo, never database errors", async () => {
+    for (const action of [deleteProject, restoreProject]) {
+      for (const id of ["not-a-uuid", "", 42, null]) {
+        expect(await action({ id })).toEqual({
+          ok: false,
+          error: INVALID_FIELDS_MESSAGE,
+          fieldErrors: { id: [PROJECT_ERRORS.notFound] },
+        });
+      }
+      expect(await action({})).toMatchObject({ ok: false, fieldErrors: { id: expect.any(Array) } });
+    }
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(await getDeletedProject("not-a-uuid")).toBeNull();
   });
 
   test("undo restores it as it was (status, dates, area)", async () => {
@@ -322,7 +350,6 @@ describe("a deleted or missing project can't be edited", () => {
     ["changeProjectPriority", (id: string) => changeProjectPriority({ id, priority: "low" })],
     ["updateProjectObjective", (id: string) => updateProjectObjective({ id, objective: "X" })],
     ["updateProjectDates", (id: string) => updateProjectDates({ id, startDate: "2026-10-01" })],
-    ["deleteProject", (id: string) => deleteProject({ id })],
   ])("%s", async (_, call) => {
     const project = await insertRaw({ deletedAt: new Date() });
     for (const id of [project.id, MISSING]) {
@@ -332,6 +359,15 @@ describe("a deleted or missing project can't be edited", () => {
       expectRevalidated(id);
     }
     expect(await row(project.id)).toMatchObject({ name: "Mudanza", status: "idea" });
+  });
+
+  test("deleteProject of a deleted or missing project (the list revalidates)", async () => {
+    const project = await insertRaw({ deletedAt: new Date() });
+    for (const id of [project.id, MISSING]) {
+      vi.mocked(revalidatePath).mockClear();
+      expect(await deleteProject({ id })).toEqual({ ok: false, error: PROJECT_ERRORS.notFound });
+      expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/projects"]]);
+    }
   });
 
   test("changeProjectArea and restoreProject of a missing project", async () => {

@@ -56,6 +56,22 @@ describe("ToastViewport", () => {
     expect(screen.getByText("Pista.")).toHaveClass("sr-only");
   });
 
+  test("a notice with an infinite duration stays until it is dismissed", () => {
+    render(<Harness />);
+    act(() => {
+      toaster.push({
+        title: "Proyecto eliminado",
+        text: "«X» se eliminó.",
+        action: { label: "Deshacer", run: () => {} },
+        duration: Number.POSITIVE_INFINITY,
+      });
+    });
+    advance(10 * 60_000);
+    expect(region()).toHaveTextContent("«X» se eliminó.");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(live()).toBeEmptyDOMElement();
+  });
+
   test("errors stay 12 s", () => {
     render(<Harness />);
     act(() => {

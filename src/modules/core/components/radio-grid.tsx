@@ -14,7 +14,8 @@ type RadioGridProps<T extends string> = {
   options: readonly RadioGridOption<T>[];
   /** null: nothing picked yet (the first option is the one Tab lands on). */
   value: T | null;
-  onValueChange: (value: T) => void;
+  /** `source`: an arrow or Home/End key, or a click or tap (Enter and Space click too). */
+  onValueChange: (value: T, source: "keyboard" | "pointer") => void;
   /** Id of the visible label. */
   labelledBy: string;
   /** Ids of the group's help and error texts. */
@@ -67,7 +68,7 @@ export function RadioGrid<T extends string>({
 
   function move(to: number) {
     items.current[to]?.focus();
-    onValueChange(options[to].value);
+    onValueChange(options[to].value, "keyboard");
   }
 
   function onKeyDown(event: React.KeyboardEvent, index: number) {
@@ -130,7 +131,7 @@ export function RadioGrid<T extends string>({
             title={titles ? option.label : undefined}
             tabIndex={index === tabStop ? 0 : -1}
             className={cn("bo-key", checked && "is-on", itemClassName)}
-            onClick={() => onValueChange(option.value)}
+            onClick={() => onValueChange(option.value, "pointer")}
             onKeyDown={(event) => onKeyDown(event, index)}
           >
             {option.children}

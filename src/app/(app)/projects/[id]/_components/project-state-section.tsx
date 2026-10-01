@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { SectionLabel, SegmentedControl, type SegmentOption } from "@/design-system";
 import { RadioGrid, type RadioGridOption } from "@/modules/core/components/radio-grid";
 import { changeProjectPriority, changeProjectStatus } from "@/modules/projects/actions";
@@ -15,7 +15,13 @@ import {
   PROJECT_STATUS_LABELS,
   PROJECTS_COPY,
 } from "@/modules/projects/projects-copy";
-import { useProjectDetail } from "./project-detail-context";
+import { useProjectDetail, useSaveProjectField } from "./project-detail-context";
+
+/**
+ * How long the arrow keys must rest before the state they landed on is saved. Browsing from
+ * Activo to Cancelado passes Terminado, which would stamp (and then clear) `completed_at`.
+ */
+export const STATUS_SETTLE_MS = 500;
 
 const STATUS_OPTIONS: RadioGridOption<ProjectStatus>[] = PROJECT_STATUSES.map((status) => ({
   value: status,
@@ -29,20 +35,65 @@ const PRIORITY_OPTIONS: SegmentOption<ProjectPriority>[] = PROJECT_PRIORITIES.ma
 }));
 
 /**
- * State and priority, both saved the moment they change (optimistic; a refusal rolls back with
- * a notice). The six states are a radio group of keys: one tab stop, arrows move and pick.
+ * State and priority (optimistic; a refusal rolls back with a notice). The six states are a radio
+ * group of keys: one tab stop, arrows move and pick. A click or tap saves at once; with the
+ * arrows the pick shows at once but is saved once they rest (STATUS_SETTLE_MS), when focus
+ * leaves the group, or when the page goes away.
  */
 export function ProjectStateSection() {
-  const { project, save } = useProjectDetail();
+  const { project } = useProjectDetail();
+  const save = useSaveProjectField();
   const ids = useId();
   const headingId = `${ids}-heading`;
   const statusLabelId = `${ids}-status`;
   const statusHelpId = `${ids}-status-help`;
 
-  function changeStatus(status: ProjectStatus) {
-    if (status === project.status) return;
-    save("status", { status }, () => changeProjectStatus({ id: project.id, status }));
+  // The state the arrow keys are on, not saved yet (null: nothing pending).
+  const [browsing, setBrowsing] = useState<ProjectStatus | null>(null);
+  const pending = useRef<ProjectStatus | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  // What the last render showed, for the timer and the unmount (they outlive their render).
+  const latest = useRef({ id: project.id, status: project.status });
+  useEffect(() => {
+    latest.current = { id: project.id, status: project.status };
+  });
+
+  function commitStatus(status: ProjectStatus) {
+    window.clearTimeout(timer.current);
+    pending.current = null;
+    setBrowsing(null);
+    if (status === latest.current.status) return;
+    const id = latest.current.id;
+    save("status", { status }, () => changeProjectStatus({ id, status }));
   }
+
+  function flushStatus() {
+    if (pending.current) commitStatus(pending.current);
+  }
+
+  function changeStatus(status: ProjectStatus, source: "keyboard" | "pointer") {
+    if (source === "pointer") {
+      commitStatus(status);
+      return;
+    }
+    pending.current = status;
+    setBrowsing(status);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => commitStatus(status), STATUS_SETTLE_MS);
+  }
+
+  // Leaving the page with a pick still resting: save it anyway (no optimistic view to keep).
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      const status = pending.current;
+      const current = latest.current;
+      if (status && status !== current.status) {
+        void changeProjectStatus({ id: current.id, status }).catch(() => undefined);
+      }
+    },
+    [],
+  );
 
   function changePriority(priority: ProjectPriority) {
     if (priority === project.priority) return;
@@ -53,17 +104,22 @@ export function ProjectStateSection() {
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
       <SectionLabel id={headingId} as="h2" title={PROJECTS_COPY.stateSection} />
       <div className="bo-card gap-6">
-        <div className="bo-field">
+        <div
+          className="bo-field"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) flushStatus();
+          }}
+        >
           <span id={statusLabelId} className="bo-field__label">
             {PROJECTS_COPY.statusLabel}
           </span>
           <RadioGrid
             options={STATUS_OPTIONS}
-            value={project.status}
+            value={browsing ?? project.status}
             onValueChange={changeStatus}
             labelledBy={statusLabelId}
             describedBy={statusHelpId}
-            className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+            className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3"
             itemClassName="bo-option-key min-w-0"
           />
           <span id={statusHelpId} className="bo-field__help">

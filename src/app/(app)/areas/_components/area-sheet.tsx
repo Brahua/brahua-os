@@ -14,6 +14,7 @@ import {
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
 import { useIsDesktop } from "@/lib/use-is-desktop";
+import { FieldError } from "@/modules/core/components/field-error";
 import { createLifeArea, updateLifeArea } from "@/modules/core/actions";
 import { AREA_ICON_LABELS, AREAS_COPY } from "@/modules/core/areas-copy";
 import { AreaColorPicker, AreaIconPicker } from "@/modules/core/components/area-pickers";
@@ -302,14 +303,5 @@ export function AreaSheet({
         ) : null}
       </form>
     </Sheet>
-  );
-}
-
-function FieldError({ id, message }: { id: string; message: string }) {
-  return (
-    <span id={id} className="bo-field__error">
-      <Icon icon={TriangleAlert} size="sm" />
-      {message}
-    </span>
   );
 }

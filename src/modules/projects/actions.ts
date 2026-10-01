@@ -159,7 +159,13 @@ export async function updateProjectDates(input: unknown): Promise<ActionResult<P
 
 const remove = ownerAction(
   projectIdInputSchema,
-  async ({ id }) => saved(id, await softDeleteProject(getDb(), id)),
+  async ({ id }) => {
+    const project = await softDeleteProject(getDb(), id);
+    // Only the list: revalidating the page being viewed would swap it for its 404 before the
+    // client's router.replace leaves it.
+    revalidatePath(PROJECTS_PATH);
+    return project ? ok(project) : fail(PROJECT_ERRORS.notFound);
+  },
   { name: "deleteProject" },
 );
 

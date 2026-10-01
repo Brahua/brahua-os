@@ -47,6 +47,13 @@ type EditorFormProps = {
   label: string;
   onSubmit: () => void;
   onCancel: () => void;
+  /**
+   * The first error after a failed save. Read out by a polite live region: after Enter, focus
+   * may already be on the invalid field, so moving it there says nothing new.
+   */
+  error?: string;
+  /** False when there is nothing that could be saved (only "Cancelar" shows). */
+  canSave?: boolean;
   children: React.ReactNode;
 };
 
@@ -54,7 +61,14 @@ type EditorFormProps = {
  * The form of an in-place editor: its fields, then "Guardar" and "Cancelar". Enter in a text
  * field saves (the browser submits) and Esc cancels.
  */
-export function EditorForm({ label, onSubmit, onCancel, children }: EditorFormProps) {
+export function EditorForm({
+  label,
+  onSubmit,
+  onCancel,
+  error,
+  canSave = true,
+  children,
+}: EditorFormProps) {
   return (
     <form
       noValidate
@@ -62,7 +76,7 @@ export function EditorForm({ label, onSubmit, onCancel, children }: EditorFormPr
       className="flex min-w-0 flex-1 flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit();
+        if (canSave) onSubmit();
       }}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -73,10 +87,15 @@ export function EditorForm({ label, onSubmit, onCancel, children }: EditorFormPr
       }}
     >
       {children}
+      <p role="status" className="sr-only">
+        {error ?? ""}
+      </p>
       <div className="flex flex-wrap gap-2">
-        <Key type="submit" variant="signal">
-          {PROJECTS_COPY.save}
-        </Key>
+        {canSave ? (
+          <Key type="submit" variant="signal">
+            {PROJECTS_COPY.save}
+          </Key>
+        ) : null}
         <Key variant="ghost" onClick={onCancel}>
           {PROJECTS_COPY.cancel}
         </Key>

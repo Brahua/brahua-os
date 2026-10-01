@@ -94,12 +94,15 @@ export const PROJECTS_COPY = {
   saving: "Guardando…",
   // Estado y clasificación
   stateSection: "Estado y prioridad",
-  statusHelp: "Usa las flechas para cambiar de estado. Se guarda al momento.",
+  statusHelp:
+    "Con las flechas recorres los estados y se guarda al detenerte; con un toque, al momento.",
   priorityLabel: "Prioridad",
   areaArchived:
     "Su área actual está archivada: la conserva hasta que elijas otra. Solo áreas activas.",
   areaArchivedShort: "(archivada)",
   changeArea: "Cambiar área",
+  /** The pencil's name (and tooltip) says which area it changes. */
+  changeAreaOf: (area: string) => `Cambiar área (${area})`,
   areaPickerHint: "Solo áreas activas.",
   noAreasToMove: "No tienes otras áreas activas. Crea o desarchiva una en Áreas para moverlo.",
   // Objetivo y fechas
@@ -123,9 +126,10 @@ export const PROJECTS_COPY = {
   undoHint: "Para deshacer, pulsa Ctrl+Z o ⌘Z, o usa el botón Deshacer del aviso.",
   undo: "Deshacer",
   notSavedTitle: "Sin guardar",
-  /** Network failure: the edit rolled back. */
-  notSaved: (what: string) =>
-    `No se pudo guardar ${what}: volvió a como estaba. Revisa tu conexión e inténtalo de nuevo.`,
+  /** First part of every rollback notice; the reason follows. */
+  notSaved: (what: string) => `No se pudo guardar ${what}; volvió a como estaba.`,
+  checkConnection: "Revisa tu conexión e inténtalo de nuevo.",
+  saved: (what: string) => `Se guardó ${what}.`,
   // Eliminar
   delete: "Eliminar proyecto",
   deleteConfirmTitle: (name: string) => `¿Eliminar «${name}»?`,
