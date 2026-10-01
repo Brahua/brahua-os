@@ -131,10 +131,16 @@
   - **Aceptación:** una E2E valida el manifest y las cabeceras; la app se instala en tu celular en modo standalone.
   - **Tamaño:** S
 
-- [ ] **C8: Páginas de error**
+- [ ] **C8: Páginas de error** — PR `feat/core-c8-error-pages`, sin merge (pendiente de revisión).
   - **Qué:** `error.tsx`, `not-found.tsx` y `global-error.tsx` en español, con el design system (LCD "sin culpa").
+    - [x] 404 (`app/not-found.tsx` con el shell si hay sesión; `(app)/not-found.tsx` para `notFound()`), errores (`(app)/error.tsx` dentro del shell, `app/error.tsx` fuera de él) y `global-error.tsx` propio, oscuro por defecto.
+    - [x] Rutas de prueba que fuerzan errores solo en builds E2E (`page.e2e.tsx` + `E2E_ERROR_ROUTES`), comprobadas en CI y en el smoke test (404 en producción).
   - **Aceptación:** un error forzado muestra la página sin detalles técnicos; axe en 0.
+    - [x] E2E `e2e/error-pages.spec.ts` (sin mensaje ni stack en la respuesta, "Reintentar", axe en ambos temas, 8 capturas nuevas).
   - **Tamaño:** S
+  - **Seguimiento (fuera de C8):**
+    - [ ] Observabilidad de errores de cliente: un error de un componente cliente no tiene `digest` ni llega al registro del servidor; hoy la página no muestra código y nadie se entera. Definir cómo reportarlos (p. ej. un endpoint propio que registre una línea sin el mensaje).
+    - [ ] Estabilizar la E2E de C6 `e2e/areas-order.spec.ts:329` (⌘Z deshace, escritorio): falló una vez en CI y pasó al reintentar.
 
 ## Fase 4 — Producción
 

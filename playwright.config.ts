@@ -12,6 +12,8 @@ const appEnv = {
   BETTER_AUTH_SECRET: "e2e-only-secret-not-used-anywhere-else-0123456789",
   BETTER_AUTH_URL: baseURL,
   OWNER_EMAIL: E2E_OWNER.email,
+  // Builds and enables the test-only routes that force errors (src/lib/e2e-error-routes.ts).
+  E2E_ERROR_ROUTES: "1",
 };
 
 const desktopChrome = devices["Desktop Chrome"];

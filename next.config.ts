@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { pageExtensionsFor } from "./src/lib/e2e-error-routes";
 
 /** SPEC-core "Cabeceras": applied to every route, pages and API alike. */
 export const SECURITY_HEADERS = [
@@ -10,6 +11,8 @@ export const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // `page.e2e.tsx` (routes that force errors) only exist in E2E builds: src/lib/e2e-error-routes.ts.
+  pageExtensions: pageExtensionsFor(),
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

@@ -58,6 +58,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      # The same build as production (no E2E_ERROR_ROUTES): the routes that force errors are absent.
+      - name: No test-only routes in the build
+        run: node scripts/check-no-e2e-routes.mjs
 
   e2e:
     name: E2E (Playwright + axe)
@@ -229,7 +232,7 @@ jobs:
     needs: deploy
     if: ${{ !failure() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    # Worst case: about 3 min waiting for the domain plus about 5 min of smoke rounds.
+    # Worst case: about 3 min waiting for the domain plus about 7 min of smoke rounds.
     timeout-minutes: 15
     # Same group as deploy: the next deploy waits until this deployment was checked.
     concurrency:
