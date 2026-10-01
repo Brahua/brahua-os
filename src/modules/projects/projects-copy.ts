@@ -26,7 +26,15 @@ export const PROJECTS_COPY = {
 
   // Area filter
   filterLabel: "Filtrar por área",
+  filterTrigger: "Área:",
+  /** Accessible name of the trigger: says what it does and what is on now. */
+  filterTriggerName: (area: string) => `Filtrar por área: ${area}`,
+  filterOptions: "Áreas",
   allAreas: "Todas",
+  allAreasOption: "Todas las áreas",
+  archivedArea: "Archivada",
+  filterApplied: (area: string | null) =>
+    area ? `Mostrando los proyectos de «${area}».` : "Mostrando todas las áreas.",
 
   // List
   groupList: (status: string) => `Proyectos: ${status}`,

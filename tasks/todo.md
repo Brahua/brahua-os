@@ -19,6 +19,7 @@
 
 ### Checkpoint P1
 - [ ] El owner crea proyectos desde el celular y ve la lista agrupada.
+- [x] Ajuste pedido por el owner: el filtro por área pasa de chips a un selector compacto "Área: …" con hoja (PR `fix/projects-area-filter`).
 
 ## Fase 2 — Detalle
 

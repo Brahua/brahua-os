@@ -7,14 +7,16 @@ import {
   areaGroup,
   cardNames,
   CREATE_AREA,
-  filter,
   FIXTURE_AREA,
+  filterSheet,
+  filterTrigger,
   groupList,
   historyToggle,
   isDesktop,
   nameField,
   newProjectButton,
   openProjects,
+  pickArea,
   sheet,
   statusGroup,
   uniqueName,
@@ -28,11 +30,8 @@ import { expectScreenshot } from "./support/screenshots";
 
 const THEMES = ["dark", "light"] as const;
 const FIXTURE_FILTER = `?area=${FIXTURE_AREA.slug}`;
-const SCREENSHOT_CSS = [
-  path.join(__dirname, "support/hide-app-nav.css"),
-  // Other specs create areas in parallel: the chips row changes, the groups don't.
-  path.join(__dirname, "support/hide-area-filter.css"),
-];
+// The area filter stays: it is one "Área: Planes y Viajes" key, whatever areas other specs add.
+const SCREENSHOT_CSS = path.join(__dirname, "support/hide-app-nav.css");
 
 /** axe's violations, measured once keys and panels have finished fading or sliding. */
 async function axeViolations(page: Page) {
@@ -87,39 +86,62 @@ test("groups by state in order, sorted by priority, due date and name, with due 
   await expect(card("Mapa de viajes").locator("time")).toHaveCount(0);
 });
 
-test("the area filter lives in the URL", async ({ page }) => {
+test("the area filter lives in the URL", async ({ page }, testInfo) => {
   await openProjects(page);
-  await expect(filter(page).getByRole("link", { name: "Todas" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  const trigger = filterTrigger(page);
+  await expect(trigger).toHaveAccessibleName("Filtrar por área: Todas");
+  await expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  // One line, whatever the number of areas: as tall as a key.
+  expect((await trigger.boundingBox())!.height).toBeLessThanOrEqual(48);
 
-  await filter(page).getByRole("link", { name: FIXTURE_AREA.name }).click();
+  // Bottom sheet on the phone, side panel on desktop; focus on the current option.
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(filterSheet(page)).toHaveClass(
+    isDesktop(testInfo) ? /bo-sheet--side/ : /bo-sheet--bottom/,
+  );
+  const all = filterSheet(page).getByRole("link", { name: "Todas las áreas" });
+  await expect(all).toHaveAttribute("aria-current", "page");
+  await expect(all).toBeFocused();
+  // Options are 44 px targets or more.
+  for (const box of await filterSheet(page)
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.getBoundingClientRect().height))) {
+    expect(box).toBeGreaterThanOrEqual(44);
+  }
+  // Esc closes it and focus goes back to the key.
+  await page.keyboard.press("Escape");
+  await expect(filterSheet(page)).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await pickArea(page, FIXTURE_AREA.name);
   await expect(page).toHaveURL(`/projects${FIXTURE_FILTER}`);
-  const chip = filter(page).getByRole("link", { name: FIXTURE_AREA.name });
-  await expect(chip).toHaveAttribute("aria-current", "page");
-  await expect(filter(page).getByRole("link", { name: "Todas" })).not.toHaveAttribute(
-    "aria-current",
+  await expect(trigger).toHaveAccessibleName(`Filtrar por área: ${FIXTURE_AREA.name}`);
+  await expect(trigger).toBeFocused();
+  await expect(page.getByRole("status").filter({ hasText: "Mostrando" })).toHaveText(
+    `Mostrando los proyectos de «${FIXTURE_AREA.name}».`,
   );
   // Only that area: every card on screen is in it.
   const tags = page.locator("main article .bo-area-tag");
   await expect(tags.first()).toBeVisible();
   for (const text of await tags.allTextContents()) expect(text).toBe(FIXTURE_AREA.name);
 
-  // Still filtered after a reload (it's in the URL).
+  // Still filtered after a reload (it's in the URL), and marked in the list.
   await page.reload();
-  await expect(filter(page).getByRole("link", { name: FIXTURE_AREA.name })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(trigger).toHaveAccessibleName(`Filtrar por área: ${FIXTURE_AREA.name}`);
   expect(await cardNames(page, "Activo")).toEqual(["Viaje a Cusco", "Renovar pasaporte"]);
+  await trigger.click();
+  const current = filterSheet(page).getByRole("link", { name: FIXTURE_AREA.name, exact: true });
+  await expect(current).toHaveAttribute("aria-current", "page");
+  await expect(current).toBeFocused();
+  await expect(
+    filterSheet(page).getByRole("link", { name: "Todas las áreas" }),
+  ).not.toHaveAttribute("aria-current");
 
-  await filter(page).getByRole("link", { name: "Todas" }).click();
+  await filterSheet(page).getByRole("link", { name: "Todas las áreas" }).click();
   await expect(page).toHaveURL("/projects");
-  await expect(filter(page).getByRole("link", { name: "Todas" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(trigger).toHaveAccessibleName("Filtrar por área: Todas");
 });
 
 test("Historial is folded and opens to Terminado and Cancelado", async ({ page }) => {
@@ -182,7 +204,7 @@ test("create a project on the phone in a few taps and land on its page", async (
   // Back in the list, under Idea in its area.
   await page.getByRole("link", { name: "Volver a Proyectos" }).click();
   await expect(page).toHaveURL("/projects");
-  await filter(page).getByRole("link", { name: CREATE_AREA.name }).click();
+  await pickArea(page, CREATE_AREA.name);
   await expect(groupList(page, "Idea").getByRole("link", { name })).toBeVisible();
 });
 
@@ -235,6 +257,13 @@ for (const theme of THEMES) {
     await expectScreenshot(page.locator("main"), `projects-list-${theme}.png`, {
       stylePath: SCREENSHOT_CSS,
     });
+
+    // The area filter open.
+    await filterTrigger(page).click();
+    await expect(filterSheet(page)).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(filterSheet(page)).toBeHidden();
 
     // The history open, and the create sheet with an error showing.
     await historyToggle(page).click();

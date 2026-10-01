@@ -90,7 +90,20 @@ export async function openProjects(page: Page, search = "") {
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
 }
 
-export const filter = (page: Page) => page.getByRole("navigation", { name: "Filtrar por área" });
+/**
+ * The "Área: …" key of the list (its name says the area on: "Filtrar por área: Todas"). Found even
+ * while its sheet is open, when the modal leaves the rest of the page aria-hidden.
+ */
+export const filterTrigger = (page: Page) =>
+  page.getByRole("button", { name: /^Filtrar por área:/, includeHidden: true });
+export const filterSheet = (page: Page) => page.getByRole("dialog", { name: "Filtrar por área" });
+
+/** Opens the area filter and follows the option `name` ("Todas las áreas" or an area). */
+export async function pickArea(page: Page, name: string) {
+  await filterTrigger(page).click();
+  await filterSheet(page).getByRole("link", { name, exact: true }).click();
+  await expect(filterSheet(page)).toBeHidden();
+}
 export const newProjectButton = (page: Page) =>
   page.getByRole("button", { name: "Nuevo proyecto" });
 export const sheet = (page: Page) => page.getByRole("dialog");
