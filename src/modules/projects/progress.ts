@@ -49,3 +49,36 @@ export function dueState(
   if (left <= DUE_SOON_DAYS) return { kind: "soon", days: left, label: `Vence en ${days(left)}` };
   return null;
 }
+
+// ── Progress (P3) ────────────────────────────────────────────────────────────────────────────
+
+/** A project's progress: done of total milestones, and that as a fraction (0–1). */
+export type Progress = { done: number; total: number; ratio: number };
+
+/**
+ * Progress from the milestones (SPEC-projects "Avance"): done / total. Null when there is
+ * nothing to show: no milestones (never a "0 %" that means nothing) or a project in
+ * Mantenimiento (continuous work has no end). Counts are clamped, so a bad pair never yields
+ * more than 100 %.
+ */
+export function milestoneProgress(
+  counts: { done: number; total: number } | null | undefined,
+  status: ProjectStatus,
+): Progress | null {
+  if (!counts || status === "maintenance") return null;
+  const total = Math.max(0, Math.floor(counts.total));
+  if (total === 0) return null;
+  const done = Math.min(total, Math.max(0, Math.floor(counts.done)));
+  return { done, total, ratio: done / total };
+}
+
+/** Done and total of a list of milestones (`doneAt` set means done). */
+export function countMilestones(milestones: readonly { doneAt: Date | null }[]): {
+  done: number;
+  total: number;
+} {
+  return {
+    done: milestones.filter((milestone) => milestone.doneAt !== null).length,
+    total: milestones.length,
+  };
+}

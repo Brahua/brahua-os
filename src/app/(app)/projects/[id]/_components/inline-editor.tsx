@@ -54,6 +54,11 @@ type EditorFormProps = {
   error?: string;
   /** False when there is nothing that could be saved (only "Cancelar" shows). */
   canSave?: boolean;
+  /**
+   * More controls after "Guardar"/"Cancelar" (e.g. "Eliminar hito"), inside the form so Esc on
+   * them cancels the editor too instead of reaching the notices.
+   */
+  extra?: React.ReactNode;
   children: React.ReactNode;
 };
 
@@ -67,6 +72,7 @@ export function EditorForm({
   onCancel,
   error,
   canSave = true,
+  extra,
   children,
 }: EditorFormProps) {
   return (
@@ -100,6 +106,7 @@ export function EditorForm({
           {PROJECTS_COPY.cancel}
         </Key>
       </div>
+      {extra}
     </form>
   );
 }

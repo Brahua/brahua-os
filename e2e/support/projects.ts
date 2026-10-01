@@ -4,7 +4,7 @@ import { expect, type Page, type TestInfo } from "@playwright/test";
 import { createDb, type Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
-import { projects } from "@/modules/projects/db/schema";
+import { projectMilestones, projects } from "@/modules/projects/db/schema";
 import type { ProjectPriority, ProjectStatus } from "@/modules/projects/project-constants";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 
@@ -30,7 +30,11 @@ type Fixture = {
    */
   due?: number;
   objective?: string;
+  /** P3: its milestones, in order (the card shows the progress; none in Mantenimiento). */
+  milestones?: readonly FixtureMilestone[];
 };
+
+type FixtureMilestone = { title: string; done?: boolean; dueDate?: string };
 
 /** In the order the list shows them (groups, then priority, due date and name). */
 export const FIXTURE_PROJECTS: readonly Fixture[] = [
@@ -40,9 +44,28 @@ export const FIXTURE_PROJECTS: readonly Fixture[] = [
     priority: "high",
     due: 0,
     objective: "Pasajes, hotel y entradas a Machu Picchu comprados.",
+    milestones: [
+      { title: "Pasajes de avión", done: true },
+      { title: "Hotel en Cusco" },
+      { title: "Entradas a Machu Picchu" },
+    ],
   },
-  { name: "Renovar pasaporte", status: "active", due: 3 },
-  { name: "Mapa de viajes", status: "maintenance", due: -10 },
+  {
+    name: "Renovar pasaporte",
+    status: "active",
+    due: 3,
+    milestones: [
+      { title: "Pagar la tasa", done: true },
+      { title: "Cita en migraciones", done: true },
+    ],
+  },
+  {
+    name: "Mapa de viajes",
+    status: "maintenance",
+    due: -10,
+    // Mantenimiento: milestones, but no progress on its card.
+    milestones: [{ title: "Agregar Arequipa", done: true }],
+  },
   { name: "Ruta por Europa", status: "paused", due: -2 },
   { name: "Camino Inca", status: "idea", priority: "low" },
   { name: "Viaje a Arequipa", status: "done" },
@@ -69,7 +92,15 @@ export const DETAIL_FIXTURE = {
   objective: "Muebles nuevos, encimera de cuarzo y luz bajo los muebles altos.",
   startDate: "2026-01-12",
   dueDate: "2030-06-28",
-} as const;
+  // P3: 2 of 5 done (40 %); fixed dates, like the project's.
+  milestones: [
+    { title: "Planos y presupuesto", done: true },
+    { title: "Retirar los muebles viejos", done: true },
+    { title: "Instalar los muebles nuevos", dueDate: "2030-03-15" },
+    { title: "Encimera de cuarzo" },
+    { title: "Luz bajo los muebles altos" },
+  ],
+} as const satisfies { milestones: readonly FixtureMilestone[] } & Record<string, unknown>;
 
 async function areaIdOf(db: Database, slug: string): Promise<string> {
   const [area] = await db
@@ -79,30 +110,59 @@ async function areaIdOf(db: Database, slug: string): Promise<string> {
   return area.id;
 }
 
+/** Inserts a fixture project's milestones, in order (done ones with a fixed instant). */
+async function seedMilestones(
+  db: Database,
+  projectId: string,
+  milestones: readonly FixtureMilestone[] = [],
+) {
+  if (milestones.length === 0) return;
+  await db.insert(projectMilestones).values(
+    milestones.map((milestone, sortOrder) => ({
+      projectId,
+      title: milestone.title,
+      dueDate: milestone.dueDate ?? null,
+      doneAt: milestone.done ? new Date("2026-01-20T15:00:00.000Z") : null,
+      sortOrder,
+    })),
+  );
+}
+
 /** Inserts the fixture projects (global-setup, after the areas seed). */
 export async function seedProjects(db: Database): Promise<void> {
   const area = { id: await areaIdOf(db, FIXTURE_AREA.slug) };
   const detail = DETAIL_FIXTURE;
-  await db.insert(projects).values({
-    name: detail.name,
-    status: detail.status,
-    priority: detail.priority,
-    objective: detail.objective,
-    startDate: detail.startDate,
-    dueDate: detail.dueDate,
-    lifeAreaId: await areaIdOf(db, detail.areaSlug),
-  });
-  await db.insert(projects).values(
-    FIXTURE_PROJECTS.map((fixture) => ({
-      name: fixture.name,
-      status: fixture.status,
-      priority: fixture.priority ?? "medium",
-      objective: fixture.objective ?? null,
-      lifeAreaId: area.id,
-      dueDate: fixture.due === undefined ? null : limaDay(fixture.due),
-      completedAt: fixture.status === "done" ? new Date() : null,
-    })),
-  );
+  const [detailRow] = await db
+    .insert(projects)
+    .values({
+      name: detail.name,
+      status: detail.status,
+      priority: detail.priority,
+      objective: detail.objective,
+      startDate: detail.startDate,
+      dueDate: detail.dueDate,
+      lifeAreaId: await areaIdOf(db, detail.areaSlug),
+    })
+    .returning({ id: projects.id });
+  await seedMilestones(db, detailRow.id, detail.milestones);
+  const rows = await db
+    .insert(projects)
+    .values(
+      FIXTURE_PROJECTS.map((fixture) => ({
+        name: fixture.name,
+        status: fixture.status,
+        priority: fixture.priority ?? "medium",
+        objective: fixture.objective ?? null,
+        lifeAreaId: area.id,
+        dueDate: fixture.due === undefined ? null : limaDay(fixture.due),
+        completedAt: fixture.status === "done" ? new Date() : null,
+      })),
+    )
+    .returning({ id: projects.id, name: projects.name });
+  for (const fixture of FIXTURE_PROJECTS) {
+    const row = rows.find((one) => one.name === fixture.name);
+    if (row) await seedMilestones(db, row.id, fixture.milestones);
+  }
 }
 
 type NewProject = {

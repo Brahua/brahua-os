@@ -84,6 +84,20 @@ test("groups by state in order, sorted by priority, due date and name, with due 
   await expect(card("Ruta por Europa").locator("time")).toHaveText("Vencido hace 2 días");
   // Maintenance: no due notice even past its date.
   await expect(card("Mapa de viajes").locator("time")).toHaveCount(0);
+  // P3: progress from the milestones; none without them, nor in Mantenimiento (it has one).
+  // Drawn on the card and heard once, as the name link's description.
+  await expect(card("Viaje a Cusco").locator("[data-progress]")).toHaveAttribute(
+    "data-progress",
+    "1/3",
+  );
+  await expect(page.getByRole("link", { name: "Viaje a Cusco" })).toHaveAccessibleDescription(
+    /Avance: 33%, 1 de 3 hitos/,
+  );
+  await expect(page.getByRole("link", { name: "Renovar pasaporte" })).toHaveAccessibleDescription(
+    /Avance: 100%, 2 de 2 hitos/,
+  );
+  await expect(card("Mapa de viajes").locator("[data-progress]")).toHaveCount(0);
+  await expect(card("Ruta por Europa").locator("[data-progress]")).toHaveCount(0);
 });
 
 test("the area filter lives in the URL", async ({ page }, testInfo) => {

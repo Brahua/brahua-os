@@ -1,7 +1,8 @@
 "use client";
 
-// The dnd-kit layer of the areas list. Loaded lazily (see areas-manager.tsx): until it arrives,
-// the plain list (area-rows.tsx) shows the same rows with Subir/Bajar already working.
+// The dnd-kit layer of a project's milestones. Loaded lazily (see project-milestones-section.tsx):
+// until it arrives, the plain list (milestone-rows.tsx) shows the same rows with Subir/Bajar
+// already working. Same pattern as the areas list (C6, sortable-areas.tsx).
 import {
   closestCenter,
   DndContext,
@@ -24,28 +25,31 @@ import { CSS as DndCSS } from "@dnd-kit/utilities";
 import { useEffect, useId, useMemo, useRef } from "react";
 import { cn } from "@/lib/cn";
 import { setDragging, verticalOnly } from "@/lib/sortable";
-import { AREAS_COPY } from "@/modules/core/areas-copy";
-import type { LifeAreaSummary } from "@/modules/core/life-area-input";
+import type { ProjectMilestoneItem } from "@/modules/projects/milestone-input";
+import { MILESTONES_COPY } from "@/modules/projects/milestones-copy";
 import {
-  AreaRowContent,
+  MilestoneRowContent,
   ROW_CLASSES,
   useFocusAfterSwap,
   useMoveBy,
-  type AreaListProps,
-} from "./area-rows";
+  type MilestoneListProps,
+} from "./milestone-rows";
 
 /**
- * The active areas, in order, reorderable three ways: dragging the handle (mouse, or touch after
- * a short press), the keyboard on the handle (Space/Enter, arrows, Space/Enter; Esc cancels;
- * announced in Spanish), or the explicit "Subir"/"Bajar" buttons. Each row's main button edits.
+ * The milestones, in order, reorderable three ways: dragging the handle (mouse, or touch after a
+ * short press), the keyboard on the handle (Space/Enter, arrows, Space/Enter; Esc cancels;
+ * announced in Spanish), or the explicit "Subir"/"Bajar" buttons.
  */
-export default function SortableAreas({ areas, reducedMotion, onMove, onEdit }: AreaListProps) {
+export default function SortableMilestones(props: MilestoneListProps) {
+  const { milestones, reducedMotion, onMove, editingId } = props;
   const contextId = useId();
-  const ids = useMemo(() => areas.map((area) => area.id), [areas]);
-  const names = useMemo(() => new Map(areas.map((area) => [area.id, area.name])), [areas]);
-  const { moveBy, requestFocus } = useMoveBy(areas, onMove);
+  const ids = useMemo(() => milestones.map((milestone) => milestone.id), [milestones]);
+  const titles = useMemo(
+    () => new Map(milestones.map((milestone) => [milestone.id, milestone.title])),
+    [milestones],
+  );
+  const { moveBy, requestFocus } = useMoveBy(milestones, onMove);
   useFocusAfterSwap();
-  // <html data-dragging> while a row is lifted: Esc and ⌘Z then belong to the drag.
   useEffect(() => () => setDragging(false), []);
 
   const sensors = useSensors(
@@ -58,31 +62,31 @@ export default function SortableAreas({ areas, reducedMotion, onMove, onEdit }: 
     }),
   );
 
-  // Where the lifted area was last announced: dnd-kit also reports the starting position as a
-  // move, which would talk over "Tomaste…".
+  // Where the lifted milestone was last announced: dnd-kit also reports the starting position
+  // as a move, which would talk over "Tomaste…".
   const lastOver = useRef<UniqueIdentifier | null>(null);
   const announcements = useMemo<Announcements>(() => {
-    const name = (id: UniqueIdentifier) => names.get(String(id)) ?? "";
+    const title = (id: UniqueIdentifier) => titles.get(String(id)) ?? "";
     const place = (id: UniqueIdentifier | undefined) =>
-      AREAS_COPY.position(id === undefined ? -1 : ids.indexOf(String(id)), ids.length);
+      MILESTONES_COPY.position(id === undefined ? -1 : ids.indexOf(String(id)), ids.length);
     return {
       onDragStart: ({ active }) => {
         lastOver.current = active.id;
-        return AREAS_COPY.dragStart(name(active.id), place(active.id));
+        return MILESTONES_COPY.dragStart(title(active.id), place(active.id));
       },
       onDragOver: ({ active, over }) => {
         if (!over || over.id === lastOver.current) return undefined;
         lastOver.current = over.id;
-        return AREAS_COPY.dragOver(name(active.id), place(over.id));
+        return MILESTONES_COPY.dragOver(title(active.id), place(over.id));
       },
       // A real move is announced by the notice that shows with "Deshacer".
       onDragEnd: ({ active, over }) =>
         !over || over.id === active.id
-          ? AREAS_COPY.dragSame(name(active.id), place(active.id))
+          ? MILESTONES_COPY.dragSame(title(active.id), place(active.id))
           : undefined,
-      onDragCancel: ({ active }) => AREAS_COPY.dragCancel(name(active.id), place(active.id)),
+      onDragCancel: ({ active }) => MILESTONES_COPY.dragCancel(title(active.id), place(active.id)),
     };
-  }, [ids, names]);
+  }, [ids, titles]);
 
   function dropped({ active, over, activatorEvent }: DragEndEvent) {
     setDragging(false);
@@ -90,8 +94,7 @@ export default function SortableAreas({ areas, reducedMotion, onMove, onEdit }: 
     if (!over || active.id === over.id) return;
     const to = ids.indexOf(String(over.id));
     if (to === -1) return;
-    // A keyboard drag leaves focus on the handle, wherever the row went (down too). Only for a
-    // real move: dropped in place, nothing re-renders the row and focus is already there.
+    // A keyboard drag leaves focus on the handle, wherever the row went (down too).
     if (activatorEvent instanceof KeyboardEvent) requestFocus(id, "handle");
     onMove(id, to);
   }
@@ -107,21 +110,20 @@ export default function SortableAreas({ areas, reducedMotion, onMove, onEdit }: 
       onDragCancel={() => setDragging(false)}
       accessibility={{
         announcements,
-        screenReaderInstructions: { draggable: AREAS_COPY.dragInstructions },
+        screenReaderInstructions: { draggable: MILESTONES_COPY.dragInstructions },
       }}
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <ul aria-label={AREAS_COPY.listLabel} className="bo-list max-w-160">
-          {areas.map((area, index) => (
-            <SortableAreaRow
-              key={area.id}
-              area={area}
+        <ul aria-label={MILESTONES_COPY.listLabel} className="bo-list">
+          {milestones.map((milestone, index) => (
+            <SortableMilestoneRow
+              key={milestone.id}
+              {...props}
+              milestone={milestone}
               first={index === 0}
-              last={index === areas.length - 1}
-              // With a single area there is nothing to reorder.
-              locked={areas.length < 2}
-              reducedMotion={reducedMotion}
-              onEdit={onEdit}
+              last={index === milestones.length - 1}
+              // Nothing to reorder with a single milestone, nor while one is being edited.
+              locked={milestones.length < 2 || editingId !== null}
               onMoveBy={moveBy}
             />
           ))}
@@ -131,23 +133,16 @@ export default function SortableAreas({ areas, reducedMotion, onMove, onEdit }: 
   );
 }
 
-function SortableAreaRow({
-  area,
-  first,
-  last,
-  locked,
-  reducedMotion,
-  onEdit,
-  onMoveBy,
-}: {
-  area: LifeAreaSummary;
-  first: boolean;
-  last: boolean;
-  locked: boolean;
-  reducedMotion: boolean;
-  onEdit: AreaListProps["onEdit"];
-  onMoveBy: (id: string, delta: -1 | 1) => void;
-}) {
+function SortableMilestoneRow(
+  props: MilestoneListProps & {
+    milestone: ProjectMilestoneItem;
+    first: boolean;
+    last: boolean;
+    locked: boolean;
+    onMoveBy: (id: string, delta: -1 | 1) => void;
+  },
+) {
+  const { milestone, locked, reducedMotion, editingId } = props;
   const {
     attributes,
     listeners,
@@ -157,9 +152,9 @@ function SortableAreaRow({
     transition,
     isDragging,
   } = useSortable({
-    id: area.id,
+    id: milestone.id,
     disabled: locked,
-    attributes: { roleDescription: AREAS_COPY.dragRole },
+    attributes: { roleDescription: MILESTONES_COPY.dragRole },
     // Reduced motion: no sliding, rows jump to their new place.
     transition: reducedMotion ? null : undefined,
   });
@@ -167,19 +162,19 @@ function SortableAreaRow({
   return (
     <li
       ref={setNodeRef}
-      data-area-row={area.id}
+      data-milestone-row={milestone.id}
       style={{ transform: DndCSS.Translate.toString(transform), transition }}
-      className={cn(ROW_CLASSES, isDragging && "relative z-10 shadow-popover")}
+      className={cn(
+        ROW_CLASSES,
+        editingId === milestone.id && "p-4",
+        isDragging && "relative z-10 shadow-popover",
+      )}
     >
-      <AreaRowContent
-        area={area}
-        first={first}
-        last={last}
+      <MilestoneRowContent
+        {...props}
         handleRef={setActivatorNodeRef}
         handleDisabled={locked}
         handleProps={{ ...attributes, ...listeners }}
-        onEdit={onEdit}
-        onMoveBy={onMoveBy}
       />
     </li>
   );
