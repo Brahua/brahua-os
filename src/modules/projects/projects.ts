@@ -69,9 +69,9 @@ export async function selectProjectById(
 
 /**
  * What a project's page reads: the summary plus the detail-only columns. Kept apart from SUMMARY
- * so the list never loads them (P5 adds `notes: projects.notes` here, and to ProjectDetail).
+ * so the list never loads them.
  */
-const DETAIL = { ...SUMMARY };
+const DETAIL = { ...SUMMARY, notes: projects.notes };
 
 /** One project for its page, unless it doesn't exist or is deleted. */
 export async function selectProjectDetailById(

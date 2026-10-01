@@ -21,7 +21,10 @@ export type ProjectChange = {
  * The project with an edit applied, following the server's rules: a new status also moves
  * `completed_at` (stamped on Terminado, kept if it already was, cleared otherwise).
  */
-export function applyProjectChange(project: ProjectSummary, change: ProjectChange): ProjectSummary {
+export function applyProjectChange<Project extends ProjectSummary>(
+  project: Project,
+  change: ProjectChange,
+): Project {
   const { patch, at } = change;
   const next = { ...project, ...patch };
   if (patch.status !== undefined) {

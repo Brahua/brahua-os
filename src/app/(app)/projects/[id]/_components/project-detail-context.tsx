@@ -14,7 +14,11 @@ import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
 import { ToastViewport } from "@/modules/core/components/toast-viewport";
 import type { ProjectDetail } from "@/modules/projects/project-input";
-import { applyProjectChange, type ProjectPatch } from "@/modules/projects/project-optimistic";
+import {
+  applyProjectChange,
+  type ProjectChange,
+  type ProjectPatch,
+} from "@/modules/projects/project-optimistic";
 import {
   PROJECT_FIELD_NAMES,
   PROJECTS_COPY,
@@ -94,7 +98,10 @@ type ProjectDetailProviderProps = {
  * the same field superseded says nothing: the newer one decides what stays.
  */
 export function ProjectDetailProvider({ project, now, children }: ProjectDetailProviderProps) {
-  const [view, applyChange] = useOptimistic(project, applyProjectChange);
+  const [view, applyChange] = useOptimistic<ProjectDetail, ProjectChange>(
+    project,
+    applyProjectChange,
+  );
   const toaster = useToaster();
   const { push } = toaster;
   const enqueue = useSaveQueue();

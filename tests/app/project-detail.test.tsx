@@ -29,7 +29,7 @@ import {
 import {
   PROJECT_ERRORS,
   type ProjectAreaSummary,
-  type ProjectSummary,
+  type ProjectDetail,
 } from "@/modules/projects/project-input";
 import { completedAtAfter } from "@/modules/projects/project-status";
 import { getProject } from "@/modules/projects/queries";
@@ -54,6 +54,10 @@ vi.mock("@/modules/projects/milestone-queries", () => ({
   getProjectMilestones: vi.fn(async () => []),
   listMilestoneCounts: vi.fn(async () => ({})),
 }));
+// P5: links and notes (their own tests: tests/app/project-notes-links.test.tsx).
+vi.mock("@/modules/projects/link-queries", () => ({ listProjectLinks: vi.fn(async () => []) }));
+vi.mock("@/modules/projects/link-actions", () => ({}));
+vi.mock("@/modules/projects/notes-actions", () => ({}));
 vi.mock("@/modules/projects/actions", () => ({
   renameProject: vi.fn(),
   changeProjectStatus: vi.fn(),
@@ -92,7 +96,7 @@ const AREAS = [HOME, WORK];
 // 10:00 in Lima on Oct 1, 2026: "today" for the due notices.
 const NOW = new Date("2026-10-01T15:00:00.000Z");
 
-const PROJECT: ProjectSummary = {
+const PROJECT: ProjectDetail = {
   id: "00000000-0000-4000-8000-000000000001",
   name: "Mudanza",
   objective: "Todo en el depa nuevo antes de fin de mes.",
@@ -102,6 +106,7 @@ const PROJECT: ProjectSummary = {
   dueDate: "2026-10-04",
   completedAt: null,
   area: HOME,
+  notes: null,
 };
 
 /**
@@ -111,7 +116,7 @@ const PROJECT: ProjectSummary = {
  */
 const server = {
   project: PROJECT,
-  render: (() => {}) as (project: ProjectSummary) => void,
+  render: (() => {}) as (project: ProjectDetail) => void,
   pending: [] as { answer: (result?: ActionResult<unknown>) => void }[],
   async answer(result?: ActionResult<unknown>) {
     const call = server.pending.shift();
@@ -124,8 +129,8 @@ const server = {
 };
 
 function serverCall(
-  apply: (project: ProjectSummary) => ProjectSummary,
-): Promise<ActionResult<ProjectSummary>> {
+  apply: (project: ProjectDetail) => ProjectDetail,
+): Promise<ActionResult<ProjectDetail>> {
   return new Promise((resolve) => {
     server.pending.push({
       answer: (result) => {
@@ -133,13 +138,13 @@ function serverCall(
           server.project = apply(server.project);
           server.render(server.project);
         }
-        resolve((result ?? ok(server.project)) as ActionResult<ProjectSummary>);
+        resolve((result ?? ok(server.project)) as ActionResult<ProjectDetail>);
       },
     });
   });
 }
 
-function Detail({ initial, areas }: { initial: ProjectSummary; areas: ProjectAreaSummary[] }) {
+function Detail({ initial, areas }: { initial: ProjectDetail; areas: ProjectAreaSummary[] }) {
   const [project, setProject] = useState(initial);
   useLayoutEffect(() => {
     server.render = setProject;
@@ -154,7 +159,7 @@ function Detail({ initial, areas }: { initial: ProjectSummary; areas: ProjectAre
   );
 }
 
-function renderDetail(values: Partial<ProjectSummary> = {}, areas = AREAS) {
+function renderDetail(values: Partial<ProjectDetail> = {}, areas = AREAS) {
   server.project = { ...PROJECT, ...values };
   render(<Detail initial={server.project} areas={areas} />);
   return userEvent.setup();
@@ -180,7 +185,7 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation((input) =>
       serverCall((p) => {
-        const status = (input as Input).status as ProjectSummary["status"];
+        const status = (input as Input).status as ProjectDetail["status"];
         return { ...p, status, completedAt: completedAtAfter(status, p.completedAt, NOW) };
       }),
     );
@@ -189,7 +194,7 @@ beforeEach(() => {
     .mockImplementation((input) =>
       serverCall((p) => ({
         ...p,
-        priority: (input as Input).priority as ProjectSummary["priority"],
+        priority: (input as Input).priority as ProjectDetail["priority"],
       })),
     );
   vi.mocked(changeProjectArea)
@@ -252,6 +257,8 @@ describe("page", () => {
       "Objetivo y fechas",
       "Hitos",
       "Bloqueado por",
+      "Enlaces",
+      "Notas",
     ]);
     expect(screen.getByText("Hogar")).toBeInTheDocument();
     expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked();

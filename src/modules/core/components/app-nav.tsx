@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { itemForShortcut, navItems } from "@/lib/modules";
+import { requestNavigation } from "@/lib/navigation-guard";
 import { navShortcutFor } from "@/lib/shortcuts";
 import { sidebarCookie } from "../nav-preferences";
 import { BottomNav } from "./bottom-nav";
@@ -57,7 +58,10 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
       const item = itemForShortcut(ITEMS, shortcut.digit);
       if (!item) return;
       event.preventDefault();
-      if (window.location.pathname !== item.href) router.push(item.href);
+      // Through the guard: a screen with unsaved changes asks first (src/lib/navigation-guard.ts).
+      if (window.location.pathname !== item.href) {
+        requestNavigation(item.href, () => router.push(item.href));
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
