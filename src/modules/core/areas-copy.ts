@@ -26,6 +26,50 @@ export const AREAS_COPY = {
   created: (name: string) => `Área «${name}» creada.`,
   updated: (name: string) => `Cambios guardados en «${name}».`,
   unexpected: "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
+
+  // Order (C6)
+  moveUp: (name: string) => `Subir ${name}`,
+  moveDown: (name: string) => `Bajar ${name}`,
+  drag: (name: string) => `Mover ${name}`,
+  dragRole: "elemento ordenable",
+  dragInstructions:
+    "Para mover un área, pulsa Espacio o Enter, muévela con las flechas arriba y abajo y vuelve a pulsar Espacio o Enter para dejarla. Escape cancela. En pantallas táctiles, mantén presionado y arrastra. También puedes usar los botones Subir y Bajar.",
+  position: (index: number, total: number) => `lugar ${index + 1} de ${total}`,
+  dragStart: (name: string, place: string) => `Tomaste «${name}», en el ${place}.`,
+  dragOver: (name: string, place: string) => `«${name}» está en el ${place}.`,
+  dragSame: (name: string, place: string) => `«${name}» quedó en el mismo ${place}.`,
+  dragCancel: (name: string, place: string) => `Cancelado. «${name}» volvió al ${place}.`,
+
+  // Archive (C6)
+  archive: "Archivar área",
+  archiveHelp:
+    "Deja de ofrecerse para elementos nuevos; lo que ya la usa la conserva. Puedes desarchivarla cuando quieras.",
+  archivedTitle: "Archivadas",
+  archivedList: "Áreas archivadas",
+  archivedHelp:
+    "No se ofrecen para elementos nuevos. Para editar una, desarchívala: vuelve al final de tus áreas.",
+  unarchive: "Desarchivar",
+  unarchiveRow: (name: string) => `Desarchivar ${name}`,
+
+  // Notices (C6)
+  noticesLabel: "Avisos",
+  undoHint: "Para deshacer, pulsa Ctrl+Z o ⌘Z, o usa el botón Deshacer del aviso.",
+  undo: "Deshacer",
+  orderTitle: "Orden",
+  moved: (name: string, place: string) => `«${name}» pasó al ${place}.`,
+  archivedNoticeTitle: "Archivada",
+  archivedNotice: (name: string) => `«${name}» se archivó.`,
+  restoredTitle: "De vuelta",
+  restored: (name: string) => `«${name}» volvió al final de tus áreas.`,
+  undoneTitle: "Deshecho",
+  orderRestored: "Volvió el orden anterior.",
+  backInPlace: (name: string) => `«${name}» volvió a su lugar.`,
+  archivedAgain: (name: string) => `«${name}» volvió a Archivadas.`,
+  notSavedTitle: "Sin guardar",
+  orderFailed: "No se pudo guardar el orden. Inténtalo de nuevo.",
+  archiveFailed: (name: string) => `No se pudo archivar «${name}». Inténtalo de nuevo.`,
+  unarchiveFailed: (name: string) => `No se pudo desarchivar «${name}». Inténtalo de nuevo.`,
+  undoFailed: "No se pudo deshacer. Inténtalo de nuevo.",
 } as const;
 
 /** Palette names by color (the palettes are named after the default areas in the code). */

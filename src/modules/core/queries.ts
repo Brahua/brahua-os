@@ -2,7 +2,7 @@
 import "server-only";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { selectLifeAreas, type LifeAreaSummary } from "./life-areas";
+import { selectArchivedLifeAreas, selectLifeAreas, type LifeAreaSummary } from "./life-areas";
 
 /** Life areas in their order. Archived ones are left out unless asked for. */
 export async function listLifeAreas(
@@ -10,4 +10,10 @@ export async function listLifeAreas(
 ): Promise<LifeAreaSummary[]> {
   await requireOwner();
   return selectLifeAreas(getDb(), options);
+}
+
+/** Archived life areas, most recently archived first. */
+export async function listArchivedLifeAreas(): Promise<LifeAreaSummary[]> {
+  await requireOwner();
+  return selectArchivedLifeAreas(getDb());
 }

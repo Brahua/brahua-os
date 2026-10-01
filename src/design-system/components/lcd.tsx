@@ -60,6 +60,13 @@ type ToastProps = Omit<React.ComponentProps<"div">, "children" | "title"> & {
   actionLabel?: string;
   /** Omit to hide the action button. */
   onAction?: () => void;
+  /** Extra attributes for the action button (e.g. `aria-keyshortcuts`). */
+  actionProps?: Omit<React.ComponentProps<"button">, "onClick" | "children" | "type">;
+  /**
+   * Be its own live region (default). Turn it off when a toaster renders it inside a region
+   * that is always there: a region that appears with its content is often not announced.
+   */
+  live?: boolean;
 };
 
 /** Floating LCD-style notice with an Undo action (design system `Toast`). */
@@ -68,18 +75,30 @@ export function Toast({
   text,
   actionLabel = "Deshacer",
   onAction,
+  actionProps,
+  live = true,
   className,
   ...props
 }: ToastProps) {
   return (
-    <div role="status" aria-live="polite" className={cn("bo-toast", className)} {...props}>
+    <div
+      role={live ? "status" : undefined}
+      aria-live={live ? "polite" : undefined}
+      className={cn("bo-toast", className)}
+      {...props}
+    >
       <Led signal on />
       <div className="bo-toast__body">
         <span className="bo-lcd__tag">{title}</span>
         <span className="bo-toast__text">{text}</span>
       </div>
       {onAction ? (
-        <button type="button" className="bo-toast__action" onClick={onAction}>
+        <button
+          type="button"
+          {...actionProps}
+          className={cn("bo-toast__action", actionProps?.className)}
+          onClick={onAction}
+        >
           {actionLabel}
         </button>
       ) : null}

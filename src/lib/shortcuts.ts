@@ -85,3 +85,32 @@ export function navShortcutFor(event: ShortcutEvent): NavShortcut | null {
   if (/^[1-8]$/.test(event.key)) return { type: "go", digit: Number(event.key) };
   return null;
 }
+
+/**
+ * ⌘Z (Mac) or Ctrl+Z: run the "Deshacer" of the notice on screen. Not while typing or inside a
+ * widget or dialog (the field's own undo wins there), nor with Shift (redo) or ⌥. A modifier
+ * shortcut, so the single-key switch (WCAG 2.1.4) does not apply.
+ */
+export function isUndoShortcut(event: ShortcutEvent): boolean {
+  if (event.defaultPrevented || event.repeat || event.isComposing) return false;
+  if (event.metaKey === event.ctrlKey || event.shiftKey || event.altKey) return false;
+  if (event.key.toLowerCase() !== "z") return false;
+  return !isShortcutFreeTarget(event.target);
+}
+
+/** Esc (no modifiers) outside text fields, widgets and dialogs: dismiss the notice on screen. */
+export function isDismissShortcut(event: ShortcutEvent): boolean {
+  if (event.defaultPrevented || event.repeat || event.isComposing) return false;
+  if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return false;
+  return !isShortcutFreeTarget(event.target);
+}
+
+/**
+ * Set on <html> while an element is being dragged (e.g. a keyboard drag in a sortable list):
+ * then Esc, the arrows and ⌘Z belong to the drag.
+ */
+export const DRAGGING_ATTRIBUTE = "data-dragging";
+
+export function isDragActive(): boolean {
+  return document.documentElement.hasAttribute(DRAGGING_ATTRIBUTE);
+}

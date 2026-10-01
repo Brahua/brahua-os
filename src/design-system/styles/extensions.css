@@ -40,9 +40,10 @@
   --shell-bottom-offset: var(--shell-bottom-min);
 }
 /* WCAG 2.4.11: focused elements scrolled into view never end up under the bottom bar. */
-html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: var(--shell-bottom-offset); }
+/* --toast-offset: the height of a visible notice plus its gap, set by core's ToastViewport (0 without one). */
+html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-offset) + var(--toast-offset, 0px)); }
 @media (min-width: 1024px) {
-  html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: 0; }
+  html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: var(--toast-offset, 0px); }
 }
 /* min-height, not height: with larger text the bar grows instead of clipping its labels. */
 .bo-bottomnav--fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: auto; min-height: var(--shell-bottom-min);
@@ -68,3 +69,31 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: var(--shell-bottom-offse
 .bo-sidebar__capture { flex: 1; justify-content: flex-start; }
 .bo-sidebar__capture-label { flex: 1; text-align: left; }
 .bo-sidebar.is-collapsed .bo-sidebar__capture { flex: none; width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+
+/*
+ * Toast queue (core, components/toast-viewport.tsx): one notice at a time, above the bottom bar on the
+ * phone and at the bottom right from 1024 px. The empty viewport lets clicks through. The text
+ * wraps instead of being cut: area names are long. Enters with a short rise that becomes a
+ * plain fade under reduced motion (--motion-travel is 0 there).
+ */
+.bo-toast-viewport { position: fixed; z-index: 40; display: flex; justify-content: center; pointer-events: none;
+  left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); bottom: calc(var(--shell-bottom-offset) + 12px); }
+@media (min-width: 1024px) {
+  .bo-toast-viewport { justify-content: flex-end; left: auto; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); width: min(420px, calc(100vw - 48px)); }
+}
+.bo-toast-viewport > [role="status"] { display: flex; justify-content: inherit; width: 100%; }
+.bo-toast-viewport .bo-toast { width: 100%; pointer-events: auto; animation: bo-toast-in var(--duration-state) var(--ease-out); }
+.bo-toast-viewport .bo-toast__text { white-space: normal; overflow-wrap: anywhere; }
+@keyframes bo-toast-in { from { opacity: 0; transform: translateY(calc(var(--motion-travel) * 3)); } }
+
+/*
+ * Areas (core): the drag handle of a reorderable row. Borderless. Touch drags it after a short
+ * press (dnd-kit's TouchSensor delay); a swipe still scrolls the page (touch-action:
+ * manipulation, not none). While lifted, dnd-kit sets aria-pressed: the key's "on" look.
+ */
+.bo-drag-handle { box-shadow: none; color: var(--color-text-secondary); cursor: grab; touch-action: manipulation; }
+/* Inside .bo-list (overflow: hidden) an outer ring would be clipped. */
+.bo-drag-handle:focus-visible { outline-offset: -2px; }
+/* Narrow phones: no pencil, so the name keeps room next to the handle and the arrows. */
+@media (max-width: 359px) { .bo-area-row .bo-row__trail { display: none; } }
+.bo-drag-handle:active, .bo-drag-handle[aria-pressed="true"] { cursor: grabbing; }
