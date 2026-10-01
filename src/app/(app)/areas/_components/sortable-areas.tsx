@@ -96,11 +96,13 @@ export default function SortableAreas({ areas, reducedMotion, onMove, onEdit }: 
   function dropped({ active, over, activatorEvent }: DragEndEvent) {
     setDragging(false);
     const id = String(active.id);
-    // A keyboard drag leaves focus on the handle, wherever the row went (down too).
-    if (activatorEvent instanceof KeyboardEvent) requestFocus(id, "handle");
     if (!over || active.id === over.id) return;
     const to = ids.indexOf(String(over.id));
-    if (to !== -1) onMove(id, to);
+    if (to === -1) return;
+    // A keyboard drag leaves focus on the handle, wherever the row went (down too). Only for a
+    // real move: dropped in place, nothing re-renders the row and focus is already there.
+    if (activatorEvent instanceof KeyboardEvent) requestFocus(id, "handle");
+    onMove(id, to);
   }
 
   return (

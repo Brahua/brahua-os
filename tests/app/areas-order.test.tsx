@@ -194,6 +194,31 @@ describe("row controls", () => {
   });
 });
 
+describe("keyboard drag", () => {
+  test("a drop in place moves nothing and never steals focus on a later re-render", async () => {
+    const user = userEvent.setup();
+    await renderAreas();
+    // jsdom lays everything out at 0×0, so the first row is the only one it drops in place.
+    const handle = screen.getByRole("button", { name: "Mover Hogar" });
+
+    // Lift with Space, drop with Space without moving.
+    handle.focus();
+    await user.keyboard(" ");
+    await waitFor(() => expect(handle).toHaveAttribute("aria-pressed", "true"));
+    await user.keyboard(" ");
+    await waitFor(() => expect(document.documentElement).not.toHaveAttribute("data-dragging"));
+    expect(reorderLifeAreas).not.toHaveBeenCalled();
+
+    // Elsewhere, then something unrelated re-renders the screen.
+    const newArea = screen.getByRole("button", { name: "Nueva área" });
+    newArea.focus();
+    await act(async () => server.render({ ...server.data, areas: [...server.data.areas] }));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
+    await act(async () => server.render({ ...server.data, areas: [...server.data.areas] }));
+    expect(newArea).toHaveFocus();
+  });
+});
+
 describe("reorder with the buttons", () => {
   test("the row moves at once, keeps focus, saves the whole order and offers Deshacer", async () => {
     const user = userEvent.setup();

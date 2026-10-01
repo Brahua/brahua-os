@@ -29,21 +29,27 @@ const focusSelector = (id: string, target: FocusTarget) =>
     ? `[data-area-handle="${CSS.escape(id)}"]`
     : `[data-area-move="${target}"][data-area-id="${CSS.escape(id)}"]`;
 
+/** A focus request older than this is dropped: it belongs to a move that never rendered. */
+const FOCUS_REQUEST_TTL_MS = 100;
+
 /**
  * Keeps focus on the control that moved a row: React may re-insert the row's node when the
- * order changes, which drops focus. `request` before the move; the next commit restores it.
+ * order changes, which drops focus. `request` right before the move; the commit it causes
+ * restores it. A request no commit picks up soon is dropped, so a later unrelated re-render
+ * never steals focus.
  */
 export function useRowFocus() {
-  const pending = useRef<{ id: string; target: FocusTarget } | null>(null);
+  const pending = useRef<{ id: string; target: FocusTarget; at: number } | null>(null);
   useEffect(() => {
     const request = pending.current;
     if (!request) return;
     pending.current = null;
+    if (performance.now() - request.at > FOCUS_REQUEST_TTL_MS) return;
     const element = document.querySelector<HTMLElement>(focusSelector(request.id, request.target));
     if (element && document.activeElement !== element) element.focus();
   });
   return (id: string, target: FocusTarget) => {
-    pending.current = { id, target };
+    pending.current = { id, target, at: performance.now() };
   };
 }
 

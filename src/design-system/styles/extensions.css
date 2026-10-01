@@ -71,7 +71,7 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
 .bo-sidebar.is-collapsed .bo-sidebar__capture { flex: none; width: 44px; min-height: 44px; padding: 0; justify-content: center; }
 
 /*
- * Toast queue (core, components/toaster.tsx): one notice at a time, above the bottom bar on the
+ * Toast queue (core, components/toast-viewport.tsx): one notice at a time, above the bottom bar on the
  * phone and at the bottom right from 1024 px. The empty viewport lets clicks through. The text
  * wraps instead of being cut: area names are long. Enters with a short rise that becomes a
  * plain fade under reduced motion (--motion-travel is 0 there).
