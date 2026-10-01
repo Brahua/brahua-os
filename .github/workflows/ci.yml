@@ -12,7 +12,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # The event is part of the group, so a dispatch can never cancel a queued push run on main
+  # (that would drop a deploy).
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   # Cancel superseded PR runs, but never cancel a run on main (it may be deploying).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -20,14 +22,32 @@ permissions:
   contents: read
 
 jobs:
+  # Dispatches exist for update-screenshots.yml on feature branches; on main they would only run
+  # checks next to the push runs. Refuse them.
+  guard:
+    name: Refuse dispatch on main
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Refuse main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "::error::ci.yml is not dispatched on main: pushes to main run it (and deploy)."
+          exit 1
+      - run: echo "Dispatch on ${{ github.ref_name }}"
+
   checks:
     name: Lint, types, unit tests, build
+    needs: guard
+    # Runs when the guard passed or was skipped (push, pull_request), never after it failed.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -41,6 +61,8 @@ jobs:
 
   e2e:
     name: E2E (Playwright + axe)
+    needs: guard
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Same Linux image locally (Docker), here and in update-screenshots.yml, so screenshots match
@@ -64,17 +86,31 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://postgres:postgres@postgres:5432/brahua_os_test
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The screenshot gate never turns itself off here (playwright.config.ts also throws).
+      - name: Screenshots are compared in this job
+        run: |
+          if [ "$PLAYWRIGHT_BROWSERS_PATH" != "/ms-playwright" ]; then
+            echo "::error::Not running in the Playwright image (PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-unset})"
+            exit 1
+          fi
+          if [ "${E2E_SCREENSHOTS:-}" = "0" ]; then
+            echo "::error::E2E_SCREENSHOTS=0 is not allowed in CI"
+            exit 1
+          fi
       - run: pnpm test:e2e
         env:
           HOME: /root
-      - uses: actions/upload-artifact@v7
+      # Full suite in the image: every committed reference must have been compared.
+      - name: No orphan screenshots
+        run: node scripts/check-screenshot-orphans.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: playwright-report
@@ -83,6 +119,8 @@ jobs:
 
   integration:
     name: Integration tests (Postgres)
+    needs: guard
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Throwaway database for this job only; never production.
@@ -103,9 +141,9 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/brahua_os_test
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -129,15 +167,17 @@ jobs:
   deploy:
     name: Deploy to production
     needs: [checks, e2e, integration]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ !failure() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
       url: ${{ steps.deploy.outputs.url }}
-    # One production deploy at a time, in merge order.
+    # One production deploy (and its smoke test) at a time, in merge order. queue: max keeps every
+    # pending job: by default a newly queued job cancels the pending one (a dropped deploy).
     concurrency:
       group: deploy-production
       cancel-in-progress: false
+      queue: max
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -153,9 +193,9 @@ jobs:
             fi
           done
           exit $missing
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -180,23 +220,31 @@ jobs:
   smoke:
     name: Production smoke test
     needs: deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ !failure() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Worst case: about 3 min waiting for the domain plus about 5 min of smoke rounds.
+    timeout-minutes: 15
+    # Same group as deploy: the next deploy waits until this deployment was checked.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+      queue: max
     env:
       PRODUCTION_HOST: os.brahua.com
       DEPLOYMENT_URL: ${{ needs.deploy.outputs.url }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
       # Read-only Vercel API call: which deployment the production domain points to. The checks
       # below only mean something once it is the one this run just published.
       - name: Wait until the domain serves this deployment
+        # The only step that needs the Vercel credentials.
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           expected="${DEPLOYMENT_URL#https://}"
           if [ -z "$expected" ]; then
@@ -204,14 +252,16 @@ jobs:
             exit 1
           fi
           for attempt in $(seq 1 12); do
-            current="$(npx --yes vercel@61.1.0 inspect "$PRODUCTION_HOST" --json --token="$VERCEL_TOKEN" 2>/dev/null | jq -r '.url // empty' || true)"
+            current="$(timeout 30 npx --yes vercel@61.1.0 inspect "$PRODUCTION_HOST" --json --token="$VERCEL_TOKEN" 2>inspect.err | jq -r '.url // empty' || true)"
             if [ "$current" = "$expected" ]; then
               echo "$PRODUCTION_HOST → $current"
               exit 0
             fi
             echo "Attempt $attempt: $PRODUCTION_HOST → ${current:-unknown}, waiting for $expected"
-            sleep 10
+            if [ "$attempt" -lt 12 ]; then sleep 10; fi
           done
+          echo "vercel inspect stderr (last attempt):"
+          cat inspect.err
           echo "::error::$PRODUCTION_HOST still does not point to $expected"
           exit 1
       # Plain GET requests: never signs in, never writes. A failure fails the run, and GitHub

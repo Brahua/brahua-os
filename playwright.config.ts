@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
-import { screenshotsEnabled } from "./e2e/support/screenshot-env";
+import { isGitHubActions, screenshotsEnabled } from "./e2e/support/screenshot-env";
 
 const PORT = 3417;
 const baseURL = `http://localhost:${PORT}`;
@@ -15,6 +15,13 @@ const appEnv = {
 };
 
 const desktopChrome = devices["Desktop Chrome"];
+
+// On GitHub Actions the screenshot gate must never turn itself off (wrong image, a stray env var).
+if (isGitHubActions() && !screenshotsEnabled()) {
+  throw new Error(
+    "Screenshot comparisons are off on GitHub Actions: E2E must run in the Playwright image (PLAYWRIGHT_BROWSERS_PATH=/ms-playwright).",
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e",

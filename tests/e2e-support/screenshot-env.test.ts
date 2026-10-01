@@ -14,3 +14,10 @@ test("E2E_SCREENSHOTS forces them on or off", () => {
   expect(screenshotsEnabled({ E2E_SCREENSHOTS: "1" }, "darwin")).toBe(true);
   expect(screenshotsEnabled({ ...IMAGE, E2E_SCREENSHOTS: "0" }, "linux")).toBe(false);
 });
+
+test("on GitHub Actions E2E_SCREENSHOTS=0 cannot turn the gate off", () => {
+  const ci = { ...IMAGE, GITHUB_ACTIONS: "true", E2E_SCREENSHOTS: "0" };
+  expect(screenshotsEnabled(ci, "linux")).toBe(true);
+  // Outside the image they still do not run; playwright.config.ts throws in that case.
+  expect(screenshotsEnabled({ GITHUB_ACTIONS: "true" }, "linux")).toBe(false);
+});

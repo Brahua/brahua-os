@@ -6,10 +6,12 @@
 #   SMOKE_BASE_URL=http://localhost:3000 bash scripts/smoke-production.sh
 #
 # Retries the whole round a few times (SMOKE_ATTEMPTS, SMOKE_DELAY seconds apart) to absorb
-# propagation; exits 1 if the last round still fails.
+# propagation; exits 1 if the last round still fails. Worst case with the defaults: 6 rounds of
+# 5 requests × 8 s plus 5 pauses of 10 s ≈ 5 min (ci.yml's smoke job allows 15).
 set -uo pipefail
 
 BASE_URL="${SMOKE_BASE_URL:-https://os.brahua.com}"
+BASE_URL="${BASE_URL%/}"
 ATTEMPTS="${SMOKE_ATTEMPTS:-6}"
 DELAY="${SMOKE_DELAY:-10}"
 WORK="$(mktemp -d)"
@@ -21,7 +23,9 @@ fail() { failures+=("$1"); }
 # GET $1 without following redirects. Sets STATUS, and leaves the headers (lowercase names, no CR)
 # and the body in $WORK.
 fetch() {
-  STATUS="$(curl -sS --max-time 15 --max-redirs 0 -H "cache-control: no-cache" \
+  # Nothing from the previous request may leak into this one's checks.
+  rm -f "$WORK/headers.raw" "$WORK/headers" "$WORK/body" "$WORK/error"
+  STATUS="$(curl -sS --max-time 8 --max-redirs 0 -H "cache-control: no-cache" \
     -D "$WORK/headers.raw" -o "$WORK/body" -w '%{http_code}' "$BASE_URL$1" 2>"$WORK/error")" ||
     STATUS="000 ($(tr -d '\n' <"$WORK/error"))"
   tr -d '\r' <"$WORK/headers.raw" 2>/dev/null |
@@ -42,6 +46,10 @@ security_headers() {
   expect_header "$1" x-frame-options '^DENY$'
   expect_header "$1" referrer-policy '^strict-origin-when-cross-origin$'
   expect_header "$1" x-content-type-options '^nosniff$'
+  # Vercel adds HSTS on https; a plain-http target (a local server) has none.
+  if [[ "$BASE_URL" == https://* ]]; then
+    expect_header "$1" strict-transport-security 'max-age=[1-9][0-9]*'
+  fi
 }
 
 expect_redirect_to_login() {
@@ -49,7 +57,9 @@ expect_redirect_to_login() {
   fetch "$path"
   [[ "$STATUS" == "307" ]] || fail "$path: status $STATUS, expected 307"
   location="$(header location)"
-  [[ "$location" =~ ^(https?://[^/]+)?/login$ ]] || fail "$path: redirects to '${location:-nowhere}', expected /login"
+  # Only this site's /login (relative or absolute), never another host.
+  [[ "$location" == "/login" || "$location" == "$BASE_URL/login" ]] ||
+    fail "$path: redirects to '${location:-nowhere}', expected /login on $BASE_URL"
   security_headers "$path"
 }
 
