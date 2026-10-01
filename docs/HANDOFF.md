@@ -32,6 +32,7 @@
   - 🟡 C6 (áreas: reordenar y archivar): PR `feat/core-c6-areas-order`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan el orden y el archivo (C6)".
   - 🟡 C7 (PWA): PR `feat/core-c7-pwa`, **sin merge** (pendiente de revisión). Falta instalarla en el iPhone. Ver "Cómo funciona la PWA (C7)".
   - 🟡 C8 (páginas de error): PR `feat/core-c8-error-pages`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan las páginas de error (C8)".
+  - 🟡 C10 (operación): PR `feat/core-c10-operations`, **sin merge** (pendiente de revisión): `pnpm db:export`, respaldo semanal con `pg_dump` (`backup.yml`) y ADRs 001–007. **Acción del owner pendiente:** crear el rol de solo lectura y el secreto `BACKUP_DATABASE_URL` (ver "Respaldos (C10)"); hasta entonces el respaldo semanal falla con un error que apunta ahí.
   - Siguiente: Checkpoint 2 (recorrido completo con el owner), que incluye instalar la PWA en el iPhone (C7).
 
 ## C2a: pasos del usuario (en orden)
@@ -233,6 +234,92 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   4. La app instalada guarda sus cookies **aparte** de Safari (según la versión de iOS, copia las de Safari al instalarla o empieza vacía): puede que haya que entrar una vez. Probar ahí la passkey (Face ID), que es la verificación pendiente de C2b.
   5. Si se cambia el ícono más adelante, iOS no lo actualiza solo: hay que borrar la app de la pantalla de inicio y volver a añadirla.
 - **Android (si hay uno a mano):** Chrome → menú ⋮ → "Instalar app" (o el aviso de instalación). Usa el ícono *maskable* con la forma del launcher.
+
+## Respaldos (C10)
+
+### Acción del owner (una sola vez, en una terminal normal)
+
+Los secretos nunca pasan por la sesión del agente: todo esto se hace en tu terminal, en la raíz del repo. Necesitas `psql` versión 10 o mayor (`psql --version`; ya lo tienes) y, para restaurar, Docker.
+
+1. **Ten a mano la conexión directa del dueño de la base.** Es el valor de `DATABASE_URL_UNPOOLED`: Vercel → brahua-os → Storage → brahua-os-db, o el panel de Neon → Connect con "Connection pooling" **apagado**. El host **no** debe tener `-pooler`. Como las variables son *Sensitive*, `vercel env pull` no sirve.
+2. **Genera la contraseña del rol nuevo** y guárdala en tu gestor de contraseñas. Solo trae letras, números, `-` y `_` (no hay que escaparla en la URL) y tiene ~280 bits de entropía (Neon exige al menos 60):
+
+   ```bash
+   openssl rand -base64 36 | tr '+/' '-_' | tr -d '='
+   ```
+
+3. **Crea el rol de solo lectura `backup_ro`** con el script del repo, el mismo que prueba el CI. Primero pega la conexión del paso 1 (no se muestra); después `psql` pide la contraseña del paso 2 (esa sí se ve mientras la pegas):
+
+   ```bash
+   printf 'Conexión del dueño: ' && read -rs OWNER_DB_URL && echo && psql "$OWNER_DB_URL" -X -f scripts/backup/readonly-role.sql; unset OWNER_DB_URL
+   ```
+
+   - Tiene que terminar en `COMMIT`. Si dice "Run this as the table owner", la URL no es la del dueño de las tablas (la que usan las migraciones). Si dice que `backup_ro` ya existe, el rol ya estaba creado: sigue al paso 4 (o bórralo con `DROP OWNED BY backup_ro; DROP ROLE backup_ro;` y repite).
+   - Qué hace: `CREATE ROLE backup_ro LOGIN`, `GRANT CONNECT` sobre la base, `USAGE` y `SELECT` sobre todas las tablas y secuencias de `public` (la app) **y de `drizzle`** (el historial de migraciones, que `pg_dump` también copia: sin ese permiso el respaldo falla), y `ALTER DEFAULT PRIVILEGES` para que las tablas que creen las migraciones futuras también sean legibles. Nada de escritura ni DDL.
+   - **No lo crees desde la pantalla Roles de Neon:** en Neon, un rol creado desde la consola, la CLI o la API entra en `neon_superuser` (puede escribir y crear bases y roles). Uno creado con SQL solo tiene lo que se le da.
+   - Alternativa sin `psql`: el SQL Editor de Neon, conectado como el dueño de las tablas (normalmente `neondb_owner`). Copia las sentencias de `scripts/backup/readonly-role.sql` desde `BEGIN;` hasta `COMMIT;` y reemplaza `:'backup_ro_password'` por la contraseña entre comillas simples.
+4. **Arma la URL del respaldo:** la del paso 1 cambiando usuario y contraseña, con el mismo host directo (sin `-pooler`):
+
+   ```
+   postgresql://backup_ro:<CONTRASEÑA>@ep-xxxx.<región>.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+   ```
+
+   Pruébala: tiene que mostrar el número de áreas y luego fallar al intentar escribir, con `permission denied for schema public`:
+
+   ```bash
+   printf 'URL del respaldo: ' && read -rs BACKUP_URL && echo && psql "$BACKUP_URL" -X -Atc "select count(*) from core_life_areas" && psql "$BACKUP_URL" -X -c "create table backup_ro_check (x int)"; unset BACKUP_URL
+   ```
+
+5. **Guarda el secreto en GitHub** desde tu terminal, **no** desde el `!` de la sesión de Claude (así se guarda vacío). `gh` lo pide sin mostrarlo; nunca lo pongas en la línea de comandos:
+
+   ```bash
+   gh auth switch -u Brahua
+   gh secret set BACKUP_DATABASE_URL -R Brahua/brahua-os
+   ```
+
+6. **Corre el respaldo una vez**, cuando el PR de C10 ya esté en `main` (GitHub solo encuentra el workflow ahí), y revisa el artefacto:
+
+   ```bash
+   gh workflow run backup.yml -R Brahua/brahua-os
+   gh run list -R Brahua/brahua-os -w backup.yml -L 1        # anota el ID del run
+   gh run watch -R Brahua/brahua-os <ID>
+   gh run download -R Brahua/brahua-os -D /tmp/brahua-backup <ID>
+   ls -l /tmp/brahua-backup/*/
+   ```
+
+   Debe haber un `brahua-os-<fecha>.dump` y su `.sha256`. En la página del run (Actions → Database backup), el paso "Verify the dump" lista las tablas con datos. Si el run falla en "Check the target", el mensaje dice qué falta.
+
+### Cómo funciona
+
+- **`pnpm db:export` (JSON, en cualquier momento):** `DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:export` escribe `exports/brahua-os-<fecha UTC>.json` (en `.gitignore` y `.vercelignore`; archivo `0600` en una carpeta `0700`; nunca sobrescribe). Solo lee, en una transacción `repeatable read` de solo lectura. Mismas reglas que `auth:owner`: solo `DATABASE_URL_UNPOOLED`, URL validada, host remoto solo con `ALLOW_PROD_DB=1` (`VERCEL=1` no cuenta), y muestra el destino sin credenciales.
+  - Contenido: `format`, `schemaVersion` (versión del formato del JSON, hoy 1), `exportedAt`, `note`, `excludedTables` y `tables.<tabla>` con `rowCount` y `rows` (nombres de columna de SQL). Hoy: `core_life_areas` completa, archivadas incluidas.
+  - **Nunca exporta las tablas de autenticación** (`auth_users`, `auth_sessions`, `auth_accounts` con los hashes, `auth_passkeys`, `auth_rate_limits`, `auth_verifications`); el archivo lo dice en `note` y `excludedTables`.
+  - **Registro extensible:** cada módulo declara sus tablas en `src/modules/<id>/export.ts` y se agregan a `EXPORTABLE_TABLES` (`src/lib/data-export.ts`). Las pruebas fallan si una tabla de la base no está ni exportada ni en `EXCLUDED_TABLES`: un módulo nuevo tiene que decidir.
+  - Pruebas: `tests/lib/data-export.test.ts` (registro, nombre del archivo, destino) y `tests/integration/data-export.test.ts` (archivadas incluidas, nada de auth aunque haya datos, cada tabla decidida, transacción de solo lectura, archivo privado que no se sobrescribe).
+- **`.github/workflows/backup.yml` (semanal):** domingos a las 08:00 UTC (03:00 en Lima), y a mano con `gh workflow run backup.yml`.
+  - Lee `BACKUP_DATABASE_URL` (rol `backup_ro`). Si falta, falla con un `::error::` que apunta a esta sección; también si la URL no es `postgresql://` o tiene `-pooler`. Nunca la imprime.
+  - Lee la versión del servidor (`show server_version_num`) y corre el `pg_dump` de la imagen oficial `postgres:<mayor>` (cliente de la misma versión mayor que Neon), con `--format=custom --no-owner --no-privileges`. La URL entra al contenedor por variable de entorno, no por la línea de comandos.
+  - Verifica el dump con `pg_restore --list` (tiene que traer datos de `public.core_life_areas` y `drizzle.__drizzle_migrations`), calcula el `sha256` y sube ambos como artefacto privado `db-backup-production-<fecha>` por **90 días**, visible solo para quien tiene acceso al repo.
+  - El dump es **completo**: incluye las tablas `auth_*` (hash de la contraseña, sesiones vigentes). Por eso es privado y caduca; quien lo baje podría restaurar sesiones válidas.
+  - `permissions` mínimos (`contents: read`), acciones fijadas por SHA, `timeout-minutes: 20`, concurrencia por destino sin cancelar.
+  - **Prueba sin producción:** `gh workflow run backup.yml --ref <rama> -f target=ci-service` levanta un Postgres de servicio, le aplica migraciones y seed, crea `backup_ro` con el mismo `scripts/backup/readonly-role.sql` y respalda como ese rol (artefacto de 1 día). Se niega en `main` y en tags; los runs programados siempre son producción. El PR de C10 lo probó con un trigger `push` temporal, ya quitado: el run [36826811578](https://github.com/Brahua/brahua-os/actions/runs/36826811578) generó el artefacto, que se bajó, pasó el `sha256` y se restauró completo en una base vacía; otro run sin el secreto falló con el `::error::` esperado.
+
+### Restaurar (nunca directo sobre producción)
+
+1. Bajar el respaldo: Actions → Database backup → el run → Artifacts, o `gh run download <ID> -R Brahua/brahua-os -D /tmp/brahua-restore`. Comprobarlo: `cd /tmp/brahua-restore/db-backup-*/ && shasum -a 256 -c *.sha256`.
+2. **Restaurar primero en una rama de Neon:** panel de Neon → Branches → New branch (desde `main`). En esa rama, Databases → New database `restore_check` (vacía). Copiar la conexión **directa** de esa base en la rama (sin `-pooler`), con el rol dueño.
+3. Restaurar con un `pg_restore` de la **misma versión mayor** que el dump (el de `brew` es más viejo, así que se usa la imagen oficial), desde la carpeta del dump:
+
+   ```bash
+   printf 'Conexión de restore_check: ' && read -rs RESTORE_URL && echo && export RESTORE_URL && \
+     docker run --rm -e RESTORE_URL -v "$PWD:/b:ro" postgres:17 \
+       sh -c 'pg_restore --no-owner --no-privileges --exit-on-error --dbname="$RESTORE_URL" /b/brahua-os-<fecha>.dump'; unset RESTORE_URL
+   ```
+
+   Cambiar `17` por la versión que muestra el paso "Detect the server's Postgres major version" del run.
+4. Revisar los datos en la rama (SQL Editor de Neon).
+5. **Volver atrás en producción** es decisión del owner, con un respaldo nuevo antes. Para un error reciente conviene más el *restore* de Neon (Branches → `main` → Restore, a un momento dentro de la ventana de historial del plan) que reescribir producción con el dump. La ventana de historial del plan actual **está por confirmar** (SPEC-core, "Operación"): verla en el panel de Neon, en la configuración del proyecto.
+6. Borrar la rama de prueba al terminar.
 
 ## Smoke test en producción
 
