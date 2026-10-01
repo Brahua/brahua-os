@@ -126,6 +126,8 @@
 - [ ] **C7: PWA y cabeceras de seguridad**
   - **Qué:** `app/manifest.ts` con íconos de 192, 512 y *maskable* derivados de la marca en Archivo 800, `theme_color` y modo standalone. Cabeceras `frame-ancestors 'none'` y `Referrer-Policy`.
     - [x] Cabeceras de seguridad: adelantadas en C2a (`next.config.ts`: `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`), con su E2E en `e2e/login.spec.ts`. Queda el manifest.
+    - [x] PWA (PR `feat/core-c7-pwa`, sin merge): `src/app/manifest.ts`, íconos generados con `pnpm icons:build` (`scripts/build-icons.tsx`), favicon y `apple-icon`, `appleWebApp`, `theme-color` por tema, E2E `e2e/pwa.spec.ts` y el manifest en el smoke test. Ver "Cómo funciona la PWA (C7)" en `docs/HANDOFF.md`.
+    - [ ] Verificación manual: instalar en el iPhone (y en Android si hay uno a mano) y entrar con passkey dentro de la app instalada.
   - **Aceptación:** una E2E valida el manifest y las cabeceras; la app se instala en tu celular en modo standalone.
   - **Tamaño:** S
 

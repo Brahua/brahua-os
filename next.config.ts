@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  async redirects() {
+    // Browsers and crawlers still ask for /favicon.ico without reading <link rel="icon">.
+    // Temporary (307), so a future icon change is never stuck in a cache.
+    return [{ source: "/favicon.ico", destination: "/icon.png", permanent: false }];
+  },
 };
 
 export default nextConfig;
