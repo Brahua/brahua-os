@@ -6,7 +6,7 @@
 
 ## Fase 1 — Base
 
-- [ ] **P1: Datos, lista y crear**
+- [x] **P1: Datos, lista y crear**
   - **Qué:**
     - Esquema `src/modules/projects/db/schema.ts` con `projects`, `project_milestones`, `project_links` y `project_dependencies`, sus `CHECK`, índices y una migración aditiva.
     - `projectsModule` disponible (Proyectos, `/projects`, atajo 2, `navOrder` 20).
@@ -15,7 +15,7 @@
     - Tablas registradas en `pnpm db:export`.
   - **Aceptación:** crear en el celular en < 10 s; la lista agrupa, ordena y filtra; acciones rechazadas sin sesión; `CHECK` probados; axe en 0 en ambos temas.
   - **Tamaño:** M
-  - **Estado:** implementado en el PR #33 (abierto, sin merge). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects". El vencimiento ("Vence hoy / en N días / vencido hace N días") ya está en `progress.ts` y en las tarjetas; P2 lo reutiliza en el detalle.
+  - **Estado:** integrado (PR #33). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects". El vencimiento ("Vence hoy / en N días / vencido hace N días") ya está en `progress.ts` y en las tarjetas; P2 lo reutiliza en el detalle.
 
 ### Checkpoint P1
 - [ ] El owner crea proyectos desde el celular y ve la lista agrupada.
@@ -27,6 +27,7 @@
   - **Qué:** `/projects/[id]` (P1 dejó una versión mínima con su 404) con nombre, área, estado, prioridad, objetivo y fechas editables en el lugar (UI optimista); `completed_at` al pasar a Terminado; vencimiento visible ("Vence hoy / en N días / vencido hace N días", Lima) en `progress.ts`; Eliminar (borrado lógico) con "Deshacer". El detalle queda armado por secciones para P3–P5.
   - **Aceptación:** criterios 1, 5 y 7 (eliminar) de la spec; pruebas de vencimiento alrededor de la medianoche de Lima.
   - **Tamaño:** M
+  - **Estado:** implementado en `feat/projects-p2-detail` (PR abierto, sin merge). Cómo funciona, decisiones y los puntos de inserción de P3–P5: `docs/HANDOFF.md`, "Cómo funciona projects" → "Detalle y edición (P2)".
 
 - [ ] **P3: Hitos y avance** *(paralelo a P4 y P5)*
   - **Qué:** agregar en línea, editar título y fecha, marcar, eliminar con "Deshacer"; reordenar arrastrando (`@dnd-kit`, patrón de C6) y con Subir/Bajar, en transacción con lock por proyecto; avance hechos/total en la tarjeta y el detalle (sin hitos o en Mantenimiento, sin avance).

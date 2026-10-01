@@ -20,6 +20,18 @@ export const PROJECT_PRIORITY_LABELS: Record<ProjectPriority, string> = {
   high: "Alta",
 };
 
+/** What each in-place edit saves, as it reads in "No se pudo guardar …". */
+export const PROJECT_FIELD_NAMES = {
+  name: "el nombre",
+  status: "el estado",
+  priority: "la prioridad",
+  area: "el área",
+  objective: "el objetivo",
+  dates: "las fechas",
+} as const;
+
+export type ProjectField = keyof typeof PROJECT_FIELD_NAMES;
+
 export const PROJECTS_COPY = {
   title: "Proyectos",
   newProject: "Nuevo proyecto",
@@ -74,13 +86,62 @@ export const PROJECTS_COPY = {
   created: (name: string) => `Proyecto «${name}» creado.`,
   unexpected: "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
 
-  // Detail (P1: minimal; P2 builds the real one)
+  // Detail
   backToList: "Volver a Proyectos",
-  statusMeta: "Estado",
-  areaMeta: "Área",
-  priorityMeta: "Prioridad",
-  detailComingSoon:
-    "Pronto podrás editar el proyecto, sus fechas, hitos, enlaces y notas desde aquí.",
+  completedOn: (day: string) => `Terminado el ${day}`,
+  editName: "Editar nombre",
+  save: "Guardar",
+  saving: "Guardando…",
+  // Estado y clasificación
+  stateSection: "Estado y prioridad",
+  statusHelp:
+    "Con las flechas recorres los estados y se guarda al detenerte; con un toque, al momento.",
+  priorityLabel: "Prioridad",
+  areaArchived:
+    "Su área actual está archivada: la conserva hasta que elijas otra. Solo áreas activas.",
+  areaArchivedShort: "(archivada)",
+  changeArea: "Cambiar área",
+  /** The pencil's name (and tooltip) says which area it changes. */
+  changeAreaOf: (area: string) => `Cambiar área (${area})`,
+  areaPickerHint: "Solo áreas activas.",
+  noAreasToMove: "No tienes otras áreas activas. Crea o desarchiva una en Áreas para moverlo.",
+  // Objetivo y fechas
+  planSection: "Objetivo y fechas",
+  objectiveLabel: "Objetivo",
+  objectiveHelp: "Cómo sabrás que terminó. Hasta 280 caracteres; vacío lo quita.",
+  objectiveEmpty: "Sin objetivo.",
+  editObjective: "Editar objetivo",
+  datesLabel: "Fechas",
+  startLabel: "Inicio",
+  dueLabel: "Fin",
+  dateHelp: "Opcional.",
+  datesEmpty: "Sin fechas.",
+  dueHiddenInMaintenance: "En Mantenimiento no hay fecha de fin.",
+  /** Maintenance hides the end date, but a saved one still bounds the start. */
+  startAfterHiddenDue: (due: string) =>
+    `El inicio no puede ser posterior a la fecha de fin guardada (${due}).`,
+  editDates: "Editar fechas",
+  // Avisos
+  noticesLabel: "Avisos",
+  undoHint: "Para deshacer, pulsa Ctrl+Z o ⌘Z, o usa el botón Deshacer del aviso.",
+  undo: "Deshacer",
+  notSavedTitle: "Sin guardar",
+  /** First part of every rollback notice; the reason follows. */
+  notSaved: (what: string) => `No se pudo guardar ${what}; volvió a como estaba.`,
+  checkConnection: "Revisa tu conexión e inténtalo de nuevo.",
+  saved: (what: string) => `Se guardó ${what}.`,
+  // Eliminar
+  delete: "Eliminar proyecto",
+  deleteConfirmTitle: (name: string) => `¿Eliminar «${name}»?`,
+  deleteConfirmText:
+    "Sale de todas tus listas y podrás deshacerlo desde el aviso. Si no lo vas a hacer, mejor márcalo como Cancelado.",
+  deleteConfirm: "Sí, eliminar",
+  deleting: "Eliminando…",
+  deletedTitle: "Proyecto eliminado",
+  deleted: (name: string) => `«${name}» se eliminó.`,
+  undoneTitle: "Deshecho",
+  restored: (name: string) => `«${name}» volvió a tus proyectos.`,
+  undoFailed: "No se pudo deshacer. Inténtalo de nuevo.",
   notFoundTitle: "Proyecto no encontrado · brahua-os",
   notFoundLcd: "No encontramos este proyecto.",
   notFoundHeading: "Este proyecto no está",

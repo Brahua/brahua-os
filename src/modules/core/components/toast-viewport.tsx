@@ -84,7 +84,8 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
     if (remaining.current?.key !== visibleKey) {
       remaining.current = { key: visibleKey, ms: visibleDuration };
     }
-    if (paused) return;
+    // Infinity: a notice that stays until it is dismissed (or the screen goes away).
+    if (paused || !Number.isFinite(remaining.current.ms)) return;
     const left = remaining.current;
     const started = performance.now();
     const timer = window.setTimeout(() => dismiss(visibleId), Math.max(0, left.ms));

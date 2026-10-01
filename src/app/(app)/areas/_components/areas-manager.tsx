@@ -26,6 +26,7 @@ import type { LifeAreaSummary } from "@/modules/core/life-area-input";
 import { applyOrder, moveId } from "@/modules/core/life-area-order";
 import { hasNotice } from "@/lib/toast/queue";
 import { useToaster, type NoticeInput } from "@/lib/toast/use-toaster";
+import { useSaveQueue } from "@/lib/use-save-queue";
 import { AreaListContext, PlainAreas, type AreaListProps } from "./area-rows";
 import { ArchivedAreas } from "./archived-areas";
 
@@ -115,7 +116,7 @@ export function AreasManager({
   const reorderBurst = useRef<{ noticeId: string; before: string[]; moves: number } | null>(null);
   // Server calls run one after another, in the order they were made (undo included), so the
   // last order sent is the one that stays, whatever the network does.
-  const saves = useRef<Promise<unknown>>(Promise.resolve());
+  const enqueue = useSaveQueue();
   const noticeSerial = useRef(0);
 
   // The list as last rendered, for undo actions that run from an older notice.
@@ -135,15 +136,11 @@ export function AreasManager({
   function save({ change, call, failure, onFailure, onSuccess }: ChangeOptions) {
     startTransition(async () => {
       applyChange(change);
-      let result: ActionResult<unknown>;
-      try {
-        const run = saves.current.then(call);
-        saves.current = run.catch(() => undefined);
-        result = await run;
-      } catch {
-        // Network failure or a new deployment: the actions themselves never throw.
-        result = fail(AREAS_COPY.unexpected);
-      }
+      // No key: every step of a reorder is sent (each one matters for its undo).
+      const queued = await enqueue(null, call);
+      // A throw is a network failure or a new deployment: the actions themselves never throw.
+      const result: ActionResult<unknown> =
+        queued.kind === "done" ? queued.value : fail(AREAS_COPY.unexpected);
       if (result.ok) {
         onSuccess?.();
         return;

@@ -105,6 +105,10 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
 .bo-project-card { position: relative; gap: 12px; transition: background-color var(--duration-hover) var(--ease-standard); }
 .bo-project-card:hover { background: var(--color-surface-hover); }
 .bo-project-card:has(a:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+/* Date fields (project dates): iOS centers the value and gives the input an intrinsic width that
+   overflows narrow columns at 320 px. */
+.bo-date-field .bo-field__control { min-width: 0; width: 100%; text-align: start; }
+.bo-date-field .bo-field__control::-webkit-date-and-time-value { text-align: start; }
 /* Options of a radio grid that carry a name (the area picker): left-aligned, up to two lines. */
 .bo-key.bo-option-key { justify-content: flex-start; text-align: left; min-height: 52px; padding: 6px 12px; gap: 8px; }
 .bo-option-key__label { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; overflow-wrap: anywhere; }

@@ -7,6 +7,7 @@ import { AREA_ICONS, Icon, Key, Led, Sheet, TextField } from "@/design-system";
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
 import { useIsDesktop } from "@/lib/use-is-desktop";
+import { FieldError } from "@/modules/core/components/field-error";
 import {
   focusRadioGrid,
   RadioGrid,
@@ -287,14 +288,5 @@ export function ProjectSheet({
         </p>
       </form>
     </Sheet>
-  );
-}
-
-function FieldError({ id, message }: { id: string; message: string }) {
-  return (
-    <span id={id} className="bo-field__error">
-      <Icon icon={TriangleAlert} size="sm" />
-      {message}
-    </span>
   );
 }

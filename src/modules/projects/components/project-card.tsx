@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AreaTag, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
+import { formatOwnerDay } from "@/lib/time";
 import type { DueState } from "../progress";
 import type { ProjectSummary } from "../project-input";
 import { PROJECTS_COPY } from "../projects-copy";
@@ -26,6 +27,7 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
   const Heading = headingLevel === 3 ? "h3" : "h4";
   const urgent = due?.kind === "today" || due?.kind === "overdue";
   const high = project.priority === "high";
+  const completedAt = project.status === "done" ? project.completedAt : null;
   // Ids from the project's id: a project shows once per page.
   const dueId = `project-${project.id}-due`;
   const priorityId = `project-${project.id}-priority`;
@@ -57,6 +59,14 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
             )}
           >
             {due.label}
+          </time>
+        ) : completedAt ? (
+          // Done projects have no due notice: the day they were finished (Historial).
+          <time
+            dateTime={completedAt.toISOString()}
+            className="bo-text-label shrink-0 text-text-secondary"
+          >
+            {PROJECTS_COPY.completedOn(formatOwnerDay(completedAt, "short"))}
           </time>
         ) : null}
       </div>
