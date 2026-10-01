@@ -118,6 +118,15 @@ export function resolveOwnerScriptDatabaseUrl(env: Env): string {
   return url;
 }
 
+/**
+ * Database URL for `pnpm db:export`: the same rules as `auth:owner` (only `DATABASE_URL_UNPOOLED`,
+ * validated, and a non-local host needs `ALLOW_PROD_DB=1`; `VERCEL=1` is not permission). The
+ * export only reads, but it writes personal data to a local file, so it is never implicit.
+ */
+export function resolveExportScriptDatabaseUrl(env: Env): string {
+  return resolveOwnerScriptDatabaseUrl(env);
+}
+
 /** Host of a database URL (no port, credentials or path), for typed confirmations. */
 export function databaseHost(url: string): string {
   return parse(url).host;

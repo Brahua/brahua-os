@@ -1,7 +1,7 @@
 # ADR-002: Driver de base de datos y migraciones
 
 - **Estado:** aceptado (2026-09-30)
-- **Tarea:** C1 de [`tasks/todo.md`](../../tasks/todo.md)
+- **Tarea:** C1 de [`tasks/todo.md`](../../tasks/todo.md) · PR [#10](https://github.com/Brahua/brahua-os/pull/10) · índice: [README](README.md)
 
 ## Contexto
 

@@ -1,0 +1,282 @@
+name: Database backup
+
+# Weekly pg_dump of the production database (Neon), encrypted with age and kept as a private
+# workflow artifact. One-time setup (read-only role, BACKUP_DATABASE_URL secret,
+# BACKUP_AGE_RECIPIENT variable) and the restore procedure: docs/HANDOFF.md, "Respaldos (C10)".
+#
+#   gh workflow run backup.yml                                          # production (main only)
+#   gh workflow run backup.yml --ref <branch> -f target=ci-service      # test run, never on main
+#
+# - The dump keeps every table definition but skips the DATA of auth_* tables (password hash,
+#   sessions, passkeys…): after a restore, run `pnpm auth:owner` and register the passkeys again.
+# - target=production only runs on main; it is the only one that sees BACKUP_DATABASE_URL.
+# - target=ci-service dumps a throwaway Postgres service (migrated, seeded, read through the same
+#   read-only role as production) with a throwaway age key, and proves the encrypt/decrypt round
+#   trip. Refused on main and on tags; its artifact lives one day.
+on:
+  schedule:
+    # Sundays 08:00 UTC = 03:00 in Lima.
+    - cron: "0 8 * * 0"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "production (main only) or ci-service (throwaway database, branches only)"
+        type: choice
+        options: [production, ci-service]
+        default: production
+
+env:
+  # Schedule runs have no inputs: production.
+  TARGET: ${{ inputs.target || 'production' }}
+
+concurrency:
+  group: backup-${{ inputs.target || 'production' }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  backup:
+    name: pg_dump (${{ inputs.target || 'production' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout (scripts/backup)
+    # Only started for target=ci-service: an empty image skips the service container.
+    services:
+      postgres:
+        image: ${{ inputs.target == 'ci-service' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brahua_os_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d brahua_os_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - name: Check the target
+        env:
+          # The secret only exists in production-target runs (on main, enforced below).
+          BACKUP_URL: ${{ env.TARGET == 'production' && secrets.BACKUP_DATABASE_URL || '' }}
+          AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: |
+          case "$TARGET" in
+            production)
+              if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+                echo "::error::target=production only runs on main."
+                exit 1
+              fi
+              if [ -z "$BACKUP_URL" ]; then
+                echo "::error::Missing the BACKUP_DATABASE_URL repository secret (direct connection string of a read-only Neon role). Set it up as described in docs/HANDOFF.md, section \"Respaldos (C10)\"."
+                exit 1
+              fi
+              if [[ "$AGE_RECIPIENT" != age1* ]]; then
+                echo "::error::Missing or invalid BACKUP_AGE_RECIPIENT repository variable (the age public key, age1…). Set it up as described in docs/HANDOFF.md, section \"Respaldos (C10)\"."
+                exit 1
+              fi
+              ;;
+            ci-service)
+              if [ "$GITHUB_REF_TYPE" != "branch" ] || [ "$GITHUB_REF" = "refs/heads/main" ]; then
+                echo "::error::target=ci-service only runs on feature branches, never on main or tags."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unknown target: $TARGET"
+              exit 1
+              ;;
+          esac
+          echo "Target: $TARGET"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Shape checks on the URL (direct host, verify-full TLS) before anything connects. Never
+      # prints it.
+      - name: Check the connection string
+        if: env.TARGET == 'production'
+        env:
+          BACKUP_URL: ${{ env.TARGET == 'production' && secrets.BACKUP_DATABASE_URL || '' }}
+        run: python3 scripts/backup/pg-env.py --production > /dev/null
+
+      # Ubuntu's signed archive: no third-party download to verify.
+      - name: Install age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends age
+          age --version
+
+      # --- target=ci-service only: a migrated and seeded throwaway database, read as backup_ro ---
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: env.TARGET == 'ci-service'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: env.TARGET == 'ci-service'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Prepare the throwaway database (migrate, seed, read-only role)
+        if: env.TARGET == 'ci-service'
+        env:
+          DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/brahua_os_test
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm db:migrate
+          pnpm db:seed
+          # Auth rows, so the dump check below proves their data is left out.
+          psql "$DATABASE_URL_UNPOOLED" -X -q -v ON_ERROR_STOP=1 \
+            -c "insert into auth_users (id, name, email) values ('ci-owner', 'CI', 'ci@example.com')" \
+            -c "insert into auth_sessions (id, token, user_id, expires_at) values ('ci-session', 'ci-token', 'ci-owner', now() + interval '1 day')"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          # The same file the owner runs against Neon (docs/HANDOFF.md, "Respaldos (C10)").
+          psql "$DATABASE_URL_UNPOOLED" -X -q -v backup_ro_password="$password" -f scripts/backup/readonly-role.sql
+          echo "CI_SERVICE_URL=postgres://backup_ro:$password@localhost:5432/brahua_os_test" >> "$GITHUB_ENV"
+      - name: Throwaway age key
+        if: env.TARGET == 'ci-service'
+        run: |
+          key="$RUNNER_TEMP/ci-age-key.txt"
+          age-keygen -o "$key" 2>/dev/null
+          echo "CI_AGE_KEY=$key" >> "$GITHUB_ENV"
+          echo "CI_AGE_RECIPIENT=$(age-keygen -y "$key")" >> "$GITHUB_ENV"
+      # TLS check of the production path: verify-full against Neon's certificate with the mounted
+      # runner CA bundle (no credentials: it only has to get past the handshake).
+      - name: Verified TLS to Neon works in the container
+        if: env.TARGET == 'ci-service'
+        run: |
+          image="$(awk '!/^#/ && NF {img=$2} END {print img}' scripts/backup/postgres-images.txt)"
+          set +e
+          out="$(docker run --rm -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
+            -e PGHOST=ep-tls-check-000000.us-east-2.aws.neon.tech -e PGUSER=tls_check -e PGPASSWORD=x \
+            -e PGDATABASE=neondb -e PGSSLMODE=verify-full -e PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt \
+            -e PGCONNECT_TIMEOUT=15 "$image" psql -X -c 'select 1' 2>&1)"
+          set -e
+          echo "$out"
+          # Neon only answers these after a verified handshake.
+          if [[ "$out" != *"password authentication failed"* && "$out" != *"does not exist"* ]]; then
+            echo "::error::TLS verification to Neon failed inside the container"
+            exit 1
+          fi
+
+      # --- every target ---
+      # The newest pinned image probes the server (a newer psql reads any older server).
+      - name: Detect the server's Postgres major version
+        id: version
+        env:
+          BACKUP_URL: ${{ env.TARGET == 'production' && secrets.BACKUP_DATABASE_URL || '' }}
+        run: |
+          if [ "$TARGET" = "ci-service" ]; then BACKUP_URL="$CI_SERVICE_URL"; fi
+          pg_env="$(BACKUP_URL="$BACKUP_URL" python3 scripts/backup/pg-env.py)"
+          eval "$pg_env"
+          if [ -n "${PGPASSWORD:-}" ]; then echo "::add-mask::$PGPASSWORD"; fi
+          probe="$(awk '!/^#/ && NF {img=$2} END {print img}' scripts/backup/postgres-images.txt)"
+          psql_in_docker() {
+            docker run --rm --network host \
+              -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
+              -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE \
+              -e PGSSLMODE -e PGSSLROOTCERT -e PGCHANNELBINDING -e PGCONNECT_TIMEOUT \
+              "$probe" psql -X -A -t -q "$@"
+          }
+          psql_in_docker -c "select version()"
+          num="$(psql_in_docker -c "show server_version_num")"
+          if ! [[ "$num" =~ ^[0-9]{6}$ ]]; then
+            echo "::error::Could not read the server version"
+            exit 1
+          fi
+          major=$((num / 10000))
+          image="$(awk -v m="$major" '$1 == m {print $2}' scripts/backup/postgres-images.txt)"
+          if [ -z "$image" ]; then
+            echo "::error::No pinned postgres image for server major $major: add it to scripts/backup/postgres-images.txt"
+            exit 1
+          fi
+          echo "Server major version: $major; pg_dump from $image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      # Dump to a private temp dir as the runner user (so it can shred it), verify, encrypt, shred
+      # the plaintext. Only the ciphertext and its sha256 reach backup/ (the artifact).
+      - name: pg_dump, verify, encrypt
+        id: dump
+        env:
+          BACKUP_URL: ${{ env.TARGET == 'production' && secrets.BACKUP_DATABASE_URL || '' }}
+          AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          IMAGE: ${{ steps.version.outputs.image }}
+        run: |
+          if [ "$TARGET" = "ci-service" ]; then
+            BACKUP_URL="$CI_SERVICE_URL"
+            AGE_RECIPIENT="$CI_AGE_RECIPIENT"
+          fi
+          pg_env="$(BACKUP_URL="$BACKUP_URL" python3 scripts/backup/pg-env.py)"
+          eval "$pg_env"
+          if [ -n "${PGPASSWORD:-}" ]; then echo "::add-mask::$PGPASSWORD"; fi
+
+          stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          file="brahua-os-$stamp.dump"
+          work="$(mktemp -d "$RUNNER_TEMP/backup.XXXXXX")"
+          chmod 700 "$work"
+          trap 'shred -u "$work"/* 2>/dev/null || true; rm -rf "$work"' EXIT
+          in_docker() {
+            docker run --rm --network host --user "$(id -u):$(id -g)" \
+              -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
+              -v "$work:/work" \
+              -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE \
+              -e PGSSLMODE -e PGSSLROOTCERT -e PGCHANNELBINDING -e PGCONNECT_TIMEOUT \
+              "$IMAGE" "$@"
+          }
+          in_docker pg_dump --version
+          # Definitions of every table; no data for auth_* (secrets and sessions).
+          in_docker pg_dump --format=custom --no-owner --no-privileges \
+            --exclude-table-data='public.auth_*' --file="/work/$file"
+
+          in_docker pg_restore --list "/work/$file" > "$work/toc.txt"
+          echo "Tables with data:"
+          # TOC lines: "<id>; <oid> <oid> TABLE DATA <schema> <table> <owner>".
+          awk '$4 == "TABLE" && $5 == "DATA" {print "  " $6 "." $7}' "$work/toc.txt"
+          for table in "public core_life_areas" "drizzle __drizzle_migrations"; do
+            if ! grep -Eq " TABLE DATA $table( |\$)" "$work/toc.txt"; then
+              echo "::error::The dump has no data for ${table/ /.}"
+              exit 1
+            fi
+          done
+          if grep -Eq " TABLE DATA public auth_" "$work/toc.txt"; then
+            echo "::error::The dump contains data of an auth_* table"
+            exit 1
+          fi
+          if ! grep -Eq " TABLE public auth_sessions " "$work/toc.txt"; then
+            echo "::error::The dump lost the auth_* table definitions"
+            exit 1
+          fi
+
+          mkdir -p backup
+          age --encrypt --recipient "$AGE_RECIPIENT" --output "backup/$file.age" "$work/$file"
+          shred -u "$work/$file"
+          (cd backup && sha256sum "$file.age" > "$file.age.sha256")
+          ls -l backup
+          echo "file=$file.age" >> "$GITHUB_OUTPUT"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      # ci-service: the throwaway key decrypts the artifact's ciphertext and pg_restore reads it.
+      - name: Round trip (decrypt and pg_restore --list)
+        if: env.TARGET == 'ci-service'
+        env:
+          IMAGE: ${{ steps.version.outputs.image }}
+          FILE: ${{ steps.dump.outputs.file }}
+        run: |
+          (cd backup && sha256sum -c "$FILE.sha256")
+          work="$(mktemp -d "$RUNNER_TEMP/restore.XXXXXX")"
+          trap 'shred -u "$work"/* "$CI_AGE_KEY" 2>/dev/null || true; rm -rf "$work"' EXIT
+          age --decrypt --identity "$CI_AGE_KEY" --output "$work/backup.dump" "backup/$FILE"
+          docker run --rm --user "$(id -u):$(id -g)" -v "$work:/work:ro" "$IMAGE" \
+            pg_restore --list /work/backup.dump | grep -c " TABLE DATA "
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: db-backup-${{ env.TARGET }}-${{ steps.dump.outputs.stamp }}
+          path: backup/
+          if-no-files-found: error
+          retention-days: ${{ env.TARGET == 'production' && 90 || 1 }}
+          # Already compressed and encrypted.
+          compression-level: 0

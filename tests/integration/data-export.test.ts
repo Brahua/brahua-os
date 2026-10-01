@@ -1,0 +1,201 @@
+import { chmod, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { getTableName, sql } from "drizzle-orm";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import {
+  buildExport,
+  EXCLUDED_TABLES,
+  EXPORT_FORMAT,
+  EXPORT_SCHEMA_VERSION,
+  EXPORTABLE_TABLES,
+  type DataExport,
+} from "@/lib/data-export";
+import {
+  authAccounts,
+  authPasskeys,
+  authRateLimits,
+  authSessions,
+  authUsers,
+  authVerifications,
+  lifeAreas,
+} from "@/modules/core/db/schema";
+import { writeExport } from "../../scripts/db-export";
+import { testDb } from "./test-db";
+
+const NOW = new Date("2026-10-01T13:05:22.000Z");
+const ARCHIVED_AT = new Date("2026-09-15T10:00:00.000Z");
+
+// Distinctive values: none of them may appear anywhere in the export.
+const SECRETS = {
+  email: "owner-export@example.com",
+  sessionToken: "session-token-must-not-leak",
+  passwordHash: "scrypt-hash-must-not-leak",
+  passkeyKey: "public-key-must-not-leak",
+  verification: "verification-must-not-leak",
+  rateKey: "rate-key-must-not-leak",
+};
+
+async function insertAuthData() {
+  await testDb.insert(authUsers).values({ id: "u1", name: "Owner", email: SECRETS.email });
+  await testDb.insert(authSessions).values({
+    id: "s1",
+    token: SECRETS.sessionToken,
+    userId: "u1",
+    expiresAt: new Date("2030-01-01T00:00:00Z"),
+  });
+  await testDb.insert(authAccounts).values({
+    id: "a1",
+    accountId: "u1",
+    providerId: "credential",
+    userId: "u1",
+    password: SECRETS.passwordHash,
+  });
+  await testDb.insert(authPasskeys).values({
+    id: "p1",
+    publicKey: SECRETS.passkeyKey,
+    userId: "u1",
+    credentialID: "cred-1",
+    counter: 0,
+    deviceType: "multiDevice",
+    backedUp: true,
+  });
+  await testDb.insert(authVerifications).values({
+    id: "v1",
+    identifier: "x",
+    value: SECRETS.verification,
+    expiresAt: new Date("2030-01-01T00:00:00Z"),
+  });
+  await testDb
+    .insert(authRateLimits)
+    .values({ id: "r1", key: SECRETS.rateKey, count: 1, lastRequest: Date.now() });
+}
+
+describe("pnpm db:export", () => {
+  test("exports every life area, archived ones included, with SQL column names", async () => {
+    await testDb.insert(lifeAreas).values([
+      { slug: "work", name: "Trabajo", icon: "briefcase", color: "work", sortOrder: 1 },
+      {
+        slug: "home",
+        name: "Hogar",
+        icon: "house",
+        color: "home",
+        sortOrder: 0,
+        archivedAt: ARCHIVED_AT,
+      },
+    ]);
+
+    const data = await buildExport(testDb, NOW);
+
+    expect(data).toMatchObject({
+      format: EXPORT_FORMAT,
+      schemaVersion: EXPORT_SCHEMA_VERSION,
+      exportedAt: "2026-10-01T13:05:22.000Z",
+      excludedTables: [...EXCLUDED_TABLES],
+    });
+    expect(data.note).toMatch(/No incluye tablas de autenticación/);
+    const areas = data.tables.core_life_areas;
+    expect(areas.rowCount).toBe(2);
+    // Ordered by sort_order; archived rows are not filtered out.
+    expect(areas.rows.map((row) => row.slug)).toEqual(["home", "work"]);
+    expect(Object.keys(areas.rows[0]).sort()).toEqual(
+      [
+        "archived_at",
+        "color",
+        "created_at",
+        "icon",
+        "id",
+        "name",
+        "slug",
+        "sort_order",
+        "updated_at",
+      ].sort(),
+    );
+    const parsed = JSON.parse(JSON.stringify(data)) as DataExport;
+    expect(parsed.tables.core_life_areas.rows[0]).toMatchObject({
+      slug: "home",
+      sort_order: 0,
+      archived_at: "2026-09-15T10:00:00.000Z",
+    });
+    expect(parsed.tables.core_life_areas.rows[1].archived_at).toBeNull();
+  });
+
+  test("an empty database exports empty tables", async () => {
+    const data = await buildExport(testDb, NOW);
+    expect(data.tables.core_life_areas).toEqual({ rowCount: 0, rows: [] });
+  });
+
+  test("never contains auth data: no auth table, no token, hash, key or email", async () => {
+    await insertAuthData();
+    await testDb
+      .insert(lifeAreas)
+      .values({ slug: "home", name: "Hogar", icon: "house", color: "home" });
+
+    const json = JSON.stringify(await buildExport(testDb, NOW));
+
+    const parsed = JSON.parse(json) as DataExport;
+    expect(Object.keys(parsed.tables).filter((name) => name.startsWith("auth_"))).toEqual([]);
+    for (const secret of Object.values(SECRETS)) {
+      expect(json).not.toContain(secret);
+    }
+  });
+
+  test("every table in the database is exported or excluded on purpose", async () => {
+    const result = await testDb.execute<{ tablename: string }>(
+      sql`select tablename from pg_tables where schemaname = 'public' order by tablename`,
+    );
+    const decided = [
+      ...EXPORTABLE_TABLES.map(({ table }) => getTableName(table)),
+      ...EXCLUDED_TABLES,
+    ];
+    const undecided = result.rows.map((row) => row.tablename).filter((t) => !decided.includes(t));
+    expect(undecided).toEqual([]);
+  });
+
+  test("reads everything in one read-only, repeatable-read transaction", async () => {
+    const spy = vi.spyOn(testDb, "transaction");
+    try {
+      await buildExport(testDb, NOW);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][1]).toEqual({
+        isolationLevel: "repeatable read",
+        accessMode: "read only",
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("writeExport", () => {
+  let dir: string | undefined;
+  afterEach(async () => {
+    if (dir) await rm(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  test("writes a private, parseable file and never overwrites one", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "brahua-export-"));
+    const outDir = path.join(dir, "exports");
+    const data = await buildExport(testDb, NOW);
+
+    const file = await writeExport(outDir, data, NOW);
+
+    expect(path.basename(file)).toBe("brahua-os-2026-10-01T130522Z.json");
+    expect((await stat(file)).mode & 0o777).toBe(0o600);
+    expect((await stat(outDir)).mode & 0o777).toBe(0o700);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual(JSON.parse(JSON.stringify(data)));
+    await expect(writeExport(outDir, data, NOW)).rejects.toThrow(/EEXIST/);
+  });
+
+  test("tightens an exports folder that already existed with looser permissions", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "brahua-export-"));
+    const outDir = path.join(dir, "exports");
+    await mkdir(outDir, { mode: 0o755 });
+    await chmod(outDir, 0o755);
+
+    await writeExport(outDir, await buildExport(testDb, NOW), NOW);
+
+    expect((await stat(outDir)).mode & 0o777).toBe(0o700);
+  });
+});
