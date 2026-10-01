@@ -7,6 +7,7 @@ import { listLifeAreas } from "@/modules/core/queries";
 import { ProjectCard } from "@/modules/projects/components/project-card";
 import { dueState } from "@/modules/projects/progress";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
+import type { ActiveBlocker } from "@/modules/projects/dependency-input";
 import type { ProjectSummary } from "@/modules/projects/project-input";
 import {
   areaFilterOptions,
@@ -14,7 +15,7 @@ import {
   selectedAreaFilter,
 } from "@/modules/projects/project-list";
 import { PROJECT_STATUS_LABELS, PROJECTS_COPY } from "@/modules/projects/projects-copy";
-import { getDeletedProject, listProjects } from "@/modules/projects/queries";
+import { getDeletedProject, listActiveBlockers, listProjects } from "@/modules/projects/queries";
 import { DELETED_PARAM } from "@/modules/projects/routes";
 import { AreaFilter } from "./_components/area-filter";
 import { NewProject } from "./_components/new-project";
@@ -36,7 +37,7 @@ type ProjectsPageProps = {
  */
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   await requireOwner();
-  const [{ area: areaParam }, projects, areas, deleted] = await Promise.all([
+  const [{ area: areaParam }, projects, areas, deleted, blockers] = await Promise.all([
     searchParams,
     listProjects(),
     listLifeAreas(),
@@ -44,6 +45,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     searchParams.then(({ [DELETED_PARAM]: id }) =>
       typeof id === "string" ? getDeletedProject(id) : null,
     ),
+    // P4: who still blocks each project (one query), for the cards' "Bloqueado".
+    listActiveBlockers(),
   ]);
   const options = areaFilterOptions(areas, projects);
   const selected = selectedAreaFilter(options, areaParam);
@@ -85,6 +88,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             status={group.status}
             projects={group.projects}
             now={now}
+            blockers={blockers}
           />
         ))
       ) : (
@@ -110,6 +114,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             status={group.status}
             projects={group.projects}
             now={now}
+            blockers={blockers}
             level={3}
           />
         ))}
@@ -124,12 +129,14 @@ type StatusGroupProps = {
   status: ProjectStatus;
   projects: ProjectSummary[];
   now: Date;
+  /** Who still blocks each project (P4), by project id. */
+  blockers: Record<string, ActiveBlocker[]>;
   /** h2 in the main view; h3 inside "Historial". */
   level?: 2 | 3;
 };
 
 /** One state's projects: a heading with the count and a grid of cards. */
-function StatusGroup({ status, projects, now, level = 2 }: StatusGroupProps) {
+function StatusGroup({ status, projects, now, blockers, level = 2 }: StatusGroupProps) {
   // Statuses are unique on the page (main groups and history ones never repeat).
   const id = `project-group-${status}`;
   const label = PROJECT_STATUS_LABELS[status];
@@ -149,6 +156,7 @@ function StatusGroup({ status, projects, now, level = 2 }: StatusGroupProps) {
               project={project}
               due={dueState(project.dueDate, project.status, now)}
               headingLevel={level === 2 ? 3 : 4}
+              blockedBy={blockers[project.id]?.map((blocker) => blocker.name)}
             />
           </li>
         ))}

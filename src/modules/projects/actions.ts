@@ -7,6 +7,11 @@ import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/actio
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
 import {
+  DEPENDENCY_ERRORS,
+  projectDependencyInputSchema,
+  type ProjectDependencyInput,
+} from "./dependency-input";
+import {
   changeProjectAreaInputSchema,
   changeProjectPriorityInputSchema,
   changeProjectStatusInputSchema,
@@ -20,6 +25,8 @@ import {
   type ProjectSummary,
 } from "./project-input";
 import {
+  deleteDependency,
+  insertDependency,
   insertProject,
   restoreProjectById,
   setProjectArea,
@@ -183,4 +190,49 @@ const restore = ownerAction(
 /** "Deshacer" after deleting. Restoring one that isn't deleted changes nothing. */
 export async function restoreProject(input: unknown): Promise<ActionResult<ProjectSummary>> {
   return restore(input);
+}
+
+// ── Dependencies (P4): "Bloqueado por" ──────────────────────────────────────────────────────────
+
+const addBlocker = ownerAction(
+  projectDependencyInputSchema,
+  async ({ id, blockedById }) => {
+    const outcome = await insertDependency(getDb(), id, blockedById);
+    // Revalidated whatever the outcome: a refusal means the page's candidates were stale.
+    revalidateProject(id);
+    if (outcome === "added") return ok({ id, blockedById });
+    if (outcome === "notFound") return fail(PROJECT_ERRORS.notFound);
+    return {
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { blockedById: [DEPENDENCY_ERRORS[outcome]] },
+    };
+  },
+  { name: "addDependency" },
+);
+
+/**
+ * "Bloqueado por": `id` waits for `blockedById`. Refuses the project itself, a deleted or
+ * missing blocker and any that would close a cycle (field errors on `blockedById`); adding one
+ * already there changes nothing.
+ */
+export async function addDependency(input: unknown): Promise<ActionResult<ProjectDependencyInput>> {
+  return addBlocker(input);
+}
+
+const removeBlocker = ownerAction(
+  projectDependencyInputSchema,
+  async ({ id, blockedById }) => {
+    const removed = await deleteDependency(getDb(), id, blockedById);
+    revalidateProject(id);
+    return removed ? ok({ id, blockedById }) : fail(PROJECT_ERRORS.notFound);
+  },
+  { name: "removeDependency" },
+);
+
+/** `id` is no longer blocked by `blockedById` ("Deshacer" adds it back with addDependency). */
+export async function removeDependency(
+  input: unknown,
+): Promise<ActionResult<ProjectDependencyInput>> {
+  return removeBlocker(input);
 }

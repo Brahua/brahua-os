@@ -148,3 +148,39 @@ export const PROJECTS_COPY = {
   notFoundText:
     "Puede que se haya eliminado o que el enlace esté incompleto. Tus demás proyectos siguen en su lugar.",
 } as const;
+
+/** "Bloqueado por" (P4): the detail's section, its header line and the list's badge. */
+export const DEPENDENCIES_COPY = {
+  blocked: "Bloqueado",
+  /** The card's description and the header's line: who it waits for. */
+  blockedBy: (names: readonly string[]) => `Bloqueado por ${names.join(", ")}`,
+  blockedByPrefix: "Bloqueado por",
+  section: "Bloqueado por",
+  sectionHelp:
+    "Proyectos que deben terminar antes de este. Al terminarse o cancelarse, dejan de bloquearlo.",
+  empty: "No espera a ningún otro proyecto.",
+  blockerList: "Proyectos que lo bloquean",
+  /** A blocker done or canceled stays listed, but no longer blocks. */
+  notBlocking: "Ya no bloquea",
+  add: "Agregar bloqueador",
+  remove: (name: string) => `Quitar «${name}»`,
+  // Sheet
+  sheetTitle: "Agregar bloqueador",
+  sheetSubtitle:
+    "Elige el proyecto que debe terminar antes. No aparecen los que crearían un ciclo.",
+  searchLabel: "Buscar proyecto",
+  results: "Proyectos",
+  resultCount: (n: number) =>
+    n === 0 ? "Ningún proyecto" : n === 1 ? "1 proyecto" : `${n} proyectos`,
+  noMatches: "Ningún proyecto coincide con la búsqueda.",
+  noCandidates: "No hay otros proyectos que puedan bloquearlo.",
+  adding: "Agregando…",
+  // Notices
+  addedAnnounce: (name: string) => `«${name}» ahora bloquea este proyecto.`,
+  removedTitle: "Bloqueador quitado",
+  removed: (name: string) => `«${name}» ya no bloquea este proyecto.`,
+  restoredTitle: "Deshecho",
+  restored: (name: string) => `«${name}» vuelve a bloquear este proyecto.`,
+  notRemoved: (name: string) => `No se pudo quitar «${name}»; volvió a como estaba.`,
+  notRestored: (name: string) => `No se pudo volver a agregar «${name}».`,
+} as const;

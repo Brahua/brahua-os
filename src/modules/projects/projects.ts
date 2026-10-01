@@ -2,11 +2,16 @@
 // callers check the owner and validate first (the actions through ownerAction(), the queries
 // with requireOwner()).
 import "server-only";
-import { and, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
-import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
+import { and, eq, gt, inArray, isNotNull, isNull, ne, notInArray, sql } from "drizzle-orm";
+import { alias, type PgUpdateSetSource } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
-import { projects } from "./db/schema";
+import { projectDependencies, projects } from "./db/schema";
+import {
+  NON_BLOCKING_STATUSES,
+  type ActiveBlocker,
+  type ProjectDependencies,
+} from "./dependency-input";
 import type { ProjectPriority, ProjectStatus } from "./project-constants";
 import type {
   CreateProjectInput,
@@ -246,5 +251,185 @@ export async function restoreProjectById(db: Database, id: string): Promise<Proj
       .set({ deletedAt: null })
       .where(and(eq(projects.id, id), isNotNull(projects.deletedAt)));
     return selectProjectById(tx, id);
+  });
+}
+
+// ── Dependencies (P4): "Bloqueado por" ──────────────────────────────────────────────────────────
+
+/**
+ * Serializes every write that can add an edge to the dependency graph (one user: one global
+ * key). Without it, two adds checked at the same time (A blocked by B, B blocked by A) would
+ * each see no cycle and both commit one.
+ */
+export const PROJECT_DEPENDENCIES_LOCK = sql`select pg_advisory_xact_lock(hashtext('project_dependencies'))`;
+
+const blocker = alias(projects, "blocker");
+const blockerArea = alias(lifeAreas, "blocker_area");
+
+const BLOCKER_AREA = {
+  id: blockerArea.id,
+  slug: blockerArea.slug,
+  name: blockerArea.name,
+  icon: blockerArea.icon,
+  color: blockerArea.color,
+};
+
+const DEPENDENCY_PROJECT = {
+  id: projects.id,
+  name: projects.name,
+  status: projects.status,
+  area: AREA,
+};
+
+/**
+ * The blockers that still block (not deleted, neither done nor canceled), of every project that
+ * isn't deleted, or only of `projectIds`. One query, ordered by the blocker's name: the list's
+ * badges and the page's "Bloqueado por …" (and later `today`) read it.
+ */
+export async function selectActiveBlockers(
+  db: Database,
+  projectIds?: readonly string[],
+): Promise<Array<ActiveBlocker & { projectId: string }>> {
+  if (projectIds && projectIds.length === 0) return [];
+  return db
+    .select({ projectId: projectDependencies.projectId, id: blocker.id, name: blocker.name })
+    .from(projectDependencies)
+    .innerJoin(projects, eq(projects.id, projectDependencies.projectId))
+    .innerJoin(blocker, eq(blocker.id, projectDependencies.blockedById))
+    .where(
+      and(
+        isNull(projects.deletedAt),
+        isNull(blocker.deletedAt),
+        notInArray(blocker.status, [...NON_BLOCKING_STATUSES]),
+        projectIds ? inArray(projectDependencies.projectId, [...projectIds]) : undefined,
+      ),
+    )
+    .orderBy(blocker.name, blocker.id);
+}
+
+/**
+ * Projects transitively blocked by `id` (what it blocks, what those block, …), deleted ones
+ * included: a deleted project can come back with "Deshacer", and its edges with it.
+ */
+const downstreamOf = (id: string) => sql`
+  with recursive downstream(id) as (
+    select ${projectDependencies.projectId} from ${projectDependencies}
+    where ${projectDependencies.blockedById} = ${id}
+    union
+    select d.project_id from ${projectDependencies} d join downstream on d.blocked_by_id = downstream.id
+  )
+  select id from downstream`;
+
+/**
+ * A project's page: its blockers (not deleted; blocking or not, so a done one can be removed
+ * too), the ones that still block it (the header's "Bloqueado por …") and the candidates to add. A candidate is any project that isn't deleted, isn't the
+ * project itself or one of its blockers, and isn't blocked by it directly or indirectly (adding
+ * it would make a cycle). Both by name.
+ */
+export async function selectProjectDependencies(
+  db: Database,
+  id: string,
+): Promise<ProjectDependencies> {
+  const [blockers, candidates, blocking] = await Promise.all([
+    db
+      .select({ id: blocker.id, name: blocker.name, status: blocker.status, area: BLOCKER_AREA })
+      .from(projectDependencies)
+      .innerJoin(blocker, eq(blocker.id, projectDependencies.blockedById))
+      .innerJoin(blockerArea, eq(blockerArea.id, blocker.lifeAreaId))
+      .where(and(eq(projectDependencies.projectId, id), isNull(blocker.deletedAt)))
+      .orderBy(blocker.name, blocker.id),
+    db
+      .select(DEPENDENCY_PROJECT)
+      .from(projects)
+      .innerJoin(lifeAreas, eq(projects.lifeAreaId, lifeAreas.id))
+      .where(
+        and(
+          isNull(projects.deletedAt),
+          ne(projects.id, id),
+          notInArray(
+            projects.id,
+            db
+              .select({ id: projectDependencies.blockedById })
+              .from(projectDependencies)
+              .where(eq(projectDependencies.projectId, id)),
+          ),
+          sql`${projects.id} not in (${downstreamOf(id)})`,
+        ),
+      )
+      .orderBy(projects.name, projects.id),
+    selectActiveBlockers(db, [id]),
+  ]);
+  return { blockers, candidates, blocking: blocking.map(({ id, name }) => ({ id, name })) };
+}
+
+/** Whether `blockedById` is already blocked by `projectId`, directly or indirectly. */
+async function blocksTransitively(tx: Tx, projectId: string, blockedById: string) {
+  const result = await tx.execute<{ cycle: boolean }>(sql`
+    select exists (
+      with recursive upstream(id) as (
+        select ${projectDependencies.blockedById} from ${projectDependencies}
+        where ${projectDependencies.projectId} = ${blockedById}
+        union
+        select d.blocked_by_id from ${projectDependencies} d join upstream on d.project_id = upstream.id
+      )
+      select 1 from upstream where id = ${projectId}
+    ) as cycle`);
+  return result.rows[0]?.cycle === true;
+}
+
+export type AddDependencyOutcome = "added" | "notFound" | "self" | "unavailable" | "cycle";
+
+/**
+ * Marks `projectId` as blocked by `blockedById`, under PROJECT_DEPENDENCIES_LOCK. Both must be
+ * projects that aren't deleted (locked FOR SHARE: a delete at the same time waits). Refuses the
+ * project itself and any blocker that would close a cycle, direct (B already blocked by A) or
+ * indirect (B blocked by C, blocked by A). Adding one that is already there changes nothing.
+ */
+export async function insertDependency(
+  db: Database,
+  projectId: string,
+  blockedById: string,
+): Promise<AddDependencyOutcome> {
+  return db.transaction(async (tx) => {
+    await tx.execute(PROJECT_DEPENDENCIES_LOCK);
+    const found = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(inArray(projects.id, [projectId, blockedById]), isNull(projects.deletedAt)))
+      .for("share");
+    const ids = new Set(found.map((row) => row.id));
+    if (!ids.has(projectId)) return "notFound";
+    if (projectId === blockedById) return "self";
+    if (!ids.has(blockedById)) return "unavailable";
+    if (await blocksTransitively(tx, projectId, blockedById)) return "cycle";
+    await tx.insert(projectDependencies).values({ projectId, blockedById }).onConflictDoNothing();
+    return "added";
+  });
+}
+
+/**
+ * `projectId` is no longer blocked by `blockedById`. Removing one that isn't there changes
+ * nothing; false only when the project doesn't exist or is deleted.
+ */
+export async function deleteDependency(
+  db: Database,
+  projectId: string,
+  blockedById: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [project] = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)));
+    if (!project) return false;
+    await tx
+      .delete(projectDependencies)
+      .where(
+        and(
+          eq(projectDependencies.projectId, projectId),
+          eq(projectDependencies.blockedById, blockedById),
+        ),
+      );
+    return true;
   });
 }

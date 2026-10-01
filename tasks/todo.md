@@ -34,7 +34,7 @@
   - **Aceptación:** criterio 3 de la spec; E2E con teclado y arrastre; movimiento reducido.
   - **Tamaño:** M
 
-- [ ] **P4: Dependencias** *(paralelo a P3 y P5)*
+- [ ] **P4: Dependencias** *(paralelo a P3 y P5)* — PR abierto en `feat/projects-p4-dependencies`, sin merge.
   - **Qué:** "Bloqueado por" con buscador (excluye el propio, eliminados y los que crearían un ciclo); quitar; insignia "Bloqueado" en la tarjeta y el detalle mientras un bloqueador no esté terminado o cancelado; rechazo de ciclos directos e indirectos en la base.
   - **Aceptación:** criterio 4 de la spec; integración con ciclos y concurrencia.
   - **Tamaño:** S/M

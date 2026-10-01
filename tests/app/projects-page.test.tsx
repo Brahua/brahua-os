@@ -26,6 +26,8 @@ vi.mock("@/modules/projects/queries", () => ({
   listProjects: vi.fn(),
   getProject: vi.fn(),
   getDeletedProject: vi.fn(),
+  // P4: no project is blocked unless a test says so.
+  listActiveBlockers: vi.fn(async () => ({})),
 }));
 vi.mock("@/modules/projects/actions", () => ({ createProject: vi.fn(), restoreProject: vi.fn() }));
 

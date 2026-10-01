@@ -121,7 +121,7 @@ export const projectDependencies = pgTable("project_dependencies", {
 
 - **Restricciones en la base** (defensa en profundidad, como en C5): `CHECK` de estado, prioridad y largos; `due_date >= start_date`; `project_id <> blocked_by_id`; `completed_at` presente solo si `status = 'done'`.
 - **Índices:** `projects (status) WHERE deleted_at IS NULL`, `projects (life_area_id)`, `project_milestones (project_id, sort_order)`.
-- **Ciclos:** al agregar una dependencia, una consulta recursiva verifica que `blocked_by` no dependa ya (directa o indirectamente) del proyecto. Si hay ciclo, la acción lo rechaza con un error por campo.
+- **Ciclos:** al agregar una dependencia, una consulta recursiva verifica que `blocked_by` no dependa ya (directa o indirectamente) del proyecto. Si hay ciclo, la acción lo rechaza con un error por campo. Todas las altas toman un `pg_advisory_xact_lock` global del grafo (dos altas simultáneas no pueden cerrar un ciclo entre las dos), y el grafo cuenta también las aristas de los eliminados (al restaurar uno nunca aparece un ciclo).
 - **Orden de hitos y enlaces:** contiguo por proyecto, con `pg_advisory_xact_lock` por proyecto, como `LIFE_AREAS_LOCK`.
 - **Eliminado:** un proyecto con `deleted_at` no aparece en listas, en dependencias ni en exportaciones de "activos"; sí aparece en `pnpm db:export` (es historial). Si bloqueaba a otro, deja de bloquearlo.
 - Migraciones **aditivas**; las tablas se agregan al registro de `pnpm db:export`.
