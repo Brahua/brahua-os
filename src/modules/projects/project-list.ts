@@ -6,7 +6,7 @@ import type { ProjectAreaSummary, ProjectSummary } from "./project-input";
 export type AreaFilterOption = ProjectAreaSummary & { archived: boolean };
 
 /**
- * Chips of the area filter: the active areas in their order, then any archived area that still
+ * Options of the area filter: the active areas in their order, then any archived area that still
  * has projects (a project keeps its area when the area is archived), by name.
  */
 export function areaFilterOptions(

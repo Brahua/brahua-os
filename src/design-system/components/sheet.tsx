@@ -26,6 +26,11 @@ type SheetProps = {
    */
   returnFocusRef?: React.RefObject<HTMLElement | null>;
   /**
+   * What gets focus on open (e.g. the current option of a list). By default Radix focuses the
+   * first focusable control that is not a link: often the ✕.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  /**
    * Called once the sheet has fully closed: exit animation done, content unmounted, focus back
    * and the rest of the page no longer `aria-hidden`. Announce results here, or screen readers
    * skip them (they ignore live regions inside hidden content).
@@ -55,6 +60,7 @@ export function Sheet({
   footer,
   modal = true,
   returnFocusRef,
+  initialFocusRef,
   onClosed,
   closeDisabled = false,
   className,
@@ -72,8 +78,12 @@ export function Sheet({
         <Dialog.Content
           // Without a subtitle there is no description; tell Radix so it doesn't warn.
           {...(subtitle ? {} : { "aria-describedby": undefined })}
-          onOpenAutoFocus={() => {
+          onOpenAutoFocus={(event) => {
             returnFocusTo.current = document.activeElement as HTMLElement | null;
+            if (initialFocusRef?.current) {
+              event.preventDefault();
+              initialFocusRef.current.focus();
+            }
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();

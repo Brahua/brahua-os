@@ -117,10 +117,14 @@ const cardsIn = (status: string) =>
   within(screen.getByRole("list", { name: `Proyectos: ${status}` }))
     .getAllByRole("link")
     .map((link) => link.textContent);
-const chip = (name: string) =>
-  within(screen.getByRole("navigation", { name: "Filtrar por área" })).getByRole("link", {
-    name,
-  });
+const filterTrigger = () => screen.getByRole("button", { name: /^Filtrar por área/ });
+/** Opens the area filter and returns its option links. */
+async function openFilter() {
+  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  await user.click(filterTrigger());
+  const dialog = await screen.findByRole("dialog", { name: "Filtrar por área" });
+  return (name: string | RegExp) => within(dialog).getByRole("link", { name });
+}
 
 describe("list", () => {
   test("has its title and checks the owner", async () => {
@@ -187,30 +191,35 @@ describe("list", () => {
 
   test("the area filter: Todas by default, links with ?area=<slug>", async () => {
     render(await page());
-    expect(chip("Todas")).toHaveAttribute("aria-current", "page");
-    expect(chip("Todas")).toHaveAttribute("href", "/projects");
-    expect(chip("Trabajo")).toHaveAttribute("href", "/projects?area=work");
-    expect(chip("Trabajo")).not.toHaveAttribute("aria-current");
+    expect(filterTrigger()).toHaveAccessibleName("Filtrar por área: Todas");
+    const option = await openFilter();
+    expect(option("Todas las áreas")).toHaveAttribute("aria-current", "page");
+    expect(option("Todas las áreas")).toHaveAttribute("href", "/projects");
+    expect(option("Trabajo")).toHaveAttribute("href", "/projects?area=work");
+    expect(option("Trabajo")).not.toHaveAttribute("aria-current");
   });
 
-  test("?area=work shows only that area's projects and marks its chip", async () => {
+  test("?area=work shows only that area's projects and marks its option", async () => {
     render(await page({ area: "work" }));
-    expect(chip("Trabajo")).toHaveAttribute("aria-current", "page");
-    expect(chip("Todas")).not.toHaveAttribute("aria-current");
+    expect(filterTrigger()).toHaveAccessibleName("Filtrar por área: Trabajo");
     expectHeadings(2, ["Activo, 1 proyecto", "Mantenimiento, 1 proyecto", "Historial, 1 proyecto"]);
     expect(screen.queryByRole("link", { name: "Mudanza" })).not.toBeInTheDocument();
+    const option = await openFilter();
+    expect(option("Trabajo")).toHaveAttribute("aria-current", "page");
+    expect(option("Todas las áreas")).not.toHaveAttribute("aria-current");
   });
 
   test("an unknown area slug shows everything", async () => {
     render(await page({ area: "nope" }));
-    expect(chip("Todas")).toHaveAttribute("aria-current", "page");
+    expect(filterTrigger()).toHaveAccessibleName("Filtrar por área: Todas");
     expect(screen.getByRole("link", { name: "Mudanza" })).toBeInTheDocument();
   });
 
-  test("archived areas that still have projects get a chip too", async () => {
+  test("archived areas that still have projects are an option too", async () => {
     vi.mocked(listLifeAreas).mockResolvedValue([HOME]);
     render(await page());
-    expect(chip("Trabajo")).toBeInTheDocument();
+    const option = await openFilter();
+    expect(option(/^Trabajo,\s?Archivada$/)).toBeInTheDocument();
   });
 
   test("empty state with an explanation and the create key", async () => {
