@@ -1,0 +1,184 @@
+name: Database backup
+
+# Weekly pg_dump of the production database (Neon), kept as a private workflow artifact.
+# One-time setup (read-only role and the BACKUP_DATABASE_URL secret) and the restore procedure:
+# docs/HANDOFF.md, "Respaldos (C10)".
+#
+#   gh workflow run backup.yml                                          # production, now
+#   gh workflow run backup.yml --ref <branch> -f target=ci-service      # test run, never on main
+#
+# target=ci-service dumps a throwaway Postgres service (migrated, seeded, and read through the
+# same read-only role as production) to test this workflow without touching production. It is
+# refused on main and on tags, and its artifact lives one day.
+on:
+  schedule:
+    # Sundays 08:00 UTC = 03:00 in Lima.
+    - cron: "0 8 * * 0"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "production (BACKUP_DATABASE_URL) or ci-service (throwaway database, branches only)"
+        type: choice
+        options: [production, ci-service]
+        default: production
+
+env:
+  # Schedule runs have no inputs: production.
+  TARGET: ${{ inputs.target || 'production' }}
+
+concurrency:
+  group: backup-${{ inputs.target || 'production' }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  backup:
+    name: pg_dump (${{ inputs.target || 'production' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # checkout, only used by target=ci-service
+    # Only started for target=ci-service: an empty image skips the service container.
+    services:
+      postgres:
+        image: ${{ inputs.target == 'ci-service' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brahua_os_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d brahua_os_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - name: Check the target
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          case "$TARGET" in
+            production)
+              if [ -z "$BACKUP_DATABASE_URL" ]; then
+                echo "::error::Missing the BACKUP_DATABASE_URL repository secret (direct connection string of a read-only Neon role). Set it up as described in docs/HANDOFF.md, section \"Respaldos (C10)\"."
+                exit 1
+              fi
+              # Never print the URL; only check its shape.
+              case "$BACKUP_DATABASE_URL" in
+                postgres://*|postgresql://*) ;;
+                *)
+                  echo "::error::BACKUP_DATABASE_URL must start with postgresql:// (see docs/HANDOFF.md, \"Respaldos (C10)\")."
+                  exit 1
+                  ;;
+              esac
+              if [[ "$BACKUP_DATABASE_URL" == *-pooler.* ]]; then
+                echo "::error::BACKUP_DATABASE_URL uses the pooled host (-pooler). pg_dump needs the direct connection (see docs/HANDOFF.md, \"Respaldos (C10)\")."
+                exit 1
+              fi
+              ;;
+            ci-service)
+              if [ "$GITHUB_REF_TYPE" != "branch" ] || [ "$GITHUB_REF" = "refs/heads/main" ]; then
+                echo "::error::target=ci-service only runs on feature branches, never on main or tags."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unknown target: $TARGET"
+              exit 1
+              ;;
+          esac
+          echo "Target: $TARGET"
+
+      # --- target=ci-service only: a migrated and seeded throwaway database, read as backup_ro ---
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.TARGET == 'ci-service'
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: env.TARGET == 'ci-service'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: env.TARGET == 'ci-service'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Prepare the throwaway database (migrate, seed, read-only role)
+        if: env.TARGET == 'ci-service'
+        env:
+          DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/brahua_os_test
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm db:migrate
+          pnpm db:seed
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          # The same file the owner runs against Neon (docs/HANDOFF.md, "Respaldos (C10)").
+          psql "$DATABASE_URL_UNPOOLED" -X -q -v backup_ro_password="$password" -f scripts/backup/readonly-role.sql
+          echo "CI_SERVICE_URL=postgres://backup_ro:$password@localhost:5432/brahua_os_test" >> "$GITHUB_ENV"
+
+      # --- every target ---
+      - name: Detect the server's Postgres major version
+        id: version
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          if [ "$TARGET" = "ci-service" ]; then url="$CI_SERVICE_URL"; else url="$BACKUP_DATABASE_URL"; fi
+          psql "$url" -X -A -t -q -c "select version()"
+          num="$(psql "$url" -X -A -t -q -c "show server_version_num")"
+          if ! [[ "$num" =~ ^[0-9]{6}$ ]]; then
+            echo "::error::Could not read the server version"
+            exit 1
+          fi
+          major=$((num / 10000))
+          echo "Server major version: $major (pg_dump from postgres:$major)"
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+
+      # pg_dump must match the server's major version: the official image of that version.
+      - name: pg_dump (custom format)
+        id: dump
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          IMAGE: postgres:${{ steps.version.outputs.major }}
+        run: |
+          if [ "$TARGET" = "ci-service" ]; then PGURL="$CI_SERVICE_URL"; else PGURL="$BACKUP_DATABASE_URL"; fi
+          export PGURL
+          stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          file="brahua-os-$stamp.dump"
+          mkdir -p backup
+          docker pull --quiet "$IMAGE"
+          docker run --rm "$IMAGE" pg_dump --version
+          # The URL goes in through the environment (-e PGURL), never on a command line.
+          docker run --rm --network host -e PGURL -v "$PWD/backup:/backup" "$IMAGE" \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --dbname="$PGURL" --file="/backup/$1"' \
+            sh "$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the dump (pg_restore --list)
+        env:
+          IMAGE: postgres:${{ steps.version.outputs.major }}
+          FILE: ${{ steps.dump.outputs.file }}
+        run: |
+          docker run --rm -v "$PWD/backup:/backup:ro" "$IMAGE" pg_restore --list "/backup/$FILE" > backup/toc.txt
+          echo "Tables with data:"
+          # TOC lines: "<id>; <oid> <oid> TABLE DATA <schema> <table> <owner>".
+          awk '$4 == "TABLE" && $5 == "DATA" {print "  " $6 "." $7}' backup/toc.txt
+          for table in "public core_life_areas" "drizzle __drizzle_migrations"; do
+            if ! grep -Eq " TABLE DATA $table( |\$)" backup/toc.txt; then
+              echo "::error::The dump has no data for ${table/ /.}"
+              exit 1
+            fi
+          done
+          (cd backup && sha256sum "$FILE" > "$FILE.sha256")
+          ls -l backup
+          rm backup/toc.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: db-backup-${{ env.TARGET }}-${{ steps.dump.outputs.stamp }}
+          path: backup/
+          if-no-files-found: error
+          retention-days: ${{ env.TARGET == 'production' && 90 || 1 }}
+          # The custom format is already compressed.
+          compression-level: 0
