@@ -419,7 +419,9 @@ describe("foreign keys", () => {
       testDb.delete(lifeAreas).where(eq(lifeAreas.id, project.lifeAreaId)),
     ).rejects.toMatchObject({
       cause: expect.objectContaining({
-        code: "23503",
+        // restrict_violation: Postgres 18 (production) reports ON DELETE RESTRICT with 23001;
+        // 17 and older said 23503 (foreign_key_violation).
+        code: "23001",
         constraint: "projects_life_area_id_core_life_areas_id_fk",
       }),
     });
