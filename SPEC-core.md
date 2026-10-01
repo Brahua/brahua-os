@@ -1,7 +1,7 @@
 # Spec: core
 
 > Módulo `core` del [mapa de capacidades](CAPABILITY-MAP.md) · Estado: **APROBADO v2** (2026-09-29)
-> v2.4 (2026-09-30): C5. Slug único con sufijo (`-2`, `-3`…) y estable al renombrar; una área nueva va al final (`max + 1`) en una transacción con *advisory lock*; las acciones usan `requireOwnerAction()`, que devuelve el error de autorización como `ActionResult`.
+> v2.4 (2026-09-30): C5. Slug único con sufijo (`-2`, `-3`…) y estable al renombrar; una área nueva va al final (`max + 1`) en una transacción con *advisory lock*; las acciones se escriben con `ownerAction()` (sesión, Zod, `ActionResult` y errores inesperados); `CHECK` en la base para color, ícono y largo del nombre; el nombre rechaza caracteres de control e invisibles.
 > v2.3 (2026-09-30): C4. El tema es oscuro por defecto (como dice `SPEC-design-system.md`, que prevalece en lo visual); en Ajustes se elige Oscuro, Claro o Sistema.
 > v2.2 (2026-09-30): C3. El manifiesto de módulo gana `navGroup`, `shortcut` y `status`; los atajos de una tecla se pueden desactivar (preferencia en Ajustes); la hora de Lima usa `Intl`.
 > v2.1 (2026-09-29): áreas con ícono de Lucide y colores del design system.
@@ -176,7 +176,10 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   - `hobbies` → Hobbies
 - **Sin borrado físico** en `core`: solo se archiva. Un área archivada deja de ofrecerse para elementos nuevos, pero se sigue mostrando en los que ya la usan. Las FK futuras hacia `core_life_areas` usan `onDelete: "restrict"`.
 - **Ícono:** nombre de un ícono de **Lucide** dentro del set curado `AREA_ICON_NAMES` del design system. No se usan emojis en ningún lugar de la app.
-- **Slug (C5):** `slugify(name)` (sin tildes, ñ → n, solo `a-z0-9` y guiones; `area` si no queda nada). Si ya existe, se agrega `-2`, `-3`… (incluye los del seed: "Home" → `home-2`). Renombrar **no** cambia el slug. Dos áreas pueden tener el mismo nombre.
+- **Nombre (C5):** se guarda en NFC, con los espacios seguidos (tabs y saltos de línea incluidos) en uno y recortado (`normalizeAreaName`, el mismo en el cliente y el servidor); de 1 a 60 caracteres. Se rechazan los caracteres de control y de formato (`\p{Cc}`, `\p{Cf}`: NUL, espacios de ancho cero, marcas bidireccionales) con un error en el campo; NUL nunca llega a Postgres.
+- **Restricciones en la base (C5):** `CHECK` de `color` y `icon` contra `AREA_COLORS` y `AREA_ICON_NAMES` y de `char_length(name)` entre 1 y 60, generadas desde las mismas constantes (migración `0003_core_life_areas_checks`). Agregar un color o un ícono cambia el `CHECK` y necesita una migración.
+- **Slug (C5):** `slugify(name)` (sin tildes, ñ → n, solo `a-z0-9` y guiones). Un nombre sin letras latinas ni dígitos (solo emoji, símbolos u otro alfabeto, como "日本語") recibe el slug `area` (luego `area-2`…). Si ya existe, se agrega `-2`, `-3`… (incluye los del seed: "Home" → `home-2`) y se reutilizan los huecos. Renombrar **no** cambia el slug. Dos áreas pueden tener el mismo nombre.
+  - Reutilizar huecos es seguro solo porque no hay borrado físico. **Si alguna vez se borra un área, revisar esto antes**: un slug liberado podría reasignarse y confundir a un importador que lo guardó.
 - **Crear (C5):** una área nueva va al final (`sort_order` = máximo + 1, archivadas incluidas) dentro de una transacción con `pg_advisory_xact_lock`; si un escritor sin el lock (seed, importadores) gana la carrera del slug, se reintenta.
 - **Reordenar:** reescribe `sort_order` de todas las áreas dentro de una transacción (con el mismo lock que crear).
 - **Colores:** `AREA_COLORS` viene del design system: 8 paletas con nombre de área (`home`, `health`, `finance`, `learning`, `work`, `relationships`, `travel`, `hobbies`). Cada una tiene su tono base y su tono inverso para ambos temas. Las áreas que crees eligen una de estas 8 paletas y pueden compartirla; se distinguen por el ícono.
@@ -190,7 +193,7 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   - No hay reseteo por email: la recuperación es volver a ejecutar el script.
 - **`requireOwner()`:**
   - Valida la sesión y que `session.user.email === OWNER_EMAIL`.
-  - En páginas hace `redirect("/login")`; en acciones, `requireOwnerAction()` devuelve `null` y la acción responde `unauthorized()` (un `ActionResult` con el error de autorización), sin validar el input.
+  - En páginas hace `redirect("/login")`; en acciones, `ownerAction()` responde `unauthorized()` (un `ActionResult` con el error de autorización) sin validar el input.
   - La sesión se verifica en el layout de `(app)` y en cada acción o query, **nunca solo en `proxy.ts`**.
 - **Sesión:** `expiresIn` de 30 días, `updateAge` de 1 día.
 - **Cookies:** `secure` y `sameSite: "lax"`. Se usa el plugin `nextCookies()`.
@@ -208,43 +211,43 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
 
 - **Todo el código va en inglés:** identificadores, comentarios, archivos, carpetas, rutas, tablas, columnas, ids de módulo, scripts y **mensajes de commit**. Sin excepciones.
 - **Solo el texto que ve el usuario va en español:** JSX, mensajes de validación, toasts y `label` de los manifiestos. No se usa librería de i18n; los textos pueden ir inline o en `src/modules/<id>/copy.ts`.
-- Todo Server Action y toda query empiezan con `requireOwner()`.
-- Las acciones devuelven `ActionResult<T>`, nunca lanzan errores de validación al cliente.
+- Toda query empieza con `requireOwner()`. Toda Server Action se escribe con `ownerAction(schema, handler, { name })` (`src/lib/owner-action.ts`, desde C5), que en este orden:
+  1. comprueba la sesión del owner (sin ella devuelve `unauthorized()` sin mirar el input);
+  2. valida con `schema.safeParse` (los errores van por campo con `fail(zodError)`);
+  3. ejecuta `handler(data, session)`, que devuelve `ok(…)` o `fail(…)`;
+  4. si algo lanza (base caída, un bug), lo registra en el servidor (JSON de una línea, sin los valores del input) y devuelve un error genérico. Las señales de Next (`redirect`, `notFound`) se relanzan.
+
+  Un archivo `"use server"` solo puede exportar funciones async, así que cada acción exportada es una línea que llama a la construida con `ownerAction` (ver `src/modules/core/actions.ts`).
+- El acceso a datos (`life-areas.ts`) y las queries llevan `import "server-only"`. Los tipos que necesita el cliente (`LifeAreaSummary`) viven en archivos sin código de servidor (`life-area-input.ts`).
+- Las acciones devuelven `ActionResult<T>`, nunca lanzan errores de validación al cliente, y solo devuelven lo que la interfaz necesita (no la fila completa).
 - Server Components por defecto; `"use client"` solo cuando hay interacción.
 - Mutaciones con UI optimista (`useOptimistic`) y toast "Deshacer" cuando son reversibles.
 - Prettier + ESLint (config de Next.js), sin `any` ni `@ts-ignore`.
 - Commits en Conventional Commits, en inglés: `feat(core): add life areas`.
 
 ```ts
-// src/modules/core/actions.ts
+// src/modules/core/actions.ts (C5)
 "use server";
 
-import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { requireOwner } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { AREA_COLORS, AREA_ICON_NAMES } from "@/design-system";
-import { slugify } from "@/lib/text";
-import { lifeAreas, type LifeArea } from "./db/schema";
+import { ok, type ActionResult } from "@/lib/action-result";
+import { getDb } from "@/lib/db";
+import { ownerAction } from "@/lib/owner-action";
+import { lifeAreaInputSchema, type LifeAreaSummary } from "./life-area-input";
+import { insertLifeArea } from "./life-areas";
 
-const createLifeAreaSchema = z.object({
-  name: z.string().trim().min(1, "El nombre es obligatorio").max(60),
-  icon: z.enum(AREA_ICON_NAMES),
-  color: z.enum(AREA_COLORS),
-});
+const create = ownerAction(
+  lifeAreaInputSchema, // shared with the form: name, color, icon
+  async (data) => {
+    const area = await insertLifeArea(getDb(), data); // unique slug, sort_order = max + 1
+    revalidatePath("/areas");
+    return ok(area);
+  },
+  { name: "createLifeArea" },
+);
 
-export async function createLifeArea(input: unknown): Promise<ActionResult<LifeArea>> {
-  await requireOwner();
-  const parsed = createLifeAreaSchema.safeParse(input);
-  if (!parsed.success) return fail(parsed.error);
-
-  const [area] = await db
-    .insert(lifeAreas)
-    .values({ ...parsed.data, slug: slugify(parsed.data.name) })
-    .returning();
-  revalidatePath("/areas");
-  return ok(area);
+export async function createLifeArea(input: unknown): Promise<ActionResult<LifeAreaSummary>> {
+  return create(input);
 }
 ```
 
