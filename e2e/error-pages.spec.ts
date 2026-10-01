@@ -132,6 +132,8 @@ test("an error in a signed-in page shows the error page in the shell, and Reinte
   await page.getByRole("button", { name: "Reintentar" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Todo en orden" })).toBeVisible();
   await expect(errorHeading(page)).toHaveCount(0);
+  // The error title leaves with the error screen.
+  await expect(page).toHaveTitle("Prueba de errores · brahua-os");
   expect(
     await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument),
   ).toBe(true);

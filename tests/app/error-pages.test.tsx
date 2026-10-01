@@ -10,6 +10,11 @@ import NotFound, { metadata as notFoundMetadata } from "@/app/not-found";
 import { getOwnerSession } from "@/lib/auth";
 
 vi.mock("@/lib/auth", () => ({ getOwnerSession: vi.fn() }));
+let cookieHeader = "";
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(cookieHeader ? { cookie: cookieHeader } : {}),
+}));
+const SESSION_COOKIE = "better-auth.session_token=token.signature";
 // The shell has its own tests; here it only matters whether the 404 renders inside it.
 vi.mock("@/modules/core/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => (
@@ -27,6 +32,7 @@ function serverError(digest?: string) {
 
 beforeEach(() => {
   vi.mocked(getOwnerSession).mockReset();
+  cookieHeader = SESSION_COOKIE;
   document.title = "";
 });
 
@@ -68,12 +74,44 @@ test("signed out, the root 404 has no shell and points to the login", async () =
   expect(screen.queryByRole("link", { name: "Volver a Hoy" })).toBeNull();
 });
 
-test("if the session lookup fails, the root 404 still renders (signed out)", async () => {
-  vi.mocked(getOwnerSession).mockRejectedValue(new Error("database down"));
+test("without a session cookie the root 404 never looks the session up", async () => {
+  cookieHeader = "bo_sidebar=collapsed";
+  render(await NotFound());
+
+  expect(getOwnerSession).not.toHaveBeenCalled();
+  expect(screen.queryByTestId("app-shell")).toBeNull();
+  expect(screen.getByRole("link", { name: "Ir a iniciar sesión" })).toBeInTheDocument();
+});
+
+test("the secure cookie name (production) also counts as a session cookie", async () => {
+  cookieHeader = `__Secure-${SESSION_COOKIE}`;
+  vi.mocked(getOwnerSession).mockResolvedValue({ user: { id: "owner-id" } } as never);
+  render(await NotFound());
+
+  expect(getOwnerSession).toHaveBeenCalled();
+  expect(screen.getByTestId("app-shell")).toBeInTheDocument();
+});
+
+test("if the session lookup fails, the root 404 still renders (signed out) and logs no message", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.mocked(getOwnerSession).mockRejectedValue(new Error(SECRET));
   render(await NotFound());
 
   expect(screen.getByRole("heading", { level: 1, name: "Nada por aquí" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Ir a iniciar sesión" })).toBeInTheDocument();
+  expect(log).toHaveBeenCalledTimes(1);
+  const line = String(log.mock.calls[0][0]);
+  expect(JSON.parse(line)).toMatchObject({ level: "error", event: "not_found_session_failed" });
+  expect(line).not.toContain(SECRET);
+  log.mockRestore();
+});
+
+test("Next's control-flow errors from the session lookup are rethrown, not swallowed", async () => {
+  const redirect = Object.assign(new Error("NEXT_REDIRECT"), {
+    digest: "NEXT_REDIRECT;replace;/login;307;",
+  });
+  vi.mocked(getOwnerSession).mockRejectedValue(redirect);
+  await expect(NotFound()).rejects.toBe(redirect);
 });
 
 test("notFound() inside (app) renders the signed-in 404 (the layout already has the shell)", () => {
@@ -97,13 +135,21 @@ test.each([
     expect(screen.getByText(/No es nada que hayas hecho/)).toBeInTheDocument();
     expect(screen.getByText("Código del error: 1073160443")).toBeInTheDocument();
     expect(container.textContent).not.toContain(SECRET);
-    expect(container.textContent).not.toMatch(/Error:|stack|at /);
+    expect(container.textContent).not.toMatch(/\bat \S+ \(/);
     expect(screen.getByRole("link", { name: "Volver a Hoy" })).toHaveAttribute("href", "/");
 
     await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(retry).toHaveBeenCalledTimes(1);
   },
 );
+
+test("the error title goes away with the error screen (a successful retry)", () => {
+  document.title = "Prueba · brahua-os";
+  const { unmount } = render(<AppError error={serverError()} retry={vi.fn()} />);
+  expect(document.title).toBe("Algo no salió bien · brahua-os");
+  unmount();
+  expect(document.title).toBe("Prueba · brahua-os");
+});
 
 test("without a digest (a client error) no code is shown, and the message never is", () => {
   const { container } = render(<AppError error={serverError()} retry={vi.fn()} />);

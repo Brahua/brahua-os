@@ -138,6 +138,9 @@
   - **Aceptación:** un error forzado muestra la página sin detalles técnicos; axe en 0.
     - [x] E2E `e2e/error-pages.spec.ts` (sin mensaje ni stack en la respuesta, "Reintentar", axe en ambos temas, 8 capturas nuevas).
   - **Tamaño:** S
+  - **Seguimiento (fuera de C8):**
+    - [ ] Observabilidad de errores de cliente: un error de un componente cliente no tiene `digest` ni llega al registro del servidor; hoy la página no muestra código y nadie se entera. Definir cómo reportarlos (p. ej. un endpoint propio que registre una línea sin el mensaje).
+    - [ ] Estabilizar la E2E de C6 `e2e/areas-order.spec.ts:329` (⌘Z deshace, escritorio): falló una vez en CI y pasó al reintentar.
 
 ## Fase 4 — Producción
 

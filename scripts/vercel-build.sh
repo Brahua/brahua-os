@@ -4,6 +4,13 @@
 # The seed is idempotent (existing slugs are left untouched) and areas are never hard-deleted.
 set -euo pipefail
 
+# Test-only routes that force errors (src/lib/e2e-error-routes.ts) never ship. Refuse the flag
+# before anything touches the database (next.config.ts would only fail later, at `next build`).
+if [ -n "${E2E_ERROR_ROUTES:-}" ]; then
+  echo "E2E_ERROR_ROUTES is set; it adds test-only routes and must never reach Vercel." >&2
+  exit 1
+fi
+
 env_name="${VERCEL_ENV:-}"
 
 if [ "$env_name" = "production" ]; then
