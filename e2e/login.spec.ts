@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { fontsLoaded } from "./support/fonts";
 import { clientIp, E2E_OWNER, HOME_HEADING } from "./support/owner";
+import { expectScreenshot } from "./support/screenshots";
 
 // Signed out: these specs start without the owner session.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -69,9 +71,14 @@ async function expectNoAxeViolations(page: Page) {
 
 for (const theme of ["dark", "light"] as const) {
   test.describe(`${theme} theme`, () => {
-    test("/login has no accessibility violations", async ({ page }) => {
+    test("/login has no accessibility violations and matches the reference screenshot", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
       await openLogin(page, theme);
       await expectNoAxeViolations(page);
+      await fontsLoaded(page);
+      await expectScreenshot(page.getByRole("main"), `login-${theme}.png`);
     });
 
     test("a wrong password is announced, focus returns to the password, axe stays at 0", async ({

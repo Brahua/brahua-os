@@ -1,0 +1,6 @@
+# actionlint does not know `concurrency.queue` yet (GitHub supports `queue: single | max`:
+# https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
+paths:
+  .github/workflows/ci.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'

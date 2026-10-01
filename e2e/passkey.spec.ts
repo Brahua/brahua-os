@@ -207,7 +207,8 @@ test("delete a passkey: it no longer signs in, and the failure is announced", as
 }, testInfo) => {
   await disableAutofill(page);
   await addVirtualAuthenticator(page);
-  const name = `Chromium ${testInfo.project.name} (eliminar)`;
+  // Per retry: a failed first attempt may leave its passkey behind in the shared database.
+  const name = `Chromium ${testInfo.project.name} (eliminar ${testInfo.retry})`;
   const section = await registerPasskey(page, name);
 
   const remove = section.getByRole("button", { name: `Eliminar ${name}` });

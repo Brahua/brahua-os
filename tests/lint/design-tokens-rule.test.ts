@@ -1,8 +1,10 @@
 import { ESLint } from "eslint";
 import path from "node:path";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 const eslint = new ESLint({ cwd: process.cwd() });
+// ESLint loads the whole config on the first lint (seconds under a busy parallel run).
+vi.setConfig({ testTimeout: 30_000 });
 
 async function lint(code: string, file: string) {
   const [result] = await eslint.lintText(code, { filePath: path.join(process.cwd(), file) });

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:changed": "playwright test --only-changed=origin/main",
     "test:e2e:docker": "docker run --rm --ipc=host --add-host=host.docker.internal:host-gateway -e TEST_DATABASE_URL=postgres://postgres:postgres@host.docker.internal:54329/brahua_os_test -v \"$PWD\":/work -v /work/node_modules -v /work/.next -w /work mcr.microsoft.com/playwright:v1.63.0-noble bash -c 'corepack enable && CI=1 pnpm install --frozen-lockfile >/dev/null && pnpm test:e2e \"$@\"' --",
     "design:theme": "node scripts/build-tailwind-theme.mjs",
     "design:lock": "node scripts/design-lock.mjs",

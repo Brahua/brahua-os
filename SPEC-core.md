@@ -215,7 +215,7 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   1. comprueba la sesión del owner (sin ella devuelve `unauthorized()` sin mirar el input);
   2. valida con `schema.safeParse` (los errores van por campo con `fail(zodError)`);
   3. ejecuta `handler(data, session)`, que devuelve `ok(…)` o `fail(…)`;
-  4. si algo lanza (base caída, un bug), lo registra en el servidor (JSON de una línea con el nombre del error y el `code`, `constraint` y `message` de la causa raíz; nunca el mensaje de los errores envolventes, que en Drizzle incluye los parámetros, ni `detail`) y devuelve un error genérico. Las señales de Next (`redirect`, `notFound`) se relanzan.
+  4. si algo lanza (base caída, un bug), lo registra en el servidor (JSON de una línea con el nombre del error y el `code` y `constraint` de la causa raíz; nunca un mensaje: el de los errores envolventes de Drizzle incluye los parámetros y algunos de Postgres citan el valor recibido; tampoco `detail`) y devuelve un error genérico. Las señales de Next (`redirect`, `notFound`) se relanzan.
 
   Un archivo `"use server"` solo puede exportar funciones async, así que cada acción exportada es una línea que llama a la construida con `ownerAction` (ver `src/modules/core/actions.ts`).
 - El acceso a datos (`life-areas.ts`) y las queries llevan `import "server-only"`. Los tipos que necesita el cliente (`LifeAreaSummary`) viven en archivos sin código de servidor (`life-area-input.ts`).
@@ -275,7 +275,7 @@ export type ActionResult<T> =
 - **CI (GitHub Actions)** en cada push y PR: `lint`, `typecheck`, `test`, `test:e2e` y `build`.
 - **Trunk-based + CI/CD (2026-09-30):**
   - Ramas cortas por cambio, con PR a `main`.
-  - Cada push a `main` vuelve a correr el CI, y el job `deploy` de GitHub Actions publica en producción **solo si pasan todos los checks** (`vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`).
+  - Cada push a `main` vuelve a correr el CI, y el job `deploy` de GitHub Actions publica en producción **solo si pasan todos los checks** (`vercel deploy --prod` con build remoto en Vercel, que migra la base; luego un smoke test de solo lectura).
   - El auto-deploy de Vercel está desactivado (`vercel.json`).
   - No hay previews durante el MVP.
 

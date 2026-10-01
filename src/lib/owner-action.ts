@@ -59,14 +59,14 @@ const MAX_CAUSE_DEPTH = 5;
 
 /**
  * What the log may say about an error: never input values, which may be personal data. So no
- * message text from the wrapper errors (Drizzle's "Failed query: … params: …" contains the
- * values), only the error's name plus the code, constraint and message of the root cause
- * (Postgres messages name the constraint or column, not the values; `detail` does hold values
- * and is never logged).
+ * message text at all: not from the wrapper errors (Drizzle's "Failed query: … params: …"
+ * contains the values) and not from the root cause either (some Postgres messages quote the
+ * input, e.g. `invalid input syntax for type uuid: "…"`; `detail` holds values too). Only the
+ * error's name plus the root cause's `code` and `constraint`.
  */
 export function describeError(error: unknown): {
   error: string;
-  cause?: { code?: string; constraint?: string; message?: string };
+  cause?: { code?: string; constraint?: string };
 } {
   // Some subclasses (e.g. DrizzleQueryError) keep the default name "Error": use the class name.
   const name =
@@ -82,10 +82,7 @@ export function describeError(error: unknown): {
     root = next;
   }
   if (root === error || !root || typeof root !== "object") return { error: name };
-  const { code, constraint, message } = root as Record<string, unknown>;
+  const { code, constraint } = root as Record<string, unknown>;
   const text = (value: unknown) => (typeof value === "string" ? value : undefined);
-  return {
-    error: name,
-    cause: { code: text(code), constraint: text(constraint), message: text(message) },
-  };
+  return { error: name, cause: { code: text(code), constraint: text(constraint) } };
 }

@@ -34,10 +34,27 @@ const designTokensOnly = {
   },
 };
 
+// Screenshots go through e2e/support/screenshots.ts, which knows where references are valid.
+const screenshotsThroughHelper = {
+  files: ["e2e/**/*.ts"],
+  ignores: ["e2e/support/screenshots.ts"],
+  rules: {
+    "no-restricted-syntax": [
+      "error",
+      {
+        selector: "MemberExpression[property.name=/^(toHaveScreenshot|toMatchSnapshot)$/]",
+        message:
+          "Usa expectScreenshot() de e2e/support/screenshots.ts: solo compara en la imagen Linux de Playwright y anota el salto en las demás.",
+      },
+    ],
+  },
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   designTokensOnly,
+  screenshotsThroughHelper,
   // Must stay last: turns off stylistic rules that conflict with Prettier.
   prettier,
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", ".claude/**"]),

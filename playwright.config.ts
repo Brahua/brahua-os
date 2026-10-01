@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
+import { isGitHubActions, screenshotsEnabled } from "./e2e/support/screenshot-env";
 
 const PORT = 3417;
 const baseURL = `http://localhost:${PORT}`;
@@ -15,6 +16,13 @@ const appEnv = {
 
 const desktopChrome = devices["Desktop Chrome"];
 
+// On GitHub Actions the screenshot gate must never turn itself off (wrong image, a stray env var).
+if (isGitHubActions() && !screenshotsEnabled()) {
+  throw new Error(
+    "Screenshot comparisons are off on GitHub Actions: E2E must run in the Playwright image (PLAYWRIGHT_BROWSERS_PATH=/ms-playwright).",
+  );
+}
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -26,8 +34,11 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  // Screenshots are only compared inside the Linux Playwright container (CI or Docker),
-  // so fonts render the same everywhere.
+  // Screenshots are only compared inside the Linux Playwright image (CI, update-screenshots.yml or
+  // Docker), so fonts render the same. Elsewhere (macOS while iterating) every comparison is
+  // skipped: specs call expectScreenshot() (e2e/support/screenshots.ts), which also annotates the
+  // skip in the report, and this is the safety net for anything else.
+  ignoreSnapshots: !screenshotsEnabled(),
   snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}{ext}",
   projects: [
     // Signs in once through the login form; the app specs reuse that session.

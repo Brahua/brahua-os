@@ -73,7 +73,7 @@ test("an unexpected error is logged on the server and returned as a generic fail
   });
 });
 
-test("a database error logs the root cause's code and constraint, never the query params", async () => {
+test("a database error logs only the root cause's code and constraint, never params or messages", async () => {
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   const pgError = Object.assign(
     new Error('new row for relation "core_life_areas" violates check constraint "x_check"'),
@@ -104,11 +104,38 @@ test("a database error logs the root cause's code and constraint, never the quer
     event: "server_action_failed",
     action: "createLifeArea",
     error: "DrizzleQueryError",
-    cause: {
-      code: "23514",
-      constraint: "x_check",
-      message: 'new row for relation "core_life_areas" violates check constraint "x_check"',
+    cause: { code: "23514", constraint: "x_check" },
+  });
+});
+
+test("a Postgres message that quotes the input value is never logged", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  // Postgres puts the rejected value in the message itself for some errors.
+  const pgError = Object.assign(new Error('invalid input syntax for type uuid: "secreto-123"'), {
+    code: "22P02",
+  });
+  const action = ownerAction(
+    schema,
+    async () => {
+      throw new DrizzleQueryError(
+        'update "core_life_areas" set "name" = $1 where "id" = $2',
+        ["Nombre", "secreto-123"],
+        pgError,
+      );
     },
+    { name: "updateLifeArea" },
+  );
+
+  expect(await action({ title: "x" })).toEqual({ ok: false, error: UNEXPECTED_ERROR_MESSAGE });
+  const line = log.mock.calls[0][0] as string;
+  expect(line).not.toContain("secreto-123");
+  expect(line).not.toContain("invalid input syntax");
+  expect(JSON.parse(line)).toEqual({
+    level: "error",
+    event: "server_action_failed",
+    action: "updateLifeArea",
+    error: "DrizzleQueryError",
+    cause: { code: "22P02" },
   });
 });
 

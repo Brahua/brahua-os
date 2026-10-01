@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
+import { expectScreenshot } from "./support/screenshots";
 import { HOME_HEADING } from "./support/owner";
 
 const THEMES = ["dark", "light"] as const;
@@ -173,17 +174,13 @@ for (const theme of THEMES) {
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
 
-    // Fonts render differently per OS; references are only valid inside the Linux container.
-    if (process.platform !== "linux") return;
     const desktop = isDesktop(testInfo);
-    await expect(desktop ? sidebar(page) : bottomNav(page)).toHaveScreenshot(
-      `navigation-${theme}.png`,
-    );
+    await expectScreenshot(desktop ? sidebar(page) : bottomNav(page), `navigation-${theme}.png`);
     if (desktop) {
       await shortcutsReady(page);
       await page.keyboard.press("[");
       await expect(sidebar(page)).toHaveClass(/is-collapsed/);
-      await expect(sidebar(page)).toHaveScreenshot(`navigation-collapsed-${theme}.png`);
+      await expectScreenshot(sidebar(page), `navigation-collapsed-${theme}.png`);
     }
   });
 }

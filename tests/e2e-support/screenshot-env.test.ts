@@ -1,0 +1,23 @@
+import { expect, test } from "vitest";
+import { screenshotsEnabled } from "../../e2e/support/screenshot-env";
+
+const IMAGE = { PLAYWRIGHT_BROWSERS_PATH: "/ms-playwright" };
+
+test("compares screenshots only on Linux inside the Playwright image", () => {
+  expect(screenshotsEnabled(IMAGE, "linux")).toBe(true);
+  expect(screenshotsEnabled({}, "linux")).toBe(false);
+  expect(screenshotsEnabled(IMAGE, "darwin")).toBe(false);
+  expect(screenshotsEnabled({}, "darwin")).toBe(false);
+});
+
+test("E2E_SCREENSHOTS forces them on or off", () => {
+  expect(screenshotsEnabled({ E2E_SCREENSHOTS: "1" }, "darwin")).toBe(true);
+  expect(screenshotsEnabled({ ...IMAGE, E2E_SCREENSHOTS: "0" }, "linux")).toBe(false);
+});
+
+test("on GitHub Actions E2E_SCREENSHOTS=0 cannot turn the gate off", () => {
+  const ci = { ...IMAGE, GITHUB_ACTIONS: "true", E2E_SCREENSHOTS: "0" };
+  expect(screenshotsEnabled(ci, "linux")).toBe(true);
+  // Outside the image they still do not run; playwright.config.ts throws in that case.
+  expect(screenshotsEnabled({ GITHUB_ACTIONS: "true" }, "linux")).toBe(false);
+});
