@@ -3,11 +3,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Icon, SectionLabel } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+// P6: registers the progress sources of other modules (tasks) before progress is computed.
+import "@/lib/progress-sources";
 import { listLifeAreas } from "@/modules/core/queries";
 import { ProjectCard } from "@/modules/projects/components/project-card";
+import { contributedProgress } from "@/modules/projects/contracts";
 import type { MilestoneCounts } from "@/modules/projects/milestone-input";
 import { listMilestoneCounts } from "@/modules/projects/milestone-queries";
 import { dueState, milestoneProgress } from "@/modules/projects/progress";
+import { combineProgressCounts, type ProgressCounts } from "@/modules/projects/progress-source";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
 import type { ActiveBlocker } from "@/modules/projects/dependency-input";
 import type { ProjectSummary } from "@/modules/projects/project-input";
@@ -58,6 +62,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     ? projects.filter((project) => project.area.id === selected.id)
     : projects;
   const { groups, history, historyCount } = groupProjects(visible);
+  // P6: what other modules (tasks) add to the milestones' progress; no source registered → no work.
+  const contributed = await contributedProgress(visible.map((project) => project.id));
   // One instant for every card: the due notices all count from the same Lima day.
   const now = new Date();
   const defaultAreaId = selected && !selected.archived ? selected.id : null;
@@ -94,6 +100,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             now={now}
             blockers={blockers}
             milestones={milestones}
+            contributed={contributed}
           />
         ))
       ) : (
@@ -121,6 +128,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             now={now}
             blockers={blockers}
             milestones={milestones}
+            contributed={contributed}
             level={3}
           />
         ))}
@@ -139,12 +147,22 @@ type StatusGroupProps = {
   blockers: Record<string, ActiveBlocker[]>;
   /** Done and total milestones by project id (the cards' progress). */
   milestones: Record<string, MilestoneCounts>;
+  /** Done and total contributed by other modules (P6 progress sources), by project id. */
+  contributed: ReadonlyMap<string, ProgressCounts>;
   /** h2 in the main view; h3 inside "Historial". */
   level?: 2 | 3;
 };
 
 /** One state's projects: a heading with the count and a grid of cards. */
-function StatusGroup({ status, projects, now, blockers, milestones, level = 2 }: StatusGroupProps) {
+function StatusGroup({
+  status,
+  projects,
+  now,
+  blockers,
+  milestones,
+  contributed,
+  level = 2,
+}: StatusGroupProps) {
   // Statuses are unique on the page (main groups and history ones never repeat).
   const id = `project-group-${status}`;
   const label = PROJECT_STATUS_LABELS[status];
@@ -163,7 +181,10 @@ function StatusGroup({ status, projects, now, blockers, milestones, level = 2 }:
             <ProjectCard
               project={project}
               due={dueState(project.dueDate, project.status, now)}
-              progress={milestoneProgress(milestones[project.id], project.status)}
+              progress={milestoneProgress(
+                combineProgressCounts(milestones[project.id], contributed.get(project.id)),
+                project.status,
+              )}
               headingLevel={level === 2 ? 3 : 4}
               blockedBy={blockers[project.id]?.map((blocker) => blocker.name)}
             />

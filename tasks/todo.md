@@ -51,6 +51,7 @@
   - **Qué:** `registerProgressSource()` en `progress.ts` (lo usará `tasks`); `getProjectsTodaySummary()` (vencen en ≤ 7 días, vencidos, bloqueados) para `today`; documentarlos en la spec.
   - **Aceptación:** pruebas unitarias del contrato con una fuente de avance falsa.
   - **Tamaño:** S
+  - **Estado:** implementado en `feat/projects-p6-contracts` (PR abierto, sin merge), en `contracts.ts` (no en `progress.ts`, que es de P3). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects" → "Contratos (P6)".
 
 ### Checkpoint final
 - [ ] Recorrido completo en celular y escritorio: crear, detalle, hitos, dependencias, notas, eliminar y deshacer.
