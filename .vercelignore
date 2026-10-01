@@ -13,3 +13,4 @@ test-results/
 playwright-report/
 e2e/.auth/
 exports/
+.pgdata/

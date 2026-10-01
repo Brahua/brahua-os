@@ -1,4 +1,9 @@
 allowBuilds:
+  # Their postinstall only re-creates library symlinks; scripts/test-db.mjs does that itself.
+  "@embedded-postgres/darwin-arm64": false
+  "@embedded-postgres/darwin-x64": false
+  "@embedded-postgres/linux-arm64": false
+  "@embedded-postgres/linux-x64": false
   esbuild: false
   sharp: false
   unrs-resolver: false

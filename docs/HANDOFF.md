@@ -238,11 +238,12 @@ Estado: P1 (datos, lista y crear). P2 construye el detalle real; P3–P5 agregan
 
 ## Pruebas E2E
 
-- **Mientras se itera (sin Docker):** E2E nativa en macOS, solo con las specs que tocaste. `docker compose up -d` (solo la base) y luego `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test pnpm test:e2e e2e/<spec>.ts`. `pnpm test:e2e:changed` corre las specs que cambiaron contra `origin/main` (`--only-changed` de Playwright: detecta specs y lo que importan, **no** el código de la app; si cambiaste solo `src/`, elige la spec a mano).
-- **Capturas:** solo se comparan donde se generaron las referencias: Linux dentro de la imagen de Playwright (`mcr.microsoft.com/playwright:v1.63.0-noble`, la misma en CI, `update-screenshots.yml` y `pnpm test:e2e:docker`; se reconoce por `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`). En cualquier otro lado se saltan y la prueba lleva la anotación `screenshot-skipped` en el reporte; el comportamiento y axe sí corren. Todo pasa por `expectScreenshot()` (`e2e/support/screenshots.ts`); ESLint prohíbe `toHaveScreenshot` directo en las specs y `ignoreSnapshots` en `playwright.config.ts` es la red de seguridad. `E2E_SCREENSHOTS=1` o `0` fuerza encenderlas o apagarlas en local.
+- **Base de pruebas (sin Docker):** Postgres 18 nativo del paquete npm `embedded-postgres` (binarios en `node_modules`, ~144 MB en macOS arm64). `pnpm db:test:start` (idempotente: crea el clúster en `.pgdata/` la primera vez, lo arranca en el puerto 54329 con `postgres`/`postgres` y crea `brahua_os_test`), `pnpm db:test:stop` (conserva los datos) y `pnpm db:test:reset` (borra `.pgdata/`). En local, `pnpm test:integration` y `pnpm test:e2e` usan esa URL si `TEST_DATABASE_URL` no está definida y, si no hay nada escuchando, la arrancan y la paran al terminar. Sin durabilidad (`fsync=off`): si se corrompe, `pnpm db:test:reset`. Si el puerto está ocupado (por ejemplo, un contenedor viejo de Docker), `TEST_DB_PORT=<otro>` cambia el puerto y la URL por defecto. CI no la usa: sigue con el servicio Postgres 18 de GitHub Actions.
+- **Mientras se itera:** E2E nativa en macOS, solo con las specs que tocaste: `pnpm test:e2e e2e/<spec>.ts`. `pnpm test:e2e:changed` corre las specs que cambiaron contra `origin/main` (`--only-changed` de Playwright: detecta specs y lo que importan, **no** el código de la app; si cambiaste solo `src/`, elige la spec a mano).
+- **Capturas:** solo se comparan donde se generaron las referencias: Linux dentro de la imagen de Playwright (`mcr.microsoft.com/playwright:v1.63.0-noble`, la misma en CI y en `update-screenshots.yml`; se reconoce por `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`). En cualquier otro lado se saltan y la prueba lleva la anotación `screenshot-skipped` en el reporte; el comportamiento y axe sí corren. Todo pasa por `expectScreenshot()` (`e2e/support/screenshots.ts`); ESLint prohíbe `toHaveScreenshot` directo en las specs y `ignoreSnapshots` en `playwright.config.ts` es la red de seguridad. `E2E_SCREENSHOTS=1` o `0` fuerza encenderlas o apagarlas en local.
   - **En CI nunca se apagan:** con `GITHUB_ACTIONS=true` se ignora `E2E_SCREENSHOTS=0`, `playwright.config.ts` lanza un error si no se compararían, y el job E2E comprueba `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` antes de correr.
   - **Huérfanas:** en la imagen, `expectScreenshot()` anota qué referencia usó (`test-results/.screenshots-used/`). Después de la suite completa, `node scripts/check-screenshot-orphans.mjs` falla en CI si hay un PNG que ninguna prueba comparó; `update-screenshots.yml` las borra (`--delete`). Solo vale tras la suite completa: no correrlo después de una spec suelta.
-- **CI es el control completo** (todas las specs, con capturas, ~4 min). `pnpm test:e2e:docker` solo para reproducir CI en local (reinstala dependencias en el contenedor: lento).
+- **CI es el control completo** (todas las specs, con capturas, ~4 min).
 - **Crear o actualizar referencias:** nunca con PNG hechos en macOS. Subir la rama y ejecutar `gh workflow run update-screenshots.yml --ref <rama>` (también desde Actions → Update screenshots → Run workflow).
   - Job `render`: corre `pnpm test:e2e --update-snapshots=changed` en el mismo entorno que el job E2E de CI (imagen, navegadores, fuentes y servicio Postgres) con un token de solo lectura, borra las huérfanas y sube `e2e/__screenshots__` completo como artefacto. Si falla otra prueba, no se commitea nada.
   - Job `commit` (`contents: write`, `actions: write`): el artefacto viene de un job que corrió código de terceros, así que solo acepta archivos regulares `<spec>.spec.ts/<nombre>.png` con la firma PNG; cualquier otra cosa hace fallar el job. Sobre el mismo commit que se renderizó, refleja ese conjunto (PNG nuevos, cambiados y huérfanas borradas), stagea solo `*.png`, commitea como `github-actions[bot]` con el mensaje `chore(e2e): update screenshots` y hace push a la rama. El checkout no guarda credenciales; el token llega solo al `git push` (como cabecera) y al `gh workflow run`. Si la rama avanzó mientras tanto, el push falla: volver a ejecutarlo.
@@ -294,10 +295,15 @@ Los pasos de abajo quedan como referencia para rehacerlo a mano (por ejemplo, tr
 
 Los secretos nunca pasan por la sesión del agente: todo esto se hace en tu terminal, en la raíz del repo, **después del merge del PR de C10** (GitHub solo encuentra el workflow en `main`).
 
-0. **Instala las herramientas:** `brew install age libpq`. `libpq` trae `psql` y `pg_restore` recientes (18): el `psql` 14 de `brew` no entiende `sslrootcert=system`, y un `pg_restore` más viejo que el dump no lo lee. Úsalos por su ruta:
+0. **Instala las herramientas** (sin Docker ni `brew`, que en este Mac compila desde el código):
+   - `psql` y `pg_restore` 18: [Postgres.app](https://postgresapp.com/downloads.html), la imagen "Postgres.app with PostgreSQL 18" (firmada; arrastrarla a Aplicaciones, no hace falta iniciar su servidor). Hace falta la 18: el `psql` 14 no entiende `sslrootcert=system`, y un `pg_restore` más viejo que el dump no lo lee. El `embedded-postgres` de las pruebas no sirve aquí: solo trae `postgres`, `initdb` y `pg_ctl`.
+   - `age`: el binario de [FiloSottile/age](https://github.com/FiloSottile/age/releases) para `darwin-arm64` (o `brew install age` donde `brew` funcione).
+
+   Úsalos por su ruta:
 
    ```bash
-   PSQL="$(brew --prefix libpq)/bin/psql"; PG_RESTORE="$(brew --prefix libpq)/bin/pg_restore"; "$PSQL" --version
+   PG_BIN=/Applications/Postgres.app/Contents/Versions/18/bin
+   PSQL="$PG_BIN/psql"; PG_RESTORE="$PG_BIN/pg_restore"; "$PSQL" --version; "$PG_RESTORE" --version
    ```
 
 1. **Crea la llave de cifrado (age).** Los respaldos se cifran en GitHub con tu llave **pública**; solo la **privada** los abre.
@@ -391,7 +397,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en tu term
      age -d -i <(printf '%s\n' "$AGE_KEY") -o backup.dump brahua-os-<fecha>.dump.age; unset AGE_KEY
    ```
 
-3. Comprobar que se lee: `"$PG_RESTORE" --list backup.dump | grep "TABLE DATA"`. El `pg_restore` de `libpq` tiene que ser de una versión mayor igual o más nueva que la del dump (la muestra el paso "Detect the server's Postgres major version" del run).
+3. Comprobar que se lee: `"$PG_RESTORE" --list backup.dump | grep "TABLE DATA"`. El `pg_restore` de Postgres.app tiene que ser de una versión mayor igual o más nueva que la del dump (la muestra el paso "Detect the server's Postgres major version" del run).
 4. **Restaurar primero en una rama de Neon:** panel de Neon → Branches → New branch (desde `main`); en esa rama, Databases → New database `restore_check` (vacía). Copiar la conexión **directa** de esa base en la rama, con el rol dueño.
 5. **Comprobar que el destino es la base vacía** (tiene que imprimir `t`) y restaurar en una sola transacción. **Nunca `--clean`**:
 
@@ -414,7 +420,7 @@ Criterio de SPEC-core: Lighthouse móvil con Accesibilidad ≥ 95, LCP < 2,5 s y
 
 ### Cómo medir en local
 
-1. `docker compose up -d`, y build y servidor con los valores de prueba de `playwright.config.ts` (nunca los de producción; `/login` sin cookie no consulta la base):
+1. `pnpm db:test:start`, y build y servidor con los valores de prueba de `playwright.config.ts` (nunca los de producción; `/login` sin cookie no consulta la base):
 
    ```bash
    export DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test
@@ -426,7 +432,7 @@ Criterio de SPEC-core: Lighthouse móvil con Accesibilidad ≥ 95, LCP < 2,5 s y
 2. Tres veces, y quedarse con la mediana:
    `npx -y lighthouse@12 http://localhost:3000/login --only-categories=accessibility,performance --form-factor=mobile --chrome-flags="--headless=new"`
 3. Producción se mide solo después del deploy (misma orden contra https://os.brahua.com/login).
-4. `docker compose down` al terminar.
+4. `pnpm db:test:stop` al terminar.
 
 No hay chequeo de Lighthouse en CI: la accesibilidad ya la cubre axe en cada E2E, y el LCP simulado es bimodal (ver abajo), así que un umbral en CI fallaría al azar.
 
@@ -467,7 +473,7 @@ No hay chequeo de Lighthouse en CI: la accesibilidad ya la cubre axe en cada E2E
 ## Decisiones recientes a respetar
 
 - Driver: `pg` + Drizzle + `attachDatabasePool` (ADR-002). Migraciones con `DATABASE_URL_UNPOOLED`.
-- Base Neon con variables **solo en Production**. Las pruebas usan Postgres desechable (Docker en local, servicio en CI), nunca producción.
+- Base Neon con variables **solo en Production**. Las pruebas usan Postgres 18 desechable (`embedded-postgres` en local, sin Docker; servicio en CI), nunca producción.
 - **Deploy con build remoto en Vercel** (desde `chore/faster-e2e`): el job `deploy` de `ci.yml` sube el checkout con `vercel deploy --prod --logs --json` y Vercel ejecuta `scripts/vercel-build.sh` (`auth:check-env`, `db:migrate`, `db:seed`, `next build`) con `VERCEL=1` y `VERCEL_ENV=production`. Un build fallido hace fallar el job (la CLI sale con 1 y `readyState` no es `READY`); el log del build sale en el job, con el enlace al inspector de Vercel. `.vercelignore` excluye `.env*` (salvo `.env.example`), `.claude/`, `.agents/`, `.github/`, `docs/`, `tasks/` y resultados de pruebas. Las pruebas y la E2E sí se suben: `next build` revisa los tipos de todo lo que incluye `tsconfig.json`.
 - **Las variables de Neon son *Sensitive* y está bien:** solo existen dentro del build y del runtime de Vercel. Por eso no hay que volver a `vercel pull` + `vercel build` en GitHub Actions (las recibiría como `[sensitive]`).
 - Incidente 2026-10-01: rotar las credenciales de Neon a *Sensitive* rompió `vercel pull` (migración con "Invalid URL", sin deploy); producción se restauró con un deploy manual con build remoto de `main@954bdf6`.

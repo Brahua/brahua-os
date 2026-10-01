@@ -31,8 +31,11 @@ Local-only files — never overwrite them with remote content:
    pnpm design:theme   # regenerate tailwind-theme.css
    pnpm design:lock    # record the new hashes
    pnpm lint && pnpm typecheck && pnpm test
-   pnpm test:e2e:docker --update-snapshots   # Docker Desktop must be running
+   pnpm test:e2e e2e/design-system.spec.ts   # native: behaviour and axe; screenshots skipped on macOS
    ```
+   Then commit, push the branch and regenerate the references on GitHub (never PNGs made on macOS):
+   `gh workflow run update-screenshots.yml --ref <branch>`. It commits them as github-actions[bot]
+   and re-runs CI; pull the branch afterwards.
 6. Review the changed screenshots in `e2e/__screenshots__/` against the Claude Design cards. Contrast failures are real: report them to the user instead of weakening the test; fix locally in `overrides.css` only with the user's OK.
 7. New or changed components: port the `.jsx` following the existing components (`@/lib/cn`, `lucide-react` icons, no inline handlers when static, Radix for dialogs), add unit tests and a `/design` section, then update `src/design-system/index.ts`.
 8. Commit on a branch (`chore(design-system): sync from Claude Design`), open a PR, wait for CI, merge.

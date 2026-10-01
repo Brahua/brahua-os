@@ -54,7 +54,7 @@ pnpm build                   # next build (Vercel runs scripts/vercel-build.sh: 
 pnpm lint                    # ESLint
 pnpm typecheck               # tsc --noEmit
 pnpm test                    # Vitest (unit, no database)
-pnpm test:integration        # Vitest against TEST_DATABASE_URL (docker compose up -d)
+pnpm test:integration        # Vitest against TEST_DATABASE_URL (pnpm db:test:start)
 pnpm test:e2e                # Playwright against local `next start`
 pnpm db:generate             # drizzle-kit generate → new SQL migration
 pnpm db:migrate              # drizzle-kit migrate (DATABASE_URL_UNPOOLED)
@@ -272,7 +272,7 @@ export type ActionResult<T> =
 | Nivel | Herramienta | Qué cubre |
 |---|---|---|
 | Unitarias | Vitest | Schemas Zod, `slugify`, helpers de `time.ts`, registro de módulos |
-| Integración | Vitest + Postgres en contenedor (servicio de GitHub Actions o Docker local) | Server Actions contra la BD real: CRUD de áreas, archivado, reordenar en transacción, seed idempotente, `requireOwner` rechaza sin sesión o con otro email |
+| Integración | Vitest + Postgres desechable (servicio de GitHub Actions o `embedded-postgres` en local) | Server Actions contra la BD real: CRUD de áreas, archivado, reordenar en transacción, seed idempotente, `requireOwner` rechaza sin sesión o con otro email |
 | E2E | Playwright contra `next start` local + Postgres en contenedor, en viewport móvil y de escritorio | Login con el owner de prueba; passkey con el **autenticador virtual de Chromium**; crear, editar, reordenar y archivar un área con Deshacer; sin sesión redirige a `/login`; `/manifest.webmanifest` válido |
 
 - Cada Server Action tiene al menos una prueba del caso feliz y una de validación o autorización.

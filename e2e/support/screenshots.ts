@@ -11,7 +11,7 @@ import { screenshotsEnabled } from "./screenshot-env";
 const ENABLED = screenshotsEnabled();
 const ANNOTATION = "screenshot-skipped";
 const SKIP_REASON =
-  "Visual references are only compared in the Linux Playwright image (CI, update-screenshots.yml or pnpm test:e2e:docker)";
+  "Visual references are only compared in the Linux Playwright image (CI or update-screenshots.yml)";
 
 // The references this run compared, one file per worker (read by scripts/check-screenshot-orphans.mjs).
 // Inside Playwright's output dir, which every run cleans.
