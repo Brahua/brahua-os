@@ -119,7 +119,7 @@
   - **Aceptación:** el primer deploy después del merge y su smoke pasan con las variables de la base *Sensitive*.
 
 ### Checkpoint 2
-- [ ] Recorrido completo en celular y escritorio: login → navegar → crear, editar, reordenar y archivar un área → cambiar tema → cerrar sesión. Lo revisamos juntos.
+- [x] Recorrido completo en celular y escritorio: login → navegar → crear, editar, reordenar y archivar un área → cambiar tema → cerrar sesión. Lo revisamos juntos. **Validado por el owner el 2026-10-01** (incluye la verificación manual de C7 en el iPhone).
 
 ## Fase 3 — Plataforma
 
@@ -127,7 +127,8 @@
   - **Qué:** `app/manifest.ts` con íconos de 192, 512 y *maskable* derivados de la marca en Archivo 800, `theme_color` y modo standalone. Cabeceras `frame-ancestors 'none'` y `Referrer-Policy`.
     - [x] Cabeceras de seguridad: adelantadas en C2a (`next.config.ts`: `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`), con su E2E en `e2e/login.spec.ts`. Queda el manifest.
     - [x] PWA (PR #25): `src/app/manifest.ts`, íconos generados con `pnpm icons:build` (`scripts/build-icons.tsx`), favicon y `apple-icon`, `appleWebApp`, `theme-color` por tema, E2E `e2e/pwa.spec.ts` y el manifest en el smoke test. Ver "Cómo funciona la PWA (C7)" en `docs/HANDOFF.md`.
-    - [ ] Verificación manual: instalar en el iPhone (y en Android si hay uno a mano) y entrar con passkey dentro de la app instalada.
+    - [x] Verificación manual: instalar en el iPhone y entrar con passkey dentro de la app instalada. Hecha por el owner el 2026-10-01, dentro del Checkpoint 2.
+    - Android: **N/A** (el owner usa iPhone; decisión del owner 2026-10-01).
   - **Aceptación:** una E2E valida el manifest y las cabeceras; la app se instala en tu celular en modo standalone.
   - **Tamaño:** S
 
@@ -138,23 +139,38 @@
   - **Aceptación:** un error forzado muestra la página sin detalles técnicos; axe en 0.
     - [x] E2E `e2e/error-pages.spec.ts` (sin mensaje ni stack en la respuesta, "Reintentar", axe en ambos temas, 8 capturas nuevas).
   - **Tamaño:** S
-  - **Seguimiento (fuera de C8):**
-    - [ ] Observabilidad de errores de cliente: un error de un componente cliente no tiene `digest` ni llega al registro del servidor; hoy la página no muestra código y nadie se entera. Definir cómo reportarlos (p. ej. un endpoint propio que registre una línea sin el mensaje).
-    - [ ] Estabilizar la E2E de C6 `e2e/areas-order.spec.ts:329` (⌘Z deshace, escritorio): falló una vez en CI y pasó al reintentar.
+  - **Seguimiento (fuera de C8):** movido a "Backlog técnico" (al final).
 
 ## Fase 4 — Producción
 
-- [x] **C10: Operación** (PR #27, integrado; falta la configuración del owner).
+- [x] **C10: Operación** (PR #27, integrado; respaldo configurado y probado en producción el 2026-10-01).
   - **Qué:**
     - [x] `pnpm db:export` (JSON): `scripts/db-export.ts` + registro extensible en `src/lib/data-export.ts`; nunca exporta tablas `auth_*`. Pruebas unitarias y de integración.
     - [x] GitHub Action semanal con `pg_dump` guardado como artefacto privado del repo (`.github/workflows/backup.yml`, 90 días, rol de solo lectura `backup_ro` con `scripts/backup/readonly-role.sql`, sin los datos de `auth_*` y cifrado con `age`).
     - [x] ADRs 001–005 en `docs/adr/` (más 006 CI/CD y 007 design system, e índice `README.md`).
   - **Aceptación:** la Action corre manualmente y deja el respaldo; los ADRs están escritos.
     - [x] Probada en la rama contra un Postgres de servicio (`target=ci-service`): artefacto cifrado generado, descifrado con la llave desechable, `pg_restore --list` y restauración completa en una base vacía.
-    - [ ] **Acción del owner:** crear la llave `age`, `backup_ro`, el secreto `BACKUP_DATABASE_URL` y la variable `BACKUP_AGE_RECIPIENT`, y correr `gh workflow run backup.yml` una vez tras el merge (pasos en `docs/HANDOFF.md`, "Respaldos (C10)").
-    - [ ] Confirmar la ventana de historial (restore) del plan de Neon y anotarla en `SPEC-core.md` ("Operación").
+    - [x] **Acción del owner:** crear la llave `age`, `backup_ro`, el secreto `BACKUP_DATABASE_URL` y la variable `BACKUP_AGE_RECIPIENT`, y correr `gh workflow run backup.yml` una vez tras el merge (pasos en `docs/HANDOFF.md`, "Respaldos (C10)"). Hecha de punta a punta por el agente el 2026-10-01 (ver "Estado de la configuración" en `docs/HANDOFF.md`). Primer respaldo de producción: [run 36897359314](https://github.com/Brahua/brahua-os/actions/runs/36897359314); descifrado con la llave del Llavero del owner, `pg_restore --list` mostró datos solo de `drizzle.__drizzle_migrations` y `public.core_life_areas`.
+    - [x] Confirmar la ventana de historial (restore) del plan de Neon y anotarla en `SPEC-core.md` ("Operación"): `history_retention_seconds` = 21600 (**6 horas**) en el plan Free de Neon (Postgres 18). El restore a un momento dado solo cubre las últimas 6 h; la red de seguridad real es el respaldo semanal cifrado.
   - **Tamaño:** S
 
+- [ ] **LCP de `/login`** (PR `perf/login-lcp`). Ver "Rendimiento de `/login` (LCP)" en `docs/HANDOFF.md`.
+  - **Contexto:** Lighthouse 12 móvil en producción (antes del PR): Accesibilidad 100, Rendimiento 93, LCP 2,9 s, CLS 0. El LCP es el párrafo de bienvenida, con 2,06 s de "retraso de renderizado".
+  - **Causa:** no es una animación ni contenido que espere a hidratar. La simulación de Lighthouse (Lantern) carga al LCP todo lo que se descargó y ejecutó antes de la primera pintura observada: ~118 KB de fuentes precargadas (≈ 0,6 s del LCP simulado) y ~210 KB de JavaScript asíncrono. Con *throttling* real (DevTools) el LCP es igual al FCP: 1,6 s.
+  - **Hecho:** `"sideEffects": ["*.css"]` en `package.json` (el barril `@/design-system` dejaba en `/login` la hoja, el tooltip y más), el cliente de Better Auth y la ceremonia de passkey se cargan a demanda (`login-form.tsx`, `session-refresher.tsx`), y IBM Plex Mono sin el peso 400 (sin uso). JavaScript de `/login`: de ~211 KB a ~173 KB gzip; fuentes precargadas: de ~118 KB a ~108 KB.
+  - **Aceptación:** medir producción tras el deploy (Lighthouse 12 móvil, mediana de 3).
+
 ### Checkpoint final
-- [ ] Se cumplen los criterios de éxito de `SPEC-core.md`.
+- [x] Se cumplen los criterios de éxito de `SPEC-core.md`, o el owner los difirió de forma explícita (revisados el 2026-10-01):
+  - **Calidad, Lighthouse móvil:** Accesibilidad 100 y CLS 0 cumplen. El **LCP** de `/login` simulado en producción era 2,9 s (> 2,5 s); en local pasó de 3,25 s a 3,02 s con el PR `perf/login-lcp` (con *throttling* real de DevTools: 1,6 s). **Aceptado por ahora (decisión del owner 2026-10-01):** la medición con datos reales queda en "Backlog técnico".
+  - **Passkey y PWA en Android** (verificación y checklist manuales): **N/A**, el owner usa iPhone (decisión del owner 2026-10-01). En iOS están hechas (Checkpoint 2).
 - [ ] Revisión contigo antes del siguiente módulo (`projects`).
+
+## Backlog técnico
+
+Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre módulos o cuando algo las vuelva urgentes.
+
+- [ ] **LCP con datos reales:** medir el LCP con datos reales (Vercel Speed Insights o Lighthouse con *throttling* real de DevTools) en vez del Lighthouse simulado. Si supera 2,5 s, autoalojar las fuentes recortadas (prototipo: ~0,15 s). Ver "Rendimiento de `/login` (LCP)" en `docs/HANDOFF.md` (cómo medir, hallazgos y siguientes palancas). Origen: criterio de Calidad de `SPEC-core.md`, aceptado por el owner el 2026-10-01.
+- [ ] **Postgres de pruebas en 18:** subir el Postgres de pruebas (CI y `docker compose`) a 18, como producción. Hoy es `postgres:17` en `docker-compose.yml` y en `.github/workflows/ci.yml`, `update-screenshots.yml` y `backup.yml` (`target=ci-service`).
+- [ ] **Observabilidad de errores de cliente** (de C8): un error de un componente cliente no tiene `digest` ni llega al registro del servidor; hoy la página no muestra código y nadie se entera. Definir cómo reportarlos (p. ej. un endpoint propio que registre una línea sin el mensaje).
+- [ ] **E2E inestable** (de C8): estabilizar la E2E de C6 `e2e/areas-order.spec.ts:329` (⌘Z deshace, escritorio): falló una vez en CI y pasó al reintentar.

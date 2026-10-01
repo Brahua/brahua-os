@@ -288,7 +288,7 @@ export type ActionResult<T> =
 - **Backups:**
   - Un workflow semanal de GitHub Actions hace `pg_dump` hacia un almacenamiento privado.
   - `pnpm db:export` exporta a JSON en cualquier momento.
-  - Se documenta la ventana de restauración que da el plan de Neon (dato a confirmar al contratarlo).
+  - Ventana de restauración de Neon: `history_retention_seconds` = 21600 (**6 horas**) en el plan Free actual (servidor Postgres 18), confirmada el 2026-10-01. El restore a un momento dado solo cubre las últimas 6 h, así que la red de seguridad real es el respaldo semanal cifrado.
 - **Observabilidad:** logs estructurados en Vercel Logs. Sin Sentry en el MVP.
 - **ADRs** en `docs/adr/`:
   - 001: autenticación de un solo usuario.
@@ -328,10 +328,10 @@ export type ActionResult<T> =
    - La cookie de sesión tiene `Max-Age` de 30 días, y un test lo comprueba.
 2. **Passkey:**
    - Puedo registrar una passkey desde Ajustes e iniciar sesión solo con ella (E2E con autenticador virtual).
-   - Verificación manual: funciona dentro de la PWA instalada en iOS y en Android.
+   - Verificación manual: funciona dentro de la PWA instalada en iOS y en Android. Android: N/A, el owner usa iPhone (decisión del owner 2026-10-01).
 3. **PWA:**
    - `/manifest.webmanifest` responde con `name`, `display: "standalone"`, `theme_color` e íconos de 192, 512 y *maskable* (test E2E).
-   - Checklist manual: se instala y abre en modo standalone en iOS y en Android.
+   - Checklist manual: se instala y abre en modo standalone en iOS y en Android. Android: N/A, el owner usa iPhone (decisión del owner 2026-10-01).
 4. **Áreas:**
    - Crear, editar, reordenar (arrastrando, y con botones subir y bajar como alternativa accesible) y archivar o desarchivar.
    - Archivar y reordenar se ven al instante y ofrecen "Deshacer".
@@ -341,7 +341,7 @@ export type ActionResult<T> =
    - Los ítems salen del registro de módulos.
 6. **Calidad:**
    - Todos los checks de CI pasan.
-   - Lighthouse móvil: Accesibilidad ≥ 95, LCP < 2,5 s, CLS < 0,1.
+   - Lighthouse móvil: Accesibilidad ≥ 95, LCP < 2,5 s, CLS < 0,1. LCP: medición pendiente con datos reales (backlog técnico, decisión del owner 2026-10-01).
    - Con `prefers-reduced-motion: reduce` no hay animaciones de escala ni de desplazamiento.
 7. **Despliegue:**
    - `https://os.brahua.com` responde con HTTPS.
