@@ -7,7 +7,7 @@
 #
 # Retries the whole round a few times (SMOKE_ATTEMPTS, SMOKE_DELAY seconds apart) to absorb
 # propagation; exits 1 if the last round still fails. Worst case with the defaults: 6 rounds of
-# 10 requests × 8 s plus 5 pauses of 10 s ≈ 9 min (ci.yml's smoke job allows 15).
+# 11 requests × 8 s plus 5 pauses of 10 s ≈ 9.6 min (ci.yml's smoke job allows 15).
 set -uo pipefail
 
 BASE_URL="${SMOKE_BASE_URL:-https://os.brahua.com}"
@@ -77,6 +77,7 @@ round() {
   failures=()
 
   expect_redirect_to_login /
+  expect_redirect_to_login /projects
   expect_redirect_to_login /areas
   expect_redirect_to_login /settings
 
@@ -117,7 +118,7 @@ round() {
 echo "Smoke test: $BASE_URL"
 for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
   if round; then
-    echo "OK (attempt $attempt): / /areas /settings → /login, /login 200, /api/auth/ok, manifest and icon, 404s (test routes absent), security headers."
+    echo "OK (attempt $attempt): / /projects /areas /settings → /login, /login 200, /api/auth/ok, manifest and icon, 404s (test routes absent), security headers."
     exit 0
   fi
   echo "Attempt $attempt/$ATTEMPTS failed:"

@@ -6,6 +6,7 @@
 import { asc, getTableColumns, getTableName, type AnyColumn } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { coreExportTables } from "@/modules/core/export";
+import { projectsExportTables } from "@/modules/projects/export";
 import type { Database } from "./db";
 
 /**
@@ -23,7 +24,10 @@ export type ExportableTable = {
 };
 
 /** Every module's exportable tables. Add each new module's list here (like `schema` in db.ts). */
-export const EXPORTABLE_TABLES: readonly ExportableTable[] = [...coreExportTables];
+export const EXPORTABLE_TABLES: readonly ExportableTable[] = [
+  ...coreExportTables,
+  ...projectsExportTables,
+];
 
 /**
  * Tables that are never exported: authentication state and secrets (sessions, password hashes,

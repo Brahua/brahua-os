@@ -20,6 +20,7 @@ import {
   testWithAreasLock,
   uniqueName,
 } from "./support/areas";
+import { animationsSettled } from "./support/animations";
 import { fontsLoaded } from "./support/fonts";
 import { expectScreenshot } from "./support/screenshots";
 
@@ -320,6 +321,8 @@ for (const theme of THEMES) {
     await colorGroup(page).getByRole("radio", { name: "Lima" }).click();
     await iconGroup(page).getByRole("radio", { name: "Música" }).click();
     await expect(sheet(page).locator(".bo-area-tag")).toHaveText("Música");
+    // The picked keys fade to their "on" colors; measure contrast once they have settled.
+    await animationsSettled(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
     // With errors showing too.

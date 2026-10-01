@@ -29,6 +29,13 @@
       "when": 1790812423478,
       "tag": "0003_core_life_areas_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790881986460,
+      "tag": "0004_projects",
+      "breakpoints": true
     }
   ]
 }

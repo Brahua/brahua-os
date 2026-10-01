@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, TriangleAlert } from "lucide-react";
-import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import {
   AreaTag,
   Icon,
@@ -13,6 +13,7 @@ import {
 } from "@/design-system";
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
+import { useIsDesktop } from "@/lib/use-is-desktop";
 import { createLifeArea, updateLifeArea } from "@/modules/core/actions";
 import { AREA_ICON_LABELS, AREAS_COPY } from "@/modules/core/areas-copy";
 import { AreaColorPicker, AreaIconPicker } from "@/modules/core/components/area-pickers";
@@ -24,24 +25,6 @@ import {
   type LifeAreaField,
   type LifeAreaSummary,
 } from "@/modules/core/life-area-input";
-
-// Same breakpoint as the shell (Tailwind `lg`): side panel next to the sidebar, bottom sheet below.
-const DESKTOP_QUERY = "(min-width: 1024px)";
-
-function subscribeToDesktop(onChange: () => void) {
-  const query = window.matchMedia(DESKTOP_QUERY);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-/** True from 1024 px. The sheet only opens after hydration, so the server value never shows. */
-function useIsDesktop(): boolean {
-  return useSyncExternalStore(
-    subscribeToDesktop,
-    () => window.matchMedia(DESKTOP_QUERY).matches,
-    () => false,
-  );
-}
 
 export type AreaSheetProps = {
   open: boolean;

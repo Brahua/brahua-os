@@ -97,3 +97,32 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
 /* Narrow phones: no pencil, so the name keeps room next to the handle and the arrows. */
 @media (max-width: 359px) { .bo-area-row .bo-row__trail { display: none; } }
 .bo-drag-handle:active, .bo-drag-handle[aria-pressed="true"] { cursor: grabbing; }
+
+/*
+ * Projects: the area filter of the list. Links around an AreaTag chip; the current one
+ * (aria-current="page") takes the "on" look of a key (inverted, LED and icon in the area's
+ * inverse tone), so it is not told apart by color alone. The chips wrap at every width: a
+ * sideways-scrolling row would hide chips (and the current one) off screen.
+ */
+.bo-filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bo-filter-chip { display: flex; max-width: 100%; border-radius: var(--radius-full); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.bo-filter-chip:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.bo-filter-chip .bo-area-tag--chip { transition: background-color var(--duration-hover) var(--ease-standard); }
+.bo-filter-chip:hover .bo-area-tag--chip { background: var(--color-surface-hover); }
+.bo-filter-chip[aria-current="page"] .bo-area-tag--chip { background: var(--color-key-on); color: var(--color-on-key-on); box-shadow: var(--shadow-key-on); }
+.bo-filter-chip[aria-current="page"] .bo-area-tag .lucide,
+.bo-filter-chip[aria-current="page"] .bo-area-tag .bo-icon { color: var(--area-ci, var(--color-on-key-on)); }
+.bo-filter-chip[aria-current="page"] .bo-led { --led: var(--area-ci, var(--color-on-key-on)); }
+@media (forced-colors: active) {
+  .bo-filter-chip[aria-current="page"] .bo-area-tag--chip { outline: 2px solid CanvasText; }
+}
+/*
+ * Projects: the card of the list (Claude Design pattern ProjectCard). Its name is a link whose
+ * ::after covers the whole card, so the card takes the hover and the focus ring.
+ */
+.bo-project-card { position: relative; gap: 12px; transition: background-color var(--duration-hover) var(--ease-standard); }
+.bo-project-card:hover { background: var(--color-surface-hover); }
+.bo-project-card:has(a:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+/* Options of a radio grid that carry a name (the area picker): left-aligned, up to two lines. */
+.bo-key.bo-option-key { justify-content: flex-start; text-align: left; min-height: 52px; padding: 6px 12px; gap: 8px; }
+.bo-option-key__label { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; overflow-wrap: anywhere; }

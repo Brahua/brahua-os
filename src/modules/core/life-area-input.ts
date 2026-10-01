@@ -8,6 +8,7 @@ import {
   type AreaColor,
   type AreaIconName,
 } from "@/design-system/areas";
+import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
 
 // Shared with the CHECK constraint in ./db/schema.
 import { LIFE_AREA_NAME_MAX_LENGTH } from "./life-area-limits";
@@ -41,17 +42,7 @@ export type LifeAreaSummary = {
  * The name as stored: Unicode NFC, runs of whitespace (spaces, tabs, line breaks) as one space,
  * trimmed. The form's preview uses it too, so it shows exactly what will be saved.
  */
-export function normalizeAreaName(value: string): string {
-  return value.normalize("NFC").replace(/\s+/g, " ").trim();
-}
-
-/**
- * Control and format characters (NUL, zero-width spaces, bidi overrides…) that are left after
- * normalizing. They are invisible or reorder the text, and Postgres rejects NUL outright.
- * Except the zero-width non-joiner and joiner (U+200C, U+200D): emoji sequences such as
- * 👨‍👩‍👧 or 🏳️‍🌈 and some scripts need them.
- */
-const INVISIBLE = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u;
+export const normalizeAreaName = normalizeName;
 
 const name = z
   .string({ error: LIFE_AREA_ERRORS.nameRequired })
@@ -61,7 +52,7 @@ const name = z
       .string()
       .min(1, LIFE_AREA_ERRORS.nameRequired)
       .max(LIFE_AREA_NAME_MAX_LENGTH, LIFE_AREA_ERRORS.nameTooLong)
-      .refine((value) => !INVISIBLE.test(value), LIFE_AREA_ERRORS.nameInvisible),
+      .refine((value) => !hasInvisibleCharacters(value), LIFE_AREA_ERRORS.nameInvisible),
   );
 
 export const lifeAreaInputSchema = z.object({

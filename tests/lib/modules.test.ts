@@ -23,9 +23,10 @@ describe("registry", () => {
     }
   });
 
-  test("Hoy (1), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
+  test("Hoy (1), Proyectos (2), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
     expect(navItems().map((item) => [item.label, item.href, item.group, item.shortcut])).toEqual([
       ["Hoy", "/", "main", "1"],
+      ["Proyectos", "/projects", "main", "2"],
       ["Áreas", "/areas", "footer", "7"],
       ["Ajustes", "/settings", "footer", "8"],
     ]);
