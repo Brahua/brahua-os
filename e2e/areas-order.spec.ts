@@ -62,6 +62,13 @@ async function liftAndMoveUp(page: Page, name: string, steps: number) {
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(dragStatus(page)).toContainText(`Tomaste «${name}»`);
+  // "Tomaste…" comes on lift; the rows are measured in the frames right after.
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))),
+      ),
+  );
   for (let step = 0; step < steps; step++) {
     const before = await dragStatus(page).textContent();
     await page.keyboard.press("ArrowUp");
