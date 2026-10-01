@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { getTableName, sql } from "drizzle-orm";
@@ -186,5 +186,16 @@ describe("writeExport", () => {
     expect((await stat(outDir)).mode & 0o777).toBe(0o700);
     expect(JSON.parse(await readFile(file, "utf8"))).toEqual(JSON.parse(JSON.stringify(data)));
     await expect(writeExport(outDir, data, NOW)).rejects.toThrow(/EEXIST/);
+  });
+
+  test("tightens an exports folder that already existed with looser permissions", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "brahua-export-"));
+    const outDir = path.join(dir, "exports");
+    await mkdir(outDir, { mode: 0o755 });
+    await chmod(outDir, 0o755);
+
+    await writeExport(outDir, await buildExport(testDb, NOW), NOW);
+
+    expect((await stat(outDir)).mode & 0o777).toBe(0o700);
   });
 });

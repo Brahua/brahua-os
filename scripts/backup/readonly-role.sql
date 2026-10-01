@@ -2,21 +2,20 @@
 -- Run it ONCE with psql, connected as the role that owns the tables (the one in
 -- DATABASE_URL_UNPOOLED, usually neondb_owner), never as backup_ro:
 --
---   psql "$DATABASE_URL_UNPOOLED" -f scripts/backup/readonly-role.sql
+--   psql "$OWNER_DB_URL" -X -f scripts/backup/readonly-role.sql
 --
--- It asks for the new role's password (or takes `-v backup_ro_password=…`, as CI does against its
--- throwaway database). Steps for the owner: docs/HANDOFF.md, "Respaldos (C10)".
+-- psql then asks for the new role's password twice with `\password`, without echoing it, and
+-- sends it already hashed (SCRAM): the plain password never travels or lands in a log. CI, on its
+-- throwaway database, passes `-v backup_ro_password=…` instead. Owner steps: docs/HANDOFF.md,
+-- "Respaldos (C10)".
 --
 -- Grants: CONNECT on this database, USAGE and SELECT on every table and sequence in `public`
--- (the app) and `drizzle` (the migration journal, which pg_dump also dumps), and the same SELECT
--- on tables and sequences that migrations create later (default privileges of the owner role).
--- No INSERT, UPDATE, DELETE, TRUNCATE or DDL.
+-- (the app) and `drizzle` (the migration journal, which pg_dump also dumps; pg_dump locks every
+-- table it dumps, auth tables included, so SELECT on them stays even though the backup skips
+-- their data), and the same SELECT on tables and sequences that migrations create later (default
+-- privileges of the owner role). No INSERT, UPDATE, DELETE, TRUNCATE or DDL; on top of that the
+-- role's sessions are read-only by default, at most 2 at a time, and a statement stops at 10 min.
 \set ON_ERROR_STOP on
-
-\if :{?backup_ro_password}
-\else
-\prompt 'Password for backup_ro (it will be shown while you type): ' backup_ro_password
-\endif
 
 BEGIN;
 
@@ -36,7 +35,16 @@ BEGIN
 END
 $$;
 
-CREATE ROLE backup_ro LOGIN PASSWORD :'backup_ro_password';
+CREATE ROLE backup_ro LOGIN CONNECTION LIMIT 2;
+ALTER ROLE backup_ro SET default_transaction_read_only = on;
+ALTER ROLE backup_ro SET statement_timeout = '10min';
+
+\if :{?backup_ro_password}
+ALTER ROLE backup_ro PASSWORD :'backup_ro_password';
+\else
+\echo 'Password for backup_ro (not shown; type it twice):'
+\password backup_ro
+\endif
 
 DO $$
 BEGIN

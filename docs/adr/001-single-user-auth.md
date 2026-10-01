@@ -31,4 +31,4 @@ brahua-os es la app personal de una sola persona (el owner) y está publicada en
 - La superficie pública es solo `/login` y `/api/auth/*`; todo lo demás exige la sesión del owner.
 - Las passkeys solo funcionan en el dominio de producción: los previews no sirven para probarlas (se prueban con el autenticador virtual de Chromium en la E2E y con un autenticador por software en integración).
 - Perder el acceso se arregla solo desde una terminal con la conexión directa a la base; es intencional.
-- Las tablas `auth_*` nunca se exportan en `pnpm db:export` (sí van en el `pg_dump` semanal, que es privado).
+- Los datos de las tablas `auth_*` (hash de la contraseña, sesiones, passkeys, verificaciones, rate limits y el usuario) no salen de la base: `pnpm db:export` no las incluye y el `pg_dump` semanal guarda solo su definición (`--exclude-table-data='public.auth_*'`). Después de restaurar un respaldo, la base queda sin owner: se corre `pnpm auth:owner` y se registran de nuevo las passkeys en Ajustes.

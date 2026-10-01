@@ -1,0 +1,9 @@
+# Official postgres images for .github/workflows/backup.yml, pinned by digest (multi-arch index).
+# One line per server major version: "<major> <image>". pg_dump must match the server's major
+# version; the highest line also runs the version probe (a newer psql reads any older server).
+# Dependabot cannot track this file: refresh it by hand when Neon moves to a new major or every
+# few months, with `docker buildx imagetools inspect postgres:<major>` (the "Digest:" line).
+15 postgres:15.19@sha256:724292da1f2e50bdccfc3302ce75bbba7f4a6076701b588cc795fcac65683550
+16 postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+17 postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+18 postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722

@@ -21,7 +21,7 @@ Restricciones que salieron en el camino:
 - **Smoke test** de solo lectura (`scripts/smoke-production.sh`) después de cada deploy, cuando el dominio ya apunta al deploy nuevo. `deploy` y `smoke` comparten un grupo de concurrencia con `queue: max`: un deploy a la vez y ninguno se pierde.
 - **`main` sin protección, aceptado por el owner (2026-10-01):** la regla "merge solo con CI verde" se cumple por proceso (se revisan los tres checks antes de cada merge) y el deploy exige igual que el run del push pase todo.
 - **Higiene de workflows:** acciones fijadas a un SHA completo con la versión en un comentario (Dependabot propone las subidas), `permissions` mínimos, `timeout-minutes` en cada job y grupos de concurrencia.
-- **Respaldos (C10):** `backup.yml` hace un `pg_dump` semanal con un rol de solo lectura de Neon y lo guarda como artefacto privado del workflow (90 días). Los secretos solo los carga el owner desde una terminal propia; nunca pasan por la sesión de un agente.
+- **Respaldos (C10):** `backup.yml` hace un `pg_dump` semanal con un rol de solo lectura de Neon (`backup_ro`), sin los datos de las tablas `auth_*`, lo cifra con `age` para la llave pública del owner (`BACKUP_AGE_RECIPIENT`) y guarda solo el cifrado como artefacto privado del workflow (90 días). La llave privada vive solo en el gestor de contraseñas del owner. `BACKUP_DATABASE_URL` solo se entrega a los pasos de `target=production`, que solo corre en `main`. Los secretos solo los carga el owner desde una terminal propia; nunca pasan por la sesión de un agente.
 
 ## Alternativas
 
@@ -29,12 +29,14 @@ Restricciones que salieron en el camino:
 - **`vercel pull` + `vercel build --prebuilt` en el runner:** imposible con variables Sensitive (llegan como `[sensitive]`).
 - **Volver las variables de Neon no Sensitive:** las expondría a cualquiera con acceso a la CLI o al panel; se descartó a cambio de construir en Vercel.
 - **GitHub Pro para proteger `main`:** costo mensual que el owner decidió no asumir durante el MVP.
+- **Respaldo sin cifrar (solo artefacto privado):** cualquiera con lectura del repo o un token con permisos de Actions lo bajaría. Con `age` solo la llave privada del owner lo abre, a cambio de que **perder esa llave es perder todos los respaldos**.
 - **Ambientes de preview con ramas de Neon:** más costo y complejidad; las passkeys tampoco funcionan fuera del dominio de producción.
 
 ## Consecuencias
 
 - Producción siempre corresponde a un commit de `main` que pasó todos los checks.
 - Una migración rota no publica nada: el build de Vercel falla y producción sigue con el deploy anterior.
-- El runner de GitHub nunca ve las credenciales de la app. La única credencial de base de datos en GitHub es `BACKUP_DATABASE_URL`, de solo lectura.
+- El runner de GitHub nunca ve las credenciales de la app. La única credencial de base de datos en GitHub es `BACKUP_DATABASE_URL`: no puede escribir, pero **sí lee todos los datos que no son de autenticación** (hoy las áreas; mañana, todo lo que agreguen los módulos). `VERCEL_TOKEN` es más poderoso todavía: puede desplegar código que lea las credenciales de la app en el runtime de Vercel.
+- **Riesgo aceptado (repo privado en el plan gratuito):** sin protección de rama ni *environments* con reglas de rama, cualquiera con permiso de push puede correr un workflow desde una rama propia, editado para leer `BACKUP_DATABASE_URL` o `VERCEL_TOKEN`. El chequeo de `main` en `backup.yml` evita usos accidentales, no a alguien con push. Hoy el único con push es el owner (y los agentes que trabajan en su nombre); dar push a otra persona equivale a darle esos secretos. Se revisa si el repo pasa a un plan con *environments* protegidos.
 - Sin protección de rama, la disciplina de merge depende del proceso (y de que los agentes lo respeten).
 - Sin previews, los cambios visuales se revisan con las capturas de la E2E y en producción.

@@ -147,11 +147,11 @@
 - [ ] **C10: Operación** — PR `feat/core-c10-operations`, sin merge (pendiente de revisión).
   - **Qué:**
     - [x] `pnpm db:export` (JSON): `scripts/db-export.ts` + registro extensible en `src/lib/data-export.ts`; nunca exporta tablas `auth_*`. Pruebas unitarias y de integración.
-    - [x] GitHub Action semanal con `pg_dump` guardado como artefacto privado del repo (`.github/workflows/backup.yml`, 90 días, rol de solo lectura `backup_ro` con `scripts/backup/readonly-role.sql`).
+    - [x] GitHub Action semanal con `pg_dump` guardado como artefacto privado del repo (`.github/workflows/backup.yml`, 90 días, rol de solo lectura `backup_ro` con `scripts/backup/readonly-role.sql`, sin los datos de `auth_*` y cifrado con `age`).
     - [x] ADRs 001–005 en `docs/adr/` (más 006 CI/CD y 007 design system, e índice `README.md`).
   - **Aceptación:** la Action corre manualmente y deja el respaldo; los ADRs están escritos.
-    - [x] Probada en la rama contra un Postgres de servicio (`target=ci-service`): artefacto generado, `pg_restore --list` y restauración completa en una base vacía.
-    - [ ] **Acción del owner:** crear `backup_ro` y el secreto `BACKUP_DATABASE_URL`, y correr `gh workflow run backup.yml` una vez tras el merge (pasos en `docs/HANDOFF.md`, "Respaldos (C10)").
+    - [x] Probada en la rama contra un Postgres de servicio (`target=ci-service`): artefacto cifrado generado, descifrado con la llave desechable, `pg_restore --list` y restauración completa en una base vacía.
+    - [ ] **Acción del owner:** crear la llave `age`, `backup_ro`, el secreto `BACKUP_DATABASE_URL` y la variable `BACKUP_AGE_RECIPIENT`, y correr `gh workflow run backup.yml` una vez tras el merge (pasos en `docs/HANDOFF.md`, "Respaldos (C10)").
     - [ ] Confirmar la ventana de historial (restore) del plan de Neon y anotarla en `SPEC-core.md` ("Operación").
   - **Tamaño:** S
 
