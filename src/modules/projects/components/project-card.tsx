@@ -1,16 +1,20 @@
 import { Lock } from "lucide-react";
 import Link from "next/link";
-import { AreaTag, Icon, Led } from "@/design-system";
+import { AreaTag, formatStat, Icon, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatOwnerDay } from "@/lib/time";
-import type { DueState } from "../progress";
+import { MILESTONES_COPY } from "../milestones-copy";
+import type { DueState, Progress } from "../progress";
 import type { ProjectSummary } from "../project-input";
 import { DEPENDENCIES_COPY, PROJECTS_COPY } from "../projects-copy";
+import { ProgressMeter } from "./progress-meter";
 
 type ProjectCardProps = {
   project: ProjectSummary;
   /** The due-date notice, if any (`dueState` in ../progress, computed for Lima's today). */
   due: DueState | null;
+  /** Done of total milestones (`milestoneProgress` in ../progress); null shows nothing. */
+  progress?: Progress | null;
   /** Level of the name's heading: 3 under a group's h2, 4 inside the history's h3 groups. */
   headingLevel?: 3 | 4;
   /** Names of the projects that still block it (P4); none or empty: not blocked. */
@@ -23,12 +27,13 @@ type ProjectCardProps = {
  * the name (a link to the detail that covers the whole card), the objective and, only when it
  * is high, the priority. Server-renderable (no hooks).
  *
- * Ported without the pattern's "Siguiente tarea" key (it belongs to `tasks`) and without the
- * progress bar until there are milestones (P3): a card never shows an empty slot for either.
+ * Ported without the pattern's "Siguiente tarea" key (it belongs to `tasks`); the progress only
+ * shows with milestones and outside Mantenimiento (P3): a card never shows an empty slot.
  */
 export function ProjectCard({
   project,
   due,
+  progress = null,
   headingLevel = 3,
   blockedBy = [],
   className,
@@ -42,10 +47,12 @@ export function ProjectCard({
   const priorityId = `project-${project.id}-priority`;
   const blockedId = `project-${project.id}-blocked`;
   const blocked = blockedBy.length > 0;
+  const progressId = `project-${project.id}-progress`;
   const describedBy = [
     due ? dueId : null,
     high ? priorityId : null,
     blocked ? blockedId : null,
+    progress ? progressId : null,
   ].filter((id): id is string => id !== null);
   return (
     <article
@@ -98,6 +105,19 @@ export function ProjectCard({
       </Heading>
       {project.objective ? (
         <p className="bo-text-body-sm line-clamp-2 text-text-secondary">{project.objective}</p>
+      ) : null}
+      {progress ? (
+        <>
+          {/* Said once: as the link's description (a hidden node can still be referenced). */}
+          <ProgressMeter progress={progress} decorative />
+          <span id={progressId} hidden>
+            {MILESTONES_COPY.progressName(
+              formatStat(progress.ratio, "percent"),
+              progress.done,
+              progress.total,
+            )}
+          </span>
+        </>
       ) : null}
       {high ? (
         <p className="bo-text-label flex items-center gap-2 text-signal-text">

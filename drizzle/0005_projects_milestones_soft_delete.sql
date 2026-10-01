@@ -1,0 +1,1 @@
+ALTER TABLE "project_milestones" ADD COLUMN "deleted_at" timestamp with time zone;

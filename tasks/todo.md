@@ -33,6 +33,7 @@
   - **Qué:** agregar en línea, editar título y fecha, marcar, eliminar con "Deshacer"; reordenar arrastrando (`@dnd-kit`, patrón de C6) y con Subir/Bajar, en transacción con lock por proyecto; avance hechos/total en la tarjeta y el detalle (sin hitos o en Mantenimiento, sin avance).
   - **Aceptación:** criterio 3 de la spec; E2E con teclado y arrastre; movimiento reducido.
   - **Tamaño:** M
+  - **Estado:** implementado en `feat/projects-p3-milestones` (PR abierto, sin merge). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects" → "Hitos y avance (P3)".
 
 - [ ] **P4: Dependencias** *(paralelo a P3 y P5)* — PR abierto en `feat/projects-p4-dependencies`, sin merge.
   - **Qué:** "Bloqueado por" con buscador (excluye el propio, eliminados y los que crearían un ciclo); quitar; insignia "Bloqueado" en la tarjeta y el detalle mientras un bloqueador no esté terminado o cancelado; rechazo de ciclos directos e indirectos en la base.

@@ -10,7 +10,6 @@ import {
   useOptimistic,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { Icon, Key } from "@/design-system";
 import { fail, type ActionResult } from "@/lib/action-result";
@@ -27,6 +26,7 @@ import { applyOrder, moveId } from "@/modules/core/life-area-order";
 import { hasNotice } from "@/lib/toast/queue";
 import { useToaster, type NoticeInput } from "@/lib/toast/use-toaster";
 import { useSaveQueue } from "@/lib/use-save-queue";
+import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { AreaListContext, PlainAreas, type AreaListProps } from "./area-rows";
 import { ArchivedAreas } from "./archived-areas";
 
@@ -39,22 +39,6 @@ const SortableAreas = dynamic(() => import("./sortable-areas"), {
 
 // The sheet (form, pickers, 55 icons, the actions' client) only loads when first opened.
 const AreaSheet = dynamic(() => import("./area-sheet").then((loaded) => loaded.AreaSheet));
-
-const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
-
-function subscribeToReducedMotion(onChange: () => void) {
-  const query = window.matchMedia(REDUCED_MOTION);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-function usePrefersReducedMotion(): boolean {
-  return useSyncExternalStore(
-    subscribeToReducedMotion,
-    () => window.matchMedia(REDUCED_MOTION).matches,
-    () => false,
-  );
-}
 
 type Editor = {
   /** New key per opening, so the form starts from the area (or empty) every time. */

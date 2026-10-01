@@ -5,7 +5,9 @@ import { Icon, SectionLabel } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { listLifeAreas } from "@/modules/core/queries";
 import { ProjectCard } from "@/modules/projects/components/project-card";
-import { dueState } from "@/modules/projects/progress";
+import type { MilestoneCounts } from "@/modules/projects/milestone-input";
+import { listMilestoneCounts } from "@/modules/projects/milestone-queries";
+import { dueState, milestoneProgress } from "@/modules/projects/progress";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
 import type { ActiveBlocker } from "@/modules/projects/dependency-input";
 import type { ProjectSummary } from "@/modules/projects/project-input";
@@ -37,7 +39,7 @@ type ProjectsPageProps = {
  */
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   await requireOwner();
-  const [{ area: areaParam }, projects, areas, deleted, blockers] = await Promise.all([
+  const [{ area: areaParam }, projects, areas, deleted, blockers, milestones] = await Promise.all([
     searchParams,
     listProjects(),
     listLifeAreas(),
@@ -47,6 +49,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     ),
     // P4: who still blocks each project (one query), for the cards' "Bloqueado".
     listActiveBlockers(),
+    // P3: done and total milestones of every project, in one aggregate query.
+    listMilestoneCounts(),
   ]);
   const options = areaFilterOptions(areas, projects);
   const selected = selectedAreaFilter(options, areaParam);
@@ -89,6 +93,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             projects={group.projects}
             now={now}
             blockers={blockers}
+            milestones={milestones}
           />
         ))
       ) : (
@@ -115,6 +120,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
             projects={group.projects}
             now={now}
             blockers={blockers}
+            milestones={milestones}
             level={3}
           />
         ))}
@@ -131,12 +137,21 @@ type StatusGroupProps = {
   now: Date;
   /** Who still blocks each project (P4), by project id. */
   blockers: Record<string, ActiveBlocker[]>;
+  /** Done and total milestones by project id (the cards' progress). */
+  milestones: Record<string, MilestoneCounts>;
   /** h2 in the main view; h3 inside "Historial". */
   level?: 2 | 3;
 };
 
 /** One state's projects: a heading with the count and a grid of cards. */
-function StatusGroup({ status, projects, now, blockers, level = 2 }: StatusGroupProps) {
+function StatusGroup({
+  status,
+  projects,
+  now,
+  blockers,
+  milestones,
+  level = 2,
+}: StatusGroupProps) {
   // Statuses are unique on the page (main groups and history ones never repeat).
   const id = `project-group-${status}`;
   const label = PROJECT_STATUS_LABELS[status];
@@ -155,6 +170,7 @@ function StatusGroup({ status, projects, now, blockers, level = 2 }: StatusGroup
             <ProjectCard
               project={project}
               due={dueState(project.dueDate, project.status, now)}
+              progress={milestoneProgress(milestones[project.id], project.status)}
               headingLevel={level === 2 ? 3 : 4}
               blockedBy={blockers[project.id]?.map((blocker) => blocker.name)}
             />

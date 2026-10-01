@@ -120,3 +120,14 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 /* Options of a radio grid that carry a name (the area picker): left-aligned, up to two lines. */
 .bo-key.bo-option-key { justify-content: flex-start; text-align: left; min-height: 52px; padding: 6px 12px; gap: 8px; }
 .bo-option-key__label { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; overflow-wrap: anywhere; }
+
+/*
+ * Projects (P3): a milestone row. Native checkbox (20 px, in a 44 px target) in the signal color;
+ * the title is the row's edit button (no pencil: the row already has handle, checkbox, Subir and
+ * Bajar). Inside .bo-list (overflow: hidden) focus rings go inside or within the row.
+ */
+.bo-milestone-check { width: 20px; height: 20px; margin: 0; accent-color: var(--color-signal); cursor: pointer; }
+.bo-milestone-check:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.bo-milestone-title { color: var(--color-text); cursor: pointer; transition: background-color var(--duration-hover) var(--ease-standard); }
+.bo-milestone-title:hover { background: var(--color-surface-hover); }
+.bo-milestone-title:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }

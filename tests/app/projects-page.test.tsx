@@ -34,6 +34,11 @@ vi.mock("@/modules/projects/queries", () => ({
   // P4: no project is blocked unless a test says so.
   listActiveBlockers: vi.fn(async () => ({})),
 }));
+// P3: milestones (none here; their own tests are in project-milestones.test.tsx).
+vi.mock("@/modules/projects/milestone-queries", () => ({
+  getProjectMilestones: vi.fn(async () => []),
+  listMilestoneCounts: vi.fn(async () => ({})),
+}));
 vi.mock("@/modules/projects/actions", () => ({ createProject: vi.fn(), restoreProject: vi.fn() }));
 
 const HOME: LifeAreaSummary = {

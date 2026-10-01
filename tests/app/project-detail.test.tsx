@@ -49,6 +49,11 @@ vi.mock("@/modules/projects/queries", () => ({
   // P4: no blockers and nothing to add unless a test says so.
   getProjectDependencies: vi.fn(async () => ({ blockers: [], blocking: [], candidates: [] })),
 }));
+// P3: milestones (none here; their own tests are in project-milestones.test.tsx).
+vi.mock("@/modules/projects/milestone-queries", () => ({
+  getProjectMilestones: vi.fn(async () => []),
+  listMilestoneCounts: vi.fn(async () => ({})),
+}));
 vi.mock("@/modules/projects/actions", () => ({
   renameProject: vi.fn(),
   changeProjectStatus: vi.fn(),
@@ -245,6 +250,7 @@ describe("page", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Estado y prioridad",
       "Objetivo y fechas",
+      "Hitos",
       "Bloqueado por",
     ]);
     expect(screen.getByText("Hogar")).toBeInTheDocument();
