@@ -14,7 +14,7 @@ type Env = Record<string, string | undefined>;
 export function assertTestDatabaseUrl(url: string | undefined, env: Env): string {
   if (!url) {
     throw new Error(
-      "TEST_DATABASE_URL is not set. Start the test Postgres with `docker compose up -d` (see .env.example).",
+      "TEST_DATABASE_URL is not set. Start the test Postgres with `pnpm db:test:start` (see .env.example).",
     );
   }
   const target = describeDatabaseTarget(url);

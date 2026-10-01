@@ -45,9 +45,6 @@ describe("test database guard", () => {
     expect(assertTestDatabaseUrl(LOCAL_TEST, {})).toBe(LOCAL_TEST);
     expect(assertTestDatabaseUrl("postgres://u:p@postgres:5432/ci_test", {})).toBeTruthy();
     expect(assertTestDatabaseUrl("postgres://u:p@[::1]:5432/a_test", {})).toBeTruthy();
-    expect(
-      assertTestDatabaseUrl("postgres://u:p@host.docker.internal:54329/a_test", {}),
-    ).toBeTruthy();
   });
 });
 

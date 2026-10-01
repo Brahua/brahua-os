@@ -17,7 +17,7 @@ La guía de Neon para Vercel recomienda `node-postgres` con Fluid Compute y `att
 - **Migraciones:** `pnpm db:generate` (drizzle-kit) en local. El `buildCommand` de `vercel.json` (`scripts/vercel-build.sh`) corre `pnpm db:migrate` solo cuando `VERCEL_ENV=production` y después `next build`. Si la migración falla, falla el despliegue.
 - **Protección local:** `db:migrate` y `db:seed` se niegan a tocar un host no local salvo en el build de Vercel (`VERCEL=1`) o con `ALLOW_PROD_DB=1`, y muestran el host y la base (nunca credenciales) antes de escribir.
 - **`updated_at`:** Drizzle lo sella con `now()` de la base en cada `update`. Los `UPDATE` en SQL crudo deben ponerlo ellos mismos.
-- **Pruebas:** Postgres 17 desechable (Docker en local, servicio en GitHub Actions) con `TEST_DATABASE_URL`, que solo acepta un host local, una base terminada en `_test` y una URL distinta de las de la app. Nunca la base de producción.
+- **Pruebas:** Postgres desechable de la misma versión mayor que producción (18 desde 2026-10-01; `embedded-postgres` nativo en local, sin Docker, y servicio en GitHub Actions) con `TEST_DATABASE_URL`, que solo acepta un host local, una base terminada en `_test` y una URL distinta de las de la app. Nunca la base de producción.
 
 ## Consecuencias
 

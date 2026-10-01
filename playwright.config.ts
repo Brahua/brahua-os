@@ -6,7 +6,11 @@ const PORT = 3417;
 const baseURL = `http://localhost:${PORT}`;
 
 // The app under test runs against the throwaway TEST_DATABASE_URL (checked in global-setup.ts),
-// with test-only auth values. Never production secrets or databases.
+// with test-only auth values. Never production secrets or databases. Locally it defaults to the
+// `pnpm db:test:start` database (scripts/test-db.ts), which global-setup.ts starts if needed.
+if (!process.env.CI && !process.env.TEST_DATABASE_URL) {
+  process.env.TEST_DATABASE_URL = `postgres://postgres:postgres@localhost:${process.env.TEST_DB_PORT ?? 54329}/brahua_os_test`;
+}
 const appEnv = {
   DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
   BETTER_AUTH_SECRET: "e2e-only-secret-not-used-anywhere-else-0123456789",
@@ -36,8 +40,8 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  // Screenshots are only compared inside the Linux Playwright image (CI, update-screenshots.yml or
-  // Docker), so fonts render the same. Elsewhere (macOS while iterating) every comparison is
+  // Screenshots are only compared inside the Linux Playwright image (CI and update-screenshots.yml),
+  // so fonts render the same. Elsewhere (macOS while iterating) every comparison is
   // skipped: specs call expectScreenshot() (e2e/support/screenshots.ts), which also annotates the
   // skip in the report, and this is the safety net for anything else.
   ignoreSnapshots: !screenshotsEnabled(),

@@ -33,3 +33,6 @@ next-env.d.ts
 
 # pnpm db:export output (personal data)
 /exports/
+
+# throwaway test Postgres (pnpm db:test:start)
+/.pgdata/

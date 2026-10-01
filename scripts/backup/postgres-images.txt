@@ -1,8 +1,13 @@
 # Official postgres images for .github/workflows/backup.yml, pinned by digest (multi-arch index).
 # One line per server major version: "<major> <image>". pg_dump must match the server's major
 # version; the highest line also runs the version probe (a newer psql reads any older server).
+# The highest line is also the Postgres service of ci.yml, update-screenshots.yml and backup.yml
+# (target=ci-service): update them together.
 # Dependabot cannot track this file: refresh it by hand when Neon moves to a new major or every
-# few months, with `docker buildx imagetools inspect postgres:<major>` (the "Digest:" line).
+# few months. Without Docker, the digest of a tag is the docker-content-digest header of:
+#   T=$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/postgres:pull" | jq -r .token)
+#   curl -sI -H "Authorization: Bearer $T" -H "Accept: application/vnd.oci.image.index.v1+json" \
+#     https://registry-1.docker.io/v2/library/postgres/manifests/<major> | grep -i docker-content-digest
 15 postgres:15.19@sha256:724292da1f2e50bdccfc3302ce75bbba7f4a6076701b588cc795fcac65683550
 16 postgres:16.15@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
 17 postgres:17.11@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
