@@ -22,6 +22,7 @@ import {
   type ProjectSummary,
 } from "@/modules/projects/project-input";
 import { PROJECT_STATUS_LABELS, PROJECTS_COPY } from "@/modules/projects/projects-copy";
+import { CREATED_PARAM } from "@/modules/projects/routes";
 
 type CreateStatus = (typeof CREATE_PROJECT_STATUSES)[number];
 
@@ -69,9 +70,10 @@ export function ProjectSheet({
   const router = useRouter();
   const isDesktop = useIsDesktop();
   const [name, setName] = useState("");
-  const [lifeAreaId, setLifeAreaId] = useState<string | null>(
-    areas.some((area) => area.id === defaultAreaId) ? defaultAreaId : null,
-  );
+  const [pickedAreaId, setLifeAreaId] = useState<string | null>(defaultAreaId);
+  // Only an area that is still offered counts as picked: after "areaUnavailable" the page
+  // brings the current areas, and an archived one drops out of the selection by itself.
+  const lifeAreaId = areas.some((area) => area.id === pickedAreaId) ? pickedAreaId : null;
   const [status, setStatus] = useState<CreateStatus>("idea");
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -118,7 +120,8 @@ export function ProjectSheet({
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    // Without active areas there is nothing to create in (the key says why).
+    if (pending || areas.length === 0) return;
     const parsed = createProjectInputSchema.safeParse({ name, lifeAreaId, status });
     if (!parsed.success) {
       const failed = fail(parsed.error);
@@ -140,7 +143,8 @@ export function ProjectSheet({
       }
       const { id } = result.data;
       // Part of this transition: "Creando…" stays until the project's page is on screen.
-      startTransition(() => router.push(`/projects/${id}`));
+      // `created`: the page moves focus to its heading and announces it.
+      startTransition(() => router.push(`/projects/${id}?${CREATED_PARAM}=1`));
     });
   }
 
@@ -163,6 +167,7 @@ export function ProjectSheet({
   const areaHintId = `${ids}-area-hint`;
   const areaErrorId = `${ids}-area-error`;
   const statusLabelId = `${ids}-status-label`;
+  const statusErrorId = `${ids}-status-error`;
   const noAreas = areas.length === 0;
 
   return (
@@ -172,6 +177,7 @@ export function ProjectSheet({
       variant={isDesktop ? "side" : "bottom"}
       title={PROJECTS_COPY.newProject}
       returnFocusRef={returnFocusRef}
+      closeDisabled={pending}
       footer={
         <>
           <Key
@@ -188,6 +194,7 @@ export function ProjectSheet({
             variant="signal"
             className={cn("flex-1", noAreas && "is-disabled")}
             aria-disabled={pending || noAreas || undefined}
+            aria-describedby={noAreas ? areaHintId : undefined}
           >
             {pending ? PROJECTS_COPY.creating : PROJECTS_COPY.create}
           </Key>
@@ -259,11 +266,13 @@ export function ProjectSheet({
               if (errors.status) clearError("status");
             }}
             labelledBy={statusLabelId}
+            describedBy={errors.status ? statusErrorId : undefined}
+            errorId={errors.status ? statusErrorId : undefined}
             invalid={Boolean(errors.status)}
             className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2"
             itemClassName="min-w-0"
           />
-          {errors.status ? <FieldError id={`${ids}-status-error`} message={errors.status} /> : null}
+          {errors.status ? <FieldError id={statusErrorId} message={errors.status} /> : null}
         </div>
 
         {formError ? (
@@ -272,6 +281,10 @@ export function ProjectSheet({
             {formError}
           </p>
         ) : null}
+        {/* The key's text changes too, but a screen reader on another control wouldn't hear it. */}
+        <p role="status" className="sr-only">
+          {pending ? PROJECTS_COPY.creatingStatus : ""}
+        </p>
       </form>
     </Sheet>
   );

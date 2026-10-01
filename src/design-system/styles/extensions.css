@@ -101,13 +101,11 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
 /*
  * Projects: the area filter of the list. Links around an AreaTag chip; the current one
  * (aria-current="page") takes the "on" look of a key (inverted, LED and icon in the area's
- * inverse tone), so it is not told apart by color alone. On the phone the chips scroll in one
- * row (the links are focusable, so the row is keyboard-reachable); from 1024 px they wrap.
+ * inverse tone), so it is not told apart by color alone. The chips wrap at every width: a
+ * sideways-scrolling row would hide chips (and the current one) off screen.
  */
-.bo-filter-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: -4px -16px; padding: 4px 16px; }
-@media (min-width: 768px) { .bo-filter-chips { margin: -4px -24px; padding: 4px 24px; } }
-@media (min-width: 1024px) { .bo-filter-chips { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; } }
-.bo-filter-chip { display: flex; border-radius: var(--radius-full); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.bo-filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bo-filter-chip { display: flex; max-width: 100%; border-radius: var(--radius-full); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
 .bo-filter-chip:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .bo-filter-chip .bo-area-tag--chip { transition: background-color var(--duration-hover) var(--ease-standard); }
 .bo-filter-chip:hover .bo-area-tag--chip { background: var(--color-surface-hover); }

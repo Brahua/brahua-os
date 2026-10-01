@@ -25,6 +25,13 @@ type ProjectCardProps = {
 export function ProjectCard({ project, due, headingLevel = 3, className }: ProjectCardProps) {
   const Heading = headingLevel === 3 ? "h3" : "h4";
   const urgent = due?.kind === "today" || due?.kind === "overdue";
+  const high = project.priority === "high";
+  // Ids from the project's id: a project shows once per page.
+  const dueId = `project-${project.id}-due`;
+  const priorityId = `project-${project.id}-priority`;
+  const describedBy = [due ? dueId : null, high ? priorityId : null].filter(
+    (id): id is string => id !== null,
+  );
   return (
     <article
       data-project-card={project.id}
@@ -41,6 +48,7 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
         />
         {due ? (
           <time
+            id={dueId}
             dateTime={project.dueDate ?? undefined}
             data-due={due.kind}
             className={cn(
@@ -58,6 +66,8 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
           // A list shows many cards: prefetching each (a dynamic render with its own query) on
           // entering the viewport costs more than the click it saves for a single user.
           prefetch={false}
+          // Tabbing through the cards, the link says when it is due and that it is high priority.
+          aria-describedby={describedBy.length > 0 ? describedBy.join(" ") : undefined}
           className="outline-none after:absolute after:inset-0 after:content-['']"
         >
           {project.name}
@@ -66,11 +76,13 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
       {project.objective ? (
         <p className="bo-text-body-sm line-clamp-2 text-text-secondary">{project.objective}</p>
       ) : null}
-      {project.priority === "high" ? (
+      {high ? (
         <p className="bo-text-label flex items-center gap-2 text-signal-text">
           <Led signal size="sm" />
           <span aria-hidden>{PROJECTS_COPY.highPriorityShort}</span>
-          <span className="sr-only">{PROJECTS_COPY.highPriority}</span>
+          <span id={priorityId} className="sr-only">
+            {PROJECTS_COPY.highPriority}
+          </span>
         </p>
       ) : null}
     </article>

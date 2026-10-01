@@ -23,14 +23,18 @@ export function ProjectHistory({ count, children }: ProjectHistoryProps) {
   if (count === 0) return null;
 
   const panelId = `${ids}-panel`;
+  const label = PROJECTS_COPY.groupName(PROJECTS_COPY.historyTitle, count);
   return (
     <section aria-labelledby={`${ids}-title`} className="flex flex-col gap-3">
-      <h2 id={`${ids}-title`} className="flex">
+      {/* Named like its button, so the heading (and the section) read the same in every engine. */}
+      <h2 id={`${ids}-title`} aria-label={label} className="flex">
         <button
           type="button"
           aria-expanded={expanded}
           aria-controls={panelId}
           data-history-toggle
+          // "Historial, 2 proyectos": the visible text first, the count in words.
+          aria-label={label}
           onClick={() => setExpanded((value) => !value)}
           className="bo-section-label min-h-11 flex-1 cursor-pointer rounded-md px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >

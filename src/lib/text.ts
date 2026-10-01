@@ -14,7 +14,7 @@ export function normalizeName(value: string): string {
  * Except the zero-width non-joiner and joiner (U+200C, U+200D): emoji sequences such as
  * 👨‍👩‍👧 or 🏳️‍🌈 and some scripts need them.
  */
-const INVISIBLE = /(?![‌‍])[\p{Cc}\p{Cf}]/u;
+const INVISIBLE = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u;
 
 /** Whether `value` still holds an invisible control or format character (see INVISIBLE). */
 export function hasInvisibleCharacters(value: string): boolean {

@@ -7,8 +7,11 @@ import { Key } from "@/design-system";
 import type { ProjectAreaSummary } from "@/modules/projects/project-input";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
 
-// The sheet (form, pickers, the action's client) only loads when first opened.
-const ProjectSheet = dynamic(() => import("./project-sheet").then((loaded) => loaded.ProjectSheet));
+// The sheet (form, pickers, the action's client) loads on demand: as soon as the key is pointed
+// at, focused or touched, so it is usually there by the time it opens.
+const loadSheet = () => import("./project-sheet");
+const ProjectSheet = dynamic(() => loadSheet().then((loaded) => loaded.ProjectSheet));
+const preload = () => void loadSheet();
 
 type NewProjectProps = {
   areas: readonly ProjectAreaSummary[];
@@ -29,6 +32,9 @@ export function NewProject({ areas, defaultAreaId }: NewProjectProps) {
         variant="signal"
         icon={Plus}
         aria-haspopup="dialog"
+        onPointerEnter={preload}
+        onFocus={preload}
+        onTouchStart={preload}
         onClick={() => {
           setOpening((value) => value + 1);
           setOpen(true);

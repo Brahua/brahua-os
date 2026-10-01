@@ -35,6 +35,14 @@ export const PROJECTS_COPY = {
   emptyTitle: "Aún no tienes proyectos",
   emptyText:
     "Un proyecto es algo con un final: un viaje, una mudanza, una certificación. Crea el primero con nombre, área y estado; lo demás lo completas después.",
+  emptyIdleTitle: "Nada en curso",
+  emptyIdleText:
+    "Tus proyectos están terminados o cancelados (en el Historial, más abajo). Crea uno nuevo cuando quieras.",
+  /**
+   * Accessible name of a group heading or the Historial toggle: the visible title first, then
+   * the count in words (on screen it is a bare number, which says nothing when heard).
+   */
+  groupName: (title: string, n: number) => `${title}, ${n === 1 ? "1 proyecto" : `${n} proyectos`}`,
   emptyFilteredTitle: (area: string) => `Sin proyectos en «${area}»`,
   emptyFilteredText: "No hay proyectos en curso en esta área.",
   showAll: "Ver todas las áreas",
@@ -54,6 +62,8 @@ export const PROJECTS_COPY = {
   cancel: "Cancelar",
   create: "Crear proyecto",
   creating: "Creando…",
+  creatingStatus: "Creando proyecto…",
+  created: (name: string) => `Proyecto «${name}» creado.`,
   unexpected: "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
 
   // Detail (P1: minimal; P2 builds the real one)

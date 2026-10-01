@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { archiveLifeArea } from "@/modules/core/actions";
@@ -15,6 +16,7 @@ import {
 import { PROJECT_ERRORS } from "@/modules/projects/project-input";
 import { getProject, listProjects } from "@/modules/projects/queries";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
+import { testDatabaseUrl } from "./helpers";
 import { testDb } from "./test-db";
 
 // The actions read the request headers (session cookie) and the app database: point both at
@@ -336,6 +338,77 @@ describe("CHECK constraints (defense in depth)", () => {
     );
     await testDb.insert(projectDependencies).values({ projectId: a.id, blockedById: b.id });
     expect(await testDb.$count(projectDependencies)).toBe(1);
+  });
+});
+
+describe("creating while the area is being archived (two connections)", () => {
+  /** A transaction on a connection of its own, driven step by step by the test. */
+  async function openTransaction() {
+    const client = new Client({ connectionString: testDatabaseUrl() });
+    await client.connect();
+    await client.query("begin");
+    return client;
+  }
+
+  /** Whether `promise` is still pending after `ms`. */
+  async function stillPending(promise: Promise<unknown>, ms = 200) {
+    const timeout = Symbol("pending");
+    const winner = await Promise.race([
+      promise.then(() => "settled"),
+      new Promise((resolve) => setTimeout(() => resolve(timeout), ms)),
+    ]);
+    return winner === timeout;
+  }
+
+  test("an archive waits for a create holding FOR SHARE on the area; the project stays", async () => {
+    const home = await areaId("home");
+    const creator = await openTransaction();
+    try {
+      // What insertProject does inside its transaction: lock the active area, then insert.
+      const locked = await creator.query(
+        "select id from core_life_areas where id = $1 and archived_at is null for share",
+        [home],
+      );
+      expect(locked.rowCount).toBe(1);
+
+      const archive = archiveLifeArea({ id: home });
+      expect(await stillPending(archive)).toBe(true);
+
+      await creator.query("insert into projects (name, life_area_id) values ('Huerto', $1)", [
+        home,
+      ]);
+      await creator.query("commit");
+
+      expect((await archive).ok).toBe(true);
+    } finally {
+      await creator.end();
+    }
+    expect(await testDb.$count(projects, eq(projects.lifeAreaId, home))).toBe(1);
+    const [area] = await testDb.select().from(lifeAreas).where(eq(lifeAreas.id, home));
+    expect(area.archivedAt).not.toBeNull();
+  });
+
+  test("a create waits for an archive in progress, then refuses the archived area", async () => {
+    const home = await areaId("home");
+    const archiver = await openTransaction();
+    try {
+      await archiver.query("update core_life_areas set archived_at = now() where id = $1", [home]);
+
+      const create = createProject({ name: "Huerto", lifeAreaId: home });
+      // FOR SHARE can't take the row while the archive's update holds it.
+      expect(await stillPending(create)).toBe(true);
+
+      await archiver.query("commit");
+
+      expect(await create).toEqual({
+        ok: false,
+        error: INVALID_FIELDS_MESSAGE,
+        fieldErrors: { lifeAreaId: [PROJECT_ERRORS.areaUnavailable] },
+      });
+    } finally {
+      await archiver.end();
+    }
+    expect(await testDb.$count(projects)).toBe(0);
   });
 });
 

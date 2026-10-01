@@ -10,8 +10,15 @@ import {
   PROJECTS_COPY,
 } from "@/modules/projects/projects-copy";
 import { getProject } from "@/modules/projects/queries";
+import { CREATED_PARAM } from "@/modules/projects/routes";
+import { CreatedNotice } from "./created-notice";
 
-type ProjectPageProps = { params: Promise<{ id: string }> };
+type ProjectPageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+const HEADING_ID = "project-title";
 
 export async function generateMetadata({ params }: ProjectPageProps): Promise<Metadata> {
   const project = await getProject((await params).id);
@@ -26,10 +33,12 @@ export async function generateMetadata({ params }: ProjectPageProps): Promise<Me
  * A project's page. P1: a minimal detail (name, state, area, priority) so creating has somewhere
  * to land; P2 builds the real one, with in-place editing. Missing or deleted projects are a 404.
  */
-export default async function ProjectPage({ params }: ProjectPageProps) {
+export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   await requireOwner();
-  const project = await getProject((await params).id);
+  const [{ id }, search] = await Promise.all([params, searchParams]);
+  const project = await getProject(id);
   if (!project) notFound();
+  const justCreated = search[CREATED_PARAM] === "1";
 
   return (
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
@@ -41,7 +50,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         {PROJECTS_COPY.backToList}
       </Link>
       <header className="flex flex-col gap-3">
-        <h1 className="bo-text-display break-words">{project.name}</h1>
+        {/* tabIndex -1: focus lands here right after creating (CreatedNotice). */}
+        <h1 id={HEADING_ID} tabIndex={-1} className="bo-text-display break-words outline-none">
+          {project.name}
+        </h1>
         {project.objective ? (
           <p className="bo-text-body text-text-secondary">{project.objective}</p>
         ) : null}
@@ -71,6 +83,9 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       <p className="bo-text-body-sm max-w-160 text-text-secondary">
         {PROJECTS_COPY.detailComingSoon}
       </p>
+      {justCreated ? (
+        <CreatedNotice headingId={HEADING_ID} message={PROJECTS_COPY.created(project.name)} />
+      ) : null}
     </div>
   );
 }

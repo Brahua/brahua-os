@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import ProjectNotFound from "@/app/(app)/projects/[id]/not-found";
 import ProjectPage, { generateMetadata } from "@/app/(app)/projects/[id]/page";
+import { ProjectSheet } from "@/app/(app)/projects/_components/project-sheet";
 import ProjectsPage, { metadata } from "@/app/(app)/projects/page";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
@@ -106,8 +107,12 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const groupHeadings = () =>
-  screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+/** The headings of a level have exactly these accessible names, in order. */
+function expectHeadings(level: 2 | 3, names: string[]) {
+  const found = screen.getAllByRole("heading", { level });
+  expect(found).toHaveLength(names.length);
+  found.forEach((heading, index) => expect(heading).toHaveAccessibleName(names[index]));
+}
 const cardsIn = (status: string) =>
   within(screen.getByRole("list", { name: `Proyectos: ${status}` }))
     .getAllByRole("link")
@@ -127,12 +132,13 @@ describe("list", () => {
 
   test("groups by state in order (Activo, Mantenimiento, Pausado, Idea) and sorts inside", async () => {
     render(await page());
-    expect(groupHeadings()).toEqual([
-      "Activo2",
-      "Mantenimiento1",
-      "Pausado1",
-      "Idea1",
-      "Historial2",
+    // The count is said in words ("2 proyectos"), not as a bare number.
+    expectHeadings(2, [
+      "Activo, 2 proyectos",
+      "Mantenimiento, 1 proyecto",
+      "Pausado, 1 proyecto",
+      "Idea, 1 proyecto",
+      "Historial, 2 proyectos",
     ]);
     // High priority first, whatever the dates.
     expect(cardsIn("Activo")).toEqual(["Mudanza", "Curso AWS"]);
@@ -143,14 +149,14 @@ describe("list", () => {
     render(await page());
     const toggle = screen.getByRole("button", { name: /^Historial/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveTextContent("2");
+    expect(toggle).toHaveAccessibleName("Historial, 2 proyectos");
     expect(screen.queryByRole("link", { name: "Viaje a Cusco" })).not.toBeInTheDocument();
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(
-      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
-    ).toEqual(expect.arrayContaining(["Terminado1", "Cancelado1"]));
+    for (const name of ["Terminado, 1 proyecto", "Cancelado, 1 proyecto"]) {
+      expect(screen.getByRole("heading", { level: 3, name })).toBeVisible();
+    }
     expect(cardsIn("Terminado")).toEqual(["Viaje a Cusco"]);
     expect(cardsIn("Cancelado")).toEqual(["Tesis"]);
   });
@@ -191,7 +197,7 @@ describe("list", () => {
     render(await page({ area: "work" }));
     expect(chip("Trabajo")).toHaveAttribute("aria-current", "page");
     expect(chip("Todas")).not.toHaveAttribute("aria-current");
-    expect(groupHeadings()).toEqual(["Activo1", "Mantenimiento1", "Historial1"]);
+    expectHeadings(2, ["Activo, 1 proyecto", "Mantenimiento, 1 proyecto", "Historial, 1 proyecto"]);
     expect(screen.queryByRole("link", { name: "Mudanza" })).not.toBeInTheDocument();
   });
 
@@ -215,6 +221,28 @@ describe("list", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Nuevo proyecto" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Historial/ })).not.toBeInTheDocument();
+  });
+
+  test("only finished or canceled projects: “nothing in progress”, not “no projects yet”", async () => {
+    vi.mocked(listProjects).mockResolvedValue([
+      project({ name: "Viaje a Cusco", status: "done" }),
+      project({ name: "Tesis", status: "canceled" }),
+    ]);
+    render(await page());
+    expect(screen.getByRole("heading", { level: 2, name: "Nada en curso" })).toBeVisible();
+    expect(screen.queryByText("Aún no tienes proyectos")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Historial, 2 proyectos" })).toBeInTheDocument();
+  });
+
+  test("a card's link is described by its due notice and high priority", async () => {
+    render(await page());
+    expect(screen.getByRole("link", { name: "Mudanza" })).toHaveAccessibleDescription(
+      "Vence hoy Prioridad alta",
+    );
+    expect(screen.getByRole("link", { name: "Curso AWS" })).toHaveAccessibleDescription(
+      "Vence en 3 días",
+    );
+    expect(screen.getByRole("link", { name: "Huerto" })).not.toHaveAttribute("aria-describedby");
   });
 
   test("an area with nothing in progress says so and links back to all areas", async () => {
@@ -296,7 +324,9 @@ describe("create sheet", () => {
       status: "active",
     });
     await waitFor(() =>
-      expect(router.push).toHaveBeenCalledWith("/projects/33333333-3333-4333-8333-333333333333"),
+      expect(router.push).toHaveBeenCalledWith(
+        "/projects/33333333-3333-4333-8333-333333333333?created=1",
+      ),
     );
   });
 
@@ -343,14 +373,76 @@ describe("create sheet", () => {
     const user = await openSheet();
     expect(within(dialog()).getByText(/No tienes áreas activas/)).toBeInTheDocument();
     expect(createKey()).toHaveAttribute("aria-disabled", "true");
-    await user.type(nameField(), "Huerto");
+    expect(createKey()).toHaveAccessibleDescription(/No tienes áreas activas/);
+    await user.type(nameField(), "Huerto{Enter}");
     await user.click(createKey());
     expect(createProject).not.toHaveBeenCalled();
+    // Nothing to fix in the form: no field errors appear.
+    expect(nameField()).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("while creating: announced, and neither ✕ nor Esc closes the sheet", async () => {
+    vi.mocked(createProject).mockReturnValue(new Promise(() => {}));
+    const user = await openSheet({ area: "home" });
+    await user.type(nameField(), "Huerto");
+    await user.click(createKey());
+
+    expect(await within(dialog()).findByText("Creando proyecto…")).toHaveAttribute(
+      "role",
+      "status",
+    );
+    const close = within(dialog()).getByRole("button", { name: "Cerrar" });
+    expect(close).toHaveAttribute("aria-disabled", "true");
+    await user.click(close);
+    await user.keyboard("{Escape}");
+    expect(dialog()).toBeInTheDocument();
+  });
+
+  test("an area that drops out of the list is no longer picked or sent", async () => {
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      defaultAreaId: HOME.id,
+      returnFocusRef: { current: null },
+    };
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const { rerender } = render(<ProjectSheet {...props} areas={[area(HOME), area(WORK)]} />);
+    expect(within(areaGroup()).getByRole("radio", { name: "Hogar" })).toBeChecked();
+
+    // The page came back with Hogar archived (after "areaUnavailable").
+    rerender(<ProjectSheet {...props} areas={[area(WORK)]} />);
+    expect(within(areaGroup()).queryByRole("radio", { checked: true })).toBeNull();
+    await user.type(nameField(), "Huerto{Enter}");
+    expect(createProject).not.toHaveBeenCalled();
+    expect(areaGroup()).toHaveAccessibleDescription(/Elige un área\./);
   });
 });
 
 describe("detail (P1)", () => {
-  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+  const params = (id: string, search: Record<string, string> = {}) => ({
+    params: Promise.resolve({ id }),
+    searchParams: Promise.resolve(search),
+  });
+
+  test("right after creating: focus on the heading, announced, and the URL cleaned", async () => {
+    vi.useRealTimers();
+    vi.mocked(getProject).mockResolvedValue(PROJECTS[0]);
+    window.history.replaceState(null, "", `/projects/${PROJECTS[0].id}?created=1`);
+    render(await ProjectPage(params(PROJECTS[0].id, { created: "1" })));
+    const heading = screen.getByRole("heading", { level: 1, name: "Mudanza" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(window.location.search).toBe("");
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Proyecto «Mudanza» creado."),
+    );
+  });
+
+  test("opened any other way, nothing is announced and focus stays put", async () => {
+    vi.mocked(getProject).mockResolvedValue(PROJECTS[0]);
+    render(await ProjectPage(params(PROJECTS[0].id)));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).not.toHaveFocus();
+  });
 
   test("shows name, state, area and priority, with a way back", async () => {
     vi.mocked(getProject).mockResolvedValue(PROJECTS[0]);

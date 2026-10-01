@@ -46,6 +46,15 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   // One instant for every card: the due notices all count from the same Lima day.
   const now = new Date();
   const defaultAreaId = selected && !selected.archived ? selected.id : null;
+  // Nothing in progress: in an area, nothing at all, or only finished/canceled projects.
+  const empty = selected
+    ? {
+        title: PROJECTS_COPY.emptyFilteredTitle(selected.name),
+        text: PROJECTS_COPY.emptyFilteredText,
+      }
+    : historyCount > 0
+      ? { title: PROJECTS_COPY.emptyIdleTitle, text: PROJECTS_COPY.emptyIdleText }
+      : { title: PROJECTS_COPY.emptyTitle, text: PROJECTS_COPY.emptyText };
 
   return (
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
@@ -70,16 +79,12 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       ) : (
         <div className="bo-card max-w-160 items-start">
           <Icon icon={FolderKanban} size="xl" className="text-text-secondary" />
-          <h2 className="bo-text-title">
-            {selected ? PROJECTS_COPY.emptyFilteredTitle(selected.name) : PROJECTS_COPY.emptyTitle}
-          </h2>
-          <p className="bo-text-body-sm text-text-secondary">
-            {selected ? PROJECTS_COPY.emptyFilteredText : PROJECTS_COPY.emptyText}
-          </p>
+          <h2 className="bo-text-title">{empty.title}</h2>
+          <p className="bo-text-body-sm text-text-secondary">{empty.text}</p>
           {selected ? (
             <Link
               href="/projects"
-              className="bo-text-body-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              className="bo-text-body-sm inline-flex min-h-11 items-center rounded-md underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
               {PROJECTS_COPY.showAll}
             </Link>
@@ -117,7 +122,13 @@ function StatusGroup({ status, projects, now, level = 2 }: StatusGroupProps) {
   const label = PROJECT_STATUS_LABELS[status];
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3" data-project-group={status}>
-      <SectionLabel id={id} as={level === 2 ? "h2" : "h3"} title={label} count={projects.length} />
+      <SectionLabel
+        id={id}
+        as={level === 2 ? "h2" : "h3"}
+        title={label}
+        count={projects.length}
+        aria-label={PROJECTS_COPY.groupName(label, projects.length)}
+      />
       <ul aria-label={PROJECTS_COPY.groupList(label)} className="grid gap-3 md:grid-cols-2">
         {projects.map((project) => (
           <li key={project.id} className="flex flex-col">

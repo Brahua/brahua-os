@@ -1,6 +1,6 @@
 // Shared helpers and fixtures for the projects specs.
 import { eq } from "drizzle-orm";
-import type { Page, TestInfo } from "@playwright/test";
+import { expect, type Page, type TestInfo } from "@playwright/test";
 import type { Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
@@ -21,7 +21,12 @@ type Fixture = {
   name: string;
   status: ProjectStatus;
   priority?: ProjectPriority;
-  /** Days from Lima's today (negative: in the past). */
+  /**
+   * Days from Lima's today (negative: in the past), fixed when global-setup runs. The labels are
+   * computed on the server with its real clock (page.clock can't reach it), so a run that
+   * crosses Lima midnight (05:00 UTC) between setup and a test would see every label shift by a
+   * day and fail; rerun it. A run takes minutes, so it only bites a run started just before then.
+   */
   due?: number;
   objective?: string;
 };
@@ -75,9 +80,14 @@ export function uniqueName(prefix: string, testInfo: TestInfo) {
   return `${prefix} ${testInfo.project.name} ${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/**
+ * Opens the list and waits until it is hydrated (AppNav sets the marker in the same commit as
+ * the page, which has no Suspense boundaries), so clicks and keys reach React's handlers.
+ */
 export async function openProjects(page: Page, search = "") {
   await page.goto(`/projects${search}`);
   await page.getByRole("heading", { level: 1, name: "Proyectos" }).waitFor({ state: "visible" });
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
 }
 
 export const filter = (page: Page) => page.getByRole("navigation", { name: "Filtrar por área" });

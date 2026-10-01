@@ -1,6 +1,7 @@
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { animationsSettled } from "./support/animations";
 import { fontsLoaded } from "./support/fonts";
 import {
   areaGroup,
@@ -33,6 +34,12 @@ const SCREENSHOT_CSS = [
   path.join(__dirname, "support/hide-area-filter.css"),
 ];
 
+/** axe's violations, measured once keys and panels have finished fading or sliding. */
+async function axeViolations(page: Page) {
+  await animationsSettled(page);
+  return (await new AxeBuilder({ page }).analyze()).violations;
+}
+
 test("Proyectos has its title and is in the navigation", async ({ page }) => {
   await openProjects(page);
   await expect(page).toHaveTitle("Proyectos · brahua-os");
@@ -56,13 +63,17 @@ test("groups by state in order, sorted by priority, due date and name, with due 
 }) => {
   await openProjects(page, FIXTURE_FILTER);
   const headings = page.locator("main").getByRole("heading", { level: 2 });
-  await expect(headings).toHaveText([
-    /^Activo\s*2$/,
-    /^Mantenimiento\s*1$/,
-    /^Pausado\s*1$/,
-    /^Idea\s*1$/,
-    /^Historial\s*2$/,
-  ]);
+  const names = [
+    "Activo, 2 proyectos",
+    "Mantenimiento, 1 proyecto",
+    "Pausado, 1 proyecto",
+    "Idea, 1 proyecto",
+    "Historial, 2 proyectos",
+  ];
+  await expect(headings).toHaveCount(names.length);
+  for (const [index, name] of names.entries()) {
+    await expect(headings.nth(index)).toHaveAccessibleName(name);
+  }
   // High priority (due today) first, then the medium one due in 3 days.
   expect(await cardNames(page, "Activo")).toEqual(["Viaje a Cusco", "Renovar pasaporte"]);
 
@@ -146,13 +157,27 @@ test("create a project on the phone in a few taps and land on its page", async (
   await areaGroup(page).getByRole("radio", { name: CREATE_AREA.name }).click();
   await sheet(page).getByRole("button", { name: "Crear proyecto" }).click();
 
+  const heading = page.getByRole("heading", { level: 1, name });
+  await expect(heading).toBeVisible();
+  // SPEC-projects asks for under 10 s by a person on the phone; a robot's time says little about
+  // that, so it is recorded in the report rather than asserted.
+  testInfo.annotations.push({
+    type: "create-to-detail-ms",
+    description: String(Date.now() - start),
+  });
+
+  // Focus on the page's heading (the sheet and its key are gone), the creation announced, and
+  // `?created=1` gone from the URL so a reload doesn't repeat it.
+  await expect(heading).toBeFocused();
+  await expect(page.locator("[data-created-notice]")).toHaveText(`Proyecto «${name}» creado.`);
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-  // SPEC-projects: under 10 seconds on the phone (here, without a human's typing speed).
-  expect(Date.now() - start).toBeLessThan(10_000);
   await expect(page).toHaveTitle(`${name} · brahua-os`);
   await expect(page.locator("main")).toContainText("Idea");
   await expect(page.locator("main")).toContainText(CREATE_AREA.name);
+  // Opened again (a reload), it is just the project's page.
+  await page.reload();
+  await expect(heading).toBeVisible();
+  await expect(page.locator("[data-created-notice]")).toHaveCount(0);
 
   // Back in the list, under Idea in its area.
   await page.getByRole("link", { name: "Volver a Proyectos" }).click();
@@ -206,7 +231,7 @@ for (const theme of THEMES) {
     await expect(groupList(page, "Activo")).toBeVisible();
     await fontsLoaded(page);
 
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
     await expectScreenshot(page.locator("main"), `projects-list-${theme}.png`, {
       stylePath: SCREENSHOT_CSS,
     });
@@ -214,12 +239,12 @@ for (const theme of THEMES) {
     // The history open, and the create sheet with an error showing.
     await historyToggle(page).click();
     await expect(groupList(page, "Terminado")).toBeVisible();
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
 
     await newProjectButton(page).click();
     await expect(nameField(page)).toBeFocused();
     await sheet(page).getByRole("button", { name: "Crear proyecto" }).click();
     await expect(nameField(page)).toHaveAttribute("aria-invalid", "true");
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 }

@@ -31,6 +31,11 @@ type SheetProps = {
    * skip them (they ignore live regions inside hidden content).
    */
   onClosed?: () => void;
+  /**
+   * The ✕ shows as unavailable (aria-disabled) and does nothing, e.g. while the form saves.
+   * Esc and the scrim are up to `onOpenChange`, which should ignore them too.
+   */
+  closeDisabled?: boolean;
   className?: string;
   /** Classes for the scrolling body (e.g. `scroll-padding` under a sticky header). */
   bodyClassName?: string;
@@ -51,6 +56,7 @@ export function Sheet({
   modal = true,
   returnFocusRef,
   onClosed,
+  closeDisabled = false,
   className,
   bodyClassName,
   children,
@@ -94,8 +100,14 @@ export function Sheet({
               ) : null}
             </div>
             <Dialog.Close
-              className="bo-key bo-key--ghost bo-key--sm bo-sheet__close"
+              className={cn(
+                "bo-key bo-key--ghost bo-key--sm bo-sheet__close",
+                closeDisabled && "is-disabled",
+              )}
               aria-label="Cerrar"
+              // aria-disabled, never disabled: the button may have focus (it keeps it).
+              aria-disabled={closeDisabled || undefined}
+              onClick={closeDisabled ? (event) => event.preventDefault() : undefined}
             >
               {side ? <Kbd keys="Esc" aria-hidden /> : null}
               <Icon icon={X} />
