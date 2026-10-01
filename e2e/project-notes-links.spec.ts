@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { animationsSettled } from "./support/animations";
+import { afterSaveSettled } from "./support/saves";
 import { fontsLoaded } from "./support/fonts";
 import { NOTES_FIXTURE, setNotesAndLinks } from "./support/project-notes-links";
 import {
@@ -22,7 +22,8 @@ const THEMES = ["dark", "light"] as const;
 const SCREENSHOT_CSS = [path.join(__dirname, "support/hide-app-nav.css")];
 
 async function axeViolations(page: Page) {
-  await animationsSettled(page);
+  // Nothing saving, the title back and no transition running (axe would read mid-fade colors).
+  await afterSaveSettled(page);
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
