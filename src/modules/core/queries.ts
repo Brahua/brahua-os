@@ -1,4 +1,5 @@
 // Reads of `core` for Server Components. Each one checks the owner first (SPEC-core).
+import "server-only";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { selectLifeAreas, type LifeAreaSummary } from "./life-areas";

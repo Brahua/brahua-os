@@ -1,20 +1,14 @@
-// Life areas data access (server only). Callers check the owner first: the Server Actions in
-// ./actions and the queries in ./queries call requireOwner() before any of these.
+// Life areas data access (server only). These functions take the database and trust their
+// input: callers check the owner and validate first (the actions through ownerAction(), the
+// queries with requireOwner()).
+import "server-only";
 import { asc, eq, isNull, like, or, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { slugify, uniqueSlug } from "@/lib/text";
 import { lifeAreas } from "./db/schema";
-import type { LifeAreaInput, UpdateLifeAreaInput } from "./life-area-input";
+import type { LifeAreaInput, LifeAreaSummary, UpdateLifeAreaInput } from "./life-area-input";
 
-/** What the UI and the actions' results get: never more than the list and the form need. */
-export type LifeAreaSummary = {
-  id: string;
-  slug: string;
-  name: string;
-  icon: (typeof lifeAreas.$inferSelect)["icon"];
-  color: (typeof lifeAreas.$inferSelect)["color"];
-  sortOrder: number;
-};
+export type { LifeAreaSummary } from "./life-area-input";
 
 const SUMMARY = {
   id: lifeAreas.id,
@@ -41,7 +35,9 @@ const SLUG_CONSTRAINT = "core_life_areas_slug_unique";
 
 /** Postgres unique violation on the slug (Drizzle wraps the driver error in `cause`). */
 export function isSlugConflict(error: unknown): boolean {
-  for (let current = error; current && typeof current === "object";) {
+  // Bounded: a cyclic or absurdly deep `cause` chain must not loop forever.
+  let current = error;
+  for (let depth = 0; depth < 5 && current && typeof current === "object"; depth++) {
     const { code, constraint, cause } = current as {
       code?: unknown;
       constraint?: unknown;

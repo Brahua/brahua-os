@@ -1,40 +1,48 @@
 "use server";
 
-// Server Actions of `core` (SPEC-core "Estilo de código"): each one checks the owner first,
-// validates with Zod and returns an ActionResult. Reachable by any POST, so nothing here trusts
-// the caller: input is `unknown` until parsed.
+// Server Actions of `core`. Each one goes through ownerAction(): owner check first, Zod, then an
+// ActionResult (SPEC-core "Estilo de código"). Reachable by any POST, so input is `unknown`.
 import { revalidatePath } from "next/cache";
-import { fail, ok, unauthorized, type ActionResult } from "@/lib/action-result";
-import { requireOwnerAction } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { ownerAction } from "@/lib/owner-action";
 import {
   LIFE_AREA_ERRORS,
   lifeAreaInputSchema,
   updateLifeAreaInputSchema,
+  type LifeAreaSummary,
 } from "./life-area-input";
-import { insertLifeArea, updateLifeAreaById, type LifeAreaSummary } from "./life-areas";
+import { insertLifeArea, updateLifeAreaById } from "./life-areas";
+import { getDb } from "@/lib/db";
 
 const AREAS_PATH = "/areas";
 
+const create = ownerAction(
+  lifeAreaInputSchema,
+  async (data) => {
+    const area = await insertLifeArea(getDb(), data);
+    revalidatePath(AREAS_PATH);
+    return ok(area);
+  },
+  { name: "createLifeArea" },
+);
+
+const update = ownerAction(
+  updateLifeAreaInputSchema,
+  async (data) => {
+    const area = await updateLifeAreaById(getDb(), data);
+    if (!area) return fail(LIFE_AREA_ERRORS.id);
+    revalidatePath(AREAS_PATH);
+    return ok(area);
+  },
+  { name: "updateLifeArea" },
+);
+
 /** Creates a life area at the end of the list. */
 export async function createLifeArea(input: unknown): Promise<ActionResult<LifeAreaSummary>> {
-  if (!(await requireOwnerAction())) return unauthorized();
-  const parsed = lifeAreaInputSchema.safeParse(input);
-  if (!parsed.success) return fail(parsed.error);
-
-  const area = await insertLifeArea(getDb(), parsed.data);
-  revalidatePath(AREAS_PATH);
-  return ok(area);
+  return create(input);
 }
 
 /** Changes an area's name, color and icon. Its slug and position stay as they are. */
 export async function updateLifeArea(input: unknown): Promise<ActionResult<LifeAreaSummary>> {
-  if (!(await requireOwnerAction())) return unauthorized();
-  const parsed = updateLifeAreaInputSchema.safeParse(input);
-  if (!parsed.success) return fail(parsed.error);
-
-  const area = await updateLifeAreaById(getDb(), parsed.data);
-  if (!area) return fail(LIFE_AREA_ERRORS.id);
-  revalidatePath(AREAS_PATH);
-  return ok(area);
+  return update(input);
 }

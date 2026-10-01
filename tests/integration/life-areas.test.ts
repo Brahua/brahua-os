@@ -329,6 +329,54 @@ describe("listLifeAreas", () => {
   });
 });
 
+describe("name hygiene", () => {
+  test.each([
+    ["NUL", "Mú\u0000sica"],
+    ["zero-width space", "Mú​sica"],
+    ["bidi override", "a‮b"],
+  ])("a name with a %s is a field error, never a database error", async (_, name) => {
+    const result = await createLifeArea({ ...music, name });
+    expect(result).toEqual({
+      ok: false,
+      error: "Revisa los campos marcados.",
+      fieldErrors: { name: [LIFE_AREA_ERRORS.nameInvisible] },
+    });
+    expect(await testDb.$count(lifeAreas)).toBe(0);
+  });
+});
+
+describe("CHECK constraints (defense in depth)", () => {
+  const insert = (values: { name: string; color: string; icon: string }) =>
+    testDb.execute(
+      sql`insert into core_life_areas (slug, name, color, icon) values ('raw', ${values.name}, ${values.color}, ${values.icon})`,
+    );
+
+  test.each([
+    ["an unknown color", { name: "x", color: "red", icon: "star" }, "core_life_areas_color_check"],
+    ["an unknown icon", { name: "x", color: "work", icon: "skull" }, "core_life_areas_icon_check"],
+    [
+      "an empty name",
+      { name: "", color: "work", icon: "star" },
+      "core_life_areas_name_length_check",
+    ],
+    [
+      "a 61-character name",
+      { name: "a".repeat(61), color: "work", icon: "star" },
+      "core_life_areas_name_length_check",
+    ],
+  ])("a raw insert with %s fails", async (_, values, constraint) => {
+    await expect(insert(values)).rejects.toMatchObject({
+      cause: expect.objectContaining({ code: "23514", constraint }),
+    });
+    expect(await testDb.$count(lifeAreas)).toBe(0);
+  });
+
+  test("a valid raw insert (60 characters, any curated icon) passes", async () => {
+    await insert({ name: "ñ".repeat(60), color: "hobbies", icon: "wrench" });
+    expect(await testDb.$count(lifeAreas)).toBe(1);
+  });
+});
+
 describe("slug race with writers that skip the lock", () => {
   test("isSlugConflict recognizes the unique violation on the slug only", async () => {
     await testDb.insert(lifeAreas).values({ slug: "x", name: "x", icon: "star", color: "work" });

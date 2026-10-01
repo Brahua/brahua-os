@@ -1,5 +1,5 @@
 // SPEC-core: Server Actions return an ActionResult and never throw validation errors to the client.
-import { z } from "zod";
+import type { z } from "zod";
 
 export type FieldErrors = Record<string, string[]>;
 
@@ -10,6 +10,8 @@ export type ActionResult<T> =
 export const INVALID_FIELDS_MESSAGE = "Revisa los campos marcados.";
 /** No owner session: the session expired, was closed elsewhere, or is not the owner's. */
 export const UNAUTHORIZED_MESSAGE = "Tu sesión terminó. Vuelve a entrar para guardar los cambios.";
+/** Anything unexpected on the server (database down, a bug): details go to the logs only. */
+export const UNEXPECTED_ERROR_MESSAGE = "No se pudo guardar. Inténtalo de nuevo en un momento.";
 
 export function ok<T>(data: T): ActionResult<T> {
   return { ok: true, data };

@@ -12,6 +12,7 @@ import {
   LIFE_AREA_ERRORS,
   LIFE_AREA_NAME_MAX_LENGTH,
   lifeAreaInputSchema,
+  normalizeAreaName,
   updateLifeAreaInputSchema,
 } from "@/modules/core/life-area-input";
 
@@ -64,6 +65,35 @@ describe("lifeAreaInputSchema", () => {
     const result = lifeAreaInputSchema.safeParse({ ...valid, [field]: value });
     expect(result.success).toBe(false);
     expect(z.flattenError(result.error!).fieldErrors).toEqual({ [field]: [message] });
+  });
+});
+
+describe("name hygiene", () => {
+  test.each([
+    ["NUL", "\u0000"],
+    ["NUL inside", "Mú\u0000sica"],
+    ["zero-width space", "\u200B"],
+    ["zero-width space inside", "Mú\u200Bsica"],
+    ["right-to-left override", "a\u202Eb"],
+    ["left-to-right embedding", "a\u202Ab"],
+    ["soft hyphen", "Mú\u00ADsica"],
+    ["bell", "a\u0007b"],
+  ])("rejects a %s", (_, name) => {
+    const result = lifeAreaInputSchema.safeParse({ ...valid, name });
+    expect(result.success).toBe(false);
+    expect(z.flattenError(result.error!).fieldErrors.name).toEqual([
+      LIFE_AREA_ERRORS.nameInvisible,
+    ]);
+  });
+
+  test("tabs and line breaks are whitespace, not errors", () => {
+    expect(lifeAreaInputSchema.parse({ ...valid, name: "a\tb\r\nc" }).name).toBe("a b c");
+  });
+
+  test("normalizeAreaName: NFC, collapsed whitespace, trimmed", () => {
+    expect(normalizeAreaName("  Me\u0301xico \n  lindo ")).toBe("México lindo");
+    expect(normalizeAreaName("Me\u0301xico")).toHaveLength(6);
+    expect(normalizeAreaName("\u00A0 Viajes\u3000")).toBe("Viajes");
   });
 });
 
