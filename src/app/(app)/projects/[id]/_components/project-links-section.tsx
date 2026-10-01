@@ -15,6 +15,7 @@ import {
 import { LINKS_COPY } from "@/modules/projects/notes-links-copy";
 import {
   addProjectLinkInputSchema,
+  labelMisleads,
   linkHost,
   linkText,
   PROJECT_LINK_FIELDS,
@@ -289,6 +290,8 @@ function LinkRow({
   onEdit: () => void;
 }) {
   const text = linkText(link);
+  const host = linkHost(link.url);
+  const misleading = link.label !== null && labelMisleads(link.label, host);
   const pending = isPendingLinkId(link.id);
   const content = (
     <>
@@ -297,8 +300,16 @@ function LinkRow({
         <Icon icon={ExternalLink} size="sm" className="shrink-0 text-text-secondary" />
       </span>
       {link.label ? (
-        <span className="bo-text-caption block truncate text-text-secondary">
-          {linkHost(link.url)}
+        <span
+          className={cn(
+            "block truncate",
+            // A label that reads like another site ("banco.com") must not hide where it goes.
+            misleading
+              ? "bo-text-body-sm font-semibold text-text"
+              : "bo-text-caption text-text-secondary",
+          )}
+        >
+          {misleading ? LINKS_COPY.goesTo(host) : host}
         </span>
       ) : null}
     </>

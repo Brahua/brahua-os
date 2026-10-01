@@ -15,7 +15,14 @@ import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/cn";
-import { isExternalHref, MARKDOWN_COPY, MARKDOWN_SCHEMA } from "./schema";
+import {
+  CLOBBER_PREFIX,
+  isExternalHref,
+  linkKind,
+  MARKDOWN_COPY,
+  MARKDOWN_SCHEMA,
+  rehypePrefixFragmentLinks,
+} from "./schema";
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -39,22 +46,31 @@ function domProps<Props extends { node?: unknown }>(props: Props): Omit<Props, "
   return rest;
 }
 
+/** The footnotes' (screen-reader only) heading: one level under the page's section. */
+const FOOTNOTE_LABEL_ID = `${CLOBBER_PREFIX}footnote-label`;
+
 function headingComponents(offset: number): Partial<Components> {
   const entries = HEADING_LEVELS.map((level) => {
-    const Tag = `h${Math.min(6, level + offset) as HeadingLevel}` as const;
-    const Heading: Components["h1"] = ({ className, ...props }) => (
-      <Tag {...domProps(props)} className={cn(`bo-md-h${level}`, className)} />
-    );
+    const Heading: Components["h1"] = ({ className, ...props }) => {
+      const shown = props.id === FOOTNOTE_LABEL_ID ? 1 : level;
+      const Tag = `h${Math.min(6, shown + offset) as HeadingLevel}` as const;
+      return <Tag {...domProps(props)} className={cn(`bo-md-h${level}`, className)} />;
+    };
     return [`h${level}`, Heading] as const;
   });
   return Object.fromEntries(entries);
 }
 
 const BASE_COMPONENTS: Partial<Components> = {
-  /** External links open in a new tab, without access to this page or a referrer. */
+  /**
+   * Only fragments, mailto and http(s) are links (see linkKind: no relative or
+   * protocol-relative URLs). External ones open in a new tab, without access to this page or a
+   * referrer.
+   */
   a({ href, children, ...props }) {
-    if (!href) return <span>{children}</span>;
-    if (!isExternalHref(href)) {
+    const kind = href ? linkKind(href) : null;
+    if (!href || !kind) return <span>{children}</span>;
+    if (kind !== "external") {
       return (
         <a {...domProps(props)} href={href}>
           {children}
@@ -108,8 +124,10 @@ const BASE_COMPONENTS: Partial<Components> = {
 
 const PLUGINS = {
   remarkPlugins: [remarkGfm],
-  rehypePlugins: [[rehypeSanitize, MARKDOWN_SCHEMA]],
+  rehypePlugins: [[rehypeSanitize, MARKDOWN_SCHEMA], rehypePrefixFragmentLinks],
   remarkRehypeOptions: {
+    // The sanitizer prefixes ids once; remark-rehype must not do it too ("user-content-" twice).
+    clobberPrefix: "",
     footnoteLabel: MARKDOWN_COPY.footnotes,
     footnoteBackLabel: MARKDOWN_COPY.footnoteBack,
   },

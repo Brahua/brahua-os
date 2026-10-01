@@ -17,7 +17,7 @@ export const NOTES_COPY = {
   tabWrite: "Escribir",
   tabPreview: "Vista previa",
   textLabel: "Notas en Markdown",
-  help: "Markdown: **negrita**, _cursiva_, listas, [enlace](https://…), tablas y casillas (- [ ]).",
+  help: "Markdown: **negrita**, _cursiva_, listas, [enlace](https://…), tablas y casillas (- [ ]). ⌘↵ o Ctrl+↵ guarda.",
   counter: (used: number) => `${count(used)} de ${count(PROJECT_NOTES_MAX_LENGTH)} caracteres.`,
   overLimit: (used: number) =>
     `${count(used)} de ${count(PROJECT_NOTES_MAX_LENGTH)} caracteres: quita ${count(used - PROJECT_NOTES_MAX_LENGTH)} para guardar.`,
@@ -54,6 +54,7 @@ export const LINKS_COPY = {
   cancel: "Cancelar",
   remove: "Quitar enlace",
   newTab: "(se abre en una pestaña nueva)",
+  goesTo: (host: string) => `Lleva a ${host}`,
   edit: (text: string) => `Editar enlace ${text}`,
   moveUp: (text: string) => `Subir ${text}`,
   moveDown: (text: string) => `Bajar ${text}`,

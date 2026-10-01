@@ -2,6 +2,7 @@
 import { describe, expect, test } from "vitest";
 import {
   addProjectLinkInputSchema,
+  labelMisleads,
   linkHost,
   linkText,
   parseLinkUrl,
@@ -66,6 +67,21 @@ describe("notes", () => {
     expect(messages(parse(text))).toEqual([PROJECT_NOTES_ERRORS.control]);
   });
 
+  test.each([
+    ["LRE", "\u202a"],
+    ["RLO", "\u202e"],
+    ["LRI", "\u2066"],
+    ["PDI", "\u2069"],
+  ])("bidirectional controls are refused: %s", (_name, mark) => {
+    expect(messages(parse(`[banco](https://evil.example) ${mark}moc.ocnab`))).toEqual([
+      PROJECT_NOTES_ERRORS.bidi,
+    ]);
+  });
+
+  test("plain direction marks and emoji joiners are fine", () => {
+    expect(parse("a\u200eb \u200f 👨\u200d👩\u200d👧").success).toBe(true);
+  });
+
   test("the id must be a uuid; the notes must be text", () => {
     expect(messages(updateProjectNotesInputSchema.safeParse({ id: "1", notes: "a" }))).toEqual([
       PROJECT_ERRORS.notFound,
@@ -83,6 +99,8 @@ describe("link URLs", () => {
     ["example.com/docs", "https://example.com/docs"],
     ["www.example.com", "https://www.example.com/"],
     ["https://münchen.de", "https://xn--mnchen-3ya.de/"],
+    ["localhost:3000/notas", "https://localhost:3000/notas"],
+    ["ejemplo.com:8080", "https://ejemplo.com:8080/"],
   ])("%s is stored as %s", (input, stored) => {
     expect(parseLinkUrl(input)).toEqual({ ok: true, url: stored });
   });
@@ -95,6 +113,9 @@ describe("link URLs", () => {
     ["ftp://example.com/file", PROJECT_LINK_ERRORS.urlScheme],
     ["mailto:yo@example.com", PROJECT_LINK_ERRORS.urlScheme],
     ["file:///etc/passwd", PROJECT_LINK_ERRORS.urlScheme],
+    ["https://yo:clave@example.com/", PROJECT_LINK_ERRORS.urlCredentials],
+    ["https://banco.com@evil.example/", PROJECT_LINK_ERRORS.urlCredentials],
+    ["usuario@example.com/x", PROJECT_LINK_ERRORS.urlCredentials],
     ["", PROJECT_LINK_ERRORS.urlRequired],
     ["   ", PROJECT_LINK_ERRORS.urlRequired],
     ["https://", PROJECT_LINK_ERRORS.urlInvalid],
@@ -168,6 +189,16 @@ describe("link schemas", () => {
     expect(linkText({ url: "https://www.example.com/a", label: null })).toBe("example.com");
     expect(linkText({ url: "https://example.com/a", label: "Docs" })).toBe("Docs");
     expect(linkHost("not a url")).toBe("not a url");
+  });
+
+  test("a label that reads like another site misleads; its own site doesn't", () => {
+    expect(labelMisleads("banco.com", "evil.example")).toBe(true);
+    expect(labelMisleads("https://www.banco.com/login", "evil.example")).toBe(true);
+    expect(labelMisleads("github.com", "github.com")).toBe(false);
+    expect(labelMisleads("www.github.com", "github.com")).toBe(false);
+    expect(labelMisleads("github.com", "gist.github.com")).toBe(false);
+    expect(labelMisleads("Repo del proyecto", "github.com")).toBe(false);
+    expect(labelMisleads("v1.2", "github.com")).toBe(false);
   });
 });
 

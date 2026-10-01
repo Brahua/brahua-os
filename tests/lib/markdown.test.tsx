@@ -3,7 +3,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { Markdown } from "@/lib/markdown/markdown";
-import { isExternalHref } from "@/lib/markdown/schema";
+import { isExternalHref, linkKind } from "@/lib/markdown/schema";
 
 const html = (source: string, headingOffset?: 0 | 1 | 2) =>
   renderToStaticMarkup(<Markdown headingOffset={headingOffset}>{source}</Markdown>);
@@ -116,10 +116,50 @@ describe("sanitization", () => {
     expect(link.textContent).toContain("Imagen: Plano de la cocina");
   });
 
-  test("ids can't clobber the page's: they get a prefix", () => {
+  test("ids can't clobber the page's: they get the prefix once", () => {
     const container = dom("Texto[^1]\n\n[^1]: Nota.");
-    for (const element of container.querySelectorAll("[id]")) {
-      expect(element.id.startsWith("user-content-")).toBe(true);
+    const ids = [...container.querySelectorAll("[id]")].map((element) => element.id);
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) {
+      expect(id.startsWith("user-content-")).toBe(true);
+      expect(id).not.toContain("user-content-user-content-");
+    }
+  });
+
+  test("every in-page link points to an element that exists (footnotes both ways)", () => {
+    const container = dom("Uno[^a] y dos[^b].\n\n[^a]: Primera.\n[^b]: Segunda.\n\n[arriba](#top)");
+    const fragments = [...container.querySelectorAll<HTMLAnchorElement>("a[href^='#']")];
+    expect(fragments.length).toBeGreaterThanOrEqual(4);
+    for (const link of fragments.filter((a) => a.textContent !== "arriba")) {
+      const target = link.getAttribute("href")!.slice(1);
+      expect(container.querySelector(`[id="${target}"]`), target).not.toBeNull();
+    }
+    // A hand-written fragment is prefixed the same way (it can only reach the note's own ids).
+    expect(container.querySelector("a[href='#user-content-top']")).not.toBeNull();
+    // aria-describedby of the references names the (prefixed) label.
+    const label = container.querySelector("a[data-footnote-ref]")?.getAttribute("aria-describedby");
+    expect(container.querySelector(`[id="${label}"]`)).not.toBeNull();
+  });
+
+  test.each([
+    ["protocol-relative", "[clic](//evil.example/x)"],
+    ["slash backslash", "[clic](/\\evil.example/x)"],
+    ["double backslash", "[clic](\\\\evil.example/x)"],
+    ["path", "[clic](/projects)"],
+    ["relative", "[clic](otra/pagina)"],
+    ["reference", "[clic][r]\n\n[r]: //evil.example"],
+  ])("only #, mailto and http(s) are links; %s is text", (_name, source) => {
+    const container = dom(source);
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toContain("clic");
+  });
+
+  test("linkKind", () => {
+    expect(linkKind("#user-content-fn-1")).toBe("fragment");
+    expect(linkKind("MAILTO:a@b.c")).toBe("mailto");
+    expect(linkKind(" https://a.b ")).toBe("external");
+    for (const href of ["//evil", "/\\evil", "\\\\evil", "/x", "x", "javascript:1", "#a b"]) {
+      expect(linkKind(href), href).toBeNull();
     }
   });
 
@@ -191,6 +231,15 @@ describe("GitHub Flavored Markdown", () => {
     // Clamped at h6.
     expect(container.querySelector("h6.bo-md-h6")?.textContent).toBe("Seis");
     expect(container.querySelector("h1, h2")).toBeNull();
+  });
+
+  test("the footnotes' heading sits one level under the section (h3 with offset 2)", () => {
+    const container = document.createElement("div");
+    container.innerHTML = html("Texto[^1]\n\n[^1]: Nota.", 2);
+    const label = container.querySelector("#user-content-footnote-label")!;
+    expect(label.tagName).toBe("H3");
+    expect(label).toHaveClass("sr-only");
+    expect(label.textContent).toBe("Notas al pie");
   });
 
   test("wrapped in .bo-markdown; plain text stays text", () => {

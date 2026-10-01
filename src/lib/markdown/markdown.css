@@ -68,6 +68,10 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+/* Header cells sit on the darker well: the deeper signal keeps the ring ≥ 3:1 there (WCAG 1.4.11). */
+.bo-markdown th a:focus-visible {
+  outline-color: var(--color-signal-text);
+}
 
 .bo-markdown :is(ul, ol) {
   padding-left: var(--space-6);

@@ -296,6 +296,22 @@ describe("leaving with unsaved notes", () => {
     expect(screen.getByRole("textbox", { name: "Notas en Markdown" })).toHaveValue("Borrador");
   });
 
+  test("a draft kept after a failed save still asks; 'Seguir editando' reopens the editor", async () => {
+    vi.mocked(updateProjectNotes).mockResolvedValueOnce(fail("Sin conexión."));
+    const user = renderPage();
+    await user.click(screen.getByRole("button", { name: "Escribir notas" }));
+    await user.type(screen.getByRole("textbox", { name: "Notas en Markdown" }), "Borrador");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(notices()).toHaveTextContent("No se pudieron guardar las notas"));
+    // The editor is closed, the draft waits.
+    expect(screen.queryByRole("textbox", { name: "Notas en Markdown" })).toBeNull();
+    await user.click(screen.getByTestId("leave"));
+    await user.click(screen.getByRole("button", { name: "Seguir editando" }));
+    const field = await screen.findByRole("textbox", { name: "Notas en Markdown" });
+    await waitFor(() => expect(field).toHaveFocus());
+    expect(field).toHaveValue("Borrador");
+  });
+
   test("'Salir sin guardar' follows the link that was stopped", async () => {
     const user = renderPage();
     const followed = vi.fn((event: MouseEvent) => event.preventDefault());

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { animationsSettled } from "./support/animations";
 import { fontsLoaded } from "./support/fonts";
 import { NOTES_FIXTURE, setNotesAndLinks } from "./support/project-notes-links";
@@ -87,7 +87,39 @@ test("write Markdown, preview it, save, and see it rendered (also after a reload
   expect(dialogs).toEqual([]);
 });
 
-test("malicious Markdown renders inert: no dialog, no script, no unsafe link", async ({
+/**
+ * What a rendered note must never contain: active elements, event handlers, inline styles,
+ * unsafe or off-site-relative URLs, and in-page links that point nowhere. Returns the offenders.
+ */
+async function offenders(root: Locator) {
+  return root.evaluate((element) => {
+    const found: string[] = [];
+    for (const node of element.querySelectorAll(
+      "script, iframe, img, svg:not(.lucide), object, embed, form",
+    )) {
+      found.push(node.tagName);
+    }
+    for (const node of element.querySelectorAll("*")) {
+      for (const name of node.getAttributeNames()) {
+        const value = node.getAttribute(name) ?? "";
+        if (name.startsWith("on") || name === "style") found.push(`${node.tagName}[${name}]`);
+        if (["href", "src"].includes(name)) {
+          if (!/^(#|mailto:|https?:\/\/)/i.test(value))
+            found.push(`${node.tagName}[${name}=${value}]`);
+          if (
+            value.startsWith("#") &&
+            !element.querySelector(`[id="${CSS.escape(value.slice(1))}"]`)
+          ) {
+            found.push(`dangling ${value}`);
+          }
+        }
+      }
+    }
+    return found;
+  });
+}
+
+test("malicious Markdown renders inert, in the preview and saved: no dialog, nothing unsafe", async ({
   page,
 }, testInfo) => {
   const dialogs = failOnDialogs(page);
@@ -101,45 +133,53 @@ test("malicious Markdown renders inert: no dialog, no script, no unsafe link", a
     '<div onmouseover="alert(\'div\')" style="position:fixed;inset:0">capa</div>',
     "[js](javascript:alert('md'))",
     "[JS](JaVaScRiPt:alert('md2'))",
+    "[ent](&#106;avascript:alert('ent'))",
+    "[tab](java&#9;script:alert('tab'))",
+    "[nl](java&#10;script:alert('nl'))",
     "[data](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)",
     "[vb](vbscript:msgbox('vb'))",
+    "[rel](//evil.example/x)",
+    "[bs](/\\evil.example/x)",
+    "[bs2](\\\\evil.example/x)",
     "![img](javascript:alert('md-img'))",
     "<javascript:alert('autolink')>",
+    "Con nota[^1].",
+    "[^1]: La nota.",
   ].join("\n\n");
+  const clickable = ["js", "JS", "ent", "tab", "nl", "data", "vb", "rel", "bs", "bs2", "raw"];
+
   await openProject(page, id);
   await notesSection(page).getByRole("button", { name: "Escribir notas" }).click();
   await notesField(page).fill(payload);
+
+  // The client preview first: the same renderer, in the browser.
   await page.getByRole("tab", { name: "Vista previa" }).click();
-  await expect(page.getByRole("tabpanel", { name: "Vista previa" })).toContainText("js");
+  const preview = page.getByRole("tabpanel", { name: "Vista previa" });
+  await expect(preview).toContainText("La nota.");
+  expect(await offenders(preview)).toEqual([]);
+  for (const text of clickable) {
+    await preview.getByText(text, { exact: true }).first().click();
+  }
+  await expect(page).toHaveURL(new RegExp(`/projects/${id}$`));
+
   await untilSaved(page, () => notesSection(page).getByRole("button", { name: "Guardar" }).click());
   await page.reload();
 
+  // Then the saved notes, rendered on the server.
   const section = notesSection(page);
   // HTML blocks (the div layer, the script) are dropped whole; inline tags leave their text.
   await expect(section).toContainText("raw");
   await expect(section).not.toContainText("capa");
-  // Click everything that looked like a link.
-  for (const text of ["js", "JS", "data", "vb", "raw"]) {
+  expect(await offenders(section)).toEqual([]);
+  // Footnotes still work: a single prefix, and the reference reaches its note.
+  await expect(section.locator("[id^='user-content-user-content-']")).toHaveCount(0);
+  await expect(section.locator("a[data-footnote-ref]")).toHaveAttribute(
+    "href",
+    "#user-content-fn-1",
+  );
+  for (const text of clickable) {
     await section.getByText(text, { exact: true }).first().click();
   }
-  expect(
-    await section.locator("script, iframe, img, svg:not(.lucide), object, embed").count(),
-  ).toBe(0);
-  const unsafe = await section.evaluate((root) =>
-    [...root.querySelectorAll("*")].flatMap((element) =>
-      element
-        .getAttributeNames()
-        .filter(
-          (name) =>
-            name.startsWith("on") ||
-            name === "style" ||
-            (["href", "src"].includes(name) &&
-              /^\s*(javascript|data|vbscript):/i.test(element.getAttribute(name) ?? "")),
-        )
-        .map((name) => `${element.tagName}[${name}]`),
-    ),
-  );
-  expect(unsafe).toEqual([]);
   await expect(page).toHaveURL(new RegExp(`/projects/${id}$`));
   expect(dialogs).toEqual([]);
 });

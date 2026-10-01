@@ -12,6 +12,7 @@ export const PROJECT_NOTES_ERRORS = {
   tooLong: `Usa ${formatCount(PROJECT_NOTES_MAX_LENGTH)} caracteres como máximo.`,
   control:
     "Quita los caracteres de control de las notas (solo se permiten saltos de línea y tabulaciones).",
+  bidi: "Quita los caracteres invisibles que cambian el sentido del texto (marcas bidireccionales).",
 } as const;
 
 /**
@@ -22,6 +23,17 @@ const CONTROL = /(?![\n\t])\p{Cc}/u;
 
 export function hasControlCharacters(value: string): boolean {
   return CONTROL.test(value);
+}
+
+/**
+ * Bidirectional embeddings, overrides and isolates (U+202A–U+202E, U+2066–U+2069): invisible,
+ * they reorder what is shown (text, or a link's visible address) away from what is stored.
+ * The plain marks (U+200E, U+200F) stay: they only nudge punctuation in mixed scripts.
+ */
+const BIDI_CONTROL = /[\u202A-\u202E\u2066-\u2069]/u;
+
+export function hasBidiControls(value: string): boolean {
+  return BIDI_CONTROL.test(value);
 }
 
 /**
@@ -44,7 +56,8 @@ const notes = z
     z
       .string()
       .max(PROJECT_NOTES_MAX_LENGTH, PROJECT_NOTES_ERRORS.tooLong)
-      .refine((value) => !hasControlCharacters(value), PROJECT_NOTES_ERRORS.control),
+      .refine((value) => !hasControlCharacters(value), PROJECT_NOTES_ERRORS.control)
+      .refine((value) => !hasBidiControls(value), PROJECT_NOTES_ERRORS.bidi),
   )
   .transform((value) => (value === "" ? null : value));
 

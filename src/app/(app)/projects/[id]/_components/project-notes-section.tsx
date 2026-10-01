@@ -84,9 +84,12 @@ export function ProjectNotesSection({ rendered }: ProjectNotesSectionProps) {
 
   function stay() {
     setLeaving(null);
-    setTab("write");
-    // After the confirmation unmounts.
-    window.setTimeout(() => textarea.current?.focus(), 0);
+    // The draft may be waiting with the editor closed (after a failed save): open it, so
+    // "Seguir editando" lands where the text is.
+    if (editor.editing) setTab("write");
+    else open();
+    // After the confirmation unmounts (and the editor mounts); never leave focus on <body>.
+    window.setTimeout(() => (textarea.current ?? trigger.current)?.focus(), 0);
   }
 
   function leave() {
