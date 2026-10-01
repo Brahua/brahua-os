@@ -29,7 +29,8 @@
   - ✅ C4 (ajustes): PR #20 integrado.
   - ✅ C5 (áreas: ver y crear): PR #21 integrado.
   - 🟡 Mejoras de proceso (PR `chore/faster-e2e`, **sin merge**): E2E nativa sin Docker, capturas generadas en GitHub, menos capturas, smoke test después del deploy y registro de errores sin mensajes de Postgres. Ver "Pruebas E2E" y "Smoke test en producción".
-  - Siguiente: C6 (áreas: reordenar y archivar).
+  - 🟡 C6 (áreas: reordenar y archivar): PR `feat/core-c6-areas-order`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan el orden y el archivo (C6)".
+  - Siguiente: Checkpoint 2 (recorrido completo con el owner), luego C7.
 
 ## C2a: pasos del usuario (en orden)
 
@@ -135,6 +136,36 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   - Al guardar: `revalidatePath("/areas")`, la hoja se cierra, el foco vuelve a "Nueva área" o a la fila editada, y **cuando la hoja terminó de cerrarse** (`onClosed`, nuevo en el `Sheet` del design system: después de la animación de salida, del foco y de quitar el `aria-hidden` que Radix pone en la página) una región `status` anuncia "Área «X» creada." o "Cambios guardados en «X».". Antes de eso el lector de pantalla no la leería. El aviso visible con "Deshacer" llega en C6.
 - **E2E:** `e2e/global-setup.ts` siembra las 8 áreas. Las pruebas crean áreas con nombres únicos, nunca editan las sembradas y no suponen que la nueva es la última (otras pruebas crean en paralelo); las capturas de la lista ocultan las filas después de la 8 (`e2e/support/seeded-areas-only.css`). Un `MutationObserver` comprueba que el anuncio llega sin ancestros `aria-hidden` ni diálogo abierto.
 
+## Cómo funcionan el orden y el archivo (C6)
+
+- **Servidor** (`src/modules/core/`):
+  - `life-area-order.ts` (sin código de servidor, lo usan el servidor y el cliente): `moveId`, `isSameIdSet`, `planReorder` (activas en el orden recibido y luego las archivadas como estaban, o `null` si la lista no es exactamente el conjunto de activas) y `applyOrder`.
+  - `life-areas.ts`: `reorderLifeAreasByIds`, `archiveLifeAreaById` y `unarchiveLifeAreaById` toman `LIFE_AREAS_LOCK` (como `insertLifeArea`). Reordenar lee todas las áreas, valida con `planReorder` y escribe un solo `UPDATE … CASE` con las filas que cambian; `sort_order` queda contiguo (0…n-1). `updateLifeAreaById` solo edita activas (devuelve `"archived"` si está archivada). `selectArchivedLifeAreas`: las archivadas, la más reciente primero.
+  - `actions.ts`: `reorderLifeAreas({ ids })`, `archiveLifeArea({ id })`, `unarchiveLifeArea({ id, position })` (`end` por defecto; `original` para Deshacer), todas con `ownerAction`. Una lista vieja o alterada → `LIFE_AREA_ERRORS.staleOrder`, sin escribir, pero con `revalidatePath` para que la respuesta traiga la lista actual. Editar una archivada → `LIFE_AREA_ERRORS.archived` (también revalida). Archivar o desarchivar dos veces no cambia nada.
+  - `queries.ts`: `listArchivedLifeAreas()` (con `requireOwner()`). La página carga ambas listas en paralelo.
+  - Sin migración: la tabla es chica y no hace falta índice.
+- **Pantalla** (`src/app/(app)/areas/_components/`):
+  - `SortableAreas`: `<ul>` con dnd-kit. Cada `<li>` tiene el asa ("Mover X", `aria-roledescription="elemento ordenable"`, instrucciones en español como descripción), el `ListRow` de editar y las `IconKey` "Subir X"/"Bajar X" (sin tooltip: la lista recorta con `overflow: hidden`). En los extremos usan `aria-disabled` (el foco se queda). Sensores: ratón (4 px), toque (200 ms de presión) y teclado (`sortableKeyboardCoordinates`). Anuncios propios en español; el inicio de un arrastre no se repite como movimiento, y el resultado de soltar lo dice el aviso.
+  - `ArchivedAreas`: `<section>` con un `<h2>` que contiene el botón de despliegue (`aria-expanded`, cantidad). Plegada por defecto. Filas de solo lectura con "Desarchivar" (en el celular, solo el ícono; el nombre accesible sigue siendo "Desarchivar X").
+  - `AreaSheet`: "Archivar área" solo al editar, abajo del formulario, con la explicación como descripción. **Por qué en la hoja y no en cada fila:** archivar es poco frecuente y las filas ya tienen cuatro controles (asa, editar, subir, bajar); en la hoja está junto al área que afecta y con la explicación de qué significa.
+  - `AreasManager`: `useOptimistic` con `applyAreasChange` (`areas-optimistic.ts`: `reorder`, `archive`, `unarchive` con `end` u `original`, robusto a una lista base más nueva). Cada cambio se aplica al instante y se guarda en una transición; si falla (o no hay red), vuelve atrás solo y un aviso "Sin guardar" dice por qué (el mensaje del servidor si es específico).
+  - **Foco:** Subir/Bajar se quedan en la tecla de la fila movida; archivar desde la hoja devuelve el foco a la fila vecina (o a "Nueva área"); desarchivar lo pasa a la siguiente archivada o, si no quedan, a la fila restaurada; si un Deshacer quita la fila que tenía el foco, pasa a la vecina.
+- **Avisos** (`toast-queue.ts` + `components/toaster.tsx`, reutilizables por otros módulos):
+  - Cola pura (`toastReducer`: `push`, `replace` por id, `dismiss`; hasta 3 en espera) y `useToaster()`.
+  - `ToastViewport`: región `role="status"` `aria-live="polite"` llamada "Avisos", **siempre presente** (el `Toast` del design system ganó `live={false}` para no anidar regiones y `actionProps`). Uno a la vez; nunca toma el foco.
+  - Tiempos (WCAG 2.2.1): 10 s con "Deshacer", 6 s sin acción; se pausan con el puntero encima, con el foco dentro y con la pestaña oculta, y siguen con el tiempo que quedaba. Esc lo cierra desde dentro. Después de "Deshacer" o Esc, el foco vuelve a donde estaba antes de entrar al aviso. Además, todo lo que se deshace se puede rehacer sin límite de tiempo (mover de nuevo, desarchivar).
+  - ⌘Z / Ctrl+Z ejecuta el "Deshacer" del aviso visible (`isUndoShortcut` en `src/lib/shortcuts.ts`): no dentro de campos de texto, widgets ni diálogos. El botón lo anuncia con `aria-keyshortcuts`.
+  - Movimientos seguidos comparten un aviso ("«X» pasó al lugar N de M."); su "Deshacer" vuelve al orden de antes del primero, aplicado sobre las áreas de ahora (una creada o restaurada después queda al final).
+  - Arriba de la barra inferior en el celular y abajo a la derecha desde 1024 px (`extensions.css`). Entra con una subida corta que con movimiento reducido es solo un fundido (`--motion-travel` es 0).
+  - Ojo con las pruebas: React enlaza las transiciones asíncronas pendientes (incluso entre pruebas), así que una llamada que nunca termina impide ver cualquier vuelta atrás posterior. `tests/app/areas-order.test.tsx` resuelve todas al final de cada prueba.
+- **Movimiento reducido:** `useSortable({ transition: null })` (las filas saltan a su lugar), `scrollBehavior: "auto"` en el sensor de teclado y el aviso sin desplazamiento.
+- **E2E** (`e2e/areas-order.spec.ts`, helpers en `e2e/support/areas.ts`):
+  - La base E2E es compartida y reordenar rechaza listas viejas, así que las pruebas que crean, archivan, desarchivan o reordenan usan `testWithAreasLock`: un *advisory lock* de Postgres (`e2e_life_areas`) en su propia conexión durante toda la prueba (la espera no cuenta en el tiempo de la prueba). Las de solo lectura usan `test`.
+  - Solo mueven, archivan o restauran áreas creadas por ellas: las 8 sembradas y su orden (que salen en las capturas) no cambian.
+  - Antes de recargar para comprobar que algo se guardó, `untilSaved` espera la respuesta de la Server Action: la UI cambia antes (optimista). `waitForLoadState("networkidle")` no sirve: se resuelve de inmediato si la página ya había llegado a ese estado.
+  - Los arrastres esperan los anuncios de dnd-kit (`[id^="DndLiveRegion"]`) entre teclas: mide las filas justo después de tomar una y las teclas anteriores se pierden. Antes de arrastrar con el ratón, se espera a que Radix quite `pointer-events: none` del `body` tras cerrar la hoja.
+  - Capturas: cambian las 4 de la lista (asa y teclas en cada fila). No hay capturas nuevas: el aviso y las archivadas tienen nombres únicos por prueba; se cubren con axe en ambos temas.
+
 ## Pruebas E2E
 
 - **Mientras se itera (sin Docker):** E2E nativa en macOS, solo con las specs que tocaste. `docker compose up -d` (solo la base) y luego `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test pnpm test:e2e e2e/<spec>.ts`. `pnpm test:e2e:changed` corre las specs que cambiaron contra `origin/main` (`--only-changed` de Playwright: detecta specs y lo que importan, **no** el código de la app; si cambiaste solo `src/`, elige la spec a mano).
@@ -150,7 +181,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   - No corre en `main` ni en tags: ambos jobs tienen `if: github.ref_type == 'branch' && github.ref != 'refs/heads/main'` (el run queda omitido) y el job `commit` además falla si la rama es `main`.
   - `gh workflow run` solo encuentra el workflow si el archivo está en `main` (GitHub busca ahí los workflows de `workflow_dispatch`); el PR que lo creó lo probó con un trigger `push` temporal.
   - GitHub igual crea un run `pull_request` para el commit del bot, pero queda en "action required" (pide aprobación) y no corre: los checks que valen son los del run despachado.
-- **Capturas que hay (30):** por tema (oscuro/claro) y viewport (celular/escritorio): login (4), navegación en la portada (4; la portada no tiene captura propia porque el saludo y la fecha cambian con la hora), barra lateral contraída (2, solo escritorio), lista de áreas (4), hoja de área (4), ajustes (4). Design system, solo escritorio y ambos temas (8): `key` (todos los estados y tamaños de la tecla), `kbd-tooltip` (Kbd sobre tecla naranja y tooltip abierto, que ninguna pantalla capta), `controls` (todos los estados de los controles) y `progress` (medidores que aún no usa ninguna pantalla). El resto de `/design` (text-field, list-row, sheet, area-tag, iconos, navegación…) ya sale en las pantallas.
+- **Capturas que hay (30):** (C6 cambió las 4 de la lista) por tema (oscuro/claro) y viewport (celular/escritorio): login (4), navegación en la portada (4; la portada no tiene captura propia porque el saludo y la fecha cambian con la hora), barra lateral contraída (2, solo escritorio), lista de áreas (4), hoja de área (4), ajustes (4). Design system, solo escritorio y ambos temas (8): `key` (todos los estados y tamaños de la tecla), `kbd-tooltip` (Kbd sobre tecla naranja y tooltip abierto, que ninguna pantalla capta), `controls` (todos los estados de los controles) y `progress` (medidores que aún no usa ninguna pantalla). El resto de `/design` (text-field, list-row, sheet, area-tag, iconos, navegación…) ya sale en las pantallas.
 
 ## Smoke test en producción
 
