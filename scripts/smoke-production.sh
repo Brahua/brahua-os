@@ -7,7 +7,7 @@
 #
 # Retries the whole round a few times (SMOKE_ATTEMPTS, SMOKE_DELAY seconds apart) to absorb
 # propagation; exits 1 if the last round still fails. Worst case with the defaults: 6 rounds of
-# 5 requests × 8 s plus 5 pauses of 10 s ≈ 5 min (ci.yml's smoke job allows 15).
+# 7 requests × 8 s plus 5 pauses of 10 s ≈ 6.5 min (ci.yml's smoke job allows 15).
 set -uo pipefail
 
 BASE_URL="${SMOKE_BASE_URL:-https://os.brahua.com}"
@@ -82,13 +82,25 @@ round() {
   grep -Eq '"ok": ?true' "$WORK/body" || fail "/api/auth/ok: body is not {\"ok\":true}"
   security_headers /api/auth/ok
 
+  # PWA: the manifest and its icons are public (installing happens before signing in).
+  fetch /manifest.webmanifest
+  [[ "$STATUS" == "200" ]] || fail "/manifest.webmanifest: status $STATUS, expected 200"
+  expect_header /manifest.webmanifest content-type '^application/manifest\+json'
+  grep -Eq '"display": ?"standalone"' "$WORK/body" ||
+    fail "/manifest.webmanifest: no \"display\":\"standalone\""
+  security_headers /manifest.webmanifest
+
+  fetch /icons/icon-192.png
+  [[ "$STATUS" == "200" ]] || fail "/icons/icon-192.png: status $STATUS, expected 200"
+  expect_header /icons/icon-192.png content-type '^image/png$'
+
   ((${#failures[@]} == 0))
 }
 
 echo "Smoke test: $BASE_URL"
 for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
   if round; then
-    echo "OK (attempt $attempt): / /areas /settings → /login, /login 200, /api/auth/ok, security headers."
+    echo "OK (attempt $attempt): / /areas /settings → /login, /login 200, /api/auth/ok, manifest and icon, security headers."
     exit 0
   fi
   echo "Attempt $attempt/$ATTEMPTS failed:"
