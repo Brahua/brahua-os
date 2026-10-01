@@ -7,7 +7,7 @@ import {
   type Notice,
   type ToastEvent,
   type ToastState,
-} from "@/modules/core/toast-queue";
+} from "@/lib/toast/queue";
 
 function notice(id: string, text = id): Notice {
   return { id, title: "T", text, duration: 1000 };

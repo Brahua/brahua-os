@@ -97,3 +97,20 @@ export function isUndoShortcut(event: ShortcutEvent): boolean {
   if (event.key.toLowerCase() !== "z") return false;
   return !isShortcutFreeTarget(event.target);
 }
+
+/** Esc (no modifiers) outside text fields, widgets and dialogs: dismiss the notice on screen. */
+export function isDismissShortcut(event: ShortcutEvent): boolean {
+  if (event.defaultPrevented || event.repeat || event.isComposing) return false;
+  if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return false;
+  return !isShortcutFreeTarget(event.target);
+}
+
+/**
+ * Set on <html> while an element is being dragged (e.g. a keyboard drag in a sortable list):
+ * then Esc, the arrows and ⌘Z belong to the drag.
+ */
+export const DRAGGING_ATTRIBUTE = "data-dragging";
+
+export function isDragActive(): boolean {
+  return document.documentElement.hasAttribute(DRAGGING_ATTRIBUTE);
+}

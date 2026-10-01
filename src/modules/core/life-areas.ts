@@ -140,8 +140,9 @@ export async function updateLifeAreaById(
 }
 
 /**
- * Rewrites the order of every area in one transaction, under LIFE_AREAS_LOCK: `ids` (exactly
- * the active areas) first, then the archived ones as they were, so sort_order ends up 0…n-1.
+ * Rewrites the order of every area in one transaction, under LIFE_AREAS_LOCK: each archived
+ * area keeps its place (so undoing its archive puts it back there) and `ids` (exactly the
+ * active areas) fill the other places in order, so sort_order ends up 0…n-1.
  * Returns the active areas in their new order, or null (writing nothing) when `ids` is not
  * exactly the set of active areas: a stale list or a tampered request.
  */

@@ -1,5 +1,9 @@
-// A queue of notices shown one at a time (the design system `Toast`). Pure state: timers,
-// focus and rendering live in components/toaster.tsx.
+// A queue of notices shown one at a time (the design system `Toast`). Pure state, no React:
+// `useToaster` (./use-toaster.ts) holds it, and a viewport renders it (for now
+// src/modules/core/components/toast-viewport.tsx, per screen).
+//
+// Later: one queue for all of (app), provided by the layout, so a notice survives navigation
+// and two screens never show two viewports. Nothing here needs to change for that.
 
 export type ToastAction = {
   label: string;
@@ -12,6 +16,8 @@ export type Notice = {
   title: string;
   text: string;
   action?: ToastAction;
+  /** Errors stay longer (TOAST_DURATION.error). */
+  tone?: "info" | "error";
   /** How long it stays on screen (paused while hovered or focused). */
   duration: number;
 };
@@ -35,7 +41,7 @@ export type ToastEvent =
 export const MAX_QUEUED = 3;
 
 /** On screen long enough to read and reach "Deshacer"; paused on hover and focus (WCAG 2.2.1). */
-export const TOAST_DURATION = { withAction: 10_000, plain: 6_000 } as const;
+export const TOAST_DURATION = { withAction: 10_000, plain: 6_000, error: 12_000 } as const;
 
 export const EMPTY_TOASTS: ToastState = { visible: null, queue: [], serial: 0 };
 

@@ -15,6 +15,7 @@ import {
   rowIndex,
   SEEDED,
   sheet,
+  sortableReady,
   test,
   testWithAreasLock,
   uniqueName,
@@ -307,6 +308,8 @@ for (const theme of THEMES) {
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await expect(list(page)).toBeVisible();
     await fontsLoaded(page);
+    // The handles look enabled only once dnd-kit has loaded.
+    await sortableReady(page);
 
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     // Only the seeded rows: other tests add areas to the shared database.

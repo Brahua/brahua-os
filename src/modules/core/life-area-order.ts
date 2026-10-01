@@ -22,9 +22,10 @@ export function isSameIdSet(a: readonly string[], b: readonly string[]): boolean
 type OrderedRow = { id: string; archived: boolean };
 
 /**
- * The full order to write when the owner reorders the active areas: the submitted active ids
- * first, then the archived ones in their current order. Every area gets a position, so
- * `sort_order` ends up contiguous (0…n-1) and unique.
+ * The full order to write when the owner reorders the active areas. Each archived area keeps
+ * its index in the full list (so undoing its archive later puts it back in place); the other
+ * slots take the submitted active ids, in order. Every area gets a position, so `sort_order`
+ * ends up contiguous (0…n-1) and unique.
  *
  * Returns null when `submitted` is not exactly the set of active areas: the list on screen was
  * stale (an area was created, archived or restored elsewhere) or the request was tampered with.
@@ -35,8 +36,20 @@ export function planReorder(
 ): string[] | null {
   const active = current.filter((row) => !row.archived).map((row) => row.id);
   if (!isSameIdSet(active, submitted)) return null;
-  const archived = current.filter((row) => row.archived).map((row) => row.id);
-  return [...submitted, ...archived];
+  let next = 0;
+  return current.map((row) => (row.archived ? row.id : submitted[next++]));
+}
+
+/**
+ * `items` (the active areas, in their new order) with each one's sortOrder taken from the
+ * slots the active areas held before, in order: what the server's `planReorder` writes when
+ * the archived areas keep their positions. Used for the optimistic list.
+ */
+export function renumberIntoSlots<T extends { sortOrder: number }>(items: readonly T[]): T[] {
+  const slots = items.map((item) => item.sortOrder).sort((a, b) => a - b);
+  return items.map((item, index) =>
+    item.sortOrder === slots[index] ? item : { ...item, sortOrder: slots[index] },
+  );
 }
 
 /**

@@ -33,7 +33,7 @@ export const AREAS_COPY = {
   drag: (name: string) => `Mover ${name}`,
   dragRole: "elemento ordenable",
   dragInstructions:
-    "Para mover un área, pulsa Espacio o Enter, muévela con las flechas arriba y abajo y vuelve a pulsar Espacio o Enter para dejarla. Escape cancela. En pantallas táctiles, mantén presionado y arrastra.",
+    "Para mover un área, pulsa Espacio o Enter, muévela con las flechas arriba y abajo y vuelve a pulsar Espacio o Enter para dejarla. Escape cancela. En pantallas táctiles, mantén presionado y arrastra. También puedes usar los botones Subir y Bajar.",
   position: (index: number, total: number) => `lugar ${index + 1} de ${total}`,
   dragStart: (name: string, place: string) => `Tomaste «${name}», en el ${place}.`,
   dragOver: (name: string, place: string) => `«${name}» está en el ${place}.`,
@@ -53,6 +53,7 @@ export const AREAS_COPY = {
 
   // Notices (C6)
   noticesLabel: "Avisos",
+  undoHint: "Para deshacer, pulsa Ctrl+Z o ⌘Z, o usa el botón Deshacer del aviso.",
   undo: "Deshacer",
   orderTitle: "Orden",
   moved: (name: string, place: string) => `«${name}» pasó al ${place}.`,

@@ -21,7 +21,7 @@ export const sheet = (page: Page) => page.getByRole("dialog");
 export const nameField = (page: Page) => sheet(page).getByRole("textbox", { name: "Nombre" });
 export const colorGroup = (page: Page) => sheet(page).getByRole("radiogroup", { name: "Color" });
 export const iconGroup = (page: Page) => sheet(page).getByRole("radiogroup", { name: "Ícono" });
-export const notices = (page: Page) => page.getByRole("status", { name: "Avisos" });
+export const notices = (page: Page) => page.getByRole("region", { name: "Avisos" });
 export const archivedToggle = (page: Page) => page.getByRole("button", { name: /^Archivadas/ });
 export const archivedList = (page: Page) => page.getByRole("list", { name: "Áreas archivadas" });
 
@@ -46,6 +46,15 @@ export async function rowIndex(page: Page, name: string) {
 export async function openAreas(page: Page) {
   await page.goto("/areas");
   await expect(page.getByRole("heading", { level: 1, name: "Áreas" })).toBeVisible();
+}
+
+/** dnd-kit loads after the page (the plain list stands in): wait until the handles drag. */
+export async function sortableReady(page: Page) {
+  await expect(
+    list(page)
+      .getByRole("button", { name: /^Mover / })
+      .first(),
+  ).toHaveAttribute("aria-roledescription", "elemento ordenable");
 }
 
 export async function createArea(page: Page, name: string, color: string, icon: string) {

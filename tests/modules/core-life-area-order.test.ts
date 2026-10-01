@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { applyOrder, isSameIdSet, moveId, planReorder } from "@/modules/core/life-area-order";
+import {
+  applyOrder,
+  isSameIdSet,
+  moveId,
+  planReorder,
+  renumberIntoSlots,
+} from "@/modules/core/life-area-order";
 
 describe("moveId", () => {
   test("moves an item up, down, to the ends, and returns a new array", () => {
@@ -42,12 +48,12 @@ describe("planReorder", () => {
     { id: "y", archived: true },
   ];
 
-  test("puts the submitted active order first, then the archived ones as they were", () => {
-    expect(planReorder(current, ["c", "a", "b"])).toEqual(["c", "a", "b", "x", "y"]);
+  test("archived areas keep their index; the active ones fill the other slots in order", () => {
+    expect(planReorder(current, ["c", "a", "b"])).toEqual(["c", "x", "a", "b", "y"]);
   });
 
   test("the same order is a valid no-op", () => {
-    expect(planReorder(current, ["a", "b", "c"])).toEqual(["a", "b", "c", "x", "y"]);
+    expect(planReorder(current, ["a", "b", "c"])).toEqual(["a", "x", "b", "c", "y"]);
   });
 
   test.each([
@@ -79,5 +85,25 @@ describe("applyOrder", () => {
 
   test("ignores ids that are not in the list", () => {
     expect(applyOrder(items, ["gone", "b"]).map((item) => item.id)).toEqual(["b", "a", "c", "new"]);
+  });
+});
+
+describe("renumberIntoSlots", () => {
+  test("hands the active slots (gaps for archived areas included) out in the new order", () => {
+    const moved = [
+      { id: "c", sortOrder: 3 },
+      { id: "a", sortOrder: 0 },
+      { id: "b", sortOrder: 2 },
+    ];
+    expect(renumberIntoSlots(moved)).toEqual([
+      { id: "c", sortOrder: 0 },
+      { id: "a", sortOrder: 2 },
+      { id: "b", sortOrder: 3 },
+    ]);
+  });
+
+  test("keeps items that are already in their slot", () => {
+    const same = [{ id: "a", sortOrder: 0 }];
+    expect(renumberIntoSlots(same)[0]).toBe(same[0]);
   });
 });

@@ -17,6 +17,8 @@ describe("applyAreasChange", () => {
   test("reorder puts the active areas in the given order", () => {
     const next = applyAreasChange(VIEW, { type: "reorder", ids: ["c", "a", "b"] });
     expect(ids(next.active)).toEqual(["c", "a", "b"]);
+    // Renumbered into the active slots (1 belongs to the archived x).
+    expect(next.active.map((item) => item.sortOrder)).toEqual([0, 2, 3]);
     expect(next.archived).toBe(VIEW.archived);
   });
 
@@ -46,6 +48,14 @@ describe("applyAreasChange", () => {
     expect(
       ids(applyAreasChange(last, { type: "unarchive", id: "z", position: "original" }).active),
     ).toEqual(["a", "z"]);
+  });
+
+  test("undo of an archive after a reorder puts it back in its slot", () => {
+    const archived = applyAreasChange(VIEW, { type: "archive", id: "b" }); // b had slot 2
+    const moved = applyAreasChange(archived, { type: "reorder", ids: ["c", "a"] });
+    expect(moved.active.map((item) => item.sortOrder)).toEqual([0, 3]);
+    const undone = applyAreasChange(moved, { type: "unarchive", id: "b", position: "original" });
+    expect(ids(undone.active)).toEqual(["c", "b", "a"]);
   });
 
   test("archive then undo restores the list as it was", () => {

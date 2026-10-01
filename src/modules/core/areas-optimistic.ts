@@ -1,7 +1,7 @@
 // Optimistic changes to the areas screen (useOptimistic reducer). React re-runs it on top of the
 // fresh server list whenever one arrives while a change is pending, so every action is written
 // against whatever the base is: ids that are gone are ignored instead of failing.
-import { applyOrder } from "./life-area-order";
+import { applyOrder, renumberIntoSlots } from "./life-area-order";
 import type { LifeAreaSummary } from "./life-area-input";
 
 export type AreasView = {
@@ -20,7 +20,9 @@ export type AreasChange =
 export function applyAreasChange(view: AreasView, change: AreasChange): AreasView {
   switch (change.type) {
     case "reorder":
-      return { ...view, active: applyOrder(view.active, change.ids) };
+      // Same positions the server writes (archived areas keep theirs), so an undo of an
+      // archive made after this move still finds its place.
+      return { ...view, active: renumberIntoSlots(applyOrder(view.active, change.ids)) };
     case "archive": {
       const area = view.active.find((item) => item.id === change.id);
       if (!area) return view;

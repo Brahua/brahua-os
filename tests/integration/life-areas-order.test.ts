@@ -127,7 +127,7 @@ describe("reorderLifeAreas", () => {
     expect(changed.map((row) => row.slug).sort()).toEqual(["hobbies", "travel"]);
   });
 
-  test("archived areas go after the active ones, keeping their order", async () => {
+  test("archived areas keep their places; the active ones fill the rest", async () => {
     const ids = await idsBySlug();
     await archiveLifeArea({ id: ids.finance });
     await archiveLifeArea({ id: ids.home });
@@ -137,15 +137,15 @@ describe("reorderLifeAreas", () => {
 
     expect(result.ok).toBe(true);
     expect(await rows()).toEqual([
-      { slug: "hobbies", sortOrder: 0, archived: false },
-      { slug: "travel", sortOrder: 1, archived: false },
-      { slug: "relationships", sortOrder: 2, archived: false },
-      { slug: "work", sortOrder: 3, archived: false },
-      { slug: "learning", sortOrder: 4, archived: false },
-      { slug: "health", sortOrder: 5, archived: false },
-      // Archived, in their previous order (home was 0, finance 2).
-      { slug: "home", sortOrder: 6, archived: true },
-      { slug: "finance", sortOrder: 7, archived: true },
+      // Archived: home was 0 and finance 2, and so they stay.
+      { slug: "home", sortOrder: 0, archived: true },
+      { slug: "hobbies", sortOrder: 1, archived: false },
+      { slug: "finance", sortOrder: 2, archived: true },
+      { slug: "travel", sortOrder: 3, archived: false },
+      { slug: "relationships", sortOrder: 4, archived: false },
+      { slug: "work", sortOrder: 5, archived: false },
+      { slug: "learning", sortOrder: 6, archived: false },
+      { slug: "health", sortOrder: 7, archived: false },
     ]);
   });
 
@@ -354,14 +354,21 @@ describe("unarchiveLifeArea", () => {
     await expectContiguous();
   });
 
-  test("undo after a reorder brings it back after the reordered areas", async () => {
+  test("undo after a reorder still puts it back in its original place", async () => {
     const ids = await idsBySlug();
     await archiveLifeArea({ id: ids.home });
-    await reorderLifeAreas({ ids: await activeIds() });
+    const active = await activeIds();
+    // Swap the first two active areas (health and finance).
+    await reorderLifeAreas({ ids: [active[1], active[0], ...active.slice(2)] });
 
     await unarchiveLifeArea({ id: ids.home, position: "original" });
 
-    expect((await listLifeAreas()).map((area) => area.slug)).toEqual([...SEEDED.slice(1), "home"]);
+    expect((await listLifeAreas()).map((area) => area.slug)).toEqual([
+      "home",
+      "finance",
+      "health",
+      ...SEEDED.slice(3),
+    ]);
     await expectContiguous();
   });
 

@@ -21,12 +21,20 @@ import {
   type AreasChange,
   type AreasView,
 } from "@/modules/core/areas-optimistic";
-import { ToastViewport, useToaster, type NoticeInput } from "@/modules/core/components/toaster";
+import { ToastViewport } from "@/modules/core/components/toast-viewport";
 import type { LifeAreaSummary } from "@/modules/core/life-area-input";
 import { applyOrder, moveId } from "@/modules/core/life-area-order";
-import { hasNotice } from "@/modules/core/toast-queue";
+import { hasNotice } from "@/lib/toast/queue";
+import { useToaster, type NoticeInput } from "@/lib/toast/use-toaster";
+import { AreaListContext, PlainAreas, type AreaListProps } from "./area-rows";
 import { ArchivedAreas } from "./archived-areas";
-import { SortableAreas } from "./sortable-areas";
+
+// dnd-kit only loads in the browser, after the page: until then (and on the server) the plain
+// list with the same rows and working Subir/Bajar keys stands in.
+const SortableAreas = dynamic(() => import("./sortable-areas"), {
+  ssr: false,
+  loading: () => <PlainAreas />,
+});
 
 // The sheet (form, pickers, 55 icons, the actions' client) only loads when first opened.
 const AreaSheet = dynamic(() => import("./area-sheet").then((loaded) => loaded.AreaSheet));
@@ -103,7 +111,11 @@ export function AreasManager({
   // Element to focus after the next render (a row that appears or replaces the focused one).
   const pendingFocus = useRef<(() => HTMLElement | null) | null>(null);
   // Consecutive moves share one notice; its "Deshacer" restores the order before the first.
-  const reorderBurst = useRef<{ noticeId: string; before: string[] } | null>(null);
+  // `moves` counts the moves in the burst, so a failure knows whether a later one exists.
+  const reorderBurst = useRef<{ noticeId: string; before: string[]; moves: number } | null>(null);
+  // Server calls run one after another, in the order they were made (undo included), so the
+  // last order sent is the one that stays, whatever the network does.
+  const saves = useRef<Promise<unknown>>(Promise.resolve());
   const noticeSerial = useRef(0);
 
   // The list as last rendered, for undo actions that run from an older notice.
@@ -125,7 +137,9 @@ export function AreasManager({
       applyChange(change);
       let result: ActionResult<unknown>;
       try {
-        result = await call();
+        const run = saves.current.then(call);
+        saves.current = run.catch(() => undefined);
+        result = await run;
       } catch {
         // Network failure or a new deployment: the actions themselves never throw.
         result = fail(AREAS_COPY.unexpected);
@@ -135,7 +149,11 @@ export function AreasManager({
         return;
       }
       onFailure?.();
-      toaster.push({ title: AREAS_COPY.notSavedTitle, text: failureText(result, failure) });
+      toaster.push({
+        title: AREAS_COPY.notSavedTitle,
+        text: failureText(result, failure),
+        tone: "error",
+      });
     });
   }
 
@@ -165,8 +183,9 @@ export function AreasManager({
     const burst =
       current && hasNotice(toaster.state, current.noticeId)
         ? current
-        : { noticeId: `reorder-${++noticeSerial.current}`, before: ids };
+        : { noticeId: `reorder-${++noticeSerial.current}`, before: ids, moves: 0 };
     reorderBurst.current = burst;
+    const move = ++burst.moves;
     toaster.replace({
       id: burst.noticeId,
       title: AREAS_COPY.orderTitle,
@@ -178,6 +197,9 @@ export function AreasManager({
       call: () => reorderLifeAreas({ ids: next }),
       failure: AREAS_COPY.orderFailed,
       onFailure: () => {
+        // Only if this was the burst's last move: a later one may still be on its way, or
+        // saved, and its "Deshacer" must stay.
+        if (move !== burst.moves) return;
         toaster.dismiss(burst.noticeId);
         if (reorderBurst.current === burst) reorderBurst.current = null;
       },
@@ -297,6 +319,13 @@ export function AreasManager({
     if (notice) toaster.push(notice);
   }
 
+  const listProps: AreaListProps = {
+    areas: view.active,
+    reducedMotion,
+    onMove: move,
+    onEdit: openEditor,
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -318,12 +347,9 @@ export function AreasManager({
       </header>
 
       {view.active.length > 0 ? (
-        <SortableAreas
-          areas={view.active}
-          reducedMotion={reducedMotion}
-          onMove={move}
-          onEdit={openEditor}
-        />
+        <AreaListContext value={listProps}>
+          <SortableAreas {...listProps} />
+        </AreaListContext>
       ) : (
         <div className="bo-card max-w-160 items-start">
           <Icon icon={LayoutGrid} size="xl" className="text-text-secondary" />
@@ -350,7 +376,11 @@ export function AreasManager({
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>
-      <ToastViewport toaster={toaster} label={AREAS_COPY.noticesLabel} />
+      <ToastViewport
+        toaster={toaster}
+        label={AREAS_COPY.noticesLabel}
+        actionHint={AREAS_COPY.undoHint}
+      />
     </div>
   );
 }

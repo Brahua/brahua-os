@@ -7,13 +7,16 @@ import {
   createArea,
   editRows,
   expect,
+  isDesktop,
   list,
   newAreaButton,
   notices,
   openAreas,
   rowIndex,
   rowNames,
+  nameField,
   sheet,
+  sortableReady,
   testWithAreasLock as test,
   uniqueName,
 } from "./support/areas";
@@ -32,6 +35,17 @@ async function createPair(page: Page, first: string, second: string) {
   await createArea(page, second, "Lima", "Música");
   const names = await rowNames(page);
   expect(names.indexOf(second)).toBe(names.indexOf(first) + 1);
+  await sortableReady(page);
+}
+
+/** Waits two frames and a beat: dnd-kit measures the rows right after a lift or a move. */
+async function settle(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))),
+      ),
+  );
 }
 
 /**
@@ -53,25 +67,19 @@ async function untilSaved(page: Page, trigger: () => Promise<unknown>) {
 const dragStatus = (page: Page) => page.locator('[id^="DndLiveRegion"]');
 
 /**
- * Lifts the area with the keyboard and moves it `steps` places up, waiting for each
+ * Lifts the area with the keyboard and moves it `steps` places (negative: up), waiting for each
  * announcement (dnd-kit measures the rows right after lifting; keys before that are lost).
  */
-async function liftAndMoveUp(page: Page, name: string, steps: number) {
+async function liftAndMove(page: Page, name: string, steps: number) {
   const handle = page.getByRole("button", { name: `Mover ${name}` });
   await handle.focus();
   await page.keyboard.press("Space");
   await expect(handle).toHaveAttribute("aria-pressed", "true");
   await expect(dragStatus(page)).toContainText(`Tomaste «${name}»`);
-  // "Tomaste…" comes on lift; the rows are measured in the frames right after.
-  await page.evaluate(
-    () =>
-      new Promise((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))),
-      ),
-  );
-  for (let step = 0; step < steps; step++) {
+  await settle(page);
+  for (let step = 0; step < Math.abs(steps); step++) {
     const before = await dragStatus(page).textContent();
-    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press(steps < 0 ? "ArrowUp" : "ArrowDown");
     await expect(dragStatus(page)).not.toHaveText(before ?? "");
   }
 }
@@ -131,13 +139,13 @@ test("reorder by keyboard drag: Space, arrows, Space; Esc cancels", async ({ pag
   await expect(handle).toHaveAccessibleDescription(/pulsa Espacio o Enter/);
 
   // Esc cancels: nothing moves, nothing is saved.
-  await liftAndMoveUp(page, b, 1);
+  await liftAndMove(page, b, -1);
   await expect(dragStatus(page)).toContainText(`«${b}» está en el lugar`);
   await page.keyboard.press("Escape");
   await expect(dragStatus(page)).toContainText(`Cancelado. «${b}» volvió al lugar`);
   await expectAdjacent(page, a, b);
 
-  await liftAndMoveUp(page, b, 1);
+  await liftAndMove(page, b, -1);
   await untilSaved(page, () => page.keyboard.press("Space"));
   await expectAdjacent(page, b, a);
   await expect(handle).toBeFocused();
@@ -145,6 +153,72 @@ test("reorder by keyboard drag: Space, arrows, Space; Esc cancels", async ({ pag
 
   await page.reload();
   await expectAdjacent(page, b, a);
+});
+
+test("keyboard drag down: focus stays on the handle", async ({ page }, testInfo) => {
+  const a = uniqueName("Baja", testInfo);
+  const b = uniqueName("Sube", testInfo);
+  await openAreas(page);
+  await createPair(page, a, b);
+
+  const handle = page.getByRole("button", { name: `Mover ${a}` });
+  await liftAndMove(page, a, 1);
+  await untilSaved(page, () => page.keyboard.press("Space"));
+  await expectAdjacent(page, b, a);
+  // Moving down re-inserts the row's node; focus is put back on its handle.
+  await expect(handle).toBeFocused();
+});
+
+test.describe("touch (phone)", () => {
+  test.use({ hasTouch: true });
+
+  test("a swipe on the handle scrolls the page; a press and drag moves the row", async ({
+    page,
+  }, testInfo) => {
+    test.skip(isDesktop(testInfo), "Touch is the phone's");
+    const a = uniqueName("Toque A", testInfo);
+    const b = uniqueName("Toque B", testInfo);
+    await openAreas(page);
+    await createPair(page, a, b);
+    const cdp = await page.context().newCDPSession(page);
+    const handle = page.getByRole("button", { name: `Mover ${b}` });
+    await expect(handle).toHaveCSS("touch-action", "manipulation");
+
+    // A swipe that starts on a handle scrolls (touch-action: manipulation, not none).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const first = (await list(page)
+      .getByRole("button", { name: /^Mover / })
+      .first()
+      .boundingBox())!;
+    await cdp.send("Input.synthesizeScrollGesture", {
+      x: Math.round(first.x + first.width / 2),
+      y: Math.round(first.y + first.height / 2),
+      yDistance: -200,
+      gestureSourceType: "touch",
+      speed: 1200,
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    // A press of 200 ms lifts the row; then it follows the finger.
+    await handle.scrollIntoViewIfNeeded();
+    await settle(page);
+    const from = (await handle.boundingBox())!;
+    const to = (await page.getByRole("button", { name: `Mover ${a}` }).boundingBox())!;
+    const x = from.x + from.width / 2;
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", y: number) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: type === "touchEnd" ? [] : [{ x, y }],
+      });
+    await touch("touchStart", from.y + from.height / 2);
+    await expect(dragStatus(page)).toContainText(`Tomaste «${b}»`);
+    for (let step = 1; step <= 8; step++) {
+      await touch("touchMove", from.y + from.height / 2 + ((to.y - from.y - 4) * step) / 8);
+    }
+    await expect(dragStatus(page)).toContainText(`«${b}» está en el lugar`);
+    await untilSaved(page, () => touch("touchEnd", 0));
+    await expectAdjacent(page, b, a);
+  });
 });
 
 test("drag with the mouse", async ({ page }, testInfo) => {
@@ -156,6 +230,8 @@ test("drag with the mouse", async ({ page }, testInfo) => {
   // Radix keeps `pointer-events: none` on the body for a moment after the sheet closes.
   await expect(page.locator("body")).not.toHaveCSS("pointer-events", "none");
   await page.getByRole("button", { name: `Mover ${b}` }).scrollIntoViewIfNeeded();
+  // Measure once the list has settled (no scrolling or layout still going on).
+  await settle(page);
   const from = (await page.getByRole("button", { name: `Mover ${b}` }).boundingBox())!;
   const to = (await page.getByRole("button", { name: `Mover ${a}` }).boundingBox())!;
   const x = from.x + from.width / 2;
@@ -190,7 +266,7 @@ test("reduced motion: rows jump into place, without sliding", async ({ page }, t
       .evaluateAll((rows) => rows.map((row) => (row as HTMLElement).style.transition));
 
   // With motion: lifting and moving makes the other rows slide.
-  await liftAndMoveUp(page, b, 1);
+  await liftAndMove(page, b, -1);
   await expect
     .poll(async () => (await transitions()).some((t) => t.includes("transform")))
     .toBe(true);
@@ -198,7 +274,7 @@ test("reduced motion: rows jump into place, without sliding", async ({ page }, t
   await expectAdjacent(page, a, b);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await liftAndMoveUp(page, b, 1);
+  await liftAndMove(page, b, -1);
   expect((await transitions()).every(still)).toBe(true);
   await page.keyboard.press("Space");
   await expectAdjacent(page, b, a);
@@ -269,11 +345,36 @@ test("⌘Z / Ctrl+Z undoes from anywhere on the page, not while typing", async (
   await openAreas(page);
   await createPair(page, a, b);
 
+  // From the page: undoes the move.
   await page.getByRole("button", { name: `Subir ${b}` }).click();
   await expectAdjacent(page, b, a);
   await page.keyboard.press("ControlOrMeta+z");
   await expectAdjacent(page, a, b);
   await expect(notices(page)).toContainText("Volvió el orden anterior.");
+  // Esc on the page (not in a field) dismisses that notice.
+  await page.keyboard.press("Escape");
+  await expect(notices(page)).toBeEmpty();
+
+  // While typing in a field: the field's own undo runs, the move stays.
+  await untilSaved(page, () => page.getByRole("button", { name: `Subir ${b}` }).click());
+  await expectAdjacent(page, b, a);
+  await expect(undo(page)).toBeVisible();
+  let reorders = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.headers()["next-action"]) reorders++;
+  });
+  await page.getByRole("button", { name: `Editar ${a}` }).click();
+  await nameField(page).press("End");
+  await nameField(page).pressSequentially(" extra");
+  await expect(nameField(page)).toHaveValue(`${a} extra`);
+  await nameField(page).press("ControlOrMeta+z");
+  await expect(nameField(page)).not.toHaveValue(`${a} extra`);
+  await page.keyboard.press("Escape");
+  await expect(sheet(page)).toBeHidden();
+  await expectAdjacent(page, b, a);
+  expect(reorders).toBe(0);
+  // The notice waited while the sheet was open: still there, with its Deshacer.
+  await expect(undo(page)).toBeVisible();
 });
 
 for (const theme of THEMES) {
