@@ -5,7 +5,7 @@
 
 ## Cómo retomar
 
-1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-core.md`).
+1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-projects.md`).
 2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
@@ -37,7 +37,8 @@
   - Retrospectiva de `core` (2026-10-01): reglas nuevas en `CLAUDE.md`, sección "Lessons from `core`".
   - LCP de `/login` (PR `perf/login-lcp`): ver "Rendimiento de `/login` (LCP)".
   - Checkpoint final: criterios de éxito cumplidos o diferidos por el owner (2026-10-01): el LCP se acepta por ahora y su medición con datos reales queda en "Backlog técnico" de `tasks/todo.md`; Android es N/A (el owner usa iPhone).
-  - **Siguiente:** módulo `projects`. Primero `SPEC-projects.md` (spec-driven, revisada por el owner) y su plan en `tasks/`, después la implementación.
+- **projects:** en curso. `SPEC-projects.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas P1–P6 en `tasks/todo.md`.
+  - **Siguiente:** P1 (datos, lista y crear).
 
 ## C2a: pasos del usuario (en orden)
 
