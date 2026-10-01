@@ -227,8 +227,12 @@ jobs:
               "$IMAGE" "$@"
           }
           in_docker pg_dump --version
-          # Definitions of every table; no data for auth_* (secrets and sessions).
+          # Only our schemas: `public` (the app) and `drizzle` (the migration journal). Neon adds
+          # schemas of its own (e.g. `neon_auth` when Neon Auth is enabled) that backup_ro can't
+          # read and that aren't ours to restore. Definitions of every table; no data for auth_*
+          # (secrets and sessions).
           in_docker pg_dump --format=custom --no-owner --no-privileges \
+            --schema=public --schema=drizzle \
             --exclude-table-data='public.auth_*' --file="/work/$file"
 
           in_docker pg_restore --list "/work/$file" > "$work/toc.txt"

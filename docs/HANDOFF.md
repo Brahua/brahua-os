@@ -238,6 +238,17 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 
 ## Respaldos (C10)
 
+### Estado de la configuración (2026-10-01)
+
+Hecha de punta a punta por el agente, sin que ningún secreto pasara por la conversación:
+
+- Llave `age`: la privada está en el **Llavero de macOS** del owner ("brahua-os · clave de respaldos (age)"); la pública, en la variable `BACKUP_AGE_RECIPIENT`.
+- Rol `backup_ro` creado con `scripts/backup/readonly-role.sql` (Neon solo acepta la contraseña en texto plano, no un verificador SCRAM). Su contraseña está en el Llavero ("brahua-os · backup_ro (Neon, solo lectura)") y en el secreto `BACKUP_DATABASE_URL`.
+- Neon CLI (`neonctl`) quedó autenticado en el Mac del owner (organización `org-square-morning-70707041`, proyecto `holy-hill-52566930`): el agente obtiene la conexión del dueño con `neonctl connection-string` sin imprimirla.
+- `pg_dump` se limita a los esquemas `public` y `drizzle`: Neon Auth (habilitado en el store) crea el esquema `neon_auth`, que `backup_ro` no puede leer y no es nuestro.
+
+Los pasos de abajo quedan como referencia para rehacerlo a mano (por ejemplo, tras perder la llave).
+
 ### Acción del owner (una sola vez, en una terminal normal)
 
 Los secretos nunca pasan por la sesión del agente: todo esto se hace en tu terminal, en la raíz del repo, **después del merge del PR de C10** (GitHub solo encuentra el workflow en `main`).
