@@ -1,13 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { createDb } from "@/lib/db";
 import { projectDependencies } from "@/modules/projects/db/schema";
+import { DEPENDENCY_ERRORS } from "@/modules/projects/dependency-input";
 import { testDatabaseUrl } from "../tests/integration/helpers";
 import { animationsSettled } from "./support/animations";
 import {
   CREATE_AREA,
   groupList,
   insertProject,
+  isDesktop,
   notices,
   openProject,
   openProjects,
@@ -51,10 +53,15 @@ async function cardOf(page: Page, name: string) {
   return groupList(page, "Activo").locator("article", { has: page.getByRole("link", { name }) });
 }
 
-/** Opens the picker and narrows it to `name` (the database has every other test's projects). */
-async function findCandidate(page: Page, name: string) {
+/**
+ * Opens the picker and narrows it to `name` (the database has every other test's projects).
+ * Focus starts on the search on desktop and on the sheet's title on the phone.
+ */
+async function findCandidate(page: Page, name: string, testInfo: TestInfo) {
   await addKey(page).click();
-  await expect(search(page)).toBeFocused();
+  if (isDesktop(testInfo)) await expect(search(page)).toBeFocused();
+  else
+    await expect(picker(page).getByRole("heading", { name: "Agregar bloqueador" })).toBeFocused();
   await search(page).fill(name);
   return picker(page).getByRole("button", { name: new RegExp(`^${name}`) });
 }
@@ -71,7 +78,7 @@ test("a blocker shows Bloqueado on the card and the detail, and clears once it i
   await expect(section(page)).toContainText("No espera a ningún otro proyecto.");
   await expect(headerLine(page)).toHaveCount(0);
 
-  const option = await findCandidate(page, blockerName);
+  const option = await findCandidate(page, blockerName, testInfo);
   await untilSaved(page, () => option.click());
   await expect(picker(page)).toBeHidden();
   await expect(addKey(page)).toBeFocused();
@@ -111,7 +118,7 @@ test("a cycle made meanwhile is refused with an error on the search field", asyn
   const otherId = await insertProject({ name: otherName });
 
   await openProject(page, id);
-  const option = await findCandidate(page, otherName);
+  const option = await findCandidate(page, otherName, testInfo);
   // Offered: nothing links them yet.
   await expect(option).toBeVisible();
 
@@ -120,9 +127,7 @@ test("a cycle made meanwhile is refused with an error on the search field", asyn
   await untilSaved(page, () => option.click());
 
   await expect(search(page)).toHaveAttribute("aria-invalid", "true");
-  await expect(search(page)).toHaveAccessibleDescription(
-    "Ese proyecto ya depende de este (directa o indirectamente): agregarlo crearía un ciclo. Elige otro.",
-  );
+  await expect(search(page)).toHaveAccessibleDescription(DEPENDENCY_ERRORS.cycle);
   await expect(search(page)).toBeFocused();
   await expect(picker(page)).toBeVisible();
 
@@ -194,7 +199,7 @@ for (const theme of THEMES) {
     const otherId = await insertProject({ name: other });
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
-    const option = await findCandidate(page, other);
+    const option = await findCandidate(page, other, testInfo);
     expect(await axeViolations(page)).toEqual([]);
     await insertDependency(otherId, id);
     await untilSaved(page, () => option.click());

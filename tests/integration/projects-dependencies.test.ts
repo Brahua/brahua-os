@@ -19,7 +19,11 @@ import {
 import { projectDependencies, projects } from "@/modules/projects/db/schema";
 import { DEPENDENCY_ERRORS } from "@/modules/projects/dependency-input";
 import { PROJECT_ERRORS } from "@/modules/projects/project-input";
-import { insertDependency, selectActiveBlockers } from "@/modules/projects/projects";
+import {
+  insertDependency,
+  PROJECTS_ADVISORY_SPACE,
+  selectActiveBlockers,
+} from "@/modules/projects/projects";
 import { getProjectDependencies, listActiveBlockers } from "@/modules/projects/queries";
 import { testDatabaseUrl } from "./helpers";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
@@ -248,7 +252,9 @@ describe("two adds at the same time (two connections)", () => {
     const first = await openTransaction();
     try {
       // What insertDependency does: take the graph's lock, check, insert (A blocked by B).
-      await first.query("select pg_advisory_xact_lock(hashtext('project_dependencies'))");
+      await first.query(
+        `select pg_advisory_xact_lock(${PROJECTS_ADVISORY_SPACE}, hashtext('project_dependencies'))`,
+      );
       await first.query(
         "insert into project_dependencies (project_id, blocked_by_id) values ($1, $2)",
         [a.id, b.id],
@@ -266,7 +272,8 @@ describe("two adds at the same time (two connections)", () => {
     expect(await edges()).toEqual([["A", "B"]]);
   });
 
-  test("racing through the action on both sides: exactly one of the pair commits", async () => {
+  test("smoke: both adds of a pair through the action at once; one commits", async () => {
+    // Not proof of the lock (the two may simply run one after the other); the test above is.
     const [a, b] = [await insertRaw("A"), await insertRaw("B")];
     const results = await Promise.all([
       addDependency({ id: a.id, blockedById: b.id }),
@@ -276,23 +283,54 @@ describe("two adds at the same time (two connections)", () => {
     expect(results.filter((result) => !result.ok)).toEqual([fieldError(DEPENDENCY_ERRORS.cycle)]);
     expect(await testDb.$count(projectDependencies)).toBe(1);
   });
+});
 
-  test("a delete of the blocker waits for an add in progress (FOR SHARE)", async () => {
+describe("an add while the blocker is being deleted or restored (two connections)", () => {
+  async function openTransaction() {
+    const client = new Client({ connectionString: testDatabaseUrl() });
+    await client.connect();
+    await client.query("begin");
+    return client;
+  }
+
+  async function stillPending(promise: Promise<unknown>, ms = 200) {
+    const timeout = Symbol("pending");
+    const winner = await Promise.race([
+      promise.then(() => "settled"),
+      new Promise((resolve) => setTimeout(() => resolve(timeout), ms)),
+    ]);
+    return winner === timeout;
+  }
+
+  test("a delete in progress makes the add wait; once committed, the blocker is unavailable", async () => {
     const [a, b] = [await insertRaw("A"), await insertRaw("B")];
-    const adder = await openTransaction();
+    const deleter = await openTransaction();
     try {
-      await adder.query("select pg_advisory_xact_lock(hashtext('project_dependencies'))");
-      await adder.query(
-        "select id from projects where id = any($1) and deleted_at is null for share",
-        [[a.id, b.id]],
-      );
-      const remove = deleteProject({ id: b.id });
-      expect(await stillPending(remove)).toBe(true);
-      await adder.query("commit");
-      expect((await remove).ok).toBe(true);
+      await deleter.query("update projects set deleted_at = now() where id = $1", [b.id]);
+      const add = addDependency({ id: a.id, blockedById: b.id });
+      expect(await stillPending(add)).toBe(true);
+      await deleter.query("commit");
+      expect(await add).toEqual(fieldError(DEPENDENCY_ERRORS.unavailable));
     } finally {
-      await adder.end();
+      await deleter.end();
     }
+    expect(await testDb.$count(projectDependencies)).toBe(0);
+  });
+
+  test("a restore in progress makes the add wait; once committed, it is added", async () => {
+    const a = await insertRaw("A");
+    const b = await insertRaw("B", { deletedAt: new Date() });
+    const restorer = await openTransaction();
+    try {
+      await restorer.query("update projects set deleted_at = null where id = $1", [b.id]);
+      const add = addDependency({ id: a.id, blockedById: b.id });
+      expect(await stillPending(add)).toBe(true);
+      await restorer.query("commit");
+      expect((await add).ok).toBe(true);
+    } finally {
+      await restorer.end();
+    }
+    expect(await edges()).toEqual([["A", "B"]]);
   });
 });
 
@@ -374,6 +412,26 @@ describe("blocked state", () => {
     // Back to active: it blocks again.
     await changeProjectStatus({ id: b.id, status: "active" });
     expect(await blockersOfA()).toEqual(["Bote"]);
+  });
+
+  test("a done or canceled project is never blocked; reopened, it is again (edges kept)", async () => {
+    const a = await insertRaw("A", { status: "active" });
+    const b = await insertRaw("B", { status: "active" });
+    await addDependency({ id: a.id, blockedById: b.id });
+    expect(Object.keys(await listActiveBlockers())).toEqual([a.id]);
+
+    for (const status of ["done", "canceled"] as const) {
+      await changeProjectStatus({ id: a.id, status });
+      expect(await listActiveBlockers()).toEqual({});
+      const page = await getProjectDependencies(a.id);
+      expect(page.blocking).toEqual([]);
+      // Still listed in its section, so it can be removed.
+      expect(page.blockers.map((p) => p.name)).toEqual(["B"]);
+    }
+    expect(await testDb.$count(projectDependencies)).toBe(1);
+
+    await changeProjectStatus({ id: a.id, status: "active" });
+    expect(await listActiveBlockers()).toEqual({ [a.id]: [{ id: b.id, name: "B" }] });
   });
 
   test("the page gets every blocker with its state, the ones that block, and the candidates", async () => {

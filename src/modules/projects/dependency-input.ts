@@ -19,7 +19,7 @@ export function isBlocking(status: ProjectStatus): boolean {
 export const DEPENDENCY_ERRORS = {
   self: "Un proyecto no puede bloquearse a sí mismo.",
   cycle:
-    "Ese proyecto ya depende de este (directa o indirectamente): agregarlo crearía un ciclo. Elige otro.",
+    "Ese proyecto ya depende de este, directa o indirectamente (la cadena puede pasar por un proyecto eliminado): agregarlo crearía un ciclo. Elige otro.",
   unavailable: "Ese proyecto ya no está disponible (se eliminó). Elige otro.",
 } as const;
 

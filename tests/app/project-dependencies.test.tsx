@@ -86,9 +86,20 @@ function renderPage(blockers: DependencyProject[], candidates: DependencyProject
 const all = [PERMISO, PINTURA, CAMION, COCINA];
 const byId = (id: unknown) => all.find((p) => p.id === id)!;
 
+/** The sheet is a side panel with focus on the search on desktop; the phone focuses its title. */
+let desktop = true;
+
+/** A promise the test settles when it wants (a server that hasn't answered yet). */
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => (resolve = done));
+  return { promise, resolve };
+}
+
 beforeEach(() => {
+  desktop = true;
   window.matchMedia = vi.fn((query: string) => ({
-    matches: false,
+    matches: desktop,
     media: query,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
@@ -170,6 +181,49 @@ describe("the section", () => {
     expect(within(blockerList()!).getByRole("link", { name: "Permiso municipal" })).toBeVisible();
   });
 
+  test("the row is gone before the server answers", async () => {
+    const call = deferred<ActionResult<never>>();
+    vi.mocked(removeDependency).mockReturnValueOnce(call.promise);
+    const user = renderPage([PERMISO, CAMION], []);
+    await user.click(screen.getByRole("button", { name: "Quitar «Permiso municipal»" }));
+    expect(within(blockerList()!).queryByText("Permiso municipal")).toBeNull();
+    expect(within(blockerList()!).getByText("Camión")).toBeInTheDocument();
+    await act(async () =>
+      call.resolve(ok({ id: PROJECT.id, blockedById: PERMISO.id }) as ActionResult<never>),
+    );
+  });
+
+  test("an undo that fails says so, and the row stays out", async () => {
+    const user = renderPage([PERMISO], []);
+    await user.click(screen.getByRole("button", { name: "Quitar «Permiso municipal»" }));
+    const undo = await within(notices()).findByRole("button", { name: "Deshacer" });
+    vi.mocked(addDependency).mockResolvedValueOnce(
+      fail("Este proyecto ya no existe.") as ActionResult<never>,
+    );
+    await user.click(undo);
+    await waitFor(() =>
+      expect(notices()).toHaveTextContent(
+        "No se pudo volver a agregar «Permiso municipal». Este proyecto ya no existe.",
+      ),
+    );
+    expect(blockerList()).toBeNull();
+  });
+
+  test("an undo superseded by a newer remove of the same blocker says nothing", async () => {
+    const user = renderPage([PERMISO], []);
+    await user.click(screen.getByRole("button", { name: "Quitar «Permiso municipal»" }));
+    const undo = await within(notices()).findByRole("button", { name: "Deshacer" });
+    const undoCall = deferred<ActionResult<never>>();
+    vi.mocked(addDependency).mockReturnValueOnce(undoCall.promise);
+    await user.click(undo);
+    // Shown again at once (optimistic), so it can be removed again while the undo is in flight.
+    const again = await screen.findByRole("button", { name: "Quitar «Permiso municipal»" });
+    await user.click(again);
+    await act(async () => undoCall.resolve(fail("Falló.") as ActionResult<never>));
+    await waitFor(() => expect(removeDependency).toHaveBeenCalledTimes(2));
+    expect(notices()).not.toHaveTextContent("No se pudo volver a agregar");
+  });
+
   test("a remove the server refuses comes back, with the reason", async () => {
     vi.mocked(removeDependency).mockResolvedValue(fail("Este proyecto ya no existe."));
     const user = renderPage([PERMISO], []);
@@ -199,6 +253,17 @@ describe("adding from the sheet", () => {
     await waitFor(() => expect(search).toHaveFocus());
     return { dialog, search };
   }
+
+  test("on the phone the title has focus (the keyboard would cover the list)", async () => {
+    desktop = false;
+    const user = renderPage([], [CAMION]);
+    await user.click(addKey());
+    const dialog = await screen.findByRole("dialog", { name: "Agregar bloqueador" });
+    await waitFor(() =>
+      expect(within(dialog).getByRole("heading", { name: "Agregar bloqueador" })).toHaveFocus(),
+    );
+    expect(dialog).toHaveAccessibleDescription(/aunque la cadena pase por un proyecto eliminado/);
+  });
 
   test("the search filters without accents or case and says how many are left", async () => {
     const user = renderPage([], [CAMION, COCINA]);
@@ -246,6 +311,11 @@ describe("adding from the sheet", () => {
     expect(search).toHaveFocus();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(blockerList()).toBeNull();
+
+    // Typing again clears it: it no longer describes what is shown.
+    await user.type(search, "c");
+    expect(search).not.toHaveAttribute("aria-invalid", "true");
+    expect(search).not.toHaveAccessibleDescription(DEPENDENCY_ERRORS.cycle);
   });
 
   test("while adding, the rows wait and Esc doesn't close the sheet", async () => {
@@ -266,10 +336,13 @@ describe("adding from the sheet", () => {
     await act(async () => answer(fail("No se pudo guardar.") as ActionResult<never>));
   });
 
-  test("with no candidates it explains why", async () => {
+  test("with no candidates there is no search: focus goes to why", async () => {
     const user = renderPage([PERMISO], []);
-    const { dialog } = await openSheet(user);
-    expect(dialog).toHaveTextContent("No hay otros proyectos que puedan bloquearlo.");
+    await user.click(addKey());
+    const dialog = await screen.findByRole("dialog", { name: "Agregar bloqueador" });
+    const why = within(dialog).getByText("No hay otros proyectos que puedan bloquearlo.");
+    await waitFor(() => expect(why).toHaveFocus());
+    expect(within(dialog).queryByRole("searchbox")).toBeNull();
   });
 });
 

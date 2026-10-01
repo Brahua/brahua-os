@@ -161,6 +161,8 @@ export function ProjectDependenciesSection({
               return (
                 <li key={blocker.id} className="flex" data-blocker={blocker.id}>
                   <ListRow
+                    // The name's link covers the row (after:inset-0); the ✕ sits above it.
+                    className="relative"
                     leading={
                       <Icon
                         icon={blocking ? Lock : Check}
@@ -172,7 +174,7 @@ export function ProjectDependenciesSection({
                       <Link
                         href={projectPath(blocker.id)}
                         prefetch={false}
-                        className="break-words rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        className="break-words rounded-sm underline underline-offset-4 after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                       >
                         {blocker.name}
                       </Link>
@@ -195,6 +197,7 @@ export function ProjectDependenciesSection({
                         label={DEPENDENCIES_COPY.remove(blocker.name)}
                         variant="ghost"
                         placement="top"
+                        className="relative z-10"
                         onClick={() => remove(blocker)}
                       />
                     }
@@ -231,6 +234,7 @@ export function ProjectDependenciesSection({
           candidates={candidates}
           pendingId={pending}
           error={error}
+          onSearchChange={() => setError(undefined)}
           onPick={add}
           onClosed={() => {
             if (added.current) announce(DEPENDENCIES_COPY.addedAnnounce(added.current));

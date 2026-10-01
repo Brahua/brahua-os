@@ -167,7 +167,7 @@ export const DEPENDENCIES_COPY = {
   // Sheet
   sheetTitle: "Agregar bloqueador",
   sheetSubtitle:
-    "Elige el proyecto que debe terminar antes. No aparecen los que crearían un ciclo.",
+    "Elige el proyecto que debe terminar antes. No aparecen los que crearían un ciclo, aunque la cadena pase por un proyecto eliminado (podría volver con «Deshacer»).",
   searchLabel: "Buscar proyecto",
   results: "Proyectos",
   resultCount: (n: number) =>

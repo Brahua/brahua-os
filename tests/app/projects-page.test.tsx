@@ -10,7 +10,12 @@ import type { LifeAreaSummary } from "@/modules/core/life-area-input";
 import { createProject, restoreProject } from "@/modules/projects/actions";
 import { ProjectCard } from "@/modules/projects/components/project-card";
 import { PROJECT_ERRORS, type ProjectSummary } from "@/modules/projects/project-input";
-import { getDeletedProject, getProject, listProjects } from "@/modules/projects/queries";
+import {
+  getDeletedProject,
+  getProject,
+  listActiveBlockers,
+  listProjects,
+} from "@/modules/projects/queries";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -540,5 +545,22 @@ describe("list: after deleting a project", () => {
     await new Promise((resolve) => setTimeout(resolve, 250));
     expect(screen.queryByText("Proyecto eliminado")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Proyectos" })).not.toHaveFocus();
+  });
+});
+
+describe("P4: Bloqueado", () => {
+  test("only the cards the query names show the badge, described by who blocks them", async () => {
+    const [mudanza] = PROJECTS;
+    vi.mocked(listActiveBlockers).mockResolvedValueOnce({
+      [mudanza.id]: [{ id: "00000000-0000-4000-8000-0000000000cc", name: "Permiso" }],
+    });
+    render(await page());
+    const card = (name: string) =>
+      screen.getByRole("link", { name }).closest("article") as HTMLElement;
+    expect(within(card("Mudanza")).getByText("Bloqueado")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Mudanza" })).toHaveAccessibleDescription(
+      /Bloqueado por Permiso/,
+    );
+    expect(within(card("Curso AWS")).queryByText("Bloqueado")).toBeNull();
   });
 });

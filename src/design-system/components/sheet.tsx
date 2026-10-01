@@ -31,6 +31,11 @@ type SheetProps = {
    */
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   /**
+   * Without `initialFocusRef`, focus the title on open (e.g. on the phone, where focusing a
+   * field would open the keyboard over the list).
+   */
+  focusTitleOnOpen?: boolean;
+  /**
    * Called once the sheet has fully closed: exit animation done, content unmounted, focus back
    * and the rest of the page no longer `aria-hidden`. Announce results here, or screen readers
    * skip them (they ignore live regions inside hidden content).
@@ -61,6 +66,7 @@ export function Sheet({
   modal = true,
   returnFocusRef,
   initialFocusRef,
+  focusTitleOnOpen = false,
   onClosed,
   closeDisabled = false,
   className,
@@ -71,6 +77,7 @@ export function Sheet({
   // Radix only restores focus to a <Dialog.Trigger>. Sheets are opened from any control
   // (e.g. the Capture key), so remember what had focus and return to it on close.
   const returnFocusTo = useRef<HTMLElement | null>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={modal}>
       <Dialog.Portal>
@@ -80,9 +87,10 @@ export function Sheet({
           {...(subtitle ? {} : { "aria-describedby": undefined })}
           onOpenAutoFocus={(event) => {
             returnFocusTo.current = document.activeElement as HTMLElement | null;
-            if (initialFocusRef?.current) {
+            const target = initialFocusRef?.current ?? (focusTitleOnOpen ? titleRef.current : null);
+            if (target) {
               event.preventDefault();
-              initialFocusRef.current.focus();
+              target.focus();
             }
           }}
           onCloseAutoFocus={(event) => {
@@ -102,7 +110,13 @@ export function Sheet({
           {!side ? <div className="bo-sheet__handle" aria-hidden /> : null}
           <div className="bo-sheet__header">
             <div className="flex flex-col gap-0.5">
-              <Dialog.Title className="bo-sheet__title">{title}</Dialog.Title>
+              <Dialog.Title
+                ref={titleRef}
+                tabIndex={focusTitleOnOpen ? -1 : undefined}
+                className={cn("bo-sheet__title", focusTitleOnOpen && "outline-none")}
+              >
+                {title}
+              </Dialog.Title>
               {subtitle ? (
                 <Dialog.Description className="bo-text-label text-text-secondary">
                   {subtitle}
