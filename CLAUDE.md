@@ -44,3 +44,23 @@ Personal "second brain" app (single user). Specs drive the work:
   `gh workflow run update-screenshots.yml --ref <branch>`: it commits them as github-actions[bot]
   (deleting orphans) and re-runs CI on that commit. In CI the screenshot gate cannot be turned off.
 - Workflow actions are pinned to full SHAs (`# vX.Y.Z` comment); Dependabot proposes bumps.
+
+## Lessons from `core` (retrospective, 2026-10-01)
+
+Recurring review findings and incidents, turned into rules. Apply them before review, not after.
+
+- **Secrets:** never ask the owner to paste a secret into the session, and never print one. Owner-only
+  steps (`gh secret set`, `pnpm auth:owner`, `psql`) run in their own terminal; the `!` prefix stores
+  secrets empty. Logs never include input values or Postgres messages (`describeError`).
+- **Neon credentials are Sensitive:** after "Rotate Secrets" in Vercel → Storage, re-run the production
+  deploy (one rotation, then one deploy); the running deployment keeps the old password until then.
+- **Server Actions:** always `ownerAction(schema, handler)`; pages call `requireOwner()` (a test enforces it).
+  Validate id lists as sets, take `LIFE_AREAS_LOCK`-style advisory locks for ordering, never hard-delete.
+- **Focus:** never put `disabled` on a focused control while pending; use `aria-disabled` plus a guard.
+  Restore focus explicitly after anything that re-renders or unmounts the focused element.
+- **Toasts and overlays** must not cover the focused control (`--toast-offset`, `scroll-padding`).
+- **Design system:** synced files (`tokens/`, `components.css`) are never edited; fixes go to
+  `overrides.css` with a `PENDING UPSTREAM` note and a line in HANDOFF, then get applied in Claude Design.
+- **E2E stability:** wait for hydration markers before keyboard input, serialize tests that mutate shared
+  data, and assert something that can fail (negative tests need a positive control).
+- **Docs:** after each merge, update `tasks/todo.md` and HANDOFF status lines (no stale "sin merge").
