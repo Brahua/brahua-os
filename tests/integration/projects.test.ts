@@ -75,7 +75,9 @@ describe("createProject", () => {
         objective: null,
         status: "idea",
         priority: "medium",
+        startDate: null,
         dueDate: null,
+        completedAt: null,
         area: { id: work, slug: "work", name: "Trabajo", icon: "briefcase", color: "work" },
       },
     });
@@ -213,7 +215,17 @@ describe("queries", () => {
       color: "home",
     });
     expect(Object.keys(list[0]).sort()).toEqual(
-      ["area", "dueDate", "id", "name", "objective", "priority", "status"].sort(),
+      [
+        "area",
+        "completedAt",
+        "dueDate",
+        "id",
+        "name",
+        "objective",
+        "priority",
+        "startDate",
+        "status",
+      ].sort(),
     );
   });
 

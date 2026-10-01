@@ -38,7 +38,9 @@ function project(values: Partial<ProjectSummary>): ProjectSummary {
     objective: null,
     status: "active",
     priority: "medium",
+    startDate: null,
     dueDate: null,
+    completedAt: null,
     area: HOME,
     ...values,
   };

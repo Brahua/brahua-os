@@ -1,18 +1,16 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import ProjectNotFound from "@/app/(app)/projects/[id]/not-found";
-import ProjectPage, { generateMetadata } from "@/app/(app)/projects/[id]/page";
 import { ProjectSheet } from "@/app/(app)/projects/_components/project-sheet";
 import ProjectsPage, { metadata } from "@/app/(app)/projects/page";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
 import { listLifeAreas } from "@/modules/core/queries";
 import type { LifeAreaSummary } from "@/modules/core/life-area-input";
-import { createProject } from "@/modules/projects/actions";
+import { createProject, restoreProject } from "@/modules/projects/actions";
 import { ProjectCard } from "@/modules/projects/components/project-card";
 import { PROJECT_ERRORS, type ProjectSummary } from "@/modules/projects/project-input";
-import { getProject, listProjects } from "@/modules/projects/queries";
+import { getDeletedProject, getProject, listProjects } from "@/modules/projects/queries";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -24,8 +22,12 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
-vi.mock("@/modules/projects/queries", () => ({ listProjects: vi.fn(), getProject: vi.fn() }));
-vi.mock("@/modules/projects/actions", () => ({ createProject: vi.fn() }));
+vi.mock("@/modules/projects/queries", () => ({
+  listProjects: vi.fn(),
+  getProject: vi.fn(),
+  getDeletedProject: vi.fn(),
+}));
+vi.mock("@/modules/projects/actions", () => ({ createProject: vi.fn(), restoreProject: vi.fn() }));
 
 const HOME: LifeAreaSummary = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -60,7 +62,9 @@ function project(values: Partial<ProjectSummary>): ProjectSummary {
     objective: null,
     status: "active",
     priority: "medium",
+    startDate: null,
     dueDate: null,
+    completedAt: null,
     area: area(HOME),
     ...values,
   };
@@ -99,6 +103,8 @@ beforeEach(() => {
   vi.mocked(listLifeAreas).mockReset().mockResolvedValue([HOME, WORK]);
   vi.mocked(listProjects).mockReset().mockResolvedValue(PROJECTS);
   vi.mocked(getProject).mockReset();
+  vi.mocked(getDeletedProject).mockReset();
+  vi.mocked(restoreProject).mockReset();
   vi.mocked(createProject).mockReset();
   router.push.mockReset();
 });
@@ -427,68 +433,6 @@ describe("create sheet", () => {
   });
 });
 
-describe("detail (P1)", () => {
-  const params = (id: string, search: Record<string, string> = {}) => ({
-    params: Promise.resolve({ id }),
-    searchParams: Promise.resolve(search),
-  });
-
-  test("right after creating: focus on the heading, announced, and the URL cleaned", async () => {
-    vi.useRealTimers();
-    vi.mocked(getProject).mockResolvedValue(PROJECTS[0]);
-    window.history.replaceState(null, "", `/projects/${PROJECTS[0].id}?created=1`);
-    render(await ProjectPage(params(PROJECTS[0].id, { created: "1" })));
-    const heading = screen.getByRole("heading", { level: 1, name: "Mudanza" });
-    await waitFor(() => expect(heading).toHaveFocus());
-    expect(window.location.search).toBe("");
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Proyecto «Mudanza» creado."),
-    );
-  });
-
-  test("opened any other way, nothing is announced and focus stays put", async () => {
-    vi.mocked(getProject).mockResolvedValue(PROJECTS[0]);
-    render(await ProjectPage(params(PROJECTS[0].id)));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).not.toHaveFocus();
-  });
-
-  test("shows name, state, area and priority, with a way back", async () => {
-    vi.mocked(getProject).mockResolvedValue(PROJECTS[0]);
-    render(await ProjectPage(params(PROJECTS[0].id)));
-    expect(requireOwner).toHaveBeenCalled();
-    expect(screen.getByRole("heading", { level: 1, name: "Mudanza" })).toBeInTheDocument();
-    expect(screen.getByText("Activo")).toBeInTheDocument();
-    expect(screen.getByText("Hogar")).toBeInTheDocument();
-    expect(screen.getByText("Alta")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Volver a Proyectos" })).toHaveAttribute(
-      "href",
-      "/projects",
-    );
-    expect(await generateMetadata(params(PROJECTS[0].id))).toEqual({
-      title: "Mudanza · brahua-os",
-    });
-  });
-
-  test("a missing or deleted project is a 404", async () => {
-    vi.mocked(getProject).mockResolvedValue(null);
-    await expect(ProjectPage(params("nope"))).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(await generateMetadata(params("nope"))).toEqual({
-      title: "Proyecto no encontrado · brahua-os",
-      robots: { index: false, follow: false },
-    });
-  });
-
-  test("its 404 page leads back to the list", () => {
-    render(<ProjectNotFound />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Este proyecto no está");
-    expect(screen.getByRole("link", { name: "Volver a Proyectos" })).toHaveAttribute(
-      "href",
-      "/projects",
-    );
-  });
-});
-
 describe("ProjectCard", () => {
   test("shows the objective when there is one, and no due notice without one", () => {
     render(
@@ -519,5 +463,80 @@ describe("ProjectCard", () => {
     );
     expect(screen.getByText("Vence en 2 días")).toHaveClass("text-text-secondary");
     expect(screen.getByRole("heading", { level: 4 })).toBeInTheDocument();
+  });
+
+  test("a done project shows the day it was finished (Lima), not a due notice", () => {
+    render(
+      <ProjectCard
+        project={project({
+          status: "done",
+          dueDate: "2026-09-01",
+          // 23:30 on Oct 2 in Lima is already Oct 3 in UTC: the card says Oct 2.
+          completedAt: new Date("2026-10-03T04:30:00.000Z"),
+        })}
+        due={null}
+      />,
+    );
+    expect(screen.getByText("Terminado el 2 oct. 2026")).toHaveAttribute(
+      "datetime",
+      "2026-10-03T04:30:00.000Z",
+    );
+  });
+
+  test("no finish date on any other state", () => {
+    render(<ProjectCard project={project({ status: "canceled" })} due={null} />);
+    expect(screen.queryByText(/Terminado el/)).not.toBeInTheDocument();
+  });
+});
+
+describe("list: after deleting a project", () => {
+  const DELETED = { id: "00000000-0000-4000-8000-0000000000aa", name: "Huerto viejo" };
+
+  test("focus on the heading, the URL cleaned, and “Proyecto eliminado · Deshacer”", async () => {
+    vi.mocked(getDeletedProject).mockResolvedValue(DELETED);
+    vi.mocked(restoreProject).mockResolvedValue({
+      ok: true,
+      data: project({ id: DELETED.id, name: DELETED.name }),
+    });
+    window.history.replaceState(null, "", `/projects?deleted=${DELETED.id}`);
+    render(await page({ deleted: DELETED.id }));
+
+    expect(getDeletedProject).toHaveBeenCalledWith(DELETED.id);
+    expect(screen.getByRole("heading", { level: 1, name: "Proyectos" })).toHaveFocus();
+    expect(window.location.search).toBe("");
+    const notices = screen.getByRole("region", { name: "Avisos" });
+    await waitFor(() => expect(notices).toHaveTextContent("«Huerto viejo» se eliminó."));
+    expect(notices).toHaveTextContent("Proyecto eliminado");
+
+    const user = userEvent.setup();
+    await user.click(within(notices).getByRole("button", { name: "Deshacer" }));
+    expect(restoreProject).toHaveBeenCalledWith({ id: DELETED.id });
+    await waitFor(() =>
+      expect(notices).toHaveTextContent("«Huerto viejo» volvió a tus proyectos."),
+    );
+  });
+
+  test("an undo that fails says so", async () => {
+    vi.mocked(getDeletedProject).mockResolvedValue(DELETED);
+    vi.mocked(restoreProject).mockRejectedValue(new Error("offline"));
+    render(await page({ deleted: DELETED.id }));
+    const notices = screen.getByRole("region", { name: "Avisos" });
+    const undo = await within(notices).findByRole("button", { name: "Deshacer" });
+    await userEvent.setup().click(undo);
+    await waitFor(() =>
+      expect(notices).toHaveTextContent("No se pudo deshacer. Inténtalo de nuevo."),
+    );
+  });
+
+  test("without ?deleted there is no query; once restored there is no notice", async () => {
+    const { unmount } = render(await page());
+    expect(getDeletedProject).not.toHaveBeenCalled();
+    unmount();
+
+    vi.mocked(getDeletedProject).mockResolvedValue(null);
+    render(await page({ deleted: "00000000-0000-4000-8000-0000000000bb" }));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(screen.queryByText("Proyecto eliminado")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Proyectos" })).not.toHaveFocus();
   });
 });

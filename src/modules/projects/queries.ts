@@ -4,8 +4,8 @@ import { cache } from "react";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import type { ProjectSummary } from "./project-input";
-import { selectProjectById, selectProjects } from "./projects";
+import type { DeletedProject, ProjectSummary } from "./project-input";
+import { selectDeletedProjectById, selectProjectById, selectProjects } from "./projects";
 
 /** Every project that isn't deleted, with its area. The page sorts and groups them. */
 export async function listProjects(): Promise<ProjectSummary[]> {
@@ -25,3 +25,13 @@ export const getProject = cache(async (id: string): Promise<ProjectSummary | nul
   if (!projectId.safeParse(id).success) return null;
   return selectProjectById(getDb(), id);
 });
+
+/**
+ * A project that is deleted (for the list's "Proyecto eliminado · Deshacer" notice), or null
+ * when the id is malformed, missing or the project isn't deleted (e.g. already restored).
+ */
+export async function getDeletedProject(id: string): Promise<DeletedProject | null> {
+  await requireOwner();
+  if (!projectId.safeParse(id).success) return null;
+  return selectDeletedProjectById(getDb(), id);
+}

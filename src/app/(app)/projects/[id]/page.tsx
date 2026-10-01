@@ -2,15 +2,17 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AreaTag, Icon } from "@/design-system";
+import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
-import {
-  PROJECT_PRIORITY_LABELS,
-  PROJECT_STATUS_LABELS,
-  PROJECTS_COPY,
-} from "@/modules/projects/projects-copy";
+import { listLifeAreas } from "@/modules/core/queries";
+import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
 import { getProject } from "@/modules/projects/queries";
 import { CREATED_PARAM } from "@/modules/projects/routes";
+import { ProjectDeleteSection } from "./_components/project-delete-section";
+import { ProjectDetailProvider } from "./_components/project-detail-context";
+import { ProjectHeader } from "./_components/project-header";
+import { ProjectPlanSection } from "./_components/project-plan-section";
+import { ProjectStateSection } from "./_components/project-state-section";
 import { CreatedNotice } from "./created-notice";
 
 type ProjectPageProps = {
@@ -30,62 +32,58 @@ export async function generateMetadata({ params }: ProjectPageProps): Promise<Me
 }
 
 /**
- * A project's page. P1: a minimal detail (name, state, area, priority) so creating has somewhere
- * to land; P2 builds the real one, with in-place editing. Missing or deleted projects are a 404.
+ * A project's page (SPEC-projects "Detalle"). One component per section, each editing in place
+ * through `ProjectDetailProvider` (optimistic view, save queue and the page's notices). Missing
+ * or deleted projects are a 404.
+ *
+ * Sections still to come go in the marked slots below (P3–P5 are built in parallel: each one
+ * adds its own query to the Promise.all and its own line in the JSX, nothing else).
  */
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   await requireOwner();
   const [{ id }, search] = await Promise.all([params, searchParams]);
-  const project = await getProject(id);
+  const [project, areas] = await Promise.all([
+    getProject(id),
+    listLifeAreas(),
+    // P3 (Hitos): the project's milestones.
+    // P4 (Dependencias): its blockers and the candidates.
+    // P5 (Notas y enlaces): its links (the notes come with the project).
+  ]);
   if (!project) notFound();
   const justCreated = search[CREATED_PARAM] === "1";
+  // One instant for the whole page: the due notice counts Lima days from it.
+  const now = new Date();
 
   return (
-    <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
-      <Link
-        href="/projects"
-        className="bo-text-body-sm flex min-h-11 w-fit items-center gap-2 rounded-md text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-      >
-        <Icon icon={ArrowLeft} size="sm" />
-        {PROJECTS_COPY.backToList}
-      </Link>
-      <header className="flex flex-col gap-3">
-        {/* tabIndex -1: focus lands here right after creating (CreatedNotice). */}
-        <h1 id={HEADING_ID} tabIndex={-1} className="bo-text-display break-words outline-none">
-          {project.name}
-        </h1>
-        {project.objective ? (
-          <p className="bo-text-body text-text-secondary">{project.objective}</p>
+    <ProjectDetailProvider project={project} now={now}>
+      <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
+        <Link
+          href="/projects"
+          className="bo-text-body-sm flex min-h-11 w-fit items-center gap-2 rounded-md text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          <Icon icon={ArrowLeft} size="sm" />
+          {PROJECTS_COPY.backToList}
+        </Link>
+        <div className="flex max-w-180 flex-col gap-8">
+          <ProjectHeader
+            headingId={HEADING_ID}
+            areas={areas}
+            // P4 slot: blockedBy={<ProjectBlockedBy … />}
+          />
+          <ProjectStateSection />
+          <ProjectPlanSection
+          // P3 slot: progress={<ProjectProgress … />}
+          />
+          {/* ── P3 slot (Hitos): <ProjectMilestonesSection … /> ── */}
+          {/* ── P4 slot (Dependencias): <ProjectDependenciesSection … /> ── */}
+          {/* ── P5 slot (Enlaces): <ProjectLinksSection … /> ── */}
+          {/* ── P5 slot (Notas): <ProjectNotesSection … /> ── */}
+          <ProjectDeleteSection />
+        </div>
+        {justCreated ? (
+          <CreatedNotice headingId={HEADING_ID} message={PROJECTS_COPY.created(project.name)} />
         ) : null}
-      </header>
-      <dl className="bo-card max-w-160">
-        <div className="flex flex-col gap-1">
-          <dt className="bo-field__label">{PROJECTS_COPY.statusMeta}</dt>
-          <dd className="bo-text-body-strong">{PROJECT_STATUS_LABELS[project.status]}</dd>
-        </div>
-        <div className="flex flex-col gap-1">
-          <dt className="bo-field__label">{PROJECTS_COPY.areaMeta}</dt>
-          <dd className="min-w-0">
-            <AreaTag
-              area={project.area.color}
-              icon={project.area.icon}
-              label={project.area.name}
-              variant="large"
-              className="max-w-full [&>span:last-child]:break-words"
-            />
-          </dd>
-        </div>
-        <div className="flex flex-col gap-1">
-          <dt className="bo-field__label">{PROJECTS_COPY.priorityMeta}</dt>
-          <dd className="bo-text-body-strong">{PROJECT_PRIORITY_LABELS[project.priority]}</dd>
-        </div>
-      </dl>
-      <p className="bo-text-body-sm max-w-160 text-text-secondary">
-        {PROJECTS_COPY.detailComingSoon}
-      </p>
-      {justCreated ? (
-        <CreatedNotice headingId={HEADING_ID} message={PROJECTS_COPY.created(project.name)} />
-      ) : null}
-    </div>
+      </div>
+    </ProjectDetailProvider>
   );
 }

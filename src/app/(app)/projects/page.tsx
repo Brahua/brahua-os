@@ -14,12 +14,16 @@ import {
   selectedAreaFilter,
 } from "@/modules/projects/project-list";
 import { PROJECT_STATUS_LABELS, PROJECTS_COPY } from "@/modules/projects/projects-copy";
-import { listProjects } from "@/modules/projects/queries";
+import { getDeletedProject, listProjects } from "@/modules/projects/queries";
+import { DELETED_PARAM } from "@/modules/projects/routes";
 import { AreaFilter } from "./_components/area-filter";
 import { NewProject } from "./_components/new-project";
 import { ProjectHistory } from "./_components/project-history";
+import { ProjectsNotices } from "./_components/projects-notices";
 
 export const metadata: Metadata = { title: "Proyectos · brahua-os" };
+
+const HEADING_ID = "projects-title";
 
 type ProjectsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -32,11 +36,14 @@ type ProjectsPageProps = {
  */
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   await requireOwner();
-  const [{ area: areaParam }, projects, areas] = await Promise.all([
+  const [search, projects, areas] = await Promise.all([
     searchParams,
     listProjects(),
     listLifeAreas(),
   ]);
+  const { area: areaParam, [DELETED_PARAM]: deletedParam } = search;
+  // Just deleted from its page: the undo notice needs its name (only while it is still deleted).
+  const deleted = typeof deletedParam === "string" ? await getDeletedProject(deletedParam) : null;
   const options = areaFilterOptions(areas, projects);
   const selected = selectedAreaFilter(options, areaParam);
   const visible = selected
@@ -59,7 +66,10 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   return (
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="bo-text-display">{PROJECTS_COPY.title}</h1>
+        {/* tabIndex -1: focus lands here after deleting a project (ProjectsNotices). */}
+        <h1 id={HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
+          {PROJECTS_COPY.title}
+        </h1>
         <NewProject areas={areas} defaultAreaId={defaultAreaId} />
       </header>
 
@@ -103,6 +113,8 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
           />
         ))}
       </ProjectHistory>
+
+      <ProjectsNotices headingId={HEADING_ID} deleted={deleted} />
     </div>
   );
 }

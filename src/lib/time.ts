@@ -48,6 +48,36 @@ export function formatLongDate(date: Date): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+const DAY_FORMATS = {
+  // "3 de octubre de 2026"
+  long: { day: "numeric", month: "long", year: "numeric" },
+  // "3 oct. 2026"
+  short: { day: "numeric", month: "short", year: "numeric" },
+} as const satisfies Record<string, Intl.DateTimeFormatOptions>;
+
+export type DayFormat = keyof typeof DAY_FORMATS;
+
+const OWNER_DAY_FORMAT = {
+  long: new Intl.DateTimeFormat(LOCALE, { ...DAY_FORMATS.long, timeZone: OWNER_TIME_ZONE }),
+  short: new Intl.DateTimeFormat(LOCALE, { ...DAY_FORMATS.short, timeZone: OWNER_TIME_ZONE }),
+};
+
+// A YYYY-MM-DD day has no time zone: read and written as UTC so it never shifts.
+const DATE_KEY_DAY_FORMAT = {
+  long: new Intl.DateTimeFormat(LOCALE, { ...DAY_FORMATS.long, timeZone: "UTC" }),
+  short: new Intl.DateTimeFormat(LOCALE, { ...DAY_FORMATS.short, timeZone: "UTC" }),
+};
+
+/** The day of an instant in Lima: "3 de octubre de 2026" (long) or "3 oct. 2026" (short). */
+export function formatOwnerDay(date: Date, format: DayFormat = "long"): string {
+  return OWNER_DAY_FORMAT[format].format(date);
+}
+
+/** A YYYY-MM-DD day (e.g. a project's due date) as "3 de octubre de 2026" or "3 oct. 2026". */
+export function formatDateKey(key: string, format: DayFormat = "long"): string {
+  return DATE_KEY_DAY_FORMAT[format].format(new Date(`${key}T00:00:00Z`));
+}
+
 /** Calendar day in Lima as YYYY-MM-DD, for `<time dateTime>` and as a day key. */
 export function ownerDateKey(date: Date): string {
   return DATE_KEY_FORMAT.format(date);

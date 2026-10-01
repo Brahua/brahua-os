@@ -1,11 +1,12 @@
 // Shared helpers and fixtures for the projects specs.
 import { eq } from "drizzle-orm";
 import { expect, type Page, type TestInfo } from "@playwright/test";
-import type { Database } from "@/lib/db";
+import { createDb, type Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { projects } from "@/modules/projects/db/schema";
 import type { ProjectPriority, ProjectStatus } from "@/modules/projects/project-constants";
+import { testDatabaseUrl } from "../../tests/integration/helpers";
 
 /**
  * The area whose projects the specs (and the screenshots) look at through `?area=travel`. Only
@@ -54,12 +55,43 @@ export function limaDay(days: number, now = new Date()): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-/** Inserts the fixture projects (global-setup, after the areas seed). */
-export async function seedProjects(db: Database): Promise<void> {
+/**
+ * The project whose page the detail screenshots show (read only: no test edits it). In "Hogar",
+ * so it never shows in the list screenshots (`?area=travel`), and with fixed dates, so the page
+ * looks the same every day (the end is far enough to never show a due notice).
+ */
+export const DETAIL_FIXTURE = {
+  name: "Remodelar la cocina",
+  areaSlug: "home",
+  areaName: "Hogar",
+  status: "active",
+  priority: "high",
+  objective: "Muebles nuevos, encimera de cuarzo y luz bajo los muebles altos.",
+  startDate: "2026-01-12",
+  dueDate: "2030-06-28",
+} as const;
+
+async function areaIdOf(db: Database, slug: string): Promise<string> {
   const [area] = await db
     .select({ id: lifeAreas.id })
     .from(lifeAreas)
-    .where(eq(lifeAreas.slug, FIXTURE_AREA.slug));
+    .where(eq(lifeAreas.slug, slug));
+  return area.id;
+}
+
+/** Inserts the fixture projects (global-setup, after the areas seed). */
+export async function seedProjects(db: Database): Promise<void> {
+  const area = { id: await areaIdOf(db, FIXTURE_AREA.slug) };
+  const detail = DETAIL_FIXTURE;
+  await db.insert(projects).values({
+    name: detail.name,
+    status: detail.status,
+    priority: detail.priority,
+    objective: detail.objective,
+    startDate: detail.startDate,
+    dueDate: detail.dueDate,
+    lifeAreaId: await areaIdOf(db, detail.areaSlug),
+  });
   await db.insert(projects).values(
     FIXTURE_PROJECTS.map((fixture) => ({
       name: fixture.name,
@@ -72,6 +104,63 @@ export async function seedProjects(db: Database): Promise<void> {
     })),
   );
 }
+
+type NewProject = {
+  name: string;
+  status?: ProjectStatus;
+  priority?: ProjectPriority;
+  /** Days from Lima's today. */
+  due?: number;
+};
+
+/**
+ * A project of the calling test, straight in the database (in "Hobbies", like the tests that
+ * create from the sheet), so tests that edit or delete never touch the fixtures. Returns its id.
+ */
+export async function insertProject(project: NewProject): Promise<string> {
+  const db = createDb(testDatabaseUrl());
+  try {
+    const status = project.status ?? "active";
+    const [row] = await db
+      .insert(projects)
+      .values({
+        name: project.name,
+        status,
+        priority: project.priority ?? "medium",
+        lifeAreaId: await areaIdOf(db, CREATE_AREA.slug),
+        dueDate: project.due === undefined ? null : limaDay(project.due),
+        completedAt: status === "done" ? new Date() : null,
+      })
+      .returning({ id: projects.id });
+    return row.id;
+  } finally {
+    await db.$client.end();
+  }
+}
+
+/** Opens a project's page and waits until it is hydrated (see openProjects). */
+export async function openProject(page: Page, id: string) {
+  await page.goto(`/projects/${id}`);
+  await page.getByRole("heading", { level: 1 }).waitFor({ state: "visible" });
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+}
+
+/**
+ * Runs `action` and waits for the Server Action's response: the page changes before it
+ * (optimistic), so a reload right after could read the old value.
+ */
+export async function untilSaved(page: Page, action: () => Promise<unknown>) {
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.request().headers()["next-action"] !== undefined,
+    ),
+    action(),
+  ]);
+}
+
+export const notices = (page: Page) => page.getByRole("region", { name: "Avisos" });
 
 export const isDesktop = (testInfo: TestInfo) => testInfo.project.name === "desktop";
 
