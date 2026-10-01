@@ -25,7 +25,15 @@ type SheetProps = {
    * focus a button on click, so pass the opener here to be sure.
    */
   returnFocusRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * Called once the sheet has fully closed: exit animation done, content unmounted, focus back
+   * and the rest of the page no longer `aria-hidden`. Announce results here, or screen readers
+   * skip them (they ignore live regions inside hidden content).
+   */
+  onClosed?: () => void;
   className?: string;
+  /** Classes for the scrolling body (e.g. `scroll-padding` under a sticky header). */
+  bodyClassName?: string;
   children: React.ReactNode;
 };
 
@@ -42,7 +50,9 @@ export function Sheet({
   footer,
   modal = true,
   returnFocusRef,
+  onClosed,
   className,
+  bodyClassName,
   children,
 }: SheetProps) {
   const side = variant === "side";
@@ -63,6 +73,7 @@ export function Sheet({
             event.preventDefault();
             (returnFocusRef?.current ?? returnFocusTo.current)?.focus();
             returnFocusTo.current = null;
+            onClosed?.();
           }}
           className={cn(
             "bo-sheet",
@@ -90,7 +101,7 @@ export function Sheet({
               <Icon icon={X} />
             </Dialog.Close>
           </div>
-          <div className="bo-sheet__body">{children}</div>
+          <div className={cn("bo-sheet__body", bodyClassName)}>{children}</div>
           {footer ? <div className="bo-sheet__footer">{footer}</div> : null}
         </Dialog.Content>
       </Dialog.Portal>

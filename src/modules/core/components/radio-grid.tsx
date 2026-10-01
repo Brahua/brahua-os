@@ -17,9 +17,16 @@ type RadioGridProps<T extends string> = {
   onValueChange: (value: T) => void;
   /** Id of the visible label. */
   labelledBy: string;
-  /** Id of the help or error text. */
+  /** Ids of the group's help and error texts. */
   describedBy?: string;
+  /**
+   * Id of the error text, also set on the tab-stop radio: some screen readers only read the
+   * focused radio's description, not the group's.
+   */
+  errorId?: string;
   invalid?: boolean;
+  /** Also show each option's name as a tooltip (for options that only show an icon). */
+  titles?: boolean;
   required?: boolean;
   className?: string;
   itemClassName?: string;
@@ -46,7 +53,9 @@ export function RadioGrid<T extends string>({
   onValueChange,
   labelledBy,
   describedBy,
+  errorId,
   invalid = false,
+  titles = false,
   required = false,
   className,
   itemClassName,
@@ -117,6 +126,8 @@ export function RadioGrid<T extends string>({
             role="radio"
             aria-checked={checked}
             aria-label={option.label}
+            aria-describedby={index === tabStop && errorId ? errorId : undefined}
+            title={titles ? option.label : undefined}
             tabIndex={index === tabStop ? 0 : -1}
             className={cn("bo-key", checked && "is-on", itemClassName)}
             onClick={() => onValueChange(option.value)}

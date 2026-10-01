@@ -15,6 +15,7 @@ export const AREAS_COPY = {
   nameHelp: "Hasta 60 caracteres.",
   colorLabel: "Color",
   iconLabel: "Ícono",
+  iconHint: "Usa las flechas para moverte por filas y columnas.",
   previewLabel: "Vista previa",
   previewPlaceholder: "Nombre del área",
   previewHint: "Elige un color y un ícono para verla.",

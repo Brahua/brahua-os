@@ -88,6 +88,7 @@ describe("create", () => {
     const user = userEvent.setup();
     const { unmount } = render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
     expect(dialog()).toHaveAccessibleName("Nueva área");
     expect(dialog()).toHaveClass("bo-sheet--bottom");
     expect(nameField()).toHaveFocus();
@@ -96,6 +97,7 @@ describe("create", () => {
     desktop = true;
     render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
     expect(dialog()).toHaveClass("bo-sheet--side");
   });
 
@@ -103,6 +105,7 @@ describe("create", () => {
     const user = userEvent.setup();
     render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
 
     expect(within(colorGroup()).getAllByRole("radio")).toHaveLength(8);
     expect(within(iconGroup()).getAllByRole("radio")).toHaveLength(55);
@@ -114,6 +117,7 @@ describe("create", () => {
     const user = userEvent.setup();
     render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
     await user.type(nameField(), "   ");
     await user.click(within(dialog()).getByRole("button", { name: "Crear área" }));
 
@@ -123,7 +127,7 @@ describe("create", () => {
     expect(colorGroup()).toHaveAttribute("aria-invalid", "true");
     expect(colorGroup()).toHaveAccessibleDescription(LIFE_AREA_ERRORS.color);
     expect(iconGroup()).toHaveAttribute("aria-invalid", "true");
-    expect(iconGroup()).toHaveAccessibleDescription(LIFE_AREA_ERRORS.icon);
+    expect(iconGroup()).toHaveAccessibleDescription(expect.stringContaining(LIFE_AREA_ERRORS.icon));
     expect(createLifeArea).not.toHaveBeenCalled();
 
     // Fixing a field clears its error only.
@@ -136,6 +140,7 @@ describe("create", () => {
     const user = userEvent.setup();
     render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
     await user.type(nameField(), "Música");
     await user.click(within(colorGroup()).getByRole("radio", { name: "Lima" }));
     await user.click(within(dialog()).getByRole("button", { name: "Crear área" }));
@@ -160,6 +165,7 @@ describe("create", () => {
     render(<AreasManager areas={AREAS} />);
     const trigger = screen.getByRole("button", { name: "Nueva área" });
     await user.click(trigger);
+    await screen.findByRole("dialog");
     await user.type(nameField(), "  Música ");
     await user.click(within(colorGroup()).getByRole("radio", { name: "Lima" }));
     await user.click(within(iconGroup()).getByRole("radio", { name: "Música" }));
@@ -195,6 +201,7 @@ describe("create", () => {
       .mockRejectedValueOnce(new Error("network"));
     render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
     await user.type(nameField(), "Música");
     await user.click(within(colorGroup()).getByRole("radio", { name: "Lima" }));
     await user.click(within(iconGroup()).getByRole("radio", { name: "Música" }));
@@ -226,6 +233,7 @@ describe("edit", () => {
     render(<AreasManager areas={AREAS} />);
     const row = screen.getByRole("button", { name: "Editar Hogar" });
     await user.click(row);
+    await screen.findByRole("dialog");
 
     expect(dialog()).toHaveAccessibleName("Editar área");
     expect(nameField()).toHaveValue("Hogar");
@@ -255,6 +263,7 @@ describe("edit", () => {
     render(<AreasManager areas={AREAS} />);
     const row = screen.getByRole("button", { name: "Editar Hogar" });
     await user.click(row);
+    await screen.findByRole("dialog");
     await user.type(nameField(), " cambiado");
     await user.click(within(dialog()).getByRole("button", { name: "Cancelar" }));
 
@@ -263,6 +272,7 @@ describe("edit", () => {
     expect(updateLifeArea).not.toHaveBeenCalled();
 
     await user.click(row);
+    await screen.findByRole("dialog");
     expect(nameField()).toHaveValue("Hogar");
   });
 });
@@ -272,6 +282,7 @@ describe("keyboard", () => {
     const user = userEvent.setup();
     render(<AreasManager areas={AREAS} />);
     await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
+    await screen.findByRole("dialog");
 
     // Name → color group (the checked swatch) → icon group (the checked icon).
     await user.tab();
@@ -301,4 +312,118 @@ describe("keyboard", () => {
         .filter((radio) => radio.tabIndex === 0),
     ).toHaveLength(2);
   });
+});
+
+describe("while saving", () => {
+  test("Esc, ✕ and Cancelar do nothing until the result arrives; then it closes once", async () => {
+    const user = userEvent.setup();
+    let resolve!: (value: Awaited<ReturnType<typeof createLifeArea>>) => void;
+    vi.mocked(createLifeArea).mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<AreasManager areas={AREAS} />);
+    await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
+    await user.type(nameField(), "Música");
+    await user.click(within(colorGroup()).getByRole("radio", { name: "Lima" }));
+    await user.click(within(iconGroup()).getByRole("radio", { name: "Música" }));
+    await user.click(within(dialog()).getByRole("button", { name: "Crear área" }));
+
+    const saving = within(dialog()).getByRole("button", { name: "Guardando…" });
+    expect(saving).toHaveAttribute("aria-disabled", "true");
+    const cancel = within(dialog()).getByRole("button", { name: "Cancelar" });
+    expect(cancel).toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Escape}");
+    await user.click(cancel);
+    await user.click(within(dialog()).getByRole("button", { name: "Cerrar" }));
+    await user.click(saving); // a second submit is ignored too
+    expect(dialog()).toBeInTheDocument();
+    expect(createLifeArea).toHaveBeenCalledTimes(1);
+
+    resolve({
+      ok: true,
+      data: {
+        id: "a3",
+        slug: "musica",
+        name: "Música",
+        color: "hobbies",
+        icon: "music",
+        sortOrder: 2,
+      },
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Área «Música» creada."),
+    );
+  });
+
+  test("the announcement waits until the sheet is gone and the page is no longer hidden", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateLifeArea).mockResolvedValue({ ok: true, data: AREAS[0] });
+    render(<AreasManager areas={AREAS} />);
+    await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
+    await screen.findByRole("dialog");
+    const status = screen.getByRole("status", { hidden: true });
+    const seen: { text: string; hidden: boolean; dialog: boolean }[] = [];
+    const observer = new MutationObserver(() => {
+      if (!status.textContent) return;
+      seen.push({
+        text: status.textContent,
+        hidden: status.closest('[aria-hidden="true"]') !== null,
+        dialog: document.querySelector('[role="dialog"]') !== null,
+      });
+    });
+    observer.observe(status, { childList: true, characterData: true, subtree: true });
+    await user.click(within(dialog()).getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(seen).toHaveLength(1));
+    observer.disconnect();
+    expect(seen[0]).toEqual({
+      text: "Cambios guardados en «Hogar».",
+      hidden: false,
+      dialog: false,
+    });
+  });
+});
+
+describe("errors without a visible field", () => {
+  test("show that field's own message on top instead of the generic summary", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateLifeArea).mockResolvedValue({
+      ok: false,
+      error: "Revisa los campos marcados.",
+      fieldErrors: { id: [LIFE_AREA_ERRORS.id] },
+    });
+    render(<AreasManager areas={AREAS} />);
+    await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
+    await screen.findByRole("dialog");
+    await user.click(within(dialog()).getByRole("button", { name: "Guardar cambios" }));
+    expect(await within(dialog()).findByRole("alert")).toHaveTextContent(LIFE_AREA_ERRORS.id);
+  });
+
+  test("an invalid radio group describes its tab stop with the error too", async () => {
+    const user = userEvent.setup();
+    render(<AreasManager areas={AREAS} />);
+    await user.click(screen.getByRole("button", { name: "Nueva área" }));
+    await screen.findByRole("dialog");
+    await user.click(within(dialog()).getByRole("button", { name: "Crear área" }));
+    expect(within(colorGroup()).getByRole("radio", { name: "Ámbar" })).toHaveAccessibleDescription(
+      LIFE_AREA_ERRORS.color,
+    );
+    expect(iconGroup()).toHaveAccessibleDescription(
+      `Usa las flechas para moverte por filas y columnas. ${LIFE_AREA_ERRORS.icon}`,
+    );
+  });
+});
+
+test("shows the picked icon's name next to the label and as a tooltip", async () => {
+  const user = userEvent.setup();
+  render(<AreasManager areas={AREAS} />);
+  await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
+  await screen.findByRole("dialog");
+  expect(within(dialog()).getByText("· Casa")).toBeInTheDocument();
+  await user.click(within(iconGroup()).getByRole("radio", { name: "Carpa" }));
+  expect(within(dialog()).getByText("· Carpa")).toBeInTheDocument();
+  expect(within(iconGroup()).getByRole("radio", { name: "Carpa" })).toHaveAttribute(
+    "title",
+    "Carpa",
+  );
 });

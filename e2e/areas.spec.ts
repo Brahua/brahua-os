@@ -37,6 +37,39 @@ function uniqueName(prefix: string, testInfo: TestInfo) {
   return `${prefix} ${testInfo.project.name} ${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Position of the area's row in the list. */
+async function rowIndex(page: Page, name: string) {
+  const labels = await list(page)
+    .getByRole("button")
+    .evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+  return labels.indexOf(`Editar ${name}`);
+}
+
+type Announcement = { text: string; hidden: boolean; dialog: boolean };
+
+/**
+ * Records every text the status region gets, with whether it sat inside an aria-hidden
+ * ancestor (Radix hides the page while a modal sheet is open) or a dialog was still open.
+ */
+async function recordAnnouncements(page: Page) {
+  await page.evaluate(() => {
+    const seen: Announcement[] = [];
+    (window as unknown as { __announcements: Announcement[] }).__announcements = seen;
+    const region = document.querySelector('main [role="status"]')!;
+    new MutationObserver(() => {
+      if (!region.textContent) return;
+      seen.push({
+        text: region.textContent,
+        hidden: region.closest('[aria-hidden="true"]') !== null,
+        dialog: document.querySelector('[role="dialog"]') !== null,
+      });
+    }).observe(region, { childList: true, characterData: true, subtree: true });
+  });
+}
+
+const announcements = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __announcements: Announcement[] }).__announcements);
+
 async function openAreas(page: Page) {
   await page.goto("/areas");
   await expect(page.getByRole("heading", { level: 1, name: "Áreas" })).toBeVisible();
@@ -96,15 +129,24 @@ test("create an area: side panel on desktop, bottom sheet on the phone", async (
   await expect(preview).toHaveText(name);
   await expect(preview).toHaveClass(/bo-area--hobbies/);
 
+  await recordAnnouncements(page);
   await sheet(page).getByRole("button", { name: "Crear área" }).click();
 
   await expect(sheet(page)).toBeHidden();
   await expect(newAreaButton(page)).toBeFocused();
   await expect(status(page)).toHaveText(`Área «${name}» creada.`);
-  // At the end of the list, and still there after a reload.
-  await expect(list(page).getByRole("button").last()).toHaveAccessibleName(`Editar ${name}`);
+  // Announced only once nothing hides the page from screen readers anymore.
+  expect(await announcements(page)).toEqual([
+    { text: `Área «${name}» creada.`, hidden: false, dialog: false },
+  ]);
+  // After the seeded areas (other tests add theirs in parallel, so not necessarily last), and
+  // still there after a reload.
+  const row = list(page).getByRole("button", { name: `Editar ${name}` });
+  await expect(row).toBeVisible();
+  expect(await rowIndex(page, name)).toBeGreaterThanOrEqual(SEEDED.length);
   await page.reload();
-  await expect(list(page).getByRole("button", { name: `Editar ${name}` })).toBeVisible();
+  await expect(row).toBeVisible();
+  expect(await rowIndex(page, name)).toBeGreaterThanOrEqual(SEEDED.length);
 });
 
 test("edit an area: the row keeps its place and gets focus back", async ({ page }, testInfo) => {
@@ -143,7 +185,7 @@ test("validation errors show on each field", async ({ page }) => {
   await expect(colorGroup(page)).toHaveAttribute("aria-invalid", "true");
   await expect(colorGroup(page)).toHaveAccessibleDescription("Elige un color.");
   await expect(iconGroup(page)).toHaveAttribute("aria-invalid", "true");
-  await expect(iconGroup(page)).toHaveAccessibleDescription("Elige un ícono.");
+  await expect(iconGroup(page)).toHaveAccessibleDescription(/Elige un ícono\.$/);
   await expect(sheet(page)).toBeVisible();
 
   await nameField(page).fill("a".repeat(61));
@@ -188,9 +230,14 @@ test("keyboard only: open, fill, pick swatch and icon with arrows, save, Esc", a
   await expect(checkedIcon).toBeFocused();
   await expect(checkedIcon).not.toHaveAccessibleName("Casa");
   // Down lands exactly one row below: same column as Casa.
-  const [houseBox, belowBox] = [await house.boundingBox(), await checkedIcon.boundingBox()];
-  expect(belowBox!.x).toBeCloseTo(houseBox!.x, 0);
-  expect(belowBox!.y).toBeGreaterThan(houseBox!.y);
+  // Measured in one frame: the side panel may still be sliding in.
+  const [houseBox, belowBox] = await iconGroup(page).evaluate((group) => {
+    const radios = [...group.querySelectorAll('[role="radio"]')];
+    const box = (radio: Element | undefined) => radio!.getBoundingClientRect().toJSON() as DOMRect;
+    return [box(radios[0]), box(radios.find((radio) => radio.ariaChecked === "true"))];
+  });
+  expect(belowBox.x).toBeCloseTo(houseBox.x, 0);
+  expect(belowBox.y).toBeGreaterThan(houseBox.y);
   await page.keyboard.press("End");
   const wrench = iconGroup(page).getByRole("radio", { name: "Llave inglesa" });
   await expect(wrench).toBeChecked();
@@ -230,6 +277,42 @@ test("keyboard only: open, fill, pick swatch and icon with arrows, save, Esc", a
   await expect(sheet(page)).toBeHidden();
   await expect(row).toBeFocused();
   await expect(row).toHaveAccessibleName(`Editar ${name}`);
+});
+
+test("short screen (320×256): the preview doesn't stick and every focused control shows", async ({
+  page,
+}, testInfo) => {
+  test.skip(isDesktop(testInfo), "One small viewport is enough");
+  await page.setViewportSize({ width: 320, height: 256 });
+  // No slide-in: measure the sheet where it rests.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openAreas(page);
+  await newAreaButton(page).click();
+  await expect(nameField(page)).toBeFocused();
+
+  const preview = sheet(page).locator(".bo-card").first();
+  const wrapper = preview.locator("..");
+  expect(await wrapper.evaluate((element) => getComputedStyle(element).position)).toBe("static");
+
+  /** The focused element is on screen and it is what the page shows at its center. */
+  const focusedIsVisible = () =>
+    page.evaluate(() => {
+      const element = document.activeElement as HTMLElement;
+      const box = element.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const inViewport = y >= 0 && y <= window.innerHeight && x >= 0 && x <= window.innerWidth;
+      const top = document.elementFromPoint(x, y);
+      return inViewport && top !== null && (top === element || element.contains(top));
+    });
+
+  expect(await focusedIsVisible()).toBe(true);
+  // Name → color → icons → Cancelar → Crear área, then the arrows through the icons.
+  for (const key of ["Tab", "Tab", "End", "Home", "ArrowDown", "Tab", "Tab"]) {
+    await page.keyboard.press(key);
+    expect(await focusedIsVisible(), `after ${key}`).toBe(true);
+  }
+  await expect(sheet(page).getByRole("button", { name: "Crear área" })).toBeFocused();
 });
 
 for (const theme of THEMES) {

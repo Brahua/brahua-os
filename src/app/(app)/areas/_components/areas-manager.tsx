@@ -1,11 +1,14 @@
 "use client";
 
 import { LayoutGrid, Pencil, Plus } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRef, useState } from "react";
 import { AreaTag, Icon, Key, ListRow } from "@/design-system";
 import { AREAS_COPY } from "@/modules/core/areas-copy";
-import type { LifeAreaSummary } from "@/modules/core/life-areas";
-import { AreaSheet } from "./area-sheet";
+import type { LifeAreaSummary } from "@/modules/core/life-area-input";
+
+// The sheet (form, pickers, 55 icons, the actions' client) only loads when first opened.
+const AreaSheet = dynamic(() => import("./area-sheet").then((loaded) => loaded.AreaSheet));
 
 type Editor = {
   /** New key per opening, so the form starts from the area (or empty) every time. */
@@ -22,17 +25,34 @@ export function AreasManager({ areas }: { areas: LifeAreaSummary[] }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
+  // The opening currently on screen, and what to announce once its sheet has fully closed.
+  const currentKey = useRef(0);
+  const pendingAnnouncement = useRef<string | null>(null);
 
   function openEditor(area: LifeAreaSummary | null, opener: HTMLElement | null) {
     returnFocus.current = opener;
-    setEditor((current) => ({ key: (current?.key ?? 0) + 1, area }));
+    currentKey.current += 1;
+    pendingAnnouncement.current = null;
+    setAnnouncement("");
+    setEditor({ key: currentKey.current, area });
     setOpen(true);
   }
 
-  function announce(message: string) {
-    // Cleared first so saving the same thing twice is announced twice.
-    setAnnouncement("");
-    requestAnimationFrame(() => setAnnouncement(message));
+  function saved(key: number, area: LifeAreaSummary, mode: "created" | "updated") {
+    // A result for an earlier opening never closes (or speaks over) the current one.
+    if (key !== currentKey.current) return;
+    pendingAnnouncement.current =
+      mode === "created" ? AREAS_COPY.created(area.name) : AREAS_COPY.updated(area.name);
+    setOpen(false);
+  }
+
+  // Only after the sheet is gone: until then the page is aria-hidden and the status region
+  // inside it would not be read.
+  function closed(key: number) {
+    const message = pendingAnnouncement.current;
+    if (key !== currentKey.current || !message) return;
+    pendingAnnouncement.current = null;
+    setAnnouncement(message);
   }
 
   return (
@@ -63,7 +83,9 @@ export function AreasManager({ areas }: { areas: LifeAreaSummary[] }) {
                     icon={area.icon}
                     label={area.name}
                     variant="large"
-                    className="max-w-full [&>span:last-child]:truncate"
+                    // Long names wrap to two lines; the full name is in the tooltip.
+                    className="max-w-full [&>span:last-child]:line-clamp-2 [&>span:last-child]:break-words"
+                    title={area.name}
                   />
                 }
                 trailing={<Icon icon={Pencil} size="sm" />}
@@ -89,12 +111,8 @@ export function AreasManager({ areas }: { areas: LifeAreaSummary[] }) {
           onOpenChange={setOpen}
           area={editor.area}
           returnFocusRef={returnFocus}
-          onSaved={(area, mode) => {
-            setOpen(false);
-            announce(
-              mode === "created" ? AREAS_COPY.created(area.name) : AREAS_COPY.updated(area.name),
-            );
-          }}
+          onSaved={(area, mode) => saved(editor.key, area, mode)}
+          onClosed={() => closed(editor.key)}
         />
       ) : null}
 

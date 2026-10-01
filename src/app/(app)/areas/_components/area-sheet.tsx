@@ -14,15 +14,16 @@ import {
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
 import { createLifeArea, updateLifeArea } from "@/modules/core/actions";
-import { AREAS_COPY } from "@/modules/core/areas-copy";
+import { AREA_ICON_LABELS, AREAS_COPY } from "@/modules/core/areas-copy";
 import { AreaColorPicker, AreaIconPicker } from "@/modules/core/components/area-pickers";
 import { focusRadioGrid } from "@/modules/core/components/radio-grid";
 import {
   LIFE_AREA_FIELDS,
   lifeAreaInputSchema,
+  normalizeAreaName,
   type LifeAreaField,
+  type LifeAreaSummary,
 } from "@/modules/core/life-area-input";
-import type { LifeAreaSummary } from "@/modules/core/life-areas";
 
 // Same breakpoint as the shell (Tailwind `lg`): side panel next to the sidebar, bottom sheet below.
 const DESKTOP_QUERY = "(min-width: 1024px)";
@@ -42,7 +43,7 @@ function useIsDesktop(): boolean {
   );
 }
 
-type AreaSheetProps = {
+export type AreaSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The area being edited, or null to create one. */
@@ -50,6 +51,8 @@ type AreaSheetProps = {
   /** Where focus goes when the sheet closes (the trigger or the edited row). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
   onSaved: (area: LifeAreaSummary, mode: "created" | "updated") => void;
+  /** The sheet finished closing (see `Sheet`'s `onClosed`). */
+  onClosed?: () => void;
 };
 
 type Errors = Partial<Record<LifeAreaField, string>>;
@@ -69,7 +72,14 @@ function firstErrors(fieldErrors: FieldErrors | undefined): Errors {
  * Each invalid field shows its message (aria-invalid + aria-describedby) and focus moves to the
  * first one.
  */
-export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }: AreaSheetProps) {
+export function AreaSheet({
+  open,
+  onOpenChange,
+  area,
+  returnFocusRef,
+  onSaved,
+  onClosed,
+}: AreaSheetProps) {
   const isDesktop = useIsDesktop();
   const [name, setName] = useState(area?.name ?? "");
   const [color, setColor] = useState<AreaColor | null>(area?.color ?? null);
@@ -97,12 +107,21 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
     else if (first === "icon") focusRadioGrid(iconGroup.current);
   });
 
+  // While saving, the sheet stays open (Esc, the scrim, ✕ and Cancelar do nothing): closing it
+  // would hide the result, and a late success must not close a sheet opened afterwards.
+  function requestOpenChange(next: boolean) {
+    if (!next && pending) return;
+    onOpenChange(next);
+  }
+
   function showErrors(result: { error: string; fieldErrors?: FieldErrors }) {
     const fieldErrors = firstErrors(result.fieldErrors);
     focusFirstInvalid.current = true;
     setErrors(fieldErrors);
-    // Field messages speak for themselves; anything else (session, not found) goes on top.
-    setFormError(Object.keys(fieldErrors).length > 0 ? null : result.error);
+    // Field messages speak for themselves. Anything else goes on top: a message about a field
+    // the form doesn't show (e.g. the id), else the general error (session, network).
+    const other = Object.values(result.fieldErrors ?? {}).find((messages) => messages.length)?.[0];
+    setFormError(Object.keys(fieldErrors).length > 0 ? null : (other ?? result.error));
   }
 
   function clearError(field: LifeAreaField) {
@@ -130,7 +149,7 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
           ? await updateLifeArea({ ...parsed.data, id: area.id })
           : await createLifeArea(parsed.data);
       } catch {
-        // Network or server failure: the action itself never throws for bad input.
+        // Network failure or a new deployment: the action itself never throws.
         result = fail(AREAS_COPY.unexpected);
       }
       if (result.ok) onSaved(result.data, area ? "updated" : "created");
@@ -141,19 +160,29 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
   const colorLabelId = `${ids}-color-label`;
   const colorErrorId = `${ids}-color-error`;
   const iconLabelId = `${ids}-icon-label`;
+  const iconHintId = `${ids}-icon-hint`;
   const iconErrorId = `${ids}-icon-error`;
-  const trimmed = name.replace(/\s+/g, " ").trim();
+  const preview = normalizeAreaName(name);
 
   return (
     <Sheet
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={requestOpenChange}
+      onClosed={onClosed}
       variant={isDesktop ? "side" : "bottom"}
       title={area ? AREAS_COPY.editArea : AREAS_COPY.newArea}
       returnFocusRef={returnFocusRef}
+      // Keeps focused fields clear of the sticky preview when the body scrolls (WCAG 2.4.11).
+      // On short screens the preview doesn't stick, so no padding is needed.
+      bodyClassName="scroll-pt-28 [@media(max-height:500px)]:scroll-pt-0"
       footer={
         <>
-          <Key variant="ghost" className="flex-1 lg:flex-none" onClick={() => onOpenChange(false)}>
+          <Key
+            variant="ghost"
+            className="flex-1 lg:flex-none"
+            aria-disabled={pending || undefined}
+            onClick={() => requestOpenChange(false)}
+          >
             {AREAS_COPY.cancel}
           </Key>
           <Key
@@ -168,16 +197,11 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
         </>
       }
     >
-      <form
-        id={formId}
-        noValidate
-        onSubmit={submit}
-        // scroll-margin keeps whatever gets focus clear of the sticky preview (WCAG 2.4.11).
-        className="flex flex-col gap-6 [&_*]:scroll-mt-28"
-      >
-        {/* Sticky, so the preview stays in view while scrolling through the icons. The
-            panel-colored shadow covers the body's top padding, where content would scroll by. */}
-        <div className="sticky top-0 z-10 bg-panel pb-1 shadow-[0_-24px_0_var(--color-panel)]">
+      <form id={formId} noValidate onSubmit={submit} className="flex flex-col gap-6">
+        {/* Sticky, so the preview stays in view while scrolling through the icons (static on
+            short screens, where it would take most of the space). The panel-colored shadow covers
+            the body's top padding, where content would scroll by. */}
+        <div className="sticky top-0 z-10 bg-panel pb-1 shadow-[0_-24px_0_var(--color-panel)] [@media(max-height:500px)]:static [@media(max-height:500px)]:shadow-none">
           <div className="bo-card items-start gap-2">
             <span className="bo-field__label">{AREAS_COPY.previewLabel}</span>
             <div className="flex min-h-5 max-w-full items-center">
@@ -185,9 +209,9 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
                 <AreaTag
                   area={color}
                   icon={icon}
-                  label={trimmed || AREAS_COPY.previewPlaceholder}
+                  label={preview || AREAS_COPY.previewPlaceholder}
                   variant="large"
-                  className="max-w-full [&>span:last-child]:truncate"
+                  className="max-w-full [&>span:last-child]:line-clamp-2 [&>span:last-child]:break-words"
                 />
               ) : (
                 <p className="bo-text-body-sm text-text-secondary">{AREAS_COPY.previewHint}</p>
@@ -204,7 +228,6 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
           autoComplete="off"
           autoFocus
           required
-          aria-required
           error={errors.name}
           help={AREAS_COPY.nameHelp}
           id={`${ids}-name`}
@@ -227,15 +250,24 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
             }}
             labelledBy={colorLabelId}
             describedBy={errors.color ? colorErrorId : undefined}
+            errorId={errors.color ? colorErrorId : undefined}
             invalid={Boolean(errors.color)}
           />
           {errors.color ? <FieldError id={colorErrorId} message={errors.color} /> : null}
         </div>
 
         <div className={cn("bo-field", errors.icon && "is-error")}>
-          <span id={iconLabelId} className="bo-field__label">
-            {AREAS_COPY.iconLabel}
-          </span>
+          <div className="flex items-baseline gap-2">
+            <span id={iconLabelId} className="bo-field__label">
+              {AREAS_COPY.iconLabel}
+            </span>
+            {/* The name of the picked icon, for sighted users (the radio already says it). */}
+            {icon ? (
+              <span aria-hidden className="bo-text-body-sm text-text-secondary">
+                · {AREA_ICON_LABELS[icon]}
+              </span>
+            ) : null}
+          </div>
           <AreaIconPicker
             ref={iconGroup}
             value={icon}
@@ -244,9 +276,13 @@ export function AreaSheet({ open, onOpenChange, area, returnFocusRef, onSaved }:
               if (errors.icon) clearError("icon");
             }}
             labelledBy={iconLabelId}
-            describedBy={errors.icon ? iconErrorId : undefined}
+            describedBy={errors.icon ? `${iconHintId} ${iconErrorId}` : iconHintId}
+            errorId={errors.icon ? iconErrorId : undefined}
             invalid={Boolean(errors.icon)}
           />
+          <span id={iconHintId} className="bo-field__help">
+            {AREAS_COPY.iconHint}
+          </span>
           {errors.icon ? <FieldError id={iconErrorId} message={errors.icon} /> : null}
         </div>
 

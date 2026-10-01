@@ -17,6 +17,7 @@ type PickerProps<T extends string> = {
   onValueChange: (value: T) => void;
   labelledBy: string;
   describedBy?: string;
+  errorId?: string;
   invalid?: boolean;
   ref?: React.Ref<HTMLDivElement>;
 };
@@ -57,6 +58,7 @@ export function AreaIconPicker(props: PickerProps<AreaIconName>) {
     <RadioGrid
       {...props}
       options={ICON_OPTIONS}
+      titles
       required
       className="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2"
       itemClassName="bo-key--icon aspect-square w-full"
