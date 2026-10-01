@@ -17,7 +17,7 @@
 
 - **design-system:** ✅ completado. Fuente de verdad en Claude Design (skill `design-sync-pull`).
   - Los ajustes locales están en Claude Design: foco en claro y teclas naranjas (2026-09-30); tooltip, barra inferior a 320 px, switch con movimiento reducido y colores forzados (2026-10-01). `overrides.css` está vacío.
-- **core:** en curso.
+- **core:** ✅ cerrado por el owner el 2026-10-01 (Checkpoint final).
   - ✅ C0: producción en https://os.brahua.com; deploy desde GitHub Actions solo con todos los checks en verde.
   - ✅ C1 (base de datos): PR #10 integrado; la primera migración (`core_life_areas`) se aplicó en producción el 2026-09-30.
   - ✅ Seed en producción: `scripts/vercel-build.sh` ejecuta `pnpm db:seed` (idempotente) después de `db:migrate` en cada build de producción.
@@ -37,7 +37,7 @@
   - Retrospectiva de `core` (2026-10-01): reglas nuevas en `CLAUDE.md`, sección "Lessons from `core`".
   - LCP de `/login` (PR `perf/login-lcp`): ver "Rendimiento de `/login` (LCP)".
   - Checkpoint final: criterios de éxito cumplidos o diferidos por el owner (2026-10-01): el LCP se acepta por ahora y su medición con datos reales queda en "Backlog técnico" de `tasks/todo.md`; Android es N/A (el owner usa iPhone).
-  - **Siguiente:** la revisión con el owner antes del módulo `projects` (segunda casilla del Checkpoint final).
+  - **Siguiente:** módulo `projects`. Primero `SPEC-projects.md` (spec-driven, revisada por el owner) y su plan en `tasks/`, después la implementación.
 
 ## C2a: pasos del usuario (en orden)
 

@@ -164,7 +164,7 @@
 - [x] Se cumplen los criterios de éxito de `SPEC-core.md`, o el owner los difirió de forma explícita (revisados el 2026-10-01):
   - **Calidad, Lighthouse móvil:** Accesibilidad 100 y CLS 0 cumplen. El **LCP** de `/login` simulado en producción era 2,9 s (> 2,5 s); en local pasó de 3,25 s a 3,02 s con el PR `perf/login-lcp` (con *throttling* real de DevTools: 1,6 s). **Aceptado por ahora (decisión del owner 2026-10-01):** la medición con datos reales queda en "Backlog técnico".
   - **Passkey y PWA en Android** (verificación y checklist manuales): **N/A**, el owner usa iPhone (decisión del owner 2026-10-01). En iOS están hechas (Checkpoint 2).
-- [ ] Revisión contigo antes del siguiente módulo (`projects`).
+- [x] Revisión contigo antes del siguiente módulo (`projects`). Módulo `core` cerrado por el owner el 2026-10-01.
 
 ## Backlog técnico
 
