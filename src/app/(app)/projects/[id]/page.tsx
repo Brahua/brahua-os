@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+// P6: registers the progress sources of other modules (tasks) before progress is computed.
+import "@/lib/progress-sources";
 import { listLifeAreas } from "@/modules/core/queries";
 import { getProjectMilestones } from "@/modules/projects/milestone-queries";
 import { countMilestones } from "@/modules/projects/progress";

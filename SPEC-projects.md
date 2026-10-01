@@ -41,7 +41,7 @@ Fuera de este módulo: tareas, bandeja de entrada y próxima acción (`tasks`); 
 | Vencimiento visible | En proyectos `idea`, `active` o `paused`: "Vence hoy", "Vence en N días" (hasta 7) o "Vencido hace N días". `maintenance`, `done` y `canceled` no muestran vencimiento. | Decisión del owner ("fecha límite visible"). |
 | Mantenimiento | Sin avance y sin aviso de vencimiento (la fecha de fin se oculta). | Es trabajo continuo, no tiene fin. |
 | Hitos | Opcionales, con título, fecha opcional y checkbox. Se reordenan **arrastrando** (`@dnd-kit`, ya instalado en C6) y con "Subir"/"Bajar" como alternativa accesible. Eliminar un hito es un borrado lógico (`deleted_at`), como los proyectos, con "Deshacer". | Estructura solo para proyectos grandes; mismo patrón que áreas. Las tareas apuntarán a los hitos: nunca se borran físicamente. |
-| Avance | Hitos hechos / total, en porcentaje. Sin hitos, no hay avance (no se muestra 0 %). Cuando exista `tasks`, el avance se calcula con las tareas (ver "Contratos"). | Es lo único medible mientras no hay tareas. |
+| Avance | Hitos hechos / total, en porcentaje. Sin hitos, no hay avance (no se muestra 0 %). Cuando exista `tasks`, el avance suma hitos y tareas (ver "Contratos"). | Es lo único medible mientras no hay tareas. |
 | Dependencias | "Bloqueado por" otros proyectos (muchos a muchos). Un proyecto que no está `done` ni `canceled` está **bloqueado** si alguno de los que lo bloquean no está `done` ni `canceled` (uno terminado o cancelado nunca se marca bloqueado; sus dependencias se conservan y, si se reabre, vuelve a estarlo). Sin ciclos ni auto-dependencia. | Decisión del owner; como "Blocked By" de Notion. |
 | Notas | **Markdown** (hasta 20 000 caracteres): se edita como texto, con pestañas "Escribir" y "Vista previa", y se muestra renderizado. Render con `react-markdown` + `remark-gfm` (tablas, listas de tareas, enlaces automáticos) + `rehype-sanitize`; **nunca HTML crudo**. El renderizador vive en `src/lib/markdown/` para reutilizarlo en el futuro visor de Markdown y en `notes`. | Decisión del owner: se agrega la dependencia ahora porque habrá un visor de Markdown más adelante. |
 | Enlaces | Lista de URL `http`/`https` con etiqueta opcional, ordenables. | Repositorios, documentos, referencias. |
@@ -63,6 +63,9 @@ src/modules/projects/
   queries.ts                → lecturas para las páginas (server-only)
   actions.ts                → Server Actions con ownerAction()
   progress.ts               → cálculo del avance y del vencimiento (puro, probado)
+  progress-source.ts        → contrato de fuentes de avance: tipos, suma y registro (puro, P6)
+  today-summary.ts          → resumen para `today`: tipo, límite de fecha y orden (puro, P6)
+  contracts.ts              → contratos con otros módulos (server-only, P6)
   export.ts                 → registro en pnpm db:export
   components/               → ProjectCard, StatusPicker, MilestoneList, …
 src/app/(app)/projects/
@@ -151,8 +154,16 @@ Todas las acciones con UI optimista donde el cambio es inmediato (checkbox de hi
 
 ## Contratos con otros módulos
 
-- **`tasks` (siguiente módulo):** `tasks` depende de `projects`, así que `projects` no puede leer tareas. `projects` expone un punto de extensión para el avance: `registerProgressSource(source)` en `src/modules/projects/progress.ts`, donde `tasks` registra una función que devuelve hechas y total por proyecto. Con una fuente registrada, el avance combina hitos y tareas (definido en `SPEC-tasks`). Las tareas podrán pertenecer a un proyecto y, opcionalmente, a uno de sus hitos.
-- **`today`:** `projects` expone `getProjectsTodaySummary()` con los proyectos activos que vencen en ≤ 7 días o están vencidos, y los bloqueados. `today` lo consume cuando exista.
+- **`tasks` (siguiente módulo):** `tasks` depende de `projects`, así que `projects` no puede leer tareas. `projects` expone un punto de extensión para el avance en `src/modules/projects/contracts.ts` (implementado en P6):
+  - **Fuente:** `ProgressSource = { id: string; countsFor(projectIds: readonly string[]): Promise<ReadonlyMap<string, { done: number; total: number }>> }` (`progress-source.ts`). `countsFor` corre en el servidor, recibe los ids de la lista o del detalle (una sola llamada por página, sin N+1) y devuelve solo los proyectos que tiene; puede consultar la base directo (la página ya comprobó el owner).
+  - **Registro:** `registerProgressSource(source)` en el nivel superior del archivo de la fuente (`src/modules/tasks/progress-source.ts`): se registra al importarse, una vez por instancia del servidor (en serverless, en cada arranque en frío). Es idempotente por `id`: registrar el mismo id otra vez reemplaza al anterior (nunca cuenta doble). Devuelve una función para quitarla (pruebas).
+  - **Dónde se carga:** `projects` nunca importa a `tasks`. La raíz de composición es `src/lib/progress-sources.ts` (como `src/lib/data-export.ts` con las tablas): `tasks` agrega ahí `import "@/modules/tasks/progress-source";`, y las páginas de la lista y del detalle importan ese archivo, así que la fuente está registrada antes de calcular el avance.
+  - **Cómo se combina:** se **suman** hechas y total de los hitos y de cada fuente (`combineProgressCounts`): cada unidad pesa lo mismo, así que 1 de 2 hitos más 3 de 8 tareas es 4 de 10 (40 %). Sin nada que contar (total 0) no hay avance, igual que sin hitos; Mantenimiento sigue sin avance. Cada par se limpia antes de sumar (enteros, no negativos, hechas ≤ total). Una fuente que falla hace fallar la página (no se muestra un avance a medias). `contributedProgress(projectIds)` devuelve la suma de todas las fuentes por proyecto (en paralelo; sin fuentes no hace nada).
+  - Las tareas podrán pertenecer a un proyecto y, opcionalmente, a uno de sus hitos; qué cuenta como "hecha" lo define `SPEC-tasks`.
+- **`today`:** `getProjectsTodaySummary(now)` (en `contracts.ts`, con `requireOwner()` como las demás lecturas; redirige a `/login` sin sesión de owner) devuelve `ProjectTodayItem[]`: `{ id, name, area, status, priority, dueDate, due, blockedBy }`, donde `due` es el `DueState` de `dueState()` ("Vence hoy", "Vence en N días", "Vencido hace N días", o `null`) y `blockedBy` los proyectos que aún lo bloquean (`{ id, name }`, por nombre).
+  - **Quiénes:** los no eliminados en Idea, Activo o Pausado que vencen en ≤ 7 días o ya vencieron (por el día de Lima), y los **bloqueados** (regla de "Dependencias": ni Terminado ni Cancelado, con un bloqueador que no está Terminado, Cancelado ni eliminado), incluso en Mantenimiento o con fecha lejana (sin `due`). Nunca Terminado, Cancelado ni eliminados; Mantenimiento solo si está bloqueado.
+  - **Orden:** vencidos primero (el más atrasado arriba), luego el que vence antes, luego los que no tienen aviso (solo bloqueados); empates por prioridad (alta primero), nombre y id.
+  - **Costo:** dos consultas en paralelo (los candidatos con su área, y los bloqueadores activos de `selectActiveBlockers`).
 - **`goals`:** enlazará metas a proyectos; el contrato se define en `SPEC-goals`.
 
 ## Estilo de código

@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Icon, SectionLabel } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+// P6: registers the progress sources of other modules (tasks) before progress is computed.
+import "@/lib/progress-sources";
 import { listLifeAreas } from "@/modules/core/queries";
 import { ProjectCard } from "@/modules/projects/components/project-card";
 import type { MilestoneCounts } from "@/modules/projects/milestone-input";
