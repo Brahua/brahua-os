@@ -77,23 +77,17 @@ describe("schemas", () => {
     ).toBe(true);
   });
 
-  test("restore: an ISO instant or null, and a position within bounds", () => {
-    const base = { projectId: PROJECT, id: ID, title: "A", dueDate: null };
+  test("restore: the reference, a position within bounds and an optional anchor", () => {
+    const base = { projectId: PROJECT, id: ID };
+    expect(restoreMilestoneInputSchema.parse({ ...base, position: 0 }).afterId).toBeNull();
     expect(
-      restoreMilestoneInputSchema.safeParse({ ...base, doneAt: null, position: 0 }).success,
-    ).toBe(true);
-    expect(
-      restoreMilestoneInputSchema.safeParse({
-        ...base,
-        doneAt: "2026-10-01T15:00:00.000Z",
-        position: 3,
-      }).success,
+      restoreMilestoneInputSchema.safeParse({ ...base, position: 3, afterId: ID }).success,
     ).toBe(true);
     for (const bad of [
-      { doneAt: "ayer", position: 0 },
-      { doneAt: null, position: -1 },
-      { doneAt: null, position: 1.5 },
-      { doneAt: null, position: MAX_MILESTONES_PER_PROJECT + 1 },
+      { afterId: "ayer", position: 0 },
+      { position: -1 },
+      { position: 1.5 },
+      { position: MAX_MILESTONES_PER_PROJECT + 1 },
     ]) {
       expect(restoreMilestoneInputSchema.safeParse({ ...base, ...bad }).success).toBe(false);
     }
@@ -230,6 +224,32 @@ describe("applyMilestoneChange", () => {
     expect(
       ids(applyMilestoneChange(removed, { type: "restore", milestone: list[1], position: 9 })),
     ).toEqual(["a0", "c1", "b2"]);
+  });
+
+  test("restore anchors on the neighbour above it while it is still there", () => {
+    const moved = [item("b", 0), item("a", 1), item("d", 2)];
+    // "c" was under "b" (position 2): it comes back right under "b".
+    expect(
+      ids(
+        applyMilestoneChange(moved, {
+          type: "restore",
+          milestone: item("c", 2),
+          position: 2,
+          afterId: "b",
+        }),
+      ),
+    ).toEqual(["b0", "c1", "a2", "d3"]);
+    // Its anchor is gone: the position, clamped.
+    expect(
+      ids(
+        applyMilestoneChange(moved, {
+          type: "restore",
+          milestone: item("c", 2),
+          position: 9,
+          afterId: "x",
+        }),
+      ),
+    ).toEqual(["b0", "a1", "d2", "c3"]);
   });
 
   test("reorder renumbers; ids it doesn't know about keep their place after the known ones", () => {

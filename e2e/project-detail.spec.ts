@@ -2,7 +2,7 @@ import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { formatOwnerDay } from "@/lib/time";
-import { animationsSettled } from "./support/animations";
+import { afterSaveSettled } from "./support/saves";
 import { fontsLoaded } from "./support/fonts";
 import {
   CREATE_AREA,
@@ -26,7 +26,7 @@ const THEMES = ["dark", "light"] as const;
 const SCREENSHOT_CSS = [path.join(__dirname, "support/hide-app-nav.css")];
 
 async function axeViolations(page: Page) {
-  await animationsSettled(page);
+  await afterSaveSettled(page);
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 

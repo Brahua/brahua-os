@@ -144,14 +144,7 @@ type StatusGroupProps = {
 };
 
 /** One state's projects: a heading with the count and a grid of cards. */
-function StatusGroup({
-  status,
-  projects,
-  now,
-  blockers,
-  milestones,
-  level = 2,
-}: StatusGroupProps) {
+function StatusGroup({ status, projects, now, blockers, milestones, level = 2 }: StatusGroupProps) {
   // Statuses are unique on the page (main groups and history ones never repeat).
   const id = `project-group-${status}`;
   const label = PROJECT_STATUS_LABELS[status];

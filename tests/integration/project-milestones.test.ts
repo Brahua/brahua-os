@@ -437,10 +437,10 @@ describe("reorder", () => {
     const holder = await testDb.$client.connect();
     try {
       await holder.query("begin");
-      await holder.query(
-        "select pg_advisory_xact_lock($1::int, hashtext($2))",
-        [MILESTONES_ADVISORY_SPACE, mine],
-      );
+      await holder.query("select pg_advisory_xact_lock($1::int, hashtext($2))", [
+        MILESTONES_ADVISORY_SPACE,
+        mine,
+      ]);
       // Would hang (and time out) if the lock were global.
       const result = await reorderMilestones({ projectId: other, ids: [...otherIds].reverse() });
       expect(result.ok).toBe(true);

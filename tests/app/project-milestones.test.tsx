@@ -19,7 +19,11 @@ import {
   restoreMilestone,
   updateMilestone,
 } from "@/modules/projects/milestone-actions";
-import { MILESTONE_ERRORS, type ProjectMilestoneItem } from "@/modules/projects/milestone-input";
+import {
+  MAX_MILESTONES_PER_PROJECT,
+  MILESTONE_ERRORS,
+  type ProjectMilestoneItem,
+} from "@/modules/projects/milestone-input";
 import { countMilestones, milestoneProgress } from "@/modules/projects/progress";
 import type { ProjectSummary } from "@/modules/projects/project-input";
 
@@ -119,6 +123,9 @@ function serverCall(
 
 type Input = Record<string, unknown> & { id: string };
 
+/** Milestones the fake server soft-deleted, by id (restore brings them back). */
+const deleted = new Map<string, ProjectMilestoneItem>();
+
 function Page({ initial }: { initial: State }) {
   const [state, setState] = useState(initial);
   useLayoutEffect(() => {
@@ -162,6 +169,7 @@ const addField = () => screen.getByRole("textbox", { name: "Nuevo hito" });
 const notices = () => screen.getByRole("region", { name: "Avisos" });
 
 beforeEach(() => {
+  deleted.clear();
   window.matchMedia = vi.fn((query: string) => ({
     matches: false,
     media: query,
@@ -202,21 +210,23 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation((input) => {
       const { id } = input as Input;
-      return serverCall((items) => items.filter((item) => item.id !== id)) as never;
+      return serverCall((items) => {
+        // A soft delete: the row stays on the server, out of the list.
+        deleted.set(
+          id,
+          items.find((item) => item.id === id)!,
+        );
+        return items.filter((item) => item.id !== id);
+      }) as never;
     });
   vi.mocked(restoreMilestone)
     .mockReset()
     .mockImplementation((input) => {
-      const { id, title, dueDate, doneAt, position } = input as Input;
+      const { id, position, afterId } = input as Input;
       return serverCall((items) => {
         const next = [...items];
-        next.splice(position as number, 0, {
-          id,
-          title: title as string,
-          dueDate: dueDate as string | null,
-          doneAt: doneAt ? new Date(doneAt as string) : null,
-          sortOrder: 0,
-        });
+        const anchor = next.findIndex((item) => item.id === afterId);
+        next.splice(anchor !== -1 ? anchor + 1 : (position as number), 0, deleted.get(id)!);
         return next;
       }) as never;
     });
@@ -400,10 +410,8 @@ describe("delete and undo", () => {
     expect(restoreMilestone).toHaveBeenCalledWith({
       projectId: PROJECT.id,
       id: M1,
-      title: "Planos",
-      dueDate: null,
-      doneAt: DONE_AT.toISOString(),
       position: 0,
+      afterId: null,
     });
     await server.answer();
     expect(titles()).toEqual(["Planos", "Muebles", "Luces"]);
@@ -419,6 +427,80 @@ describe("delete and undo", () => {
     await server.answer(fail(MILESTONE_ERRORS.notFound));
     expect(titles()).toEqual(["Luces"]);
     expect(notices()).toHaveTextContent("No se pudo eliminar el hito; volvió a la lista.");
+  });
+});
+
+describe("review fixes", () => {
+  test("Esc on “Eliminar hito” cancels the editor (focus back on the title), not a notice", async () => {
+    const user = await renderPage();
+    // A notice on screen, which a stray Esc would dismiss.
+    await user.click(screen.getByRole("button", { name: "Bajar Planos" }));
+    await server.answerAll();
+    expect(notices()).toHaveTextContent("«Planos» pasó al lugar 2 de 3.");
+    await user.click(screen.getByRole("button", { name: "Editar hito Luces" }));
+    screen.getByRole("button", { name: "Eliminar hito" }).focus();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Editar hito Luces" })).toHaveFocus(),
+    );
+    expect(notices()).toHaveTextContent("«Planos» pasó al lugar 2 de 3.");
+    expect(deleteMilestone).not.toHaveBeenCalled();
+  });
+
+  test("a failed add gives the typed text back to an empty field", async () => {
+    const user = await renderPage({ milestones: [] });
+    await user.type(addField(), "Planos{Enter}");
+    expect(addField()).toHaveValue("");
+    await server.answer(fail(MILESTONE_ERRORS.tooMany));
+    expect(addField()).toHaveValue("Planos");
+  });
+
+  test("a failed add keeps what was typed since", async () => {
+    const user = await renderPage({ milestones: [] });
+    await user.type(addField(), "Planos{Enter}");
+    await user.type(addField(), "Muebles");
+    await server.answer(fail(MILESTONE_ERRORS.tooMany));
+    expect(addField()).toHaveValue("Muebles");
+  });
+
+  test("a burst whose moves all fail shows one error notice, not one per move", async () => {
+    const user = await renderPage();
+    await user.click(screen.getByRole("button", { name: "Bajar Planos" }));
+    await user.click(screen.getByRole("button", { name: "Bajar Planos" }));
+    await server.answer(fail(MILESTONE_ERRORS.staleOrder));
+    // The first failed while the second was on its way: no notice for it.
+    expect(notices()).not.toHaveTextContent(MILESTONE_ERRORS.staleOrder);
+    await server.answer(fail(MILESTONE_ERRORS.staleOrder));
+    expect(notices()).toHaveTextContent(MILESTONE_ERRORS.staleOrder);
+    expect(titles()).toEqual(["Planos", "Muebles", "Luces"]);
+  });
+
+  test("undo at the limit says so instead of restoring", async () => {
+    const many = Array.from({ length: MAX_MILESTONES_PER_PROJECT }, (_, index) =>
+      milestone(
+        `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+        `Hito ${index}`,
+        index,
+      ),
+    );
+    const user = await renderPage({ milestones: many });
+    await user.click(screen.getByRole("button", { name: "Editar hito Hito 0" }));
+    await user.click(screen.getByRole("button", { name: "Eliminar hito" }));
+    await server.answer();
+    // Another one fills the free slot meanwhile (another tab).
+    await act(async () => {
+      server.state = {
+        ...server.state,
+        milestones: [
+          ...server.state.milestones,
+          milestone("00000000-0000-4000-8000-0000000009ff", "Otro", 99),
+        ],
+      };
+      server.render(server.state);
+    });
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(restoreMilestone).not.toHaveBeenCalled();
+    expect(notices()).toHaveTextContent(MILESTONE_ERRORS.tooMany);
   });
 });
 
@@ -484,7 +566,9 @@ describe("card", () => {
     document.body.innerHTML = html;
     const link = screen.getByRole("link", { name: "Cocina" });
     expect(link).toHaveAccessibleDescription("Avance: 60%, 3 de 5 hitos");
-    expect(screen.getByRole("meter")).toHaveAccessibleName("Avance: 60%, 3 de 5 hitos");
+    // Read once (the link's description): the drawn meter is hidden from assistive tech.
+    expect(screen.queryByRole("meter")).toBeNull();
+    expect(document.querySelector("[data-progress]")).toHaveAttribute("aria-hidden", "true");
     expect(document.querySelectorAll(".bo-segbar__seg.is-filled")).toHaveLength(3);
   });
 

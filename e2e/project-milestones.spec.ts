@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { animationsSettled } from "./support/animations";
+import { afterSaveSettled } from "./support/saves";
 import {
   CREATE_AREA,
   insertProject,
@@ -52,10 +53,7 @@ async function sortableReady(page: Page) {
 const dragStatus = (page: Page) => page.locator('[id^="DndLiveRegion"]');
 
 async function axeViolations(page: Page) {
-  // Right after a Server Action's revalidation, Next can swap the tree with the <title> briefly
-  // missing (seen in CI as axe's document-title): measure once the page has its title again.
-  await expect(page).toHaveTitle(/ · brahua-os$/);
-  await animationsSettled(page);
+  await afterSaveSettled(page);
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
@@ -103,7 +101,8 @@ test("add with Enter, check, edit: progress follows, and it all survives a reloa
   const link = page.getByRole("link", { name, exact: true });
   await expect(link).toHaveAccessibleDescription(/Avance: 33%, 1 de 3 hitos/);
   const card = page.locator("article", { has: link });
-  await expect(card.getByRole("meter")).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos");
+  // Drawn, and read once (as the link's description: the meter itself is hidden from AT).
+  await expect(card.locator("[data-progress]")).toHaveAttribute("data-progress", "1/3");
 });
 
 test("delete from the editor and Deshacer puts it back in its place", async ({
@@ -131,6 +130,26 @@ test("delete from the editor and Deshacer puts it back in its place", async ({
   expect(await titles(page)).toEqual(["Medir", "Cortar", "Pintar"]);
   // The same row: still done.
   await expect(page.getByRole("checkbox", { name: "Hecho: Cortar" })).toBeChecked();
+});
+
+test("Esc on “Eliminar hito” cancels the editor and leaves the notice alone", async ({
+  page,
+}, testInfo) => {
+  const id = await insertProject({ name: uniqueName("Esc", testInfo) });
+  await openProject(page, id);
+  await addField(page).focus();
+  await addMilestones(page, ["Uno", "Dos"]);
+  // A notice on screen: the one a stray Esc would dismiss.
+  await untilSaved(page, () => page.getByRole("button", { name: "Bajar Uno" }).click());
+  await expect(notices(page)).toContainText("«Uno» pasó al lugar 2 de 2.");
+
+  await page.getByRole("button", { name: "Editar hito Dos" }).click();
+  await page.getByRole("button", { name: "Eliminar hito" }).focus();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Eliminar hito" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Editar hito Dos" })).toBeFocused();
+  await expect(notices(page)).toContainText("«Uno» pasó al lugar 2 de 2.");
+  expect(await titles(page)).toEqual(["Dos", "Uno"]);
 });
 
 test("reorder with Subir/Bajar: instant, focus stays, saved; Deshacer reverts", async ({
@@ -233,7 +252,10 @@ test("Mantenimiento keeps the milestones but shows no progress, here or on the c
   await page.goto(`/projects?area=${CREATE_AREA.slug}`);
   const card = page.locator("article", { has: page.getByRole("link", { name, exact: true }) });
   await expect(card).toBeVisible();
-  await expect(card.getByRole("meter")).toHaveCount(0);
+  await expect(card.locator("[data-progress]")).toHaveCount(0);
+  await expect(page.getByRole("link", { name, exact: true })).not.toHaveAccessibleDescription(
+    /Avance/,
+  );
 });
 
 for (const theme of THEMES) {
