@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-09-30.
+> Última actualización: 2026-10-01.
 
 ## Cómo retomar
 
@@ -28,12 +28,13 @@
   - ✅ C3 (navegación): PR #19 integrado.
   - ✅ C4 (ajustes): PR #20 integrado.
   - ✅ C5 (áreas: ver y crear): PR #21 integrado.
-  - 🟡 Mejoras de proceso (PR `chore/faster-e2e`, **sin merge**): E2E nativa sin Docker, capturas generadas en GitHub, menos capturas, smoke test después del deploy y registro de errores sin mensajes de Postgres. Ver "Pruebas E2E" y "Smoke test en producción".
-  - 🟡 C6 (áreas: reordenar y archivar): PR `feat/core-c6-areas-order`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan el orden y el archivo (C6)".
-  - 🟡 C7 (PWA): PR `feat/core-c7-pwa`, **sin merge** (pendiente de revisión). Falta instalarla en el iPhone. Ver "Cómo funciona la PWA (C7)".
-  - 🟡 C8 (páginas de error): PR `feat/core-c8-error-pages`, **sin merge** (pendiente de revisión). Ver "Cómo funcionan las páginas de error (C8)".
-  - 🟡 C10 (operación): PR `feat/core-c10-operations`, **sin merge** (pendiente de revisión): `pnpm db:export`, respaldo semanal cifrado con `pg_dump` + `age` (`backup.yml`) y ADRs 001–007. **Acción del owner pendiente (tras el merge):** crear la llave `age`, el rol de solo lectura, el secreto `BACKUP_DATABASE_URL` y la variable `BACKUP_AGE_RECIPIENT` (ver "Respaldos (C10)"); hasta entonces el respaldo semanal falla con un error que apunta ahí.
-  - Siguiente: Checkpoint 2 (recorrido completo con el owner), que incluye instalar la PWA en el iPhone (C7).
+  - ✅ Mejoras de proceso (PR #22 integrado; build remoto en Vercel desde el 2026-10-01): E2E nativa sin Docker, capturas generadas en GitHub, menos capturas, smoke test después del deploy y registro de errores sin mensajes de Postgres. Ver "Pruebas E2E" y "Smoke test en producción".
+  - ✅ C6 (áreas: reordenar y archivar): PR #24 integrado. Ver "Cómo funcionan el orden y el archivo (C6)".
+  - ✅ C7 (PWA): PR #25 integrado. Ver "Cómo funciona la PWA (C7)".
+  - ✅ C8 (páginas de error): PR #26 integrado. Ver "Cómo funcionan las páginas de error (C8)".
+  - ✅ C10 (operación): PR #27 integrado; el owner aprobó el cifrado con `age` (2026-10-01): `pnpm db:export`, respaldo semanal cifrado con `pg_dump` + `age` (`backup.yml`) y ADRs 001–007. **Acción del owner pendiente (tras el merge):** crear la llave `age`, el rol de solo lectura, el secreto `BACKUP_DATABASE_URL` y la variable `BACKUP_AGE_RECIPIENT` (ver "Respaldos (C10)"); hasta entonces el respaldo semanal falla con un error que apunta ahí.
+  - Retrospectiva de `core` (2026-10-01): reglas nuevas en `CLAUDE.md`, sección "Lessons from `core`".
+  - **Siguiente:** el owner configura el respaldo (sección "Respaldos (C10)") y confirma el Checkpoint 2; luego Checkpoint final y el módulo `projects`.
 
 ## C2a: pasos del usuario (en orden)
 
