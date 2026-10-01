@@ -86,6 +86,24 @@ describe("name hygiene", () => {
     ]);
   });
 
+  test.each([
+    ["family (ZWJ sequence)", "Familia 👨\u200D👩\u200D👧"],
+    ["rainbow flag (ZWJ + variation selector)", "Orgullo 🏳\uFE0F\u200D🌈"],
+    ["zero-width non-joiner", "می\u200Cخواهم"],
+  ])("accepts a %s", (_, name) => {
+    expect(lifeAreaInputSchema.parse({ ...valid, name }).name).toBe(name);
+  });
+
+  test("NUL, U+200B and U+202E are still rejected next to an allowed ZWJ", () => {
+    for (const bad of ["\u0000", "\u200B", "\u202E"]) {
+      const result = lifeAreaInputSchema.safeParse({ ...valid, name: `👨\u200D👩${bad}x` });
+      expect(result.success).toBe(false);
+      expect(z.flattenError(result.error!).fieldErrors.name).toEqual([
+        LIFE_AREA_ERRORS.nameInvisible,
+      ]);
+    }
+  });
+
   test("tabs and line breaks are whitespace, not errors", () => {
     expect(lifeAreaInputSchema.parse({ ...valid, name: "a\tb\r\nc" }).name).toBe("a b c");
   });

@@ -40,16 +40,52 @@ export function ownerAction<Schema extends z.ZodType, T>(
       return await handler(parsed.data, session);
     } catch (error) {
       unstable_rethrow(error);
-      // Structured, one line, for Vercel Logs. No input values: they may be personal data.
+      // Structured, one line, for Vercel Logs.
       console.error(
         JSON.stringify({
           level: "error",
           event: "server_action_failed",
           action: name,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          ...describeError(error),
         }),
       );
       return fail(UNEXPECTED_ERROR_MESSAGE);
     }
+  };
+}
+
+/** How deep to follow `cause` (a cyclic or absurdly deep chain must not loop forever). */
+const MAX_CAUSE_DEPTH = 5;
+
+/**
+ * What the log may say about an error: never input values, which may be personal data. So no
+ * message text from the wrapper errors (Drizzle's "Failed query: … params: …" contains the
+ * values), only the error's name plus the code, constraint and message of the root cause
+ * (Postgres messages name the constraint or column, not the values; `detail` does hold values
+ * and is never logged).
+ */
+export function describeError(error: unknown): {
+  error: string;
+  cause?: { code?: string; constraint?: string; message?: string };
+} {
+  // Some subclasses (e.g. DrizzleQueryError) keep the default name "Error": use the class name.
+  const name =
+    error instanceof Error
+      ? error.name !== "Error"
+        ? error.name
+        : error.constructor.name || error.name
+      : typeof error;
+  let root: unknown = error;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+    const next = (root as { cause?: unknown } | null)?.cause;
+    if (!next || typeof next !== "object") break;
+    root = next;
+  }
+  if (root === error || !root || typeof root !== "object") return { error: name };
+  const { code, constraint, message } = root as Record<string, unknown>;
+  const text = (value: unknown) => (typeof value === "string" ? value : undefined);
+  return {
+    error: name,
+    cause: { code: text(code), constraint: text(constraint), message: text(message) },
   };
 }

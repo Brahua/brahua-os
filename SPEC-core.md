@@ -176,7 +176,7 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   - `hobbies` → Hobbies
 - **Sin borrado físico** en `core`: solo se archiva. Un área archivada deja de ofrecerse para elementos nuevos, pero se sigue mostrando en los que ya la usan. Las FK futuras hacia `core_life_areas` usan `onDelete: "restrict"`.
 - **Ícono:** nombre de un ícono de **Lucide** dentro del set curado `AREA_ICON_NAMES` del design system. No se usan emojis en ningún lugar de la app.
-- **Nombre (C5):** se guarda en NFC, con los espacios seguidos (tabs y saltos de línea incluidos) en uno y recortado (`normalizeAreaName`, el mismo en el cliente y el servidor); de 1 a 60 caracteres. Se rechazan los caracteres de control y de formato (`\p{Cc}`, `\p{Cf}`: NUL, espacios de ancho cero, marcas bidireccionales) con un error en el campo; NUL nunca llega a Postgres.
+- **Nombre (C5):** se guarda en NFC, con los espacios seguidos (tabs y saltos de línea incluidos) en uno y recortado (`normalizeAreaName`, el mismo en el cliente y el servidor); de 1 a 60 caracteres. Se rechazan los caracteres de control y de formato (`\p{Cc}`, `\p{Cf}`: NUL, espacios de ancho cero, marcas bidireccionales), salvo U+200C y U+200D (los necesitan emoji como 👨‍👩‍👧 o 🏳️‍🌈) con un error en el campo; NUL nunca llega a Postgres.
 - **Restricciones en la base (C5):** `CHECK` de `color` y `icon` contra `AREA_COLORS` y `AREA_ICON_NAMES` y de `char_length(name)` entre 1 y 60, generadas desde las mismas constantes (migración `0003_core_life_areas_checks`). Agregar un color o un ícono cambia el `CHECK` y necesita una migración.
 - **Slug (C5):** `slugify(name)` (sin tildes, ñ → n, solo `a-z0-9` y guiones). Un nombre sin letras latinas ni dígitos (solo emoji, símbolos u otro alfabeto, como "日本語") recibe el slug `area` (luego `area-2`…). Si ya existe, se agrega `-2`, `-3`… (incluye los del seed: "Home" → `home-2`) y se reutilizan los huecos. Renombrar **no** cambia el slug. Dos áreas pueden tener el mismo nombre.
   - Reutilizar huecos es seguro solo porque no hay borrado físico. **Si alguna vez se borra un área, revisar esto antes**: un slug liberado podría reasignarse y confundir a un importador que lo guardó.
@@ -215,7 +215,7 @@ export type NewLifeArea = typeof lifeAreas.$inferInsert;
   1. comprueba la sesión del owner (sin ella devuelve `unauthorized()` sin mirar el input);
   2. valida con `schema.safeParse` (los errores van por campo con `fail(zodError)`);
   3. ejecuta `handler(data, session)`, que devuelve `ok(…)` o `fail(…)`;
-  4. si algo lanza (base caída, un bug), lo registra en el servidor (JSON de una línea, sin los valores del input) y devuelve un error genérico. Las señales de Next (`redirect`, `notFound`) se relanzan.
+  4. si algo lanza (base caída, un bug), lo registra en el servidor (JSON de una línea con el nombre del error y el `code`, `constraint` y `message` de la causa raíz; nunca el mensaje de los errores envolventes, que en Drizzle incluye los parámetros, ni `detail`) y devuelve un error genérico. Las señales de Next (`redirect`, `notFound`) se relanzan.
 
   Un archivo `"use server"` solo puede exportar funciones async, así que cada acción exportada es una línea que llama a la construida con `ownerAction` (ver `src/modules/core/actions.ts`).
 - El acceso a datos (`life-areas.ts`) y las queries llevan `import "server-only"`. Los tipos que necesita el cliente (`LifeAreaSummary`) viven en archivos sin código de servidor (`life-area-input.ts`).

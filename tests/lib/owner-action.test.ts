@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { redirect } from "next/navigation";
 import { beforeEach, expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import {
   UNEXPECTED_ERROR_MESSAGE,
 } from "@/lib/action-result";
 import { getOwnerSession } from "@/lib/auth";
-import { ownerAction } from "@/lib/owner-action";
+import { describeError, ownerAction } from "@/lib/owner-action";
 
 vi.mock("@/lib/auth", () => ({ getOwnerSession: vi.fn() }));
 
@@ -63,12 +64,61 @@ test("an unexpected error is logged on the server and returned as a generic fail
 
   expect(await action({ title: "x" })).toEqual({ ok: false, error: UNEXPECTED_ERROR_MESSAGE });
   expect(log).toHaveBeenCalledTimes(1);
+  // Only the error's name: its message could hold input values.
   expect(JSON.parse(log.mock.calls[0][0] as string)).toEqual({
     level: "error",
     event: "server_action_failed",
     action: "createThing",
-    error: "Error: connection refused at 10.0.0.1",
+    error: "Error",
   });
+});
+
+test("a database error logs the root cause's code and constraint, never the query params", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const pgError = Object.assign(
+    new Error('new row for relation "core_life_areas" violates check constraint "x_check"'),
+    {
+      code: "23514",
+      constraint: "x_check",
+      detail: "Failing row contains (…, Secreto, …).",
+    },
+  );
+  const action = ownerAction(
+    schema,
+    async () => {
+      throw new DrizzleQueryError(
+        'insert into "core_life_areas" ("name") values ($1)',
+        ["Secreto"],
+        pgError,
+      );
+    },
+    { name: "createLifeArea" },
+  );
+
+  expect(await action({ title: "x" })).toEqual({ ok: false, error: UNEXPECTED_ERROR_MESSAGE });
+  const line = log.mock.calls[0][0] as string;
+  expect(line).not.toContain("Secreto");
+  expect(line).not.toContain("Failing row");
+  expect(JSON.parse(line)).toEqual({
+    level: "error",
+    event: "server_action_failed",
+    action: "createLifeArea",
+    error: "DrizzleQueryError",
+    cause: {
+      code: "23514",
+      constraint: "x_check",
+      message: 'new row for relation "core_life_areas" violates check constraint "x_check"',
+    },
+  });
+});
+
+test("describeError stops on a cyclic cause chain", () => {
+  const a: Error & { cause?: unknown } = new Error("a");
+  const b: Error & { cause?: unknown } = new Error("b");
+  a.cause = b;
+  b.cause = a;
+  expect(describeError(a).error).toBe("Error");
+  expect(describeError("boom")).toEqual({ error: "string" });
 });
 
 test("a failing session lookup is also a generic failure", async () => {

@@ -44,8 +44,10 @@ export function normalizeAreaName(value: string): string {
 /**
  * Control and format characters (NUL, zero-width spaces, bidi overrides…) that are left after
  * normalizing. They are invisible or reorder the text, and Postgres rejects NUL outright.
+ * Except the zero-width non-joiner and joiner (U+200C, U+200D): emoji sequences such as
+ * 👨‍👩‍👧 or 🏳️‍🌈 and some scripts need them.
  */
-const INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+const INVISIBLE = /(?![\u200C\u200D])[\p{Cc}\p{Cf}]/u;
 
 const name = z
   .string({ error: LIFE_AREA_ERRORS.nameRequired })
