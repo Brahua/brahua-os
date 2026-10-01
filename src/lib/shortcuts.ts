@@ -85,3 +85,15 @@ export function navShortcutFor(event: ShortcutEvent): NavShortcut | null {
   if (/^[1-8]$/.test(event.key)) return { type: "go", digit: Number(event.key) };
   return null;
 }
+
+/**
+ * ⌘Z (Mac) or Ctrl+Z: run the "Deshacer" of the notice on screen. Not while typing or inside a
+ * widget or dialog (the field's own undo wins there), nor with Shift (redo) or ⌥. A modifier
+ * shortcut, so the single-key switch (WCAG 2.1.4) does not apply.
+ */
+export function isUndoShortcut(event: ShortcutEvent): boolean {
+  if (event.defaultPrevented || event.repeat || event.isComposing) return false;
+  if (event.metaKey === event.ctrlKey || event.shiftKey || event.altKey) return false;
+  if (event.key.toLowerCase() !== "z") return false;
+  return !isShortcutFreeTarget(event.target);
+}

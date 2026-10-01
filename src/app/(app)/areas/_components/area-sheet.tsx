@@ -1,6 +1,6 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { Archive, TriangleAlert } from "lucide-react";
 import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import {
   AreaTag,
@@ -53,6 +53,8 @@ export type AreaSheetProps = {
   onSaved: (area: LifeAreaSummary, mode: "created" | "updated") => void;
   /** The sheet finished closing (see `Sheet`'s `onClosed`). */
   onClosed?: () => void;
+  /** Archive the area being edited (edit mode only). The manager closes the sheet. */
+  onArchive?: (area: LifeAreaSummary) => void;
 };
 
 type Errors = Partial<Record<LifeAreaField, string>>;
@@ -79,6 +81,7 @@ export function AreaSheet({
   returnFocusRef,
   onSaved,
   onClosed,
+  onArchive,
 }: AreaSheetProps) {
   const isDesktop = useIsDesktop();
   const [name, setName] = useState(area?.name ?? "");
@@ -291,6 +294,28 @@ export function AreaSheet({
             <Icon icon={TriangleAlert} size="sm" />
             {formError}
           </p>
+        ) : null}
+
+        {area && onArchive ? (
+          // Archiving lives here, next to the area it affects, and not on every row: it is
+          // rare, and the rows already carry edit, drag and move controls.
+          <div className="flex flex-col items-start gap-2 border-t border-divider pt-6">
+            <Key
+              variant="ghost"
+              icon={Archive}
+              aria-describedby={`${ids}-archive-help`}
+              aria-disabled={pending || undefined}
+              className={cn(pending && "is-disabled")}
+              onClick={() => {
+                if (!pending) onArchive(area);
+              }}
+            >
+              {AREAS_COPY.archive}
+            </Key>
+            <p id={`${ids}-archive-help`} className="bo-field__help">
+              {AREAS_COPY.archiveHelp}
+            </p>
+          </div>
         ) : null}
       </form>
     </Sheet>

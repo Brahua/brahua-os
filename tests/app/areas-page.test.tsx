@@ -8,11 +8,20 @@ import { requireOwner } from "@/lib/auth";
 import { createLifeArea, updateLifeArea } from "@/modules/core/actions";
 import { LIFE_AREA_ERRORS } from "@/modules/core/life-area-input";
 import type { LifeAreaSummary } from "@/modules/core/life-areas";
-import { listLifeAreas } from "@/modules/core/queries";
+import { listArchivedLifeAreas, listLifeAreas } from "@/modules/core/queries";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
-vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
-vi.mock("@/modules/core/actions", () => ({ createLifeArea: vi.fn(), updateLifeArea: vi.fn() }));
+vi.mock("@/modules/core/queries", () => ({
+  listLifeAreas: vi.fn(),
+  listArchivedLifeAreas: vi.fn(),
+}));
+vi.mock("@/modules/core/actions", () => ({
+  createLifeArea: vi.fn(),
+  updateLifeArea: vi.fn(),
+  reorderLifeAreas: vi.fn(),
+  archiveLifeArea: vi.fn(),
+  unarchiveLifeArea: vi.fn(),
+}));
 
 const AREAS: LifeAreaSummary[] = [
   { id: "a1", slug: "home", name: "Hogar", color: "home", icon: "house", sortOrder: 0 },
@@ -40,6 +49,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ user: { id: "owner" } } as never);
   vi.mocked(listLifeAreas).mockReset().mockResolvedValue(AREAS);
+  vi.mocked(listArchivedLifeAreas).mockReset().mockResolvedValue([]);
   vi.mocked(createLifeArea).mockReset();
   vi.mocked(updateLifeArea).mockReset();
 });
@@ -48,6 +58,9 @@ const dialog = () => screen.getByRole("dialog");
 const nameField = () => within(dialog()).getByRole("textbox", { name: "Nombre" });
 const colorGroup = () => within(dialog()).getByRole("radiogroup", { name: "Color" });
 const iconGroup = () => within(dialog()).getByRole("radiogroup", { name: "Ícono" });
+/** The status region for create/edit results (the notices have their own, named "Avisos"). */
+const announcer = () =>
+  screen.getAllByRole("status", { hidden: true }).find((element) => element.tagName === "P")!;
 
 describe("page", () => {
   test("has its own title and checks the owner before listing", async () => {
@@ -55,13 +68,14 @@ describe("page", () => {
     render(await AreasPage());
     expect(requireOwner).toHaveBeenCalled();
     expect(listLifeAreas).toHaveBeenCalledWith();
+    expect(listArchivedLifeAreas).toHaveBeenCalledWith();
     expect(screen.getByRole("heading", { level: 1, name: "Áreas" })).toBeInTheDocument();
   });
 
   test("lists the areas in order with their tag and an edit button per row", async () => {
     render(await AreasPage());
     const list = screen.getByRole("list", { name: "Tus áreas" });
-    const rows = within(list).getAllByRole("button");
+    const rows = within(list).getAllByRole("button", { name: /^Editar / });
     expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
       "Editar Hogar",
       "Editar Salud y Bienestar",
@@ -86,7 +100,7 @@ describe("page", () => {
 describe("create", () => {
   test("opens a bottom sheet on the phone and a side panel from 1024 px, focused on the name", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<AreasManager areas={AREAS} />);
+    const { unmount } = render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     expect(dialog()).toHaveAccessibleName("Nueva área");
@@ -95,7 +109,7 @@ describe("create", () => {
     unmount();
 
     desktop = true;
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     expect(dialog()).toHaveClass("bo-sheet--side");
@@ -103,7 +117,7 @@ describe("create", () => {
 
   test("starts with nothing picked: the preview asks for a color and an icon", async () => {
     const user = userEvent.setup();
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
 
@@ -115,7 +129,7 @@ describe("create", () => {
 
   test("shows every field's error, focuses the first one and does not call the server", async () => {
     const user = userEvent.setup();
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     await user.type(nameField(), "   ");
@@ -138,7 +152,7 @@ describe("create", () => {
 
   test("focus goes to the first invalid field in form order", async () => {
     const user = userEvent.setup();
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     await user.type(nameField(), "Música");
@@ -162,7 +176,7 @@ describe("create", () => {
         sortOrder: 2,
       },
     });
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     const trigger = screen.getByRole("button", { name: "Nueva área" });
     await user.click(trigger);
     await screen.findByRole("dialog");
@@ -184,9 +198,7 @@ describe("create", () => {
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Área «Música» creada."),
-    );
+    await waitFor(() => expect(announcer()).toHaveTextContent("Área «Música» creada."));
   });
 
   test("server field errors show on their fields; other errors on top of the form", async () => {
@@ -199,7 +211,7 @@ describe("create", () => {
       })
       .mockResolvedValueOnce({ ok: false, error: UNAUTHORIZED_MESSAGE })
       .mockRejectedValueOnce(new Error("network"));
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     await user.type(nameField(), "Música");
@@ -230,7 +242,7 @@ describe("edit", () => {
       ok: true,
       data: { ...AREAS[0], name: "Casa", icon: "tent" },
     });
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     const row = screen.getByRole("button", { name: "Editar Hogar" });
     await user.click(row);
     await screen.findByRole("dialog");
@@ -253,14 +265,12 @@ describe("edit", () => {
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(row).toHaveFocus();
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Cambios guardados en «Casa»."),
-    );
+    await waitFor(() => expect(announcer()).toHaveTextContent("Cambios guardados en «Casa»."));
   });
 
   test("Cancelar closes without saving and reopening starts from the saved values", async () => {
     const user = userEvent.setup();
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     const row = screen.getByRole("button", { name: "Editar Hogar" });
     await user.click(row);
     await screen.findByRole("dialog");
@@ -280,7 +290,7 @@ describe("edit", () => {
 describe("keyboard", () => {
   test("swatches and icons are radio groups with one tab stop; arrows pick", async () => {
     const user = userEvent.setup();
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
     await screen.findByRole("dialog");
 
@@ -319,7 +329,7 @@ describe("while saving", () => {
     const user = userEvent.setup();
     let resolve!: (value: Awaited<ReturnType<typeof createLifeArea>>) => void;
     vi.mocked(createLifeArea).mockReturnValue(new Promise((r) => (resolve = r)));
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     await user.type(nameField(), "Música");
@@ -350,18 +360,16 @@ describe("while saving", () => {
       },
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Área «Música» creada."),
-    );
+    await waitFor(() => expect(announcer()).toHaveTextContent("Área «Música» creada."));
   });
 
   test("the announcement waits until the sheet is gone and the page is no longer hidden", async () => {
     const user = userEvent.setup();
     vi.mocked(updateLifeArea).mockResolvedValue({ ok: true, data: AREAS[0] });
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
     await screen.findByRole("dialog");
-    const status = screen.getByRole("status", { hidden: true });
+    const status = announcer();
     const seen: { text: string; hidden: boolean; dialog: boolean }[] = [];
     const observer = new MutationObserver(() => {
       if (!status.textContent) return;
@@ -392,7 +400,7 @@ describe("errors without a visible field", () => {
       error: "Revisa los campos marcados.",
       fieldErrors: { id: [LIFE_AREA_ERRORS.id] },
     });
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
     await screen.findByRole("dialog");
     await user.click(within(dialog()).getByRole("button", { name: "Guardar cambios" }));
@@ -401,7 +409,7 @@ describe("errors without a visible field", () => {
 
   test("an invalid radio group describes its tab stop with the error too", async () => {
     const user = userEvent.setup();
-    render(<AreasManager areas={AREAS} />);
+    render(<AreasManager areas={AREAS} archived={[]} />);
     await user.click(screen.getByRole("button", { name: "Nueva área" }));
     await screen.findByRole("dialog");
     await user.click(within(dialog()).getByRole("button", { name: "Crear área" }));
@@ -416,7 +424,7 @@ describe("errors without a visible field", () => {
 
 test("shows the picked icon's name next to the label and as a tooltip", async () => {
   const user = userEvent.setup();
-  render(<AreasManager areas={AREAS} />);
+  render(<AreasManager areas={AREAS} archived={[]} />);
   await user.click(screen.getByRole("button", { name: "Editar Hogar" }));
   await screen.findByRole("dialog");
   expect(within(dialog()).getByText("· Casa")).toBeInTheDocument();

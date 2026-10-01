@@ -1,50 +1,38 @@
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import {
+  colorGroup,
+  createArea,
+  editRows,
+  expect,
+  iconGroup,
+  isDesktop,
+  list,
+  nameField,
+  newAreaButton,
+  openAreas,
+  rowIndex,
+  SEEDED,
+  sheet,
+  test,
+  testWithAreasLock,
+  uniqueName,
+} from "./support/areas";
 import { fontsLoaded } from "./support/fonts";
 import { expectScreenshot } from "./support/screenshots";
 
-// Shared database: global-setup seeds the 8 default areas, and other tests here create more in
+// Shared database: global-setup seeds the 8 default areas, and other tests create more in
 // parallel. Each test uses its own names and never edits the seeded areas, which the
-// screenshots show.
+// screenshots show. Tests that create areas hold the areas lock (`testWithAreasLock`).
 
 const THEMES = ["dark", "light"] as const;
-const SEEDED = [
-  "Hogar",
-  "Salud y Bienestar",
-  "Finanzas e Inversiones",
-  "Aprendizaje y Desarrollo profesional",
-  "Trabajo",
-  "Relaciones y Familia",
-  "Planes y Viajes",
-  "Hobbies",
-];
 const SCREENSHOT_CSS = [
   path.join(__dirname, "support/hide-app-nav.css"),
   path.join(__dirname, "support/seeded-areas-only.css"),
 ];
-
-const isDesktop = (testInfo: TestInfo) => testInfo.project.name === "desktop";
-const list = (page: Page) => page.getByRole("list", { name: "Tus áreas" });
-const newAreaButton = (page: Page) => page.getByRole("button", { name: "Nueva área" });
-const sheet = (page: Page) => page.getByRole("dialog");
-const nameField = (page: Page) => sheet(page).getByRole("textbox", { name: "Nombre" });
-const colorGroup = (page: Page) => sheet(page).getByRole("radiogroup", { name: "Color" });
-const iconGroup = (page: Page) => sheet(page).getByRole("radiogroup", { name: "Ícono" });
-const status = (page: Page) => page.getByRole("status").filter({ hasText: /./ });
-
-/** A name no other test (or retry) uses. */
-function uniqueName(prefix: string, testInfo: TestInfo) {
-  return `${prefix} ${testInfo.project.name} ${Math.random().toString(36).slice(2, 7)}`;
-}
-
-/** Position of the area's row in the list. */
-async function rowIndex(page: Page, name: string) {
-  const labels = await list(page)
-    .getByRole("button")
-    .evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
-  return labels.indexOf(`Editar ${name}`);
-}
+/** The create/edit announcement (the notices have their own region, named "Avisos"). */
+const status = (page: Page) => page.locator('main p[role="status"]').filter({ hasText: /./ });
 
 type Announcement = { text: string; hidden: boolean; dialog: boolean };
 
@@ -56,7 +44,7 @@ async function recordAnnouncements(page: Page) {
   await page.evaluate(() => {
     const seen: Announcement[] = [];
     (window as unknown as { __announcements: Announcement[] }).__announcements = seen;
-    const region = document.querySelector('main [role="status"]')!;
+    const region = document.querySelector('main p[role="status"]')!;
     new MutationObserver(() => {
       if (!region.textContent) return;
       seen.push({
@@ -71,20 +59,6 @@ async function recordAnnouncements(page: Page) {
 const announcements = (page: Page) =>
   page.evaluate(() => (window as unknown as { __announcements: Announcement[] }).__announcements);
 
-async function openAreas(page: Page) {
-  await page.goto("/areas");
-  await expect(page.getByRole("heading", { level: 1, name: "Áreas" })).toBeVisible();
-}
-
-async function createArea(page: Page, name: string, color: string, icon: string) {
-  await newAreaButton(page).click();
-  await nameField(page).fill(name);
-  await colorGroup(page).getByRole("radio", { name: color }).click();
-  await iconGroup(page).getByRole("radio", { name: icon }).click();
-  await sheet(page).getByRole("button", { name: "Crear área" }).click();
-  await expect(sheet(page)).toBeHidden();
-}
-
 test("Áreas has its title, is in the navigation and lists the seeded areas in order", async ({
   page,
 }) => {
@@ -92,7 +66,7 @@ test("Áreas has its title, is in the navigation and lists the seeded areas in o
   await expect(page).toHaveTitle("Áreas · brahua-os");
   await expect(page.getByRole("link", { name: "Áreas" })).toHaveAttribute("aria-current", "page");
 
-  const rows = list(page).getByRole("button");
+  const rows = editRows(page);
   await expect(rows.first()).toHaveAccessibleName("Editar Hogar");
   const names = await rows.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute("aria-label")),
@@ -109,71 +83,75 @@ test("7 goes to Áreas (desktop)", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { level: 1, name: "Áreas" })).toBeVisible();
 });
 
-test("create an area: side panel on desktop, bottom sheet on the phone", async ({
-  page,
-}, testInfo) => {
-  const name = uniqueName("Música", testInfo);
-  await openAreas(page);
-  await newAreaButton(page).click();
+testWithAreasLock(
+  "create an area: side panel on desktop, bottom sheet on the phone",
+  async ({ page }, testInfo) => {
+    const name = uniqueName("Música", testInfo);
+    await openAreas(page);
+    await newAreaButton(page).click();
 
-  await expect(sheet(page)).toHaveAccessibleName("Nueva área");
-  await expect(sheet(page)).toHaveClass(
-    isDesktop(testInfo) ? /bo-sheet--side/ : /bo-sheet--bottom/,
-  );
-  await expect(nameField(page)).toBeFocused();
+    await expect(sheet(page)).toHaveAccessibleName("Nueva área");
+    await expect(sheet(page)).toHaveClass(
+      isDesktop(testInfo) ? /bo-sheet--side/ : /bo-sheet--bottom/,
+    );
+    await expect(nameField(page)).toBeFocused();
 
-  await nameField(page).fill(name);
-  await colorGroup(page).getByRole("radio", { name: "Lima" }).click();
-  await iconGroup(page).getByRole("radio", { name: "Música" }).click();
-  // Live preview.
-  const preview = sheet(page).locator(".bo-area-tag");
-  await expect(preview).toHaveText(name);
-  await expect(preview).toHaveClass(/bo-area--hobbies/);
+    await nameField(page).fill(name);
+    await colorGroup(page).getByRole("radio", { name: "Lima" }).click();
+    await iconGroup(page).getByRole("radio", { name: "Música" }).click();
+    // Live preview.
+    const preview = sheet(page).locator(".bo-area-tag");
+    await expect(preview).toHaveText(name);
+    await expect(preview).toHaveClass(/bo-area--hobbies/);
 
-  await recordAnnouncements(page);
-  await sheet(page).getByRole("button", { name: "Crear área" }).click();
+    await recordAnnouncements(page);
+    await sheet(page).getByRole("button", { name: "Crear área" }).click();
 
-  await expect(sheet(page)).toBeHidden();
-  await expect(newAreaButton(page)).toBeFocused();
-  await expect(status(page)).toHaveText(`Área «${name}» creada.`);
-  // Announced only once nothing hides the page from screen readers anymore.
-  expect(await announcements(page)).toEqual([
-    { text: `Área «${name}» creada.`, hidden: false, dialog: false },
-  ]);
-  // After the seeded areas (other tests add theirs in parallel, so not necessarily last), and
-  // still there after a reload.
-  const row = list(page).getByRole("button", { name: `Editar ${name}` });
-  await expect(row).toBeVisible();
-  expect(await rowIndex(page, name)).toBeGreaterThanOrEqual(SEEDED.length);
-  await page.reload();
-  await expect(row).toBeVisible();
-  expect(await rowIndex(page, name)).toBeGreaterThanOrEqual(SEEDED.length);
-});
+    await expect(sheet(page)).toBeHidden();
+    await expect(newAreaButton(page)).toBeFocused();
+    await expect(status(page)).toHaveText(`Área «${name}» creada.`);
+    // Announced only once nothing hides the page from screen readers anymore.
+    expect(await announcements(page)).toEqual([
+      { text: `Área «${name}» creada.`, hidden: false, dialog: false },
+    ]);
+    // After the seeded areas (other tests add theirs in parallel, so not necessarily last), and
+    // still there after a reload.
+    const row = list(page).getByRole("button", { name: `Editar ${name}` });
+    await expect(row).toBeVisible();
+    expect(await rowIndex(page, name)).toBeGreaterThanOrEqual(SEEDED.length);
+    await page.reload();
+    await expect(row).toBeVisible();
+    expect(await rowIndex(page, name)).toBeGreaterThanOrEqual(SEEDED.length);
+  },
+);
 
-test("edit an area: the row keeps its place and gets focus back", async ({ page }, testInfo) => {
-  const name = uniqueName("Lectura", testInfo);
-  const renamed = uniqueName("Libros", testInfo);
-  await openAreas(page);
-  await createArea(page, name, "Índigo", "Libro abierto");
+testWithAreasLock(
+  "edit an area: the row keeps its place and gets focus back",
+  async ({ page }, testInfo) => {
+    const name = uniqueName("Lectura", testInfo);
+    const renamed = uniqueName("Libros", testInfo);
+    await openAreas(page);
+    await createArea(page, name, "Índigo", "Libro abierto");
 
-  const row = list(page).getByRole("button", { name: `Editar ${name}` });
-  await row.click();
-  await expect(sheet(page)).toHaveAccessibleName("Editar área");
-  await expect(nameField(page)).toHaveValue(name);
-  await expect(colorGroup(page).getByRole("radio", { name: "Índigo" })).toBeChecked();
-  await expect(iconGroup(page).getByRole("radio", { name: "Libro abierto" })).toBeChecked();
+    const row = list(page).getByRole("button", { name: `Editar ${name}` });
+    await row.click();
+    await expect(sheet(page)).toHaveAccessibleName("Editar área");
+    await expect(nameField(page)).toHaveValue(name);
+    await expect(colorGroup(page).getByRole("radio", { name: "Índigo" })).toBeChecked();
+    await expect(iconGroup(page).getByRole("radio", { name: "Libro abierto" })).toBeChecked();
 
-  await nameField(page).fill(renamed);
-  await colorGroup(page).getByRole("radio", { name: "Rosa" }).click();
-  await sheet(page).getByRole("button", { name: "Guardar cambios" }).click();
+    await nameField(page).fill(renamed);
+    await colorGroup(page).getByRole("radio", { name: "Rosa" }).click();
+    await sheet(page).getByRole("button", { name: "Guardar cambios" }).click();
 
-  await expect(sheet(page)).toBeHidden();
-  const renamedRow = list(page).getByRole("button", { name: `Editar ${renamed}` });
-  await expect(renamedRow).toBeFocused();
-  await expect(renamedRow.locator(".bo-area-tag")).toHaveClass(/bo-area--relationships/);
-  await expect(list(page).getByRole("button", { name: `Editar ${name}` })).toHaveCount(0);
-  await expect(status(page)).toHaveText(`Cambios guardados en «${renamed}».`);
-});
+    await expect(sheet(page)).toBeHidden();
+    const renamedRow = list(page).getByRole("button", { name: `Editar ${renamed}` });
+    await expect(renamedRow).toBeFocused();
+    await expect(renamedRow.locator(".bo-area-tag")).toHaveClass(/bo-area--relationships/);
+    await expect(list(page).getByRole("button", { name: `Editar ${name}` })).toHaveCount(0);
+    await expect(status(page)).toHaveText(`Cambios guardados en «${renamed}».`);
+  },
+);
 
 test("validation errors show on each field", async ({ page }) => {
   await openAreas(page);
@@ -199,86 +177,88 @@ test("validation errors show on each field", async ({ page }) => {
   await expect(list(page).getByRole("button", { name: `Editar ${"a".repeat(61)}` })).toHaveCount(0);
 });
 
-test("keyboard only: open, fill, pick swatch and icon with arrows, save, Esc", async ({
-  page,
-}, testInfo) => {
-  const name = uniqueName("Jardín", testInfo);
-  await openAreas(page);
-  await newAreaButton(page).focus();
-  await page.keyboard.press("Enter");
-  await expect(nameField(page)).toBeFocused();
-  await page.keyboard.type(name);
+testWithAreasLock(
+  "keyboard only: open, fill, pick swatch and icon with arrows, save, Esc",
+  async ({ page }, testInfo) => {
+    const name = uniqueName("Jardín", testInfo);
+    await openAreas(page);
+    await newAreaButton(page).focus();
+    await page.keyboard.press("Enter");
+    await expect(nameField(page)).toBeFocused();
+    await page.keyboard.type(name);
 
-  // Name → the color group (one tab stop; nothing picked yet, so the first swatch).
-  await page.keyboard.press("Tab");
-  await expect(colorGroup(page).getByRole("radio", { name: "Ámbar" })).toBeFocused();
-  await page.keyboard.press("ArrowRight");
-  await expect(colorGroup(page).getByRole("radio", { name: "Verde" })).toBeFocused();
-  await expect(colorGroup(page).getByRole("radio", { name: "Verde" })).toBeChecked();
-  await page.keyboard.press("ArrowDown"); // one row down in the swatch grid
-  const checkedColor = colorGroup(page).getByRole("radio", { checked: true });
-  await expect(checkedColor).toBeFocused();
-  await expect(checkedColor).not.toHaveAccessibleName("Verde");
+    // Name → the color group (one tab stop; nothing picked yet, so the first swatch).
+    await page.keyboard.press("Tab");
+    await expect(colorGroup(page).getByRole("radio", { name: "Ámbar" })).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(colorGroup(page).getByRole("radio", { name: "Verde" })).toBeFocused();
+    await expect(colorGroup(page).getByRole("radio", { name: "Verde" })).toBeChecked();
+    await page.keyboard.press("ArrowDown"); // one row down in the swatch grid
+    const checkedColor = colorGroup(page).getByRole("radio", { checked: true });
+    await expect(checkedColor).toBeFocused();
+    await expect(checkedColor).not.toHaveAccessibleName("Verde");
 
-  // → the icon grid: Space picks the first icon, arrows move through the grid.
-  await page.keyboard.press("Tab");
-  const house = iconGroup(page).getByRole("radio", { name: "Casa" });
-  await expect(house).toBeFocused();
-  await page.keyboard.press("Space");
-  await expect(house).toBeChecked();
-  await page.keyboard.press("ArrowDown");
-  const checkedIcon = iconGroup(page).getByRole("radio", { checked: true });
-  await expect(checkedIcon).toBeFocused();
-  await expect(checkedIcon).not.toHaveAccessibleName("Casa");
-  // Down lands exactly one row below: same column as Casa.
-  // Measured in one frame: the side panel may still be sliding in.
-  const [houseBox, belowBox] = await iconGroup(page).evaluate((group) => {
-    const radios = [...group.querySelectorAll('[role="radio"]')];
-    const box = (radio: Element | undefined) => radio!.getBoundingClientRect().toJSON() as DOMRect;
-    return [box(radios[0]), box(radios.find((radio) => radio.ariaChecked === "true"))];
-  });
-  expect(belowBox.x).toBeCloseTo(houseBox.x, 0);
-  expect(belowBox.y).toBeGreaterThan(houseBox.y);
-  await page.keyboard.press("End");
-  const wrench = iconGroup(page).getByRole("radio", { name: "Llave inglesa" });
-  await expect(wrench).toBeChecked();
-  // The preview stays in view while scrolling the icons, and never covers the focused one.
-  const preview = sheet(page).locator(".bo-area-tag");
-  await expect(preview).toBeInViewport();
-  await expect(preview).toHaveClass(/bo-area--/);
-  await page.keyboard.press("Home");
-  await expect(house).toBeFocused();
-  const [previewBox, houseTop] = [
-    await sheet(page).locator(".bo-card").boundingBox(),
-    (await house.boundingBox())!.y,
-  ];
-  expect(houseTop).toBeGreaterThanOrEqual(previewBox!.y + previewBox!.height);
-  await page.keyboard.press("End");
-  await expect(wrench).toBeFocused();
+    // → the icon grid: Space picks the first icon, arrows move through the grid.
+    await page.keyboard.press("Tab");
+    const house = iconGroup(page).getByRole("radio", { name: "Casa" });
+    await expect(house).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(house).toBeChecked();
+    await page.keyboard.press("ArrowDown");
+    const checkedIcon = iconGroup(page).getByRole("radio", { checked: true });
+    await expect(checkedIcon).toBeFocused();
+    await expect(checkedIcon).not.toHaveAccessibleName("Casa");
+    // Down lands exactly one row below: same column as Casa.
+    // Measured in one frame: the side panel may still be sliding in.
+    const [houseBox, belowBox] = await iconGroup(page).evaluate((group) => {
+      const radios = [...group.querySelectorAll('[role="radio"]')];
+      const box = (radio: Element | undefined) =>
+        radio!.getBoundingClientRect().toJSON() as DOMRect;
+      return [box(radios[0]), box(radios.find((radio) => radio.ariaChecked === "true"))];
+    });
+    expect(belowBox.x).toBeCloseTo(houseBox.x, 0);
+    expect(belowBox.y).toBeGreaterThan(houseBox.y);
+    await page.keyboard.press("End");
+    const wrench = iconGroup(page).getByRole("radio", { name: "Llave inglesa" });
+    await expect(wrench).toBeChecked();
+    // The preview stays in view while scrolling the icons, and never covers the focused one.
+    const preview = sheet(page).locator(".bo-area-tag");
+    await expect(preview).toBeInViewport();
+    await expect(preview).toHaveClass(/bo-area--/);
+    await page.keyboard.press("Home");
+    await expect(house).toBeFocused();
+    const [previewBox, houseTop] = [
+      await sheet(page).locator(".bo-card").boundingBox(),
+      (await house.boundingBox())!.y,
+    ];
+    expect(houseTop).toBeGreaterThanOrEqual(previewBox!.y + previewBox!.height);
+    await page.keyboard.press("End");
+    await expect(wrench).toBeFocused();
 
-  // → Cancelar → Crear área.
-  await page.keyboard.press("Tab");
-  await expect(sheet(page).getByRole("button", { name: "Cancelar" })).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(sheet(page).getByRole("button", { name: "Crear área" })).toBeFocused();
-  await page.keyboard.press("Enter");
+    // → Cancelar → Crear área.
+    await page.keyboard.press("Tab");
+    await expect(sheet(page).getByRole("button", { name: "Cancelar" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(sheet(page).getByRole("button", { name: "Crear área" })).toBeFocused();
+    await page.keyboard.press("Enter");
 
-  await expect(sheet(page)).toBeHidden();
-  await expect(newAreaButton(page)).toBeFocused();
-  const row = list(page).getByRole("button", { name: `Editar ${name}` });
-  await expect(row).toBeVisible();
+    await expect(sheet(page)).toBeHidden();
+    await expect(newAreaButton(page)).toBeFocused();
+    const row = list(page).getByRole("button", { name: `Editar ${name}` });
+    await expect(row).toBeVisible();
 
-  // Edit with the keyboard and leave with Esc: nothing saved, focus back on the row.
-  await row.focus();
-  await page.keyboard.press("Enter");
-  await expect(nameField(page)).toBeFocused();
-  await expect(iconGroup(page).getByRole("radio", { name: "Llave inglesa" })).toBeChecked();
-  await page.keyboard.type(" editado");
-  await page.keyboard.press("Escape");
-  await expect(sheet(page)).toBeHidden();
-  await expect(row).toBeFocused();
-  await expect(row).toHaveAccessibleName(`Editar ${name}`);
-});
+    // Edit with the keyboard and leave with Esc: nothing saved, focus back on the row.
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await expect(nameField(page)).toBeFocused();
+    await expect(iconGroup(page).getByRole("radio", { name: "Llave inglesa" })).toBeChecked();
+    await page.keyboard.type(" editado");
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toBeHidden();
+    await expect(row).toBeFocused();
+    await expect(row).toHaveAccessibleName(`Editar ${name}`);
+  },
+);
 
 test("short screen (320×256): the preview doesn't stick and every focused control shows", async ({
   page,

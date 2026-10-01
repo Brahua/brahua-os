@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isShortcutFreeTarget, navShortcutFor } from "@/lib/shortcuts";
+import { isShortcutFreeTarget, isUndoShortcut, navShortcutFor } from "@/lib/shortcuts";
 
 type Init = Partial<Parameters<typeof navShortcutFor>[0]> & { altGraph?: boolean };
 
@@ -118,5 +118,45 @@ describe("isShortcutFreeTarget", () => {
     expect(isShortcutFreeTarget(element('<div contenteditable="false">x</div>', "div"))).toBe(
       false,
     );
+  });
+});
+
+describe("isUndoShortcut", () => {
+  const undo = (init: Init = {}, key = "z") =>
+    isUndoShortcut({
+      key,
+      code: "KeyZ",
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      repeat: false,
+      isComposing: false,
+      defaultPrevented: false,
+      target: document.body,
+      ...init,
+    });
+
+  test("⌘Z and Ctrl+Z (either case) undo", () => {
+    expect(undo({ metaKey: true })).toBe(true);
+    expect(undo({ ctrlKey: true })).toBe(true);
+    expect(undo({ ctrlKey: true }, "Z")).toBe(true);
+  });
+
+  test("not a bare Z, with Shift (redo), ⌥, both ⌘ and Ctrl, repeats or another key", () => {
+    expect(undo()).toBe(false);
+    expect(undo({ metaKey: true, shiftKey: true })).toBe(false);
+    expect(undo({ metaKey: true, altKey: true })).toBe(false);
+    expect(undo({ metaKey: true, ctrlKey: true })).toBe(false);
+    expect(undo({ metaKey: true, repeat: true })).toBe(false);
+    expect(undo({ metaKey: true, defaultPrevented: true })).toBe(false);
+    expect(undo({ metaKey: true }, "y")).toBe(false);
+  });
+
+  test("not while typing or inside a dialog: the field's own undo wins", () => {
+    expect(undo({ metaKey: true, target: element("<input>", "input") })).toBe(false);
+    const inDialog = element('<div role="dialog"><button></button></div>', "button");
+    expect(undo({ ctrlKey: true, target: inDialog })).toBe(false);
+    expect(undo({ ctrlKey: true, target: element("<button></button>", "button") })).toBe(true);
   });
 });
