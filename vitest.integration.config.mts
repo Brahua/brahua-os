@@ -1,3 +1,4 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // Integration tests against a throwaway Postgres (TEST_DATABASE_URL). Run with `pnpm test:integration`.
@@ -8,6 +9,8 @@ if (!process.env.CI && !process.env.TEST_DATABASE_URL) {
 }
 
 export default defineConfig({
+  // Page tests (`.test.tsx`, with `@vitest-environment jsdom`) render JSX.
+  plugins: [react()],
   resolve: {
     tsconfigPaths: true,
     // Next resolves `server-only` itself (no npm package); outside Next it is a no-op marker.
@@ -15,7 +18,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/integration/**/*.test.ts"],
+    include: ["tests/integration/**/*.test.{ts,tsx}"],
     globalSetup: ["./tests/integration/global-setup.ts"],
     setupFiles: ["./tests/integration/setup.ts"],
     // One shared database: files must not run in parallel.

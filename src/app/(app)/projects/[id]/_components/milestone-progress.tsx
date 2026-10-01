@@ -5,6 +5,7 @@ import { ProgressMeter } from "@/modules/projects/components/progress-meter";
 import type { MilestoneCounts } from "@/modules/projects/milestone-input";
 import { MILESTONES_COPY } from "@/modules/projects/milestones-copy";
 import { milestoneProgress } from "@/modules/projects/progress";
+import { combineProgressCounts, type ProgressCounts } from "@/modules/projects/progress-source";
 import { useProjectDetail } from "./project-detail-context";
 
 // The progress meter sits in "Objetivo y fechas" and the milestones in their own section, with
@@ -55,13 +56,20 @@ export function usePublishMilestoneCounts(projectId: string, { done, total }: Mi
  * The project's progress under its dates (the P3 slot of `ProjectPlanSection`): done / total
  * milestones. Nothing without milestones or in Mantenimiento (the state as shown, so changing
  * it hides or shows the meter at once). `counts` is what the server sent; the milestones
- * section's live counts win once it has published them.
+ * section's live counts win once it has published them. `contributed` (P6) is what other modules
+ * (tasks) add, summed to the milestones.
  */
-export function ProjectProgress({ counts }: { counts: MilestoneCounts }) {
+export function ProjectProgress({
+  counts,
+  contributed,
+}: {
+  counts: MilestoneCounts;
+  contributed?: ProgressCounts;
+}) {
   const { project } = useProjectDetail();
   const live = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   const shown = live?.projectId === project.id ? live : counts;
-  const progress = milestoneProgress(shown, project.status);
+  const progress = milestoneProgress(combineProgressCounts(shown, contributed), project.status);
   if (!progress) return null;
   return (
     <div className="flex flex-col gap-2" data-project-progress>

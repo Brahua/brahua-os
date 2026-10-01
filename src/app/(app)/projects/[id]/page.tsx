@@ -7,6 +7,7 @@ import { requireOwner } from "@/lib/auth";
 // P6: registers the progress sources of other modules (tasks) before progress is computed.
 import "@/lib/progress-sources";
 import { listLifeAreas } from "@/modules/core/queries";
+import { contributedProgress } from "@/modules/projects/contracts";
 import { getProjectMilestones } from "@/modules/projects/milestone-queries";
 import { countMilestones } from "@/modules/projects/progress";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
@@ -60,6 +61,8 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
     // P5 (Notas y enlaces): its links (the notes come with the project).
   ]);
   if (!project) notFound();
+  // P6: what other modules (tasks) add to its progress; no source registered → no work.
+  const contributed = (await contributedProgress([project.id])).get(project.id);
   const justCreated = search[CREATED_PARAM] === "1";
   // One instant for the whole page: the due notice counts Lima days from it.
   const now = new Date();
@@ -83,7 +86,9 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <ProjectStateSection />
           <ProjectPlanSection
             // P3 slot: progress={<ProjectProgress … />}
-            progress={<ProjectProgress counts={countMilestones(milestones)} />}
+            progress={
+              <ProjectProgress counts={countMilestones(milestones)} contributed={contributed} />
+            }
           />
           {/* ── P3 slot (Hitos): <ProjectMilestonesSection … /> ── */}
           <ProjectMilestonesSection milestones={milestones} />
