@@ -20,6 +20,12 @@ import {
   authVerifications,
   lifeAreas,
 } from "@/modules/core/db/schema";
+import {
+  projectDependencies,
+  projectLinks,
+  projectMilestones,
+  projects,
+} from "@/modules/projects/db/schema";
 import { writeExport } from "../../scripts/db-export";
 import { testDb } from "./test-db";
 
@@ -123,6 +129,64 @@ describe("pnpm db:export", () => {
   test("an empty database exports empty tables", async () => {
     const data = await buildExport(testDb, NOW);
     expect(data.tables.core_life_areas).toEqual({ rowCount: 0, rows: [] });
+    for (const name of [
+      "projects",
+      "project_milestones",
+      "project_links",
+      "project_dependencies",
+    ]) {
+      expect(data.tables[name]).toEqual({ rowCount: 0, rows: [] });
+    }
+  });
+
+  test("exports the projects with their milestones, links and dependencies, deleted ones included", async () => {
+    const [area] = await testDb
+      .insert(lifeAreas)
+      .values({ slug: "home", name: "Hogar", icon: "house", color: "home" })
+      .returning();
+    const [kept, deleted] = await testDb
+      .insert(projects)
+      .values([
+        { name: "Mudanza", lifeAreaId: area.id, createdAt: new Date("2026-09-01T00:00:00Z") },
+        {
+          name: "Borrado",
+          lifeAreaId: area.id,
+          deletedAt: ARCHIVED_AT,
+          createdAt: new Date("2026-09-02T00:00:00Z"),
+        },
+      ])
+      .returning();
+    await testDb
+      .insert(projectMilestones)
+      .values({ projectId: kept.id, title: "Cajas", sortOrder: 0 });
+    await testDb
+      .insert(projectLinks)
+      .values({ projectId: kept.id, url: "https://example.com", sortOrder: 0 });
+    await testDb
+      .insert(projectDependencies)
+      .values({ projectId: kept.id, blockedById: deleted.id });
+
+    const data = JSON.parse(JSON.stringify(await buildExport(testDb, NOW))) as DataExport;
+
+    expect(data.tables.projects.rows.map((row) => [row.name, row.deleted_at])).toEqual([
+      ["Mudanza", null],
+      ["Borrado", "2026-09-15T10:00:00.000Z"],
+    ]);
+    expect(data.tables.projects.rows[0]).toMatchObject({
+      life_area_id: area.id,
+      status: "idea",
+      priority: "medium",
+      due_date: null,
+    });
+    expect(data.tables.project_milestones.rows).toEqual([
+      expect.objectContaining({ project_id: kept.id, title: "Cajas", sort_order: 0 }),
+    ]);
+    expect(data.tables.project_links.rows).toEqual([
+      expect.objectContaining({ project_id: kept.id, url: "https://example.com" }),
+    ]);
+    expect(data.tables.project_dependencies.rows).toEqual([
+      { project_id: kept.id, blocked_by_id: deleted.id },
+    ]);
   });
 
   test("never contains auth data: no auth table, no token, hash, key or email", async () => {

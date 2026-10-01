@@ -25,8 +25,16 @@ describe("export registry", () => {
     }
   });
 
-  test("exports the life areas and no auth table", () => {
-    expect(exportedNames).toContain("core_life_areas");
+  test("exports the life areas, the four project tables and no auth table", () => {
+    expect(exportedNames).toEqual(
+      expect.arrayContaining([
+        "core_life_areas",
+        "projects",
+        "project_milestones",
+        "project_links",
+        "project_dependencies",
+      ]),
+    );
     expect(exportedNames.filter((name) => name.startsWith("auth_"))).toEqual([]);
     expect(EXCLUDED_TABLES).toEqual(
       expect.arrayContaining([
