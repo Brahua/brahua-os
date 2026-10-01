@@ -15,6 +15,7 @@
     - Tablas registradas en `pnpm db:export`.
   - **Aceptación:** crear en el celular en < 10 s; la lista agrupa, ordena y filtra; acciones rechazadas sin sesión; `CHECK` probados; axe en 0 en ambos temas.
   - **Tamaño:** M
+  - **Estado:** implementado en el PR #33 (abierto, sin merge). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects". El vencimiento ("Vence hoy / en N días / vencido hace N días") ya está en `progress.ts` y en las tarjetas; P2 lo reutiliza en el detalle.
 
 ### Checkpoint P1
 - [ ] El owner crea proyectos desde el celular y ve la lista agrupada.
@@ -22,7 +23,7 @@
 ## Fase 2 — Detalle
 
 - [ ] **P2: Detalle y edición**
-  - **Qué:** `/projects/[id]` (404 si no existe o está eliminado) con nombre, área, estado, prioridad, objetivo y fechas editables en el lugar (UI optimista); `completed_at` al pasar a Terminado; vencimiento visible ("Vence hoy / en N días / vencido hace N días", Lima) en `progress.ts`; Eliminar (borrado lógico) con "Deshacer". El detalle queda armado por secciones para P3–P5.
+  - **Qué:** `/projects/[id]` (P1 dejó una versión mínima con su 404) con nombre, área, estado, prioridad, objetivo y fechas editables en el lugar (UI optimista); `completed_at` al pasar a Terminado; vencimiento visible ("Vence hoy / en N días / vencido hace N días", Lima) en `progress.ts`; Eliminar (borrado lógico) con "Deshacer". El detalle queda armado por secciones para P3–P5.
   - **Aceptación:** criterios 1, 5 y 7 (eliminar) de la spec; pruebas de vencimiento alrededor de la medianoche de Lima.
   - **Tamaño:** M
 
