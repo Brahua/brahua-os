@@ -206,7 +206,9 @@ describe("the section", () => {
         "No se pudo volver a agregar «Permiso municipal». Este proyecto ya no existe.",
       ),
     );
-    expect(blockerList()).toBeNull();
+    // The notice comes with the result; the optimistic row leaves when the transition ends,
+    // a moment later (asserting it at once was flaky under load).
+    await waitFor(() => expect(blockerList()).toBeNull());
   });
 
   test("an undo superseded by a newer remove of the same blocker says nothing", async () => {
