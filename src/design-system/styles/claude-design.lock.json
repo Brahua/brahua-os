@@ -3,7 +3,7 @@
     "tool": "Claude Design",
     "projectId": "3787b11d-b9b0-4ea2-bd5d-26d0f072f863"
   },
-  "syncedAt": "2026-09-30T15:12:32.659Z",
+  "syncedAt": "2026-10-01T03:27:06.879Z",
   "files": {
     "src/design-system/styles/tokens/colors.css": {
       "remote": "tokens/colors.css",
@@ -19,7 +19,7 @@
     },
     "src/design-system/styles/tokens/motion.css": {
       "remote": "tokens/motion.css",
-      "sha256": "bb423d0a7332401518c0b707e4c43f108346347970a8a4a39d48060e80b56417"
+      "sha256": "358fa1b2d9bcbed7aba8be256308b123b2aa687046e1cd6959e299bb7bb18d70"
     },
     "src/design-system/styles/tokens/typography.css": {
       "remote": "tokens/typography.css",
@@ -27,7 +27,7 @@
     },
     "src/design-system/styles/components.css": {
       "remote": "components/components.css",
-      "sha256": "bf9ac4ee4577633d5e96fde94740768d8671bf7608bd28c56309053dcf62e067"
+      "sha256": "24219a4b152f03232752f9814c0183a076e657e8697430cdd3c8292990c145cb"
     }
   }
 }

@@ -7,6 +7,7 @@
   --duration-panel: 320ms;
   --duration-sheet: 380ms;
   --duration-celebrate: 1000ms;
+  --duration-switch: 200ms;
   --ease-press: cubic-bezier(0.3, 0, 0, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -24,6 +25,7 @@
     --duration-panel: 0ms;
     --duration-sheet: 0ms;
     --duration-celebrate: 0ms;
+    --duration-switch: 0ms;
     --stagger: 0ms;
     --motion-travel: 0px;
     --ease-pop: var(--ease-standard);

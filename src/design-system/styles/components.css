@@ -52,14 +52,25 @@ svg.lucide, .bo-icon { width: 18px; height: 18px; stroke-width: 1.75; flex: none
 .bo-kbd-group { display: inline-flex; gap: 4px; }
 .bo-tooltip { display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 10px; border-radius: var(--radius-sm);
   background: var(--color-tooltip-bg); color: var(--color-tooltip-text); box-shadow: 0 0 0 1px var(--color-tooltip-border), var(--shadow-popover);
-  font: 500 13px/1.2 var(--font-sans); white-space: nowrap; pointer-events: none; }
+  font: 500 13px/1.2 var(--font-sans); white-space: nowrap; }
 .bo-tooltip-anchor { position: relative; display: inline-flex; }
-.bo-tooltip-anchor > .bo-tooltip { position: absolute; z-index: 40; opacity: 0; transition: opacity var(--duration-hover) var(--ease-standard); }
+/* Oculto: nunca captura el puntero. Al salir, visibility espera a que termine el fundido. */
+.bo-tooltip-anchor > .bo-tooltip { position: absolute; z-index: 40; opacity: 0; visibility: hidden;
+  transition: opacity var(--duration-hover) var(--ease-standard), visibility 0s linear var(--duration-hover); }
+/* Puente invisible sobre el hueco de 8 px: el puntero pasa del disparador al tooltip sin cerrarlo (WCAG 1.4.13). */
+.bo-tooltip-anchor > .bo-tooltip::before { content: ""; position: absolute; background: transparent; }
+.bo-tooltip-anchor > .bo-tooltip--right::before { top: 0; bottom: 0; right: 100%; width: 8px; }
+.bo-tooltip-anchor > .bo-tooltip--top::before { left: 0; right: 0; top: 100%; height: 8px; }
+.bo-tooltip-anchor > .bo-tooltip--bottom::before { left: 0; right: 0; bottom: 100%; height: 8px; }
 .bo-tooltip-anchor > .bo-tooltip--right { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
 .bo-tooltip-anchor > .bo-tooltip--top { bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); }
 .bo-tooltip-anchor > .bo-tooltip--bottom { top: calc(100% + 8px); left: 50%; transform: translateX(-50%); }
-.bo-tooltip-anchor:hover > .bo-tooltip { opacity: 1; transition-delay: 300ms; }
-.bo-tooltip-anchor:focus-within > .bo-tooltip, .bo-tooltip-anchor.is-open > .bo-tooltip { opacity: 1; }
+.bo-tooltip-anchor:hover > .bo-tooltip { opacity: 1; visibility: visible;
+  transition: opacity var(--duration-hover) var(--ease-standard) 300ms, visibility 0s linear 300ms; }
+.bo-tooltip-anchor:focus-within > .bo-tooltip, .bo-tooltip-anchor.is-open > .bo-tooltip { opacity: 1; visibility: visible;
+  transition: opacity var(--duration-hover) var(--ease-standard), visibility 0s; }
+/* Esc lo descarta; se quita al salir el puntero (mouseleave) o mover el foco (focusout). */
+.bo-tooltip-anchor.is-dismissed > .bo-tooltip { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 
 /* Led */
 .bo-led { --_s: 9px; width: var(--_s); height: var(--_s); border-radius: 50%; flex: none; background: var(--led, var(--area-c, var(--color-text-secondary)));
@@ -139,7 +150,7 @@ svg.lucide, .bo-icon { width: 18px; height: 18px; stroke-width: 1.75; flex: none
 .bo-switch { position: relative; width: 52px; height: 30px; flex: none; border: 0; padding: 0; border-radius: var(--radius-full); cursor: pointer;
   background: var(--color-key); box-shadow: inset 0 0 0 1px var(--color-border-control); transition: background-color var(--duration-state) var(--ease-standard); }
 .bo-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--color-text-secondary);
-  transition: transform var(--duration-state) var(--ease-press), background-color var(--duration-state); }
+  transition: transform var(--duration-switch) var(--ease-press), background-color var(--duration-state); }
 .bo-switch:hover::after, .bo-switch.is-hover::after { background: var(--color-text); }
 .bo-switch[aria-checked="true"], .bo-switch.is-on { background: var(--color-signal); box-shadow: inset 0 0 0 1px var(--color-signal-edge); }
 .bo-switch[aria-checked="true"]::after, .bo-switch.is-on::after { transform: translateX(22px); background: var(--color-on-signal); }
@@ -208,9 +219,9 @@ textarea.bo-field__control { height: auto; min-height: 112px; padding: 14px 16px
 .bo-card.is-selected { box-shadow: inset 0 0 0 1.5px var(--color-text); }
 
 /* Navegación */
-.bo-bottomnav { height: var(--bottom-nav-height); padding: 6px 10px 28px; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; background: var(--color-bg); border-top: 1px solid var(--color-divider); }
+.bo-bottomnav { height: var(--bottom-nav-height); padding: 6px 10px 28px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; background: var(--color-bg); border-top: 1px solid var(--color-divider); }
 .bo-bottomnav__item { min-height: 56px; border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  color: var(--color-text-secondary); font: 500 11px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+  color: var(--color-text-secondary); font: 500 11px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; min-width: 0; overflow-wrap: anywhere; text-align: center; }
 .bo-bottomnav__item[aria-current="page"] { color: var(--color-text); font-weight: 600; }
 .bo-bottomnav__item:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; border-radius: var(--radius-md); }
 .bo-bottomnav__capture { transform: translateY(-10px); }
@@ -226,3 +237,18 @@ textarea.bo-field__control { height: auto; min-height: 112px; padding: 14px 16px
 .bo-navitem:focus-visible, .bo-navitem.is-focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .bo-sidebar.is-collapsed .bo-navitem { justify-content: center; padding: 0; }
 .bo-sidebar.is-collapsed .bo-navitem__label, .bo-sidebar.is-collapsed .bo-navitem .bo-kbd, .bo-sidebar.is-collapsed .bo-sidebar__brand, .bo-sidebar.is-collapsed .bo-hide-collapsed { display: none; }
+
+/* Movimiento reducido: la perilla del switch cambia de lado sin deslizarse; el color mantiene su fundido. */
+@media (prefers-reduced-motion: reduce) {
+  .bo-switch::after { transition-property: background-color; }
+  .bo-tooltip-anchor > .bo-tooltip, .bo-tooltip-anchor:hover > .bo-tooltip { transition-duration: 0ms, 0ms; }
+}
+
+/* Alto contraste (Windows): fondo y sombra se reemplazan, así que la selección se marca con contorno. */
+@media (forced-colors: active) {
+  .bo-key.is-on, .bo-key[aria-pressed="true"], .bo-key[aria-checked="true"],
+  .bo-segmented__item.is-on, .bo-segmented__item[aria-selected="true"], .bo-segmented__item[aria-checked="true"],
+  .bo-navitem[aria-current="page"] { outline: 3px solid Highlight; outline-offset: 2px; }
+  .bo-key, .bo-switch, .bo-kbd { border: 1px solid ButtonText; }
+  .bo-switch[aria-checked="true"]::after { background: Highlight; forced-color-adjust: none; }
+}
