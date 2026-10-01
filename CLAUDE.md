@@ -24,7 +24,9 @@ Personal "second brain" app (single user). Specs drive the work:
   `deploy` job publishes to production (https://os.brahua.com) **only if all checks pass**.
 - `main` is unprotected (free private plan; owner's decision, 2026-10-01): before every merge, check that
   all 3 CI checks are green, and never push directly to `main`.
-- Vercel's Git auto-deploy is disabled (`vercel.json`); GitHub Actions is the only deployer.
+- Vercel's Git auto-deploy is disabled (`vercel.json`); GitHub Actions is the only deployer. The
+  `deploy` job runs `vercel deploy --prod` (remote build on Vercel: `scripts/vercel-build.sh`
+  migrates there, because the Neon variables are Sensitive and never reach the runner).
 - MVP works directly on production: tests use a throwaway Postgres, never the production DB.
   Migrations are additive; anything destructive needs the owner's OK and a backup first.
 - After each deploy, the `smoke` job checks https://os.brahua.com read-only

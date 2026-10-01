@@ -1,0 +1,14 @@
+# What `vercel deploy` (remote build, ci.yml) must not upload. Vercel already skips .git,
+# node_modules, .next and .vercel. Keep src, scripts, drizzle, e2e and tests: next build
+# type-checks every file tsconfig.json includes.
+.env*
+!.env.example
+*.pem
+.claude/
+.agents/
+.github/
+docs/
+tasks/
+test-results/
+playwright-report/
+e2e/.auth/

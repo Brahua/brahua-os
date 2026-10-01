@@ -9,9 +9,6 @@ name: Update screenshots
 # repository_dispatch), so the last job dispatches ci.yml on the branch: CI checks the bot commit.
 on:
   workflow_dispatch:
-  # TEMPORARY (review 1 re-check): removed before merging.
-  push:
-    branches: [chore/faster-e2e]
 
 concurrency:
   group: update-screenshots-${{ github.ref }}

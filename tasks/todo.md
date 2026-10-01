@@ -113,6 +113,10 @@
 ### Mejoras de proceso
 
 - [ ] **E2E más rápida sin bajar el control de CI** (PR `chore/faster-e2e`). E2E nativa por spec mientras se itera (las capturas se saltan fuera de la imagen Linux de Playwright con `expectScreenshot()` y quedan anotadas); `pnpm test:e2e:changed`; workflow `update-screenshots.yml` que regenera las referencias en GitHub, las commitea como github-actions[bot] y vuelve a correr CI; de 94 a 30 capturas (una por pantalla, tema y viewport, más 4 secciones del design system en escritorio); job `smoke` de solo lectura contra https://os.brahua.com después de cada deploy; el registro de errores de las Server Actions ya no guarda mensajes de Postgres.
+- [x] **Build en Vercel para variables Sensitive** (PR `chore/faster-e2e`)
+  - **Contexto:** el 2026-10-01 las variables de Neon pasaron a *Sensitive* (primero con el store en "Production environment only"; al volver a "All environments" y rotar, Vercel las recreó igual como *Sensitive*). El job `deploy` corría `vercel pull` + `vercel build` en GitHub Actions, donde los valores *Sensitive* llegan como el marcador `[sensitive]`: la migración falló con "Invalid URL" y no se desplegó nada. El owner restauró producción con un deploy manual con build remoto de `main@954bdf6`.
+  - **Hecho:** el job `deploy` usa `vercel deploy --prod` (build remoto en Vercel, sin `pull` ni `--prebuilt`): `scripts/vercel-build.sh` migra y siembra dentro de Vercel, donde las variables *Sensitive* sí están. Se mantienen `needs: [checks, e2e, integration]`, la condición de push a `main` y el grupo `deploy-production`. `.vercelignore` evita subir `.env*` y carpetas que el build no usa.
+  - **Aceptación:** el primer deploy después del merge y su smoke pasan con las variables de la base *Sensitive*.
 
 ### Checkpoint 2
 - [ ] Recorrido completo en celular y escritorio: login → navegar → crear, editar, reordenar y archivar un área → cambiar tema → cerrar sesión. Lo revisamos juntos.

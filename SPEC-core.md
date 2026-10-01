@@ -275,7 +275,7 @@ export type ActionResult<T> =
 - **CI (GitHub Actions)** en cada push y PR: `lint`, `typecheck`, `test`, `test:e2e` y `build`.
 - **Trunk-based + CI/CD (2026-09-30):**
   - Ramas cortas por cambio, con PR a `main`.
-  - Cada push a `main` vuelve a correr el CI, y el job `deploy` de GitHub Actions publica en producción **solo si pasan todos los checks** (`vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`).
+  - Cada push a `main` vuelve a correr el CI, y el job `deploy` de GitHub Actions publica en producción **solo si pasan todos los checks** (`vercel deploy --prod` con build remoto en Vercel, que migra la base; luego un smoke test de solo lectura).
   - El auto-deploy de Vercel está desactivado (`vercel.json`).
   - No hay previews durante el MVP.
 
