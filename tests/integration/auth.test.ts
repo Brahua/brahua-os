@@ -166,6 +166,18 @@ describe("rate limit", () => {
     // Other clients are not affected.
     expect((await signIn(auth, OWNER, PASSWORD, nextIp())).status).toBe(200);
   });
+
+  test("the /ok health check (production smoke test) writes no counters", async () => {
+    await testDb.delete(authRateLimits);
+    for (let i = 0; i < 3; i++) {
+      const response = await auth.handler(
+        new Request(`${BASE_URL}/api/auth/ok`, { headers: { "x-forwarded-for": nextIp() } }),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true });
+    }
+    expect(await testDb.$count(authRateLimits)).toBe(0);
+  });
 });
 
 describe("owner session", () => {

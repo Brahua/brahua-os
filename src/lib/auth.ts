@@ -126,6 +126,9 @@ export function createAuth(db: Database, env: AuthEnv) {
         // Called on every app load to renew the cookie (SessionRefresher); a database write per
         // call would buy nothing: it needs a valid session and never checks credentials.
         "/get-session": false,
+        // Health check used by the post-deploy smoke test (ci.yml): answers a constant, so it
+        // must not write a counter to the production database on every check.
+        "/ok": false,
       },
     },
     advanced: {

@@ -1,11 +1,15 @@
 name: CI/CD
 
 # Trunk-based: short-lived feature branches open PRs against main (CI only).
-# Every push to main runs the same checks and, only if all of them pass, deploys to production.
+# Every push to main runs the same checks and, only if all of them pass, deploys to production
+# and smoke-tests it.
+# workflow_dispatch: update-screenshots.yml pushes with GITHUB_TOKEN, which starts no push or
+# pull_request run, so it dispatches this workflow on the branch instead. It never deploys.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -39,7 +43,8 @@ jobs:
     name: E2E (Playwright + axe)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Same Linux image locally (Docker) and in CI, so screenshots match.
+    # Same Linux image locally (Docker), here and in update-screenshots.yml, so screenshots match
+    # (e2e/support/screenshot-env.ts only compares them inside it). Keep the three in sync.
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
     # Throwaway database for the app under test (login, protected routes); never production.
@@ -127,6 +132,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
     # One production deploy at a time, in merge order.
     concurrency:
       group: deploy-production
@@ -162,4 +169,52 @@ jobs:
         env:
           VERCEL_ENV: production
       - name: Deploy
-        run: pnpm dlx vercel@61.1.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        id: deploy
+        # stdout is the new deployment's URL (progress goes to stderr); the smoke test needs it.
+        run: |
+          out="$(pnpm dlx vercel@61.1.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
+          url="$(printf '%s\n' "$out" | grep -Eo 'https://[^[:space:]]+\.vercel\.app' | tail -n 1 || true)"
+          echo "Deployed ${url:-"(no URL in the output: $out)"}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: Production smoke test
+    needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRODUCTION_HOST: os.brahua.com
+      DEPLOYMENT_URL: ${{ needs.deploy.outputs.url }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # Read-only Vercel API call: which deployment the production domain points to. The checks
+      # below only mean something once it is the one this run just published.
+      - name: Wait until the domain serves this deployment
+        run: |
+          expected="${DEPLOYMENT_URL#https://}"
+          if [ -z "$expected" ]; then
+            echo "::error::The deploy job did not report a deployment URL"
+            exit 1
+          fi
+          for attempt in $(seq 1 12); do
+            current="$(npx --yes vercel@61.1.0 inspect "$PRODUCTION_HOST" --json --token="$VERCEL_TOKEN" 2>/dev/null | jq -r '.url // empty' || true)"
+            if [ "$current" = "$expected" ]; then
+              echo "$PRODUCTION_HOST → $current"
+              exit 0
+            fi
+            echo "Attempt $attempt: $PRODUCTION_HOST → ${current:-unknown}, waiting for $expected"
+            sleep 10
+          done
+          echo "::error::$PRODUCTION_HOST still does not point to $expected"
+          exit 1
+      # Plain GET requests: never signs in, never writes. A failure fails the run, and GitHub
+      # notifies the owner.
+      - name: Smoke test https://os.brahua.com
+        run: bash scripts/smoke-production.sh
