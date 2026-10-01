@@ -1,0 +1,7 @@
+/*
+ * Screenshots of /projects: other specs create areas in parallel, so the filter chips change
+ * (and on desktop they may wrap to another row). Out of the layout, not just invisible.
+ */
+nav[aria-label="Filtrar por área"] {
+  display: none !important;
+}

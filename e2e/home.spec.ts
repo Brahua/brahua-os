@@ -80,13 +80,15 @@ test("the navigation comes from the registry and marks the current page", async 
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy, Áreas and Ajustes. On the phone all three fit in the bottom
-  // bar; on desktop Áreas and Ajustes are pinned to the sidebar footer.
+  // Only available modules: Hoy, Proyectos, Áreas and Ajustes. On the phone all four fit in the
+  // bottom bar; on desktop Áreas and Ajustes are pinned to the sidebar footer.
   const links = page.getByRole("navigation").getByRole("link");
-  await expect(links).toHaveCount(3);
+  await expect(links).toHaveCount(4);
   await expect(links.nth(0)).toHaveAccessibleName("Hoy");
-  await expect(links.nth(1)).toHaveAccessibleName("Áreas");
-  await expect(links.nth(2)).toHaveAccessibleName("Ajustes");
+  await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
+  await expect(links.nth(2)).toHaveAccessibleName("Áreas");
+  await expect(links.nth(3)).toHaveAccessibleName("Ajustes");
+  await expect(nav.getByRole("link", { name: "Proyectos" })).toBeVisible();
   const footer = desktop ? page.getByRole("navigation", { name: "Secundaria" }) : nav;
   await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
   await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
@@ -307,8 +309,8 @@ test.describe("keyboard shortcuts", () => {
     await recordKeys(page);
     const historyLength = await page.evaluate(() => history.length);
 
-    // 2 and 3 are unbound (their modules don't exist yet).
-    for (const key of ["2", "3", "Meta+1", "Control+1", "Shift+1"]) {
+    // 3 and 4 are unbound (their modules don't exist yet; 2 is Proyectos).
+    for (const key of ["3", "4", "Meta+1", "Control+1", "Shift+1"]) {
       await page.keyboard.press(key);
     }
     const keys = (await recordedKeys(page)) as { key: string; prevented: boolean }[];
