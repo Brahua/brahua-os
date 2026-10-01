@@ -188,7 +188,6 @@ test.describe("touch (phone)", () => {
     // Not `none`: a swipe over the handle still scrolls the page.
     await expect(handle).toHaveCSS("touch-action", "manipulation");
 
-
     // A press of 200 ms lifts the row; then it follows the finger.
     await handle.scrollIntoViewIfNeeded();
     await settle(page);
