@@ -1,6 +1,7 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { SECURITY_HEADERS } from "../next.config";
 import { brandHex } from "../src/design-system/brand-colors";
+import { OWNER_STORAGE_STATE } from "./support/owner";
 import { pngSize } from "./support/png";
 
 // Installing happens before signing in: everything here must work without a session.
@@ -94,24 +95,60 @@ test("the server HTML has one theme-color per system scheme", async ({ browser }
   await context.close();
 });
 
-test("theme-color follows the app's theme, not only the system's", async ({ page }) => {
-  const themeColors = page.locator('meta[name="theme-color"]');
-  const expectThemeColor = async (color: string) => {
-    await expect(themeColors).toHaveCount(2);
-    for (const meta of await themeColors.all())
-      await expect(meta).toHaveAttribute("content", color);
-  };
+test("/favicon.ico redirects to the PNG favicon", async ({ request }) => {
+  const response = await request.get("/favicon.ico", { maxRedirects: 0 });
+  expect(response.status()).toBe(307);
+  expect(response.headers().location).toBe("/icon.png");
+  await expectPng(request, "/icon.png", 32);
+});
 
+/** Both theme-color metas carry `color` (whatever their media query). */
+async function expectThemeColor(page: Page, color: string) {
+  const themeColors = page.locator('meta[name="theme-color"]');
+  await expect(themeColors).toHaveCount(2);
+  for (const meta of await themeColors.all()) await expect(meta).toHaveAttribute("content", color);
+}
+
+test("theme-color follows the app's theme, not only the system's", async ({ page }) => {
   // A light system with the default (dark) theme: the bar matches the dark page.
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/login");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expectThemeColor(brandHex("darkBackground"));
+  await expectThemeColor(page, brandHex("darkBackground"));
 
   // Light pinned in Ajustes on a dark system.
   await page.emulateMedia({ colorScheme: "dark" });
   await page.evaluate(() => localStorage.setItem("theme", "light"));
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expectThemeColor(brandHex("lightBackground"));
+  await expectThemeColor(page, brandHex("lightBackground"));
+});
+
+test.describe("signed in", () => {
+  test.use({ storageState: OWNER_STORAGE_STATE });
+
+  test("choosing Claro in Ajustes recolors the bar, also after a client navigation", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.goto("/settings");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expectThemeColor(page, brandHex("darkBackground"));
+
+    const light = page
+      .getByRole("radiogroup", { name: "Apariencia" })
+      .getByRole("radio", { name: "Claro" });
+    await light.click();
+    await expect(light).toHaveAttribute("aria-checked", "true");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expectThemeColor(page, brandHex("lightBackground"));
+
+    // Client-side: the marker survives only if the document is not reloaded.
+    await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
+    await page.getByRole("link", { name: "Áreas", exact: true }).filter({ visible: true }).click();
+    await expect(page).toHaveURL("/areas");
+    await expect(page.getByRole("heading", { level: 1, name: "Áreas" })).toBeVisible();
+    expect(await page.evaluate(() => "__sameDocument" in window)).toBe(true);
+    await expectThemeColor(page, brandHex("lightBackground"));
+  });
 });

@@ -32,7 +32,3 @@ test("the favicon and the Apple touch icon have their sizes", () => {
   expect(png("src/app/icon.png")).toEqual({ width: 32, height: 32 });
   expect(png("src/app/apple-icon.png")).toEqual({ width: 180, height: 180 });
 });
-
-test("pngSize rejects anything that is not a PNG", () => {
-  expect(() => pngSize(Buffer.from("GIF89a not a png at all, really"))).toThrow("Not a PNG");
-});

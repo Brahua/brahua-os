@@ -10,6 +10,10 @@
 // Rendering: `ImageResponse` from next/og (Satori + resvg, already in `next`), so no new
 // dependency. The font is the same instance next/font serves, fetched from Google Fonts (needs
 // network) and subset to the glyph.
+//
+// The output is deterministic (same bytes on every run) only while Google serves the same Archivo
+// build: when the font is updated, a re-run may change the PNGs slightly. Look at them before
+// committing.
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ImageResponse } from "next/og";
@@ -19,9 +23,16 @@ import { MANIFEST_ICONS } from "../src/lib/pwa";
 const ROOT = path.resolve(__dirname, "..");
 const MONOGRAM = "b";
 
+async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(url, init);
+  if (!response.ok)
+    throw new Error(`GET ${url} answered ${response.status} ${response.statusText}`);
+  return response;
+}
+
 async function loadArchivo(): Promise<ArrayBuffer> {
   // An old Safari user agent makes Google Fonts answer with TrueType (Satori does not read WOFF2).
-  const css = await fetch(
+  const css = await fetchOk(
     `https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,800&text=${MONOGRAM}`,
     {
       headers: {
@@ -32,7 +43,7 @@ async function loadArchivo(): Promise<ArrayBuffer> {
   ).then((response) => response.text());
   const url = css.match(/src: url\((.+?)\) format\('truetype'\)/)?.[1];
   if (!url) throw new Error(`No TrueType Archivo in the Google Fonts answer:\n${css}`);
-  return fetch(url).then((response) => response.arrayBuffer());
+  return fetchOk(url).then((response) => response.arrayBuffer());
 }
 
 /**
