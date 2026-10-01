@@ -2,7 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
 import { isGitHubActions, screenshotsEnabled } from "./e2e/support/screenshot-env";
 
-const PORT = 3417;
+// E2E_PORT lets parallel local runs (several worktrees) use different ports; CI uses the default.
+const PORT = Number(process.env.E2E_PORT ?? 3417);
 const baseURL = `http://localhost:${PORT}`;
 
 // The app under test runs against the throwaway TEST_DATABASE_URL (checked in global-setup.ts),
