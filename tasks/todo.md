@@ -128,7 +128,7 @@
     - [x] Cabeceras de seguridad: adelantadas en C2a (`next.config.ts`: `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`), con su E2E en `e2e/login.spec.ts`. Queda el manifest.
     - [x] PWA (PR #25): `src/app/manifest.ts`, íconos generados con `pnpm icons:build` (`scripts/build-icons.tsx`), favicon y `apple-icon`, `appleWebApp`, `theme-color` por tema, E2E `e2e/pwa.spec.ts` y el manifest en el smoke test. Ver "Cómo funciona la PWA (C7)" en `docs/HANDOFF.md`.
     - [x] Verificación manual: instalar en el iPhone y entrar con passkey dentro de la app instalada. Hecha por el owner el 2026-10-01, dentro del Checkpoint 2.
-    - Android: no se probó (N/A: el owner usa iPhone). Queda pendiente solo si algún día se usa la app en Android.
+    - Android: **N/A** (el owner usa iPhone; decisión del owner 2026-10-01).
   - **Aceptación:** una E2E valida el manifest y las cabeceras; la app se instala en tu celular en modo standalone.
   - **Tamaño:** S
 
@@ -139,9 +139,7 @@
   - **Aceptación:** un error forzado muestra la página sin detalles técnicos; axe en 0.
     - [x] E2E `e2e/error-pages.spec.ts` (sin mensaje ni stack en la respuesta, "Reintentar", axe en ambos temas, 8 capturas nuevas).
   - **Tamaño:** S
-  - **Seguimiento (fuera de C8):**
-    - [ ] Observabilidad de errores de cliente: un error de un componente cliente no tiene `digest` ni llega al registro del servidor; hoy la página no muestra código y nadie se entera. Definir cómo reportarlos (p. ej. un endpoint propio que registre una línea sin el mensaje).
-    - [ ] Estabilizar la E2E de C6 `e2e/areas-order.spec.ts:329` (⌘Z deshace, escritorio): falló una vez en CI y pasó al reintentar.
+  - **Seguimiento (fuera de C8):** movido a "Backlog técnico" (al final).
 
 ## Fase 4 — Producción
 
@@ -163,7 +161,16 @@
   - **Aceptación:** medir producción tras el deploy (Lighthouse 12 móvil, mediana de 3).
 
 ### Checkpoint final
-- [ ] Se cumplen los criterios de éxito de `SPEC-core.md`. Revisados el 2026-10-01 contra lo que existe: se cumplen todos menos dos.
-  - [ ] **Calidad, Lighthouse móvil:** Accesibilidad 100 y CLS 0 cumplen, pero el **LCP** de `/login` en producción era 2,9 s (> 2,5 s). En local (`pnpm build && pnpm start`, mediana de 3) pasó de 3,25 s a 3,02 s con el PR `perf/login-lcp`; falta medir producción después del deploy. Si sigue sobre 2,5 s, la siguiente palanca son las fuentes (ver HANDOFF).
-  - [ ] **Passkey y PWA en Android** (verificación y checklist manuales): N/A, el owner usa iPhone. En iOS están hechas (Checkpoint 2). Decidir si se da por cumplido o se reformula el criterio.
+- [x] Se cumplen los criterios de éxito de `SPEC-core.md`, o el owner los difirió de forma explícita (revisados el 2026-10-01):
+  - **Calidad, Lighthouse móvil:** Accesibilidad 100 y CLS 0 cumplen. El **LCP** de `/login` simulado en producción era 2,9 s (> 2,5 s); en local pasó de 3,25 s a 3,02 s con el PR `perf/login-lcp` (con *throttling* real de DevTools: 1,6 s). **Aceptado por ahora (decisión del owner 2026-10-01):** la medición con datos reales queda en "Backlog técnico".
+  - **Passkey y PWA en Android** (verificación y checklist manuales): **N/A**, el owner usa iPhone (decisión del owner 2026-10-01). En iOS están hechas (Checkpoint 2).
 - [ ] Revisión contigo antes del siguiente módulo (`projects`).
+
+## Backlog técnico
+
+Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre módulos o cuando algo las vuelva urgentes.
+
+- [ ] **LCP con datos reales:** medir el LCP con datos reales (Vercel Speed Insights o Lighthouse con *throttling* real de DevTools) en vez del Lighthouse simulado. Si supera 2,5 s, autoalojar las fuentes recortadas (prototipo: ~0,15 s). Ver "Rendimiento de `/login` (LCP)" en `docs/HANDOFF.md` (cómo medir, hallazgos y siguientes palancas). Origen: criterio de Calidad de `SPEC-core.md`, aceptado por el owner el 2026-10-01.
+- [ ] **Postgres de pruebas en 18:** subir el Postgres de pruebas (CI y `docker compose`) a 18, como producción. Hoy es `postgres:17` en `docker-compose.yml` y en `.github/workflows/ci.yml`, `update-screenshots.yml` y `backup.yml` (`target=ci-service`).
+- [ ] **Observabilidad de errores de cliente** (de C8): un error de un componente cliente no tiene `digest` ni llega al registro del servidor; hoy la página no muestra código y nadie se entera. Definir cómo reportarlos (p. ej. un endpoint propio que registre una línea sin el mensaje).
+- [ ] **E2E inestable** (de C8): estabilizar la E2E de C6 `e2e/areas-order.spec.ts:329` (⌘Z deshace, escritorio): falló una vez en CI y pasó al reintentar.

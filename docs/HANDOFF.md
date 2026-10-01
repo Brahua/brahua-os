@@ -36,7 +36,8 @@
   - ✅ Checkpoint 2: validado por el owner el 2026-10-01.
   - Retrospectiva de `core` (2026-10-01): reglas nuevas en `CLAUDE.md`, sección "Lessons from `core`".
   - LCP de `/login` (PR `perf/login-lcp`): ver "Rendimiento de `/login` (LCP)".
-  - **Siguiente:** medir Lighthouse en producción tras el deploy de `perf/login-lcp` y cerrar el Checkpoint final (en `tasks/todo.md` quedan el LCP y los criterios de Android); luego el módulo `projects`.
+  - Checkpoint final: criterios de éxito cumplidos o diferidos por el owner (2026-10-01): el LCP se acepta por ahora y su medición con datos reales queda en "Backlog técnico" de `tasks/todo.md`; Android es N/A (el owner usa iPhone).
+  - **Siguiente:** la revisión con el owner antes del módulo `projects` (segunda casilla del Checkpoint final).
 
 ## C2a: pasos del usuario (en orden)
 
