@@ -30,3 +30,6 @@ next-env.d.ts
 
 # playwright signed-in state (e2e/auth.setup.ts)
 /e2e/.auth/
+
+# pnpm db:export output (personal data)
+/exports/
