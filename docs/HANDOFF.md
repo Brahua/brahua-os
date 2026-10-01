@@ -16,7 +16,7 @@
 ## Estado
 
 - **design-system:** ✅ completado. Fuente de verdad en Claude Design (skill `design-sync-pull`).
-  - Los 2 ajustes locales (foco en claro y texto blanco en teclas naranjas) ya están en Claude Design; `overrides.css` quedó vacío (sincronizado el 2026-09-30).
+  - Los ajustes locales están en Claude Design: foco en claro y teclas naranjas (2026-09-30); tooltip, barra inferior a 320 px, switch con movimiento reducido y colores forzados (2026-10-01). `overrides.css` está vacío.
 - **core:** en curso.
   - ✅ C0: producción en https://os.brahua.com; deploy desde GitHub Actions solo con todos los checks en verde.
   - ✅ C1 (base de datos): PR #10 integrado; la primera migración (`core_life_areas`) se aplicó en producción el 2026-09-30.
@@ -99,12 +99,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - **Captura:** la tecla se muestra (para que el diseño no cambie cuando llegue) pero con `aria-disabled`, alcanzable con Tab y con el tooltip "Próximamente" como descripción. Como en táctil no hay hover, tocarla muestra el tooltip 2 segundos. Cuando exista la captura rápida, se pasa `onCapture` a `BottomNav`/`Sidebar` y se agrega el atajo `C`.
 - **Layout** (`src/app/(app)/layout.tsx`): enlace "Saltar al contenido" (respeta la zona segura), `<main id="content">` con las zonas seguras (`viewport-fit=cover` solo en `(app)`) y el espacio de la barra inferior (`--shell-bottom-offset`; `AppNav` lo ajusta a la altura real si la barra crece con texto más grande). `scroll-padding-bottom` en `<html>` bajo 1024 px para que el foco nunca quede tapado (WCAG 2.4.11). La hoja inferior también respeta las zonas seguras. Las páginas ya no ponen su propio `<main>` y cada una tiene su `metadata.title`.
 - **Hora:** `src/lib/time.ts` usa `Intl` con `America/Lima` (sin dependencias nuevas; la hora sale de `formatToParts`): `greetingFor` (días desde las 5:00, tardes desde las 12:00, noches desde las 19:00), `formatLongDate` y `ownerDateKey`. La portada los calcula en el servidor, así que no hay desajuste de hidratación.
-- **Pendiente en Claude Design** (reglas en `src/design-system/styles/overrides.css`; aplicarlas allá y luego borrarlas de aquí):
-  - `Tooltip` (WCAG 1.4.13): se puede pasar el puntero al tooltip sin que se cierre (`pointer-events` mientras se ve y un `::before` transparente que cubre los 8 px de separación). Oculto usa `visibility: hidden`, que pasa a `visible` con el mismo retraso de 300 ms: así no captura el puntero antes de verse (C4). Además, `tooltip.tsx` cierra el tooltip con Esc hasta que el puntero sale o el foco se va.
-  - `Switch` con movimiento reducido (C4): la perilla salta en vez de deslizarse (`transition-duration: 0ms` para `transform`).
-  - Teclas activadas en colores forzados (C5): `.bo-key.is-on`, `[aria-pressed="true"]` y `[aria-checked="true"]` llevan un `outline` `Highlight` bajo `forced-colors: active` (si no, una muestra o un ícono elegido se ve igual que los demás).
-  - `Sheet` (C5, en `sheet.tsx`, no en CSS): props `onClosed` y `bodyClassName`.
-  - `BottomNav` (WCAG 1.4.10): columnas `repeat(5, minmax(0, 1fr))` para que las etiquetas se trunquen a 320 px en vez de desbordar.
+- **Claude Design:** los ajustes de `Tooltip` (WCAG 1.4.13), `BottomNav` a 320 px (WCAG 1.4.10), `Switch` con movimiento reducido (token `--duration-switch`) y teclas activadas en colores forzados ya están en Claude Design y se sincronizaron el 2026-10-01; `overrides.css` quedó vacío. Sigue pendiente subir a Claude Design el cambio de `sheet.tsx` (props `onClosed` y `bodyClassName`, C5), que es del componente y no de CSS.
 - **Visto de paso, sin arreglar:** a 320 px, `/design` tiene desborde horizontal por secciones que ya existían (SectionLabel `w-80`, Lcd y ProgressRing). No es de la navegación.
 - **E2E** (`e2e/home.spec.ts`):
   - Espera `data-nav-shortcuts="ready"` en `<html>` antes de pulsar teclas (los atajos existen solo tras hidratar).
