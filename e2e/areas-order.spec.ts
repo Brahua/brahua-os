@@ -179,7 +179,11 @@ test("reduced motion: rows jump into place, without sliding", async ({ page }, t
   await openAreas(page);
   await createPair(page, a, b);
 
-  /** Inline transitions dnd-kit puts on the rows while one is lifted. */
+  /**
+   * Inline transitions dnd-kit puts on the rows while one is lifted. Right after a drop it may
+   * set `transform 0ms linear`: no motion either.
+   */
+  const still = (transition: string) => !/[1-9]\d*m?s/.test(transition);
   const transitions = () =>
     list(page)
       .locator(":scope > li")
@@ -195,10 +199,10 @@ test("reduced motion: rows jump into place, without sliding", async ({ page }, t
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await liftAndMoveUp(page, b, 1);
-  expect((await transitions()).every((t) => t === "")).toBe(true);
+  expect((await transitions()).every(still)).toBe(true);
   await page.keyboard.press("Space");
   await expectAdjacent(page, b, a);
-  expect((await transitions()).every((t) => t === "")).toBe(true);
+  expect((await transitions()).every(still)).toBe(true);
   // The notice only fades in: no rise.
   const toast = notices(page).locator(".bo-toast");
   await expect(toast).toBeVisible();
