@@ -23,6 +23,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "auth:owner": "tsx scripts/auth-owner.ts",
     "auth:check-env": "tsx scripts/check-auth-env.ts",
+    "icons:build": "tsx scripts/build-icons.tsx",
     "test:integration": "vitest run --config vitest.integration.config.mts"
   },
   "dependencies": {
