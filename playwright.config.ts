@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
+import { screenshotsEnabled } from "./e2e/support/screenshot-env";
 
 const PORT = 3417;
 const baseURL = `http://localhost:${PORT}`;
@@ -26,8 +27,11 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  // Screenshots are only compared inside the Linux Playwright container (CI or Docker),
-  // so fonts render the same everywhere.
+  // Screenshots are only compared inside the Linux Playwright image (CI, update-screenshots.yml or
+  // Docker), so fonts render the same. Elsewhere (macOS while iterating) every comparison is
+  // skipped: specs call expectScreenshot() (e2e/support/screenshots.ts), which also annotates the
+  // skip in the report, and this is the safety net for anything else.
+  ignoreSnapshots: !screenshotsEnabled(),
   snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}{ext}",
   projects: [
     // Signs in once through the login form; the app specs reuse that session.

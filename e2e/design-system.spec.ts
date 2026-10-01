@@ -2,27 +2,14 @@ import AxeBuilder from "@axe-core/playwright";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
+import { expectScreenshot } from "./support/screenshots";
 
 const THEMES = ["dark", "light"] as const;
-const SECTIONS = [
-  "key",
-  "icon-key",
-  "kbd-tooltip",
-  "icon",
-  "led",
-  "area-tag",
-  "area-icons",
-  "section-label",
-  "stat-number",
-  "progress",
-  "week",
-  "lcd",
-  "controls",
-  "text-field",
-  "sheet",
-  "list-row",
-  "navigation",
-];
+// The app's screens (login, home, areas, settings) already capture text fields, list rows,
+// sheets, area tags, colors and icons, and the navigation. These sections hold what no screen
+// shows yet, or only partly: every Key state and size, Kbd on a signal key with an open tooltip,
+// every control state, and the progress meters.
+const SECTIONS = ["key", "kbd-tooltip", "controls", "progress"];
 const HIDE_APP_NAV = path.join(__dirname, "support/hide-app-nav.css");
 
 async function openGuide(page: Page, theme: (typeof THEMES)[number]) {
@@ -41,16 +28,15 @@ for (const theme of THEMES) {
       expect(results.violations).toEqual([]);
     });
 
-    test("key sections match the reference screenshots", async ({ page }) => {
-      // Fonts render differently per OS; references are only valid inside the Linux container.
-      test.skip(process.platform !== "linux", "Visual references are generated on Linux only");
+    test("key sections match the reference screenshots", async ({ page }, testInfo) => {
+      // A section only reflows with the width; the phone layout is covered by the app screens.
+      test.skip(testInfo.project.name !== "desktop", "Design system sections: desktop only");
       await page.emulateMedia({ reducedMotion: "reduce" });
       await openGuide(page, theme);
       for (const id of SECTIONS) {
-        await expect(page.locator(`[data-guide-section="${id}"]`)).toHaveScreenshot(
-          `${id}-${theme}.png`,
-          { stylePath: HIDE_APP_NAV },
-        );
+        await expectScreenshot(page.locator(`[data-guide-section="${id}"]`), `${id}-${theme}.png`, {
+          stylePath: HIDE_APP_NAV,
+        });
       }
     });
   });

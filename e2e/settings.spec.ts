@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import path from "node:path";
 import { fontsLoaded } from "./support/fonts";
+import { expectScreenshot } from "./support/screenshots";
 import { HOME_HEADING } from "./support/owner";
 
 // Signed in (the shared owner session). Signing out here would end that session for every other
@@ -199,12 +201,8 @@ test("turning shortcuts off removes keys and hints at once; on brings them back"
   expect(await isSameDocument(page)).toBe(true);
 });
 
-// Sections with fixed content (the passkey list changes with other specs), for the screenshots.
-const SHOTS = [
-  ["Apariencia", "appearance"],
-  ["Teclado", "keyboard"],
-  ["Sesión", "session"],
-] as const;
+// The app's fixed bottom bar would cover the end of the page on phones.
+const HIDE_APP_NAV = path.join(__dirname, "support/hide-app-nav.css");
 
 for (const theme of THEMES) {
   test(`${theme} theme: no accessibility violations and the reference screenshots`, async ({
@@ -227,12 +225,12 @@ for (const theme of THEMES) {
     );
     expect(knob.split(",")[0].trim()).toBe("0s");
 
-    // Fonts render differently per OS; references are only valid inside the Linux container.
-    if (process.platform !== "linux") return;
-    for (const [name, file] of SHOTS) {
-      await expect(page.getByRole("region", { name })).toHaveScreenshot(
-        `settings-${file}-${theme}.png`,
-      );
-    }
+    // The whole page minus the passkey list, which changes with other specs (passkey.spec.ts).
+    await page
+      .getByRole("region", { name: /^Passkeys/ })
+      .evaluate((element: HTMLElement) => (element.style.display = "none"));
+    await expectScreenshot(page.getByRole("main"), `settings-${theme}.png`, {
+      stylePath: HIDE_APP_NAV,
+    });
   });
 }

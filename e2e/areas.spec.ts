@@ -2,6 +2,7 @@ import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
+import { expectScreenshot } from "./support/screenshots";
 
 // Shared database: global-setup seeds the 8 default areas, and other tests here create more in
 // parallel. Each test uses its own names and never edits the seeded areas, which the
@@ -328,13 +329,8 @@ for (const theme of THEMES) {
     await fontsLoaded(page);
 
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-    const linux = process.platform === "linux";
-    if (linux) {
-      // Only the seeded rows: other tests add areas to the shared database.
-      await expect(list(page)).toHaveScreenshot(`areas-list-${theme}.png`, {
-        stylePath: SCREENSHOT_CSS,
-      });
-    }
+    // Only the seeded rows: other tests add areas to the shared database.
+    await expectScreenshot(list(page), `areas-list-${theme}.png`, { stylePath: SCREENSHOT_CSS });
 
     await newAreaButton(page).click();
     await nameField(page).fill("Música");
@@ -349,10 +345,8 @@ for (const theme of THEMES) {
     await expect(nameField(page)).toHaveAttribute("aria-invalid", "true");
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-    if (linux) {
-      await nameField(page).fill("Música");
-      await nameField(page).blur();
-      await expect(sheet(page)).toHaveScreenshot(`areas-sheet-${theme}.png`);
-    }
+    await nameField(page).fill("Música");
+    await nameField(page).blur();
+    await expectScreenshot(sheet(page), `areas-sheet-${theme}.png`);
   });
 }
