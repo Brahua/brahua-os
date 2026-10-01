@@ -21,6 +21,10 @@ export const LIFE_AREA_ERRORS = {
   color: "Elige un color.",
   icon: "Elige un ícono.",
   id: "No encontramos esta área. Recarga la página e inténtalo de nuevo.",
+  archived: "Esta área está archivada. Desarchívala para editarla.",
+  order: "El orden enviado no es válido. Recarga la página e inténtalo de nuevo.",
+  staleOrder:
+    "La lista de áreas cambió mientras la ordenabas. Ya está al día: vuelve a intentarlo.",
 } as const;
 
 /** What the list, the form and the actions' results get of an area (never the whole row). */
@@ -66,12 +70,39 @@ export const lifeAreaInputSchema = z.object({
   icon: z.enum(AREA_ICON_NAMES, { error: LIFE_AREA_ERRORS.icon }),
 });
 
-export const updateLifeAreaInputSchema = lifeAreaInputSchema.extend({
-  id: z.uuid({ error: LIFE_AREA_ERRORS.id }),
+const areaId = z.uuid({ error: LIFE_AREA_ERRORS.id });
+
+export const updateLifeAreaInputSchema = lifeAreaInputSchema.extend({ id: areaId });
+
+/** Archive or unarchive: just the area. */
+export const lifeAreaIdInputSchema = z.object({ id: areaId });
+
+/**
+ * Unarchive. `end` (the default) puts the area after every active one; `original` keeps its
+ * old position, which is how "Deshacer" undoes an archive (archiving keeps `sort_order`).
+ */
+export const unarchiveLifeAreaInputSchema = lifeAreaIdInputSchema.extend({
+  position: z.enum(["end", "original"]).default("end"),
+});
+
+/** Far above any real list; bounds the work a single request can ask for. */
+export const MAX_LIFE_AREAS_IN_ORDER = 500;
+
+/**
+ * Reorder: every active area's id, in the new order. The action also checks that they are
+ * exactly the active areas (see `planReorder`).
+ */
+export const reorderLifeAreasInputSchema = z.object({
+  ids: z
+    .array(z.uuid({ error: LIFE_AREA_ERRORS.order }), { error: LIFE_AREA_ERRORS.order })
+    .min(1, LIFE_AREA_ERRORS.order)
+    .max(MAX_LIFE_AREAS_IN_ORDER, LIFE_AREA_ERRORS.order)
+    .refine((ids) => new Set(ids).size === ids.length, LIFE_AREA_ERRORS.order),
 });
 
 export type LifeAreaInput = z.infer<typeof lifeAreaInputSchema>;
 export type UpdateLifeAreaInput = z.infer<typeof updateLifeAreaInputSchema>;
+export type UnarchiveLifeAreaInput = z.output<typeof unarchiveLifeAreaInputSchema>;
 /** Field names shown in the form, in the order they appear (focus goes to the first invalid). */
 export const LIFE_AREA_FIELDS = ["name", "color", "icon"] as const;
 export type LifeAreaField = (typeof LIFE_AREA_FIELDS)[number];

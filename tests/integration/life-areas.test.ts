@@ -2,15 +2,13 @@ import { asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
-import { createAuth } from "@/lib/auth";
-import { resolveAuthEnv } from "@/lib/auth-env";
 import { createLifeArea, updateLifeArea } from "@/modules/core/actions";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { LIFE_AREA_ERRORS } from "@/modules/core/life-area-input";
 import { insertLifeArea, isSlugConflict } from "@/modules/core/life-areas";
-import { upsertOwner } from "@/modules/core/owner";
 import { listLifeAreas } from "@/modules/core/queries";
 import { seed } from "@/modules/core/seed";
+import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
 
 // The actions read the request headers (session cookie) and the app database: point both at
@@ -23,41 +21,7 @@ vi.mock("@/lib/db", async (importOriginal) => ({
   getDb: () => testDb,
 }));
 
-const BASE_URL = "http://localhost:3417";
-const OWNER = "owner@example.com";
-const OTHER = "someone@example.com";
-const PASSWORD = "correct horse battery";
-const ENV = {
-  BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters-long",
-  BETTER_AUTH_URL: BASE_URL,
-  OWNER_EMAIL: OWNER,
-};
 const ORIGINAL_ENV = { ...process.env };
-
-let ipCounter = 0;
-
-/** Signs in through Better Auth's handler and returns the session cookie for `email`. */
-async function sessionCookieFor(email: string, ownerEmail = email): Promise<string> {
-  await upsertOwner(testDb, { email, password: PASSWORD });
-  const auth = createAuth(testDb, resolveAuthEnv({ ...ENV, OWNER_EMAIL: ownerEmail }));
-  const response = await auth.handler(
-    new Request(`${BASE_URL}/api/auth/sign-in/email`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: BASE_URL,
-        "x-forwarded-for": `198.51.100.${++ipCounter % 250}`,
-      },
-      body: JSON.stringify({ email, password: PASSWORD }),
-    }),
-  );
-  expect(response.status).toBe(200);
-  const cookie = response.headers
-    .getSetCookie()
-    .find((value) => value.startsWith("better-auth.session_token="));
-  if (!cookie) throw new Error("No session cookie");
-  return cookie.split(";")[0];
-}
 
 const music = { name: "Música", color: "hobbies", icon: "music" } as const;
 
@@ -66,7 +30,7 @@ async function allAreas() {
 }
 
 beforeAll(() => {
-  Object.assign(process.env, ENV);
+  Object.assign(process.env, AUTH_ENV);
 });
 
 afterAll(() => {
