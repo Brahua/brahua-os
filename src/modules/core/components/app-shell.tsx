@@ -24,6 +24,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SessionRefresher />
+      {/* Paints behind the iOS status bar in the installed app so content never scrolls under it. */}
+      <div aria-hidden="true" className="bo-status-bar-backdrop" />
       <a
         href="#content"
         className="sr-only z-50 rounded-md bg-key px-4 py-3 text-text shadow-key focus:not-sr-only focus:fixed focus:top-[max(1rem,env(safe-area-inset-top))] focus:left-[max(1rem,env(safe-area-inset-left))]"
