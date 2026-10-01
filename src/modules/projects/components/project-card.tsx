@@ -1,10 +1,11 @@
+import { Lock } from "lucide-react";
 import Link from "next/link";
-import { AreaTag, Led } from "@/design-system";
+import { AreaTag, Icon, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatOwnerDay } from "@/lib/time";
 import type { DueState } from "../progress";
 import type { ProjectSummary } from "../project-input";
-import { PROJECTS_COPY } from "../projects-copy";
+import { DEPENDENCIES_COPY, PROJECTS_COPY } from "../projects-copy";
 
 type ProjectCardProps = {
   project: ProjectSummary;
@@ -12,6 +13,8 @@ type ProjectCardProps = {
   due: DueState | null;
   /** Level of the name's heading: 3 under a group's h2, 4 inside the history's h3 groups. */
   headingLevel?: 3 | 4;
+  /** Names of the projects that still block it (P4); none or empty: not blocked. */
+  blockedBy?: readonly string[];
   className?: string;
 };
 
@@ -23,7 +26,13 @@ type ProjectCardProps = {
  * Ported without the pattern's "Siguiente tarea" key (it belongs to `tasks`) and without the
  * progress bar until there are milestones (P3): a card never shows an empty slot for either.
  */
-export function ProjectCard({ project, due, headingLevel = 3, className }: ProjectCardProps) {
+export function ProjectCard({
+  project,
+  due,
+  headingLevel = 3,
+  blockedBy = [],
+  className,
+}: ProjectCardProps) {
   const Heading = headingLevel === 3 ? "h3" : "h4";
   const urgent = due?.kind === "today" || due?.kind === "overdue";
   const high = project.priority === "high";
@@ -31,9 +40,13 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
   // Ids from the project's id: a project shows once per page.
   const dueId = `project-${project.id}-due`;
   const priorityId = `project-${project.id}-priority`;
-  const describedBy = [due ? dueId : null, high ? priorityId : null].filter(
-    (id): id is string => id !== null,
-  );
+  const blockedId = `project-${project.id}-blocked`;
+  const blocked = blockedBy.length > 0;
+  const describedBy = [
+    due ? dueId : null,
+    high ? priorityId : null,
+    blocked ? blockedId : null,
+  ].filter((id): id is string => id !== null);
   return (
     <article
       data-project-card={project.id}
@@ -92,6 +105,16 @@ export function ProjectCard({ project, due, headingLevel = 3, className }: Proje
           <span aria-hidden>{PROJECTS_COPY.highPriorityShort}</span>
           <span id={priorityId} className="sr-only">
             {PROJECTS_COPY.highPriority}
+          </span>
+        </p>
+      ) : null}
+      {blocked ? (
+        // Heard as "Bloqueado por X, Y" (the link's description); seen as "Bloqueado".
+        <p className="bo-text-label flex items-center gap-2 text-text-secondary" data-blocked>
+          <Icon icon={Lock} size="sm" />
+          <span aria-hidden>{DEPENDENCIES_COPY.blocked}</span>
+          <span id={blockedId} className="sr-only">
+            {DEPENDENCIES_COPY.blockedBy(blockedBy)}
           </span>
         </p>
       ) : null}

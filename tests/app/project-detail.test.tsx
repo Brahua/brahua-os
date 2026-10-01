@@ -44,7 +44,11 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
-vi.mock("@/modules/projects/queries", () => ({ getProject: vi.fn() }));
+vi.mock("@/modules/projects/queries", () => ({
+  getProject: vi.fn(),
+  // P4: no blockers and nothing to add unless a test says so.
+  getProjectDependencies: vi.fn(async () => ({ blockers: [], blocking: [], candidates: [] })),
+}));
 vi.mock("@/modules/projects/actions", () => ({
   renameProject: vi.fn(),
   changeProjectStatus: vi.fn(),
@@ -53,6 +57,8 @@ vi.mock("@/modules/projects/actions", () => ({
   updateProjectObjective: vi.fn(),
   updateProjectDates: vi.fn(),
   deleteProject: vi.fn(),
+  addDependency: vi.fn(),
+  removeDependency: vi.fn(),
 }));
 
 const HOME: ProjectAreaSummary = {
@@ -239,6 +245,7 @@ describe("page", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Estado y prioridad",
       "Objetivo y fechas",
+      "Bloqueado por",
     ]);
     expect(screen.getByText("Hogar")).toBeInTheDocument();
     expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked();

@@ -6,9 +6,11 @@ import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { listLifeAreas } from "@/modules/core/queries";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
-import { getProject } from "@/modules/projects/queries";
+import { getProject, getProjectDependencies } from "@/modules/projects/queries";
 import { CREATED_PARAM } from "@/modules/projects/routes";
+import { ProjectBlockedBy } from "./_components/project-blocked-by";
 import { ProjectDeleteSection } from "./_components/project-delete-section";
+import { ProjectDependenciesSection } from "./_components/project-dependencies-section";
 import { ProjectDetailProvider } from "./_components/project-detail-context";
 import { ProjectHeader } from "./_components/project-header";
 import { ProjectPlanSection } from "./_components/project-plan-section";
@@ -42,11 +44,12 @@ export async function generateMetadata({ params }: ProjectPageProps): Promise<Me
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   await requireOwner();
   const [{ id }, search] = await Promise.all([params, searchParams]);
-  const [project, areas] = await Promise.all([
+  const [project, areas, dependencies] = await Promise.all([
     getProject(id),
     listLifeAreas(),
     // P3 (Hitos): the project's milestones.
     // P4 (Dependencias): its blockers and the candidates.
+    getProjectDependencies(id),
     // P5 (Notas y enlaces): its links (the notes come with the project).
   ]);
   if (!project) notFound();
@@ -68,14 +71,17 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <ProjectHeader
             headingId={HEADING_ID}
             areas={areas}
-            // P4 slot: blockedBy={<ProjectBlockedBy … />}
+            blockedBy={<ProjectBlockedBy blockers={dependencies.blocking} />}
           />
           <ProjectStateSection />
           <ProjectPlanSection
           // P3 slot: progress={<ProjectProgress … />}
           />
           {/* ── P3 slot (Hitos): <ProjectMilestonesSection … /> ── */}
-          {/* ── P4 slot (Dependencias): <ProjectDependenciesSection … /> ── */}
+          <ProjectDependenciesSection
+            blockers={dependencies.blockers}
+            candidates={dependencies.candidates}
+          />
           {/* ── P5 slot (Enlaces): <ProjectLinksSection … /> ── */}
           {/* ── P5 slot (Notas): <ProjectNotesSection … /> ── */}
           <ProjectDeleteSection />
