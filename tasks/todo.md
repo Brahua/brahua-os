@@ -110,6 +110,10 @@
     - E2E del recorrido completo.
   - **Tamaño:** M
 
+### Mejoras de proceso
+
+- [ ] **E2E más rápida sin bajar el control de CI** (PR `chore/faster-e2e`). E2E nativa por spec mientras se itera (las capturas se saltan fuera de la imagen Linux de Playwright con `expectScreenshot()` y quedan anotadas); `pnpm test:e2e:changed`; workflow `update-screenshots.yml` que regenera las referencias en GitHub, las commitea como github-actions[bot] y vuelve a correr CI; de 94 a 30 capturas (una por pantalla, tema y viewport, más 4 secciones del design system en escritorio); job `smoke` de solo lectura contra https://os.brahua.com después de cada deploy; el registro de errores de las Server Actions ya no guarda mensajes de Postgres.
+
 ### Checkpoint 2
 - [ ] Recorrido completo en celular y escritorio: login → navegar → crear, editar, reordenar y archivar un área → cambiar tema → cerrar sesión. Lo revisamos juntos.
 

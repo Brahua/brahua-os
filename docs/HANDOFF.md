@@ -27,7 +27,8 @@
   - ✅ Confirmado por el owner (2026-09-30): el tema **oscuro por defecto** es el correcto, y revisó la navegación en su celular real: bien, incluidas las zonas seguras (notch e indicador de inicio).
   - ✅ C3 (navegación): PR #19 integrado.
   - ✅ C4 (ajustes): PR #20 integrado.
-  - 🟡 C5 (áreas: ver y crear): PR `feat/core-c5-areas` abierto, **sin merge**. Pendiente: revisores (`code-reviewer`, `test-engineer`, `security-auditor` porque agrega las primeras Server Actions con datos, y accesibilidad).
+  - ✅ C5 (áreas: ver y crear): PR #21 integrado.
+  - 🟡 Mejoras de proceso (PR `chore/faster-e2e`, **sin merge**): E2E nativa sin Docker, capturas generadas en GitHub, menos capturas, smoke test después del deploy y registro de errores sin mensajes de Postgres. Ver "Pruebas E2E" y "Smoke test en producción".
   - Siguiente: C6 (áreas: reordenar y archivar).
 
 ## C2a: pasos del usuario (en orden)
@@ -63,7 +64,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - Enumeración: cualquier cosa que no sea el email exacto del owner con una contraseña de hasta 128 caracteres recibe el mismo 401 que una contraseña incorrecta.
 - Cabeceras de seguridad en `next.config.ts` para todas las rutas (adelantadas de C7).
 - `/login` es la única página pública. Todo `(app)` (incluidos `/` y `/design`) exige sesión del owner: layout + cada página llaman `requireOwner()`.
-- E2E: `e2e/global-setup.ts` prepara la base desechable (`TEST_DATABASE_URL`) con un owner de prueba; `e2e/auth.setup.ts` inicia sesión por el formulario y guarda la sesión para el resto. En local: `docker compose up -d` y luego `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test pnpm test:e2e`, o `pnpm test:e2e:docker` (capturas; usa `host.docker.internal`).
+- E2E: `e2e/global-setup.ts` prepara la base desechable (`TEST_DATABASE_URL`) con un owner de prueba; `e2e/auth.setup.ts` inicia sesión por el formulario y guarda la sesión para el resto. Cómo correrlas: ver "Pruebas E2E".
 
 ## Cómo funciona la passkey (C2b)
 
@@ -109,7 +110,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   - Espera `data-nav-shortcuts="ready"` en `<html>` antes de pulsar teclas (los atajos existen solo tras hidratar).
   - Las pruebas negativas registran, con un listener propio puesto después del de `AppNav`, si alguien llamó a `preventDefault()`, y después comprueban que una tecla válida sí actúa. Así pueden fallar de verdad.
   - Los tamaños (`--sidebar-width`, `--bottom-nav-height`…) se leen de las variables CSS.
-  - Las capturas de `/design` ocultan la barra inferior fija (`e2e/support/hide-app-nav.css`).
+  - Las capturas de `/design` y de `/settings` ocultan la barra inferior fija (`e2e/support/hide-app-nav.css`).
 
 ## Cómo funcionan los ajustes (C4)
 
@@ -117,7 +118,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - **Tema** (`theme-picker.tsx`): `SegmentedControl` en modo radio (flechas, Inicio y Fin) sobre `next-themes`, nombrado por el título visible "Apariencia" y descrito por la línea sobre "Sistema". **Oscuro por defecto** (`SPEC-design-system.md`, que prevalece en lo visual; `SPEC-core.md` se alineó en v2.3). La elección vive en `localStorage` (`theme`) y el script de next-themes la aplica antes de pintar, así que no hay parpadeo. El servidor no conoce el tema guardado: hasta montar, el grupo se dibuja invisible con un valor fijo (si no, la hidratación dejaría el `aria-checked` del servidor) y al montar se vuelve a crear (`key`) para que la opción elegida no se anime desde el valor provisional.
 - **Atajos** (`shortcuts-switch.tsx`): `Switch` con un `<label>` visible (tocar el texto también lo cambia) y descripción. Escribe `bo_shortcuts` con `shortcutsCookie()` y llama a `router.refresh()`: el layout vuelve a leer la cookie en el servidor y `AppNav` quita (o vuelve a poner) el listener, los `Kbd` y los `aria-keyshortcuts` sin recargar la página.
 - Passkeys y "Cerrar sesión": los mismos componentes de C2b, movidos a `settings/_components/`. "Cerrar sesión" usa `aria-disabled` (no `disabled`) mientras espera, para no perder el foco si falla. La portada solo tiene el saludo.
-- E2E (`e2e/settings.spec.ts`): el tema persiste tras recargar en las tres opciones y un `MutationObserver` puesto antes de cargar comprueba que `<html>` nunca tuvo otro tema (sin parpadeo); "Sistema" con `emulateMedia({ colorScheme })`. Las capturas solo toman Apariencia, Teclado y Sesión, porque la lista de passkeys cambia con otras pruebas. Cerrar sesión se prueba en `login.spec.ts` y `passkey.spec.ts` con sesiones propias: hacerlo con la sesión compartida la cerraría para las demás pruebas.
+- E2E (`e2e/settings.spec.ts`): el tema persiste tras recargar en las tres opciones y un `MutationObserver` puesto antes de cargar comprueba que `<html>` nunca tuvo otro tema (sin parpadeo); "Sistema" con `emulateMedia({ colorScheme })`. La captura es la página entera sin la sección Passkeys (se oculta antes de capturar), porque la lista cambia con otras pruebas. Cerrar sesión se prueba en `login.spec.ts` y `passkey.spec.ts` con sesiones propias: hacerlo con la sesión compartida la cerraría para las demás pruebas.
 
 ## Cómo funcionan las áreas (C5)
 
@@ -138,6 +139,28 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
   - **Mientras guarda**, la hoja no se cierra (Esc, el fondo, ✕ y Cancelar no hacen nada; Cancelar y Crear usan `aria-disabled`). Además `AreasManager` descarta un resultado que no es de la apertura actual (`editor.key`).
   - Al guardar: `revalidatePath("/areas")`, la hoja se cierra, el foco vuelve a "Nueva área" o a la fila editada, y **cuando la hoja terminó de cerrarse** (`onClosed`, nuevo en el `Sheet` del design system: después de la animación de salida, del foco y de quitar el `aria-hidden` que Radix pone en la página) una región `status` anuncia "Área «X» creada." o "Cambios guardados en «X».". Antes de eso el lector de pantalla no la leería. El aviso visible con "Deshacer" llega en C6.
 - **E2E:** `e2e/global-setup.ts` siembra las 8 áreas. Las pruebas crean áreas con nombres únicos, nunca editan las sembradas y no suponen que la nueva es la última (otras pruebas crean en paralelo); las capturas de la lista ocultan las filas después de la 8 (`e2e/support/seeded-areas-only.css`). Un `MutationObserver` comprueba que el anuncio llega sin ancestros `aria-hidden` ni diálogo abierto.
+
+## Pruebas E2E
+
+- **Mientras se itera (sin Docker):** E2E nativa en macOS, solo con las specs que tocaste. `docker compose up -d` (solo la base) y luego `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test pnpm test:e2e e2e/<spec>.ts`. `pnpm test:e2e:changed` corre las specs que cambiaron contra `origin/main` (`--only-changed` de Playwright: detecta specs y lo que importan, **no** el código de la app; si cambiaste solo `src/`, elige la spec a mano).
+- **Capturas:** solo se comparan donde se generaron las referencias: Linux dentro de la imagen de Playwright (`mcr.microsoft.com/playwright:v1.63.0-noble`, la misma en CI, `update-screenshots.yml` y `pnpm test:e2e:docker`; se reconoce por `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`). En cualquier otro lado se saltan y la prueba lleva la anotación `screenshot-skipped` en el reporte; el comportamiento y axe sí corren. Todo pasa por `expectScreenshot()` (`e2e/support/screenshots.ts`); ESLint prohíbe `toHaveScreenshot` directo en las specs y `ignoreSnapshots` en `playwright.config.ts` es la red de seguridad. `E2E_SCREENSHOTS=1` o `0` fuerza encenderlas o apagarlas.
+- **CI es el control completo** (todas las specs, con capturas, ~4 min). `pnpm test:e2e:docker` solo para reproducir CI en local (reinstala dependencias en el contenedor: lento).
+- **Crear o actualizar referencias:** nunca con PNG hechos en macOS. Subir la rama y ejecutar `gh workflow run update-screenshots.yml --ref <rama>` (también desde Actions → Update screenshots → Run workflow).
+  - Job `render`: corre `pnpm test:e2e --update-snapshots=changed` en el mismo entorno que el job E2E de CI (imagen, navegadores, fuentes y servicio Postgres) con un token de solo lectura, y sube `e2e/__screenshots__` como artefacto. Si falla otra prueba, no se commitea nada.
+  - Job `commit` (`contents: write`, `actions: write`): sobre el mismo commit que se renderizó, commitea los PNG que cambiaron como `github-actions[bot]` con el mensaje `chore(e2e): update screenshots` y hace push a la rama. Si la rama avanzó mientras tanto, el push falla: volver a ejecutarlo.
+  - Re-ejecución de CI: un push hecho con `GITHUB_TOKEN` no dispara workflows (salvo `workflow_dispatch` y `repository_dispatch`), así que el job llama `gh workflow run ci.yml --ref <rama>`; por eso `ci.yml` acepta `workflow_dispatch` (nunca despliega: el deploy exige `push` a `main`). Los checks quedan en el commit del bot y el PR los muestra.
+  - Se niega en `main` (y en tags).
+  - Borra referencias huérfanas a mano: Playwright no las elimina.
+- **Capturas que hay (30):** por tema (oscuro/claro) y viewport (celular/escritorio): login (4), navegación en la portada (4; la portada no tiene captura propia porque el saludo y la fecha cambian con la hora), barra lateral contraída (2, solo escritorio), lista de áreas (4), hoja de área (4), ajustes (4). Design system, solo escritorio y ambos temas (8): `key` (todos los estados y tamaños de la tecla), `kbd-tooltip` (Kbd sobre tecla naranja y tooltip abierto, que ninguna pantalla capta), `controls` (todos los estados de los controles) y `progress` (medidores que aún no usa ninguna pantalla). El resto de `/design` (text-field, list-row, sheet, area-tag, iconos, navegación…) ya sale en las pantallas.
+
+## Smoke test en producción
+
+- Job `smoke` de `ci.yml`, después de `deploy`, solo en `push` a `main`.
+- Primero confirma que `os.brahua.com` apunta al deploy recién publicado: el paso de deploy guarda la URL que imprime `vercel deploy` y el smoke compara con `vercel inspect os.brahua.com --json` (lectura de la API de Vercel), hasta 2 minutos.
+- Luego `scripts/smoke-production.sh` (solo GET, sin credenciales, nunca inicia sesión ni escribe): `/`, `/areas` y `/settings` → 307 a `/login`; `/login` → 200 con `<h1>Iniciar sesión</h1>`; las 4 cabeceras de seguridad en todas; `/api/auth/ok` → 200 `{"ok":true}`. Reintenta la ronda 6 veces cada 10 s. Si falla, el job falla y GitHub avisa al owner.
+- `/api/auth/ok` quedó fuera del rate limit (`"/ok": false` en `auth.ts`): si no, cada smoke escribiría un contador en `auth_rate_limits`.
+- Se puede correr a mano: `bash scripts/smoke-production.sh` (o `SMOKE_BASE_URL=…`).
+- Límite: si otro deploy a `main` termina entre `deploy` y `smoke`, el dominio apunta a otro deploy y el smoke falla por timeout aunque producción esté bien (improbable con un solo usuario; re-ejecutar).
 
 ## Decisiones recientes a respetar
 
