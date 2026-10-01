@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { authClient } from "@/lib/auth-client";
 
 /**
  * Keeps the 30-day session alive while the app is in use. Server Components only read the
@@ -11,7 +10,9 @@ import { authClient } from "@/lib/auth-client";
 export function SessionRefresher() {
   useEffect(() => {
     // Best effort: if it fails, the next load tries again and the server check still applies.
-    authClient.getSession().catch(() => {});
+    // Loaded here, after hydration: the root 404 ships the shell's client code with every page,
+    // /login included, and the auth client is not needed for the first paint.
+    import("@/lib/auth-client").then(({ authClient }) => authClient.getSession()).catch(() => {});
   }, []);
   return null;
 }

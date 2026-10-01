@@ -288,7 +288,7 @@ export type ActionResult<T> =
 - **Backups:**
   - Un workflow semanal de GitHub Actions hace `pg_dump` hacia un almacenamiento privado.
   - `pnpm db:export` exporta a JSON en cualquier momento.
-  - Se documenta la ventana de restauración que da el plan de Neon (dato a confirmar al contratarlo).
+  - Ventana de restauración de Neon: `history_retention_seconds` = 21600 (**6 horas**) en el plan Free actual (servidor Postgres 18), confirmada el 2026-10-01. El restore a un momento dado solo cubre las últimas 6 h, así que la red de seguridad real es el respaldo semanal cifrado.
 - **Observabilidad:** logs estructurados en Vercel Logs. Sin Sentry en el MVP.
 - **ADRs** en `docs/adr/`:
   - 001: autenticación de un solo usuario.

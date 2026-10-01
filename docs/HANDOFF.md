@@ -30,11 +30,13 @@
   - ✅ C5 (áreas: ver y crear): PR #21 integrado.
   - ✅ Mejoras de proceso (PR #22 integrado; build remoto en Vercel desde el 2026-10-01): E2E nativa sin Docker, capturas generadas en GitHub, menos capturas, smoke test después del deploy y registro de errores sin mensajes de Postgres. Ver "Pruebas E2E" y "Smoke test en producción".
   - ✅ C6 (áreas: reordenar y archivar): PR #24 integrado. Ver "Cómo funcionan el orden y el archivo (C6)".
-  - ✅ C7 (PWA): PR #25 integrado. Ver "Cómo funciona la PWA (C7)".
+  - ✅ C7 (PWA): PR #25 integrado. Ver "Cómo funciona la PWA (C7)". Verificación manual hecha por el owner el 2026-10-01 (Checkpoint 2): instalada en el iPhone y passkey dentro de la app instalada. Android no se probó (N/A: el owner usa iPhone).
   - ✅ C8 (páginas de error): PR #26 integrado. Ver "Cómo funcionan las páginas de error (C8)".
-  - ✅ C10 (operación): PR #27 integrado; el owner aprobó el cifrado con `age` (2026-10-01): `pnpm db:export`, respaldo semanal cifrado con `pg_dump` + `age` (`backup.yml`) y ADRs 001–007. **Acción del owner pendiente (tras el merge):** crear la llave `age`, el rol de solo lectura, el secreto `BACKUP_DATABASE_URL` y la variable `BACKUP_AGE_RECIPIENT` (ver "Respaldos (C10)"); hasta entonces el respaldo semanal falla con un error que apunta ahí.
+  - ✅ C10 (operación): PR #27 integrado; el owner aprobó el cifrado con `age` (2026-10-01): `pnpm db:export`, respaldo semanal cifrado con `pg_dump` + `age` (`backup.yml`) y ADRs 001–007. Configuración hecha de punta a punta por el agente el 2026-10-01 y primer respaldo de producción comprobado (ver "Respaldos (C10)").
+  - ✅ Checkpoint 2: validado por el owner el 2026-10-01.
   - Retrospectiva de `core` (2026-10-01): reglas nuevas en `CLAUDE.md`, sección "Lessons from `core`".
-  - **Siguiente:** el owner configura el respaldo (sección "Respaldos (C10)") y confirma el Checkpoint 2; luego Checkpoint final y el módulo `projects`.
+  - LCP de `/login` (PR `perf/login-lcp`): ver "Rendimiento de `/login` (LCP)".
+  - **Siguiente:** medir Lighthouse en producción tras el deploy de `perf/login-lcp` y cerrar el Checkpoint final (en `tasks/todo.md` quedan el LCP y los criterios de Android); luego el módulo `projects`.
 
 ## C2a: pasos del usuario (en orden)
 
@@ -89,7 +91,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - Contador de firmas: si baja (posible clon), `@simplewebauthn/server` rechaza el inicio de sesión y el plugin lo registra como error ("Failed to verify authentication"). No hay registro de seguridad aparte.
 - E2E: `e2e/passkey.spec.ts` usa el autenticador virtual de Chromium por CDP (`WebAuthn.addVirtualAuthenticator`): contraseña → registrar en `/settings` → cerrar sesión → entrar con passkey, y axe en ambos temas.
 - `pnpm auth:owner` valida `DATABASE_URL_UNPOOLED` antes de cualquier pregunta: tiene que ser `postgres://` o `postgresql://` con un host real y una base (rechaza marcadores como `…`). `channel_binding` en la URL se acepta: `pg` lo ignora.
-- Verificado en dispositivos reales (Checkpoint 1): Touch ID en el computador y Face ID en el iPhone. Falta probarla dentro de la PWA instalada (C7).
+- Verificado en dispositivos reales (Checkpoint 1): Touch ID en el computador y Face ID en el iPhone. Dentro de la PWA instalada en el iPhone, verificada por el owner el 2026-10-01 (C7, Checkpoint 2).
 
 ## Cómo funciona la navegación (C3)
 
@@ -228,7 +230,7 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en una ter
 - **`theme-color`:** el HTML del servidor trae uno por esquema del sistema (`#0A0A0A` oscuro, `#F2F2F0` claro), pero la app es oscura por defecto aunque el sistema esté en claro, y Ajustes puede fijar cualquiera. `ThemeColorSync` (`src/modules/core/components/theme-color-sync.tsx`, en el layout raíz) pone el color del tema aplicado en ambos metas cuando next-themes lo resuelve, y lo vuelve a poner al cambiarlo y después de cada navegación del cliente (`usePathname`). **Hasta hidratar** los metas siguen al esquema del sistema: el script previo a la pintura de next-themes no tiene cómo tocarlos y duplicar su lógica en un script propio no valía la pena (en iOS instalado la barra de estado es `black` igual; solo afecta un instante a la barra del navegador).
 - **Sin sesión:** el manifest, `/icons/*`, `/icon.png` y `/apple-icon.png` están fuera de `(app)` (no hay `proxy.ts`; la sesión la pide el layout de `(app)`), así que responden 200 sin login y con las cabeceras de seguridad.
 - **Pruebas:** `e2e/pwa.spec.ts` (sin sesión): el manifest y sus campos, cada ícono (200, `image/png`, tamaño real leído del PNG con `e2e/support/png.ts`), los `<link>` y metas de `/login`, los `theme-color` del servidor (con JavaScript apagado), que siguen al tema de la app y la redirección de `/favicon.ico`; con sesión, elegir "Claro" en Ajustes cambia ambos metas y siguen así tras navegar a `/areas` sin recargar. `tests/app/manifest.test.ts`: el manifest y que cada ícono commiteado tiene su tamaño. `tests/e2e-support/png.test.ts`: `pngSize`. `tests/design-system/brand-colors.test.ts`: cada hex es igual a su token y cada token cumple su papel en el tema (`--color-bg` → `--gray-925` en oscuro y `--gray-75` en claro, `--color-key`, `--color-text`, `--color-signal` y `--shadow-key`). El smoke test revisa el manifest y un ícono en producción.
-- **Instalarla en el iPhone (pendiente, la hace el owner):**
+- **Instalarla en el iPhone (hecho por el owner el 2026-10-01, con passkey dentro de la app instalada):**
   1. Abrir https://os.brahua.com en **Safari** (en iOS 16.4+ también sirve otro navegador con "Añadir a pantalla de inicio" en su menú de compartir).
   2. Botón Compartir → "Añadir a pantalla de inicio" → confirmar el nombre "brahua-os" → "Añadir".
   3. Abrirla desde el ícono: debe verse sin la barra de Safari, con la barra de estado negra, y respetar el notch y el indicador de inicio.
@@ -246,6 +248,8 @@ Hecha de punta a punta por el agente, sin que ningún secreto pasara por la conv
 - Rol `backup_ro` creado con `scripts/backup/readonly-role.sql` (Neon solo acepta la contraseña en texto plano, no un verificador SCRAM). Su contraseña está en el Llavero ("brahua-os · backup_ro (Neon, solo lectura)") y en el secreto `BACKUP_DATABASE_URL`.
 - Neon CLI (`neonctl`) quedó autenticado en el Mac del owner (organización `org-square-morning-70707041`, proyecto `holy-hill-52566930`): el agente obtiene la conexión del dueño con `neonctl connection-string` sin imprimirla.
 - `pg_dump` se limita a los esquemas `public` y `drizzle`: Neon Auth (habilitado en el store) crea el esquema `neon_auth`, que `backup_ro` no puede leer y no es nuestro.
+- Primer respaldo de producción: [run 36897359314](https://github.com/Brahua/brahua-os/actions/runs/36897359314). Se descifró con la llave del Llavero del owner y `pg_restore --list` mostró datos solo de `drizzle.__drizzle_migrations` y `public.core_life_areas` (las tablas `auth_*` van sin datos, como se diseñó).
+- Ventana de historial de Neon: `history_retention_seconds` = 21600 (**6 h**) en el plan Free (Postgres 18). El restore de Neon solo sirve para un error de las últimas 6 horas; para todo lo demás, el respaldo semanal.
 
 Los pasos de abajo quedan como referencia para rehacerlo a mano (por ejemplo, tras perder la llave).
 
@@ -364,8 +368,50 @@ Los secretos nunca pasan por la sesión del agente: todo esto se hace en tu term
 
    Si el `select` no imprime `t`, **no** restaures: la URL apunta a otra base o la base no está vacía.
 6. Revisar los datos en la rama (SQL Editor de Neon). Las tablas `auth_*` quedan vacías: para usar esa base habría que correr `pnpm auth:owner` contra ella y registrar las passkeys de nuevo.
-7. **Volver atrás en producción** es decisión del owner, con un respaldo nuevo antes. Para un error reciente conviene más el *restore* de Neon (Branches → `main` → Restore, a un momento dentro de la ventana de historial del plan), que conserva owner y passkeys, que reescribir producción con el dump. La ventana de historial del plan actual **está por confirmar** (SPEC-core, "Operación"): verla en el panel de Neon, en la configuración del proyecto.
+7. **Volver atrás en producción** es decisión del owner, con un respaldo nuevo antes. Para un error reciente conviene más el *restore* de Neon (Branches → `main` → Restore, a un momento dentro de la ventana de historial del plan), que conserva owner y passkeys, que reescribir producción con el dump. La ventana del plan actual (Free) es de **6 horas** (`history_retention_seconds` = 21600, SPEC-core "Operación"): pasado ese plazo solo queda el respaldo semanal.
 8. Limpiar: `rm -P backup.dump` (macOS sobrescribe antes de borrar), `cd ~ && rm -rf "$RESTORE_DIR"`, y borrar la rama de prueba en Neon.
+
+## Rendimiento de `/login` (LCP)
+
+Criterio de SPEC-core: Lighthouse móvil con Accesibilidad ≥ 95, LCP < 2,5 s y CLS < 0,1.
+
+### Cómo medir en local
+
+1. `docker compose up -d`, y build y servidor con los valores de prueba de `playwright.config.ts` (nunca los de producción; `/login` sin cookie no consulta la base):
+
+   ```bash
+   export DATABASE_URL=postgres://postgres:postgres@localhost:54329/brahua_os_test
+   export BETTER_AUTH_SECRET=e2e-only-secret-not-used-anywhere-else-0123456789
+   export BETTER_AUTH_URL=http://localhost:3000 OWNER_EMAIL=owner@brahua-os.test
+   pnpm build && pnpm start
+   ```
+
+2. Tres veces, y quedarse con la mediana:
+   `npx -y lighthouse@12 http://localhost:3000/login --only-categories=accessibility,performance --form-factor=mobile --chrome-flags="--headless=new"`
+3. Producción se mide solo después del deploy (misma orden contra https://os.brahua.com/login).
+4. `docker compose down` al terminar.
+
+No hay chequeo de Lighthouse en CI: la accesibilidad ya la cubre axe en cada E2E, y el LCP simulado es bimodal (ver abajo), así que un umbral en CI fallaría al azar.
+
+### Qué se encontró (2026-10-01)
+
+- **No es** una animación de entrada (la tarjeta no tiene ninguna) **ni** contenido que espere a hidratar (el texto viene del servidor).
+- **Es la simulación (Lantern) más el peso de la página.** En la traza sin *throttling*, el texto se pinta a los ~60 ms, pero el cuadro se presenta (FCP = LCP) a los ~80 ms, cuando ya llegaron y se ejecutaron todos los scripts asíncronos de Next y las fuentes precargadas. Lantern arma el LCP con todo lo que terminó antes de esa marca y lo simula a 1,6 Mbps: por eso el "retraso de renderizado" vale lo que tarda bajar ~118 KB de fuentes y ~210 KB de JavaScript. Con *throttling* real de DevTools el LCP es igual al FCP: **1,6 s**.
+- Peso de cada cosa, medido quitándolas: sin fuentes web el LCP local baja de 3,10 s a 2,49 s (≈ 0,6 s); el JavaScript propio que se quitó en este PR (~38 KB gzip) vale ≈ 0,2 s.
+- Es **bimodal**: si en la corrida el cuadro se presenta antes de ejecutar los scripts, Lantern los deja fuera y el LCP baja a ~2,3 s (pasó en 1 de 3 corridas con `experimental.inlineCss`).
+- Sin solución barata: "Legacy JavaScript" (14 KiB) viene del `polyfill-module` que Next importa siempre (`next/dist/client/app-globals.js`, no depende de browserslist), y "Unused JavaScript" (~46 KiB) está en los chunks del framework.
+
+### Hecho en `perf/login-lcp`
+
+- `"sideEffects": ["*.css"]` en `package.json`: Turbopack ya puede descartar lo que no se usa del barril `@/design-system` (antes `/login` cargaba la hoja con Radix Dialog, el tooltip, el control segmentado…). Si algún día un módulo propio tiene que ejecutarse solo por importarlo, hay que agregarlo a esa lista.
+- `login-form.tsx` carga el cliente de Better Auth y la ceremonia de passkey (`@simplewebauthn/browser`, `passkey-sign-in`) a demanda: al enviar, al pulsar la tecla de passkey o, para el autocompletado, después de hidratar. `SessionRefresher` también importa el cliente a demanda (el shell viaja con `/login`, ver abajo). `tests/app/login-bundle.test.ts` falla si vuelve un import estático.
+- IBM Plex Mono sin el peso 400: ningún estilo lo usa (etiquetas y teclas 500, datos 600) y cada peso listado se precarga en todas las páginas.
+- Resultado local (mediana de 3): LCP de 3,25 s a 3,02 s, FCP 0,91 s, Accesibilidad 100, CLS 0. JavaScript de `/login`: de ~211 KB a ~173 KB gzip.
+
+### Siguientes palancas (no hechas)
+
+- **Fuentes (la mayor):** servir Archivo instanciado a los ejes que se usan (ancho 100–125 %, peso 400–800) y recortado a latín básico + Latin-1 + puntuación, y Plex Mono recortado igual, con `next/font/local` y un segundo archivo por `unicode-range` para el resto de los glifos. Prototipo medido: Archivo de 88 KB a 51 KB, cada Plex de 10 KB a 8 KB, LCP local −0,15 s. Detalle a resolver: `next/font/local` nombra la familia según la variable (`plexMono`), y los tokens del design system piden `"IBM Plex Mono"` (Archivo sí coincide); habría que cambiar `--font-mono` en Claude Design para que use `var(--font-plex-mono)`.
+- **El 404 raíz viaja con todas las páginas:** `app/not-found.tsx` usa `AppShell`, y Turbopack agrupa su JavaScript de cliente (barra lateral, barra inferior, tooltip; ~11 KB gzip) con los componentes del 404, que van en el payload de cada página, `/login` incluida. Un `import()` dinámico en el servidor no lo separa (probado). Alternativa: `global-not-found.js` (experimental).
 
 ## Smoke test en producción
 

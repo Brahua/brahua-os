@@ -1,18 +1,16 @@
 "use client";
 
-import { browserSupportsWebAuthnAutofill, WebAuthnAbortService } from "@simplewebauthn/browser";
 import { KeyRound, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Key, Lcd, TextField } from "@/design-system";
-import { authClient } from "@/lib/auth-client";
 import {
   isPasskeySignInRejection,
   PASSKEY_SIGN_IN_FAILED_MESSAGE,
   PASSKEY_UNSUPPORTED_MESSAGE,
   passkeySignInErrorMessage,
 } from "@/lib/passkey-messages";
-import { signInWithPasskey, type PasskeySignInResult } from "@/lib/passkey-sign-in";
+import type { PasskeySignInResult } from "@/lib/passkey-sign-in";
 import { usePasskeySupport } from "@/lib/passkey-support";
 import {
   GENERIC_MESSAGE,
@@ -23,6 +21,20 @@ import {
 
 const FORM_ERROR_ID = "login-form-error";
 const PASSKEY_NOTE_ID = "login-passkey-note";
+
+/*
+ * The sign-in code (Better Auth client, WebAuthn ceremony) loads on demand: the page paints and
+ * hydrates without it, and it arrives before anyone can submit or pick a passkey (SPEC-core LCP).
+ */
+const loadAuthClient = () => import("@/lib/auth-client").then((module) => module.authClient);
+const loadPasskeySignIn = () =>
+  import("@/lib/passkey-sign-in").then((module) => module.signInWithPasskey);
+/** Kept once loaded, so leaving the page can close the browser prompt synchronously. */
+let webAuthn: typeof import("@simplewebauthn/browser") | undefined;
+async function loadWebAuthn() {
+  webAuthn ??= await import("@simplewebauthn/browser");
+  return webAuthn;
+}
 
 type FormError = { message: string; source: "password" | "passkey" };
 /** What the page is waiting for: the password check, the passkey prompt, or its verification. */
@@ -60,9 +72,13 @@ export function LoginForm() {
     function run() {
       const isCurrent = beginAttempt();
       void (async (): Promise<PasskeySignInResult> => {
+        let signInWithPasskey: Awaited<ReturnType<typeof loadPasskeySignIn>>;
         try {
+          const { browserSupportsWebAuthnAutofill } = await loadWebAuthn();
           if (!(await browserSupportsWebAuthnAutofill())) return { outcome: "stale" };
+          signInWithPasskey = await loadPasskeySignIn();
         } catch {
+          // No support, or the code could not load: the button remains available.
           return { outcome: "stale" };
         }
         return signInWithPasskey({
@@ -89,7 +105,8 @@ export function LoginForm() {
     return () => {
       // Leaving the page: any attempt in flight becomes outdated and its prompt is closed.
       beginAttempt();
-      WebAuthnAbortService.cancelCeremony();
+      // Not loaded yet means no prompt was ever opened.
+      webAuthn?.WebAuthnAbortService.cancelCeremony();
     };
   }, [passkeySupported, startAutofill, beginAttempt]);
 
@@ -116,6 +133,7 @@ export function LoginForm() {
     setPending("password");
     let signedIn = false;
     try {
+      const authClient = await loadAuthClient();
       const { error } = await authClient.signIn.email({ email, password, rememberMe: true });
       if (error) showFormError(signInErrorMessage(error));
       else signedIn = true;
@@ -135,11 +153,16 @@ export function LoginForm() {
     setFormError(null);
     // Replaces the background autofill request with the browser's passkey prompt.
     const isCurrent = beginAttempt();
-    const result = await signInWithPasskey({
-      autofill: false,
-      isCurrent,
-      onVerifying: () => setPending("passkey-verifying"),
-    });
+    const result = await loadPasskeySignIn().then(
+      (signInWithPasskey) =>
+        signInWithPasskey({
+          autofill: false,
+          isCurrent,
+          onVerifying: () => setPending("passkey-verifying"),
+        }),
+      // The code could not load (offline): same message as a network failure.
+      (): PasskeySignInResult => ({ outcome: "failed", error: { code: "NETWORK_ERROR" } }),
+    );
     if (result.outcome === "stale" || !isCurrent()) return;
     if (result.outcome === "signed-in") return goToApp();
 
