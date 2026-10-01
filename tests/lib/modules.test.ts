@@ -23,17 +23,13 @@ describe("registry", () => {
     }
   });
 
-  test("Hoy and Ajustes (footer, 8) are navigable; Áreas is still planned", () => {
+  test("Hoy (1), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
     expect(navItems().map((item) => [item.label, item.href, item.group, item.shortcut])).toEqual([
       ["Hoy", "/", "main", "1"],
+      ["Áreas", "/areas", "footer", "7"],
       ["Ajustes", "/settings", "footer", "8"],
     ]);
-    expect(
-      MODULES.filter((entry) => entry.status === "planned").map((entry) => [
-        entry.label,
-        entry.shortcut,
-      ]),
-    ).toEqual([["Áreas", 7]]);
+    expect(MODULES.filter((entry) => entry.status === "planned")).toEqual([]);
   });
 });
 

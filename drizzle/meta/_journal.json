@@ -22,6 +22,13 @@
       "when": 1790787019614,
       "tag": "0002_core_auth_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790812423478,
+      "tag": "0003_core_life_areas_checks",
+      "breakpoints": true
     }
   ]
 }

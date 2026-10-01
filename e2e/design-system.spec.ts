@@ -56,8 +56,14 @@ for (const theme of THEMES) {
   });
 }
 
+/** The page is hydrated (AppNav marks <html> once its effects run), so handlers are attached. */
+async function hydrated(page: Page) {
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+}
+
 test("toggle key works with the keyboard", async ({ page }) => {
   await page.goto("/design");
+  await hydrated(page);
   const key = page.getByTestId("toggle-key");
 
   await key.focus();
@@ -126,6 +132,7 @@ for (const { trigger, name } of [
 ]) {
   test(`sheet "${name}" opens accessibly, closes with Esc and returns focus`, async ({ page }) => {
     await page.goto("/design");
+    await hydrated(page);
     const button = page
       .locator('[data-guide-section="sheet"]')
       .getByRole("button", { name: trigger });

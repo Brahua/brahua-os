@@ -80,3 +80,17 @@
     transition-duration: 0ms, var(--duration-state);
   }
 }
+
+/*
+ * PENDING UPSTREAM (Claude Design): activated keys in forced colors (Windows high contrast).
+ * `is-on` / pressed / checked keys differ only by background and shadow, which forced colors
+ * replace, so a selected swatch or icon looked like any other. Mark them with a Highlight outline.
+ */
+@media (forced-colors: active) {
+  .bo-key.is-on,
+  .bo-key[aria-pressed="true"],
+  .bo-key[aria-checked="true"] {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+}

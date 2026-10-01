@@ -1,0 +1,4 @@
+/* Screenshots of /areas: only the 8 seeded rows. Other tests create areas in the shared database. */
+[aria-label="Tus áreas"] > li:nth-child(n + 9) {
+  display: none !important;
+}

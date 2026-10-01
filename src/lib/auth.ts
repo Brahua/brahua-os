@@ -272,7 +272,8 @@ export const getOwnerSession = cache(async (): Promise<OwnerSession | null> => {
 /**
  * Guard for pages, layouts and queries: returns the owner session or redirects to /login.
  * SPEC-core: call it in the `(app)` layout and in every page, action and query, never only in
- * a proxy. Server Actions will get a variant that returns an authorization error (C5).
+ * a proxy. Server Actions go through `ownerAction()` (@/lib/owner-action), which returns an
+ * authorization error as an ActionResult instead of redirecting.
  */
 export async function requireOwner(): Promise<OwnerSession> {
   const session = await getOwnerSession();

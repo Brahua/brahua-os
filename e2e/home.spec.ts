@@ -79,16 +79,17 @@ test("the navigation comes from the registry and marks the current page", async 
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy and Ajustes. Planned ones (Áreas) are not shown. On the phone
-  // both fit in the bottom bar; on desktop Ajustes is pinned to the sidebar footer.
+  // Only available modules: Hoy, Áreas and Ajustes. On the phone all three fit in the bottom
+  // bar; on desktop Áreas and Ajustes are pinned to the sidebar footer.
   const links = page.getByRole("navigation").getByRole("link");
-  await expect(links).toHaveCount(2);
+  await expect(links).toHaveCount(3);
   await expect(links.nth(0)).toHaveAccessibleName("Hoy");
-  await expect(links.nth(1)).toHaveAccessibleName("Ajustes");
+  await expect(links.nth(1)).toHaveAccessibleName("Áreas");
+  await expect(links.nth(2)).toHaveAccessibleName("Ajustes");
   const footer = desktop ? page.getByRole("navigation", { name: "Secundaria" }) : nav;
+  await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
   await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("link", { name: "Áreas" })).toHaveCount(0);
 
   // The capture key is in place but not available yet, and says so.
   const capture = page.getByRole("button", { name: "Capturar" });
@@ -309,8 +310,8 @@ test.describe("keyboard shortcuts", () => {
     await recordKeys(page);
     const historyLength = await page.evaluate(() => history.length);
 
-    // 2 is unbound; 7 is Áreas, still planned.
-    for (const key of ["2", "7", "Meta+1", "Control+1", "Shift+1"]) {
+    // 2 and 3 are unbound (their modules don't exist yet).
+    for (const key of ["2", "3", "Meta+1", "Control+1", "Shift+1"]) {
       await page.keyboard.press(key);
     }
     const keys = (await recordedKeys(page)) as { key: string; prevented: boolean }[];

@@ -13,7 +13,7 @@ export const homeModule = {
   shortcut: 1,
 } satisfies ModuleManifest;
 
-/** Life areas: C5 builds /areas and switches it to available. */
+/** Life areas (/areas): list, create and edit (C5). */
 export const areasModule = {
   id: "areas",
   label: "Áreas",
@@ -22,7 +22,6 @@ export const areasModule = {
   navOrder: 10,
   navGroup: "footer",
   shortcut: 7,
-  status: "planned",
 } satisfies ModuleManifest;
 
 /** Settings (/settings): theme, keyboard shortcuts, passkeys and session. */

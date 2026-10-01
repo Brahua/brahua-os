@@ -220,8 +220,9 @@ describe("AppNav", () => {
     expect(push).toHaveBeenCalledWith("/");
     push.mockReset();
     expect(fireEvent.keyDown(document.body, { key: "2" })).toBe(true);
-    expect(fireEvent.keyDown(document.body, { key: "7" })).toBe(true); // Áreas is planned
     expect(push).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(document.body, { key: "7" })).toBe(false);
+    expect(push).toHaveBeenCalledWith("/areas");
   });
 
   test("the number of the current page doesn't navigate again", () => {
