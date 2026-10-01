@@ -1,6 +1,6 @@
 # Spec: projects
 
-> Módulo `projects` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` · Estado: **BORRADOR v1** (2026-10-01), pendiente de revisión del owner.
+> Módulo `projects` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` · Estado: **APROBADO v1** (2026-10-01).
 
 ## Objetivo
 
@@ -40,10 +40,10 @@ Fuera de este módulo: tareas, bandeja de entrada y próxima acción (`tasks`); 
 | Fechas | `start_date` y `due_date` opcionales, tipo `date` (sin hora), en hora de Lima. `due_date` ≥ `start_date`. | Igual que en Notion; el día importa, la hora no. |
 | Vencimiento visible | En proyectos `idea`, `active` o `paused`: "Vence hoy", "Vence en N días" (hasta 7) o "Vencido hace N días". `maintenance`, `done` y `canceled` no muestran vencimiento. | Decisión del owner ("fecha límite visible"). |
 | Mantenimiento | Sin avance y sin aviso de vencimiento (la fecha de fin se oculta). | Es trabajo continuo, no tiene fin. |
-| Hitos | Opcionales, ordenables, con título, fecha opcional y checkbox. | Estructura solo para proyectos grandes. |
+| Hitos | Opcionales, con título, fecha opcional y checkbox. Se reordenan **arrastrando** (`@dnd-kit`, ya instalado en C6) y con "Subir"/"Bajar" como alternativa accesible. | Estructura solo para proyectos grandes; mismo patrón que áreas. |
 | Avance | Hitos hechos / total, en porcentaje. Sin hitos, no hay avance (no se muestra 0 %). Cuando exista `tasks`, el avance se calcula con las tareas (ver "Contratos"). | Es lo único medible mientras no hay tareas. |
 | Dependencias | "Bloqueado por" otros proyectos (muchos a muchos). Un proyecto está **bloqueado** si alguno de los que lo bloquean no está `done` ni `canceled`. Sin ciclos ni auto-dependencia. | Decisión del owner; como "Blocked By" de Notion. |
-| Notas | Texto plano multilínea (hasta 20 000 caracteres), con los enlaces `http(s)` detectados y clicables. Sin Markdown en el MVP. | Markdown necesita una dependencia nueva; `notes` decidirá el editor de texto rico. |
+| Notas | **Markdown** (hasta 20 000 caracteres): se edita como texto, con pestañas "Escribir" y "Vista previa", y se muestra renderizado. Render con `react-markdown` + `remark-gfm` (tablas, listas de tareas, enlaces automáticos) + `rehype-sanitize`; **nunca HTML crudo**. El renderizador vive en `src/lib/markdown/` para reutilizarlo en el futuro visor de Markdown y en `notes`. | Decisión del owner: se agrega la dependencia ahora porque habrá un visor de Markdown más adelante. |
 | Enlaces | Lista de URL `http`/`https` con etiqueta opcional, ordenables. | Repositorios, documentos, referencias. |
 | Borrar | Sin borrado físico. "Eliminar" es un borrado lógico (`deleted_at`) con "Deshacer" en el aviso; no aparece en ninguna vista. | Mismo principio que `core`. Cancelado sirve para lo que no se hizo; Eliminar, para lo creado por error. |
 | Orden de la lista | Por prioridad (alta primero), luego `due_date` (más cercana primero, sin fecha al final) y luego nombre. Sin reordenar a mano. | Un orden útil sin mantenimiento manual. |
@@ -84,7 +84,7 @@ export const projects = pgTable("projects", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),                       // 1–80, normalized like area names
   objective: text("objective"),                       // ≤ 280: "what done looks like"
-  notes: text("notes"),                               // ≤ 20 000, plain text
+  notes: text("notes"),                               // ≤ 20 000, Markdown (rendered sanitized)
   status: text("status", { enum: PROJECT_STATUSES }).notNull().default("idea"),
   priority: text("priority", { enum: PROJECT_PRIORITIES }).notNull().default("medium"),
   lifeAreaId: uuid("life_area_id").notNull().references(() => lifeAreas.id, { onDelete: "restrict" }),
@@ -141,10 +141,10 @@ Diseño con el design system; como referencia visual, el patrón `components/pat
 **Detalle (`/projects/[id]`):**
 - Cabecera: nombre, área, estado y prioridad editables en el lugar (selectores accesibles), y "Bloqueado por …" si aplica.
 - Objetivo, fechas (con el vencimiento), avance.
-- **Hitos:** lista con checkbox, agregar en línea (Enter agrega otro), editar título y fecha, reordenar con "Subir" y "Bajar" (sin arrastrar en el MVP), eliminar con "Deshacer".
+- **Hitos:** lista con checkbox, agregar en línea (Enter agrega otro), editar título y fecha, reordenar arrastrando o con "Subir" y "Bajar" (reutiliza el patrón de áreas, C6), eliminar con "Deshacer".
 - **Dependencias:** agregar "Bloqueado por" con un buscador de proyectos (excluye el propio, los eliminados y los que crearían un ciclo); quitar.
 - **Enlaces:** agregar, editar, reordenar y quitar.
-- **Notas:** área de texto con guardado explícito ("Guardar") y aviso si sales con cambios sin guardar.
+- **Notas:** Markdown con pestañas "Escribir" / "Vista previa", guardado explícito ("Guardar") y aviso si sales con cambios sin guardar. Fuera de edición se muestran renderizadas.
 - Acciones: cambiar estado, Eliminar (con "Deshacer").
 
 Todas las acciones con UI optimista donde el cambio es inmediato (checkbox de hito, estado, prioridad), y avisos con la cola de `@/lib/toast`.
@@ -163,31 +163,36 @@ El de `SPEC-core`: Server Actions con `ownerAction(schema, handler)`, `ActionRes
 
 | Nivel | Qué cubre |
 |---|---|
-| Unitarias | Zod (largos, fechas, URL `http(s)`), `progress.ts` (avance con 0, algunos y todos los hitos; mantenimiento sin avance), vencimiento en hora de Lima (hoy, 7 días, vencido, cambio de día a medianoche de Lima), orden de la lista, componentes |
+| Unitarias | Zod (largos, fechas, URL `http(s)`), render de Markdown (GFM y saneado: `<script>`, `javascript:` y HTML crudo no pasan), `progress.ts` (avance con 0, algunos y todos los hitos; mantenimiento sin avance), vencimiento en hora de Lima (hoy, 7 días, vencido, cambio de día a medianoche de Lima), orden de la lista, componentes |
 | Integración | Crear, editar, cambiar estado (`completed_at`), hitos (orden contiguo con lock, concurrencia), enlaces, dependencias (ciclos directos e indirectos, auto-dependencia), borrado lógico y deshacer, área archivada, acciones sin sesión o con otro usuario, `CHECK` de la base |
 | E2E | Crear en el celular (< 10 s, sin teclado extra), lista agrupada y filtro por área, detalle con hitos y avance, dependencia que bloquea y se libera al terminar el otro, vencimiento visible, eliminar y deshacer, axe en ambos temas, capturas por pantalla, tema y viewport |
 
 ## Límites
 
 - **Siempre:** las de `SPEC-core` (Zod + `ownerAction`, `requireOwner()` en páginas, migraciones aditivas versionadas, código en inglés y UI en español, actualizar la spec antes de cambiar el diseño).
-- **Preguntar primero:** agregar dependencias (Markdown, arrastrar hitos, fechas), cambios de esquema que alteren datos existentes, cualquier vista nueva (Kanban, línea de tiempo).
+- **Preguntar primero:** agregar dependencias distintas de `react-markdown`, `remark-gfm` y `rehype-sanitize` (aprobadas), cambios de esquema que alteren datos existentes, cualquier vista nueva (Kanban, línea de tiempo).
 - **Nunca:** borrado físico de proyectos; leer tablas de `tasks` desde `projects` (usar el contrato); escribir en Notion.
 
 ## Criterios de éxito
 
 1. **Proyectos:** crear (nombre, área, estado) en el celular en menos de 10 s; editar todos los campos; los 6 estados funcionan y `done` registra la fecha de término.
 2. **Lista:** agrupada por estado en el orden definido, ordenada por prioridad, fecha y nombre; filtro por área en la URL; Terminado y Cancelado en "Historial".
-3. **Hitos y avance:** agregar, editar, reordenar (Subir/Bajar), marcar y eliminar con "Deshacer"; el avance es hechos/total y no aparece sin hitos ni en Mantenimiento.
+3. **Hitos y avance:** agregar, editar, reordenar (arrastrando y con Subir/Bajar), marcar y eliminar con "Deshacer"; el avance es hechos/total y no aparece sin hitos ni en Mantenimiento.
 4. **Dependencias:** "Bloqueado" aparece mientras algún bloqueador no esté terminado o cancelado; los ciclos y la auto-dependencia se rechazan con un error claro.
 5. **Vencimiento:** "Vence hoy / en N días / vencido hace N días" con el día de Lima, solo en Idea, Activo y Pausado.
-6. **Datos:** sin borrado físico; eliminar y deshacer funcionan; las tablas están en `pnpm db:export` y en el respaldo semanal; `CHECK` en la base.
-7. **Navegación:** "Proyectos" aparece en la barra lateral (atajo 2) y en la barra inferior.
-8. **Calidad:** CI en verde, axe en 0 en ambos temas, sin animaciones de desplazamiento con movimiento reducido.
+6. **Notas:** Markdown con vista previa, renderizado saneado (sin HTML crudo ni enlaces `javascript:`).
+7. **Datos:** sin borrado físico; eliminar y deshacer funcionan; las tablas están en `pnpm db:export` y en el respaldo semanal; `CHECK` en la base.
+8. **Navegación:** "Proyectos" aparece en la barra lateral (atajo 2) y en la barra inferior.
+9. **Calidad:** CI en verde, axe en 0 en ambos temas, sin animaciones de desplazamiento con movimiento reducido.
+
+## Decisiones cerradas (2026-10-01)
+
+1. **Área obligatoria:** todo proyecto tiene área de vida (se puede revisar más adelante).
+2. **Notas en Markdown** desde ya, con renderizado saneado reutilizable (`src/lib/markdown/`).
+3. **Eliminar** es un borrado lógico con "Deshacer"; Cancelar sigue disponible.
+4. **Hitos** se reordenan arrastrando y con Subir/Bajar.
+5. **Atajo** de Proyectos: tecla `2`.
 
 ## Preguntas abiertas
 
-1. **Área obligatoria:** ¿todo proyecto debe tener área de vida, o permitimos proyectos sin área? (La spec asume obligatoria.)
-2. **Notas:** ¿texto plano con enlaces clicables basta por ahora, o quieres Markdown desde ya (agrega una dependencia)?
-3. **Eliminar:** ¿borrado lógico con "Deshacer" está bien, o prefieres que solo se pueda Cancelar?
-4. **Reordenar hitos:** ¿Subir/Bajar basta, o quieres arrastrar como en áreas (reutiliza `@dnd-kit`, ya instalado)?
-5. **Atajo:** "Proyectos" con la tecla `2`, como el diseño de Claude Design. ¿Ok?
+Ninguna por ahora.
