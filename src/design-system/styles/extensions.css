@@ -107,8 +107,16 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
 .bo-project-card:has(a:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 /* Date fields (project dates): iOS centers the value and gives the input an intrinsic width that
    overflows narrow columns at 320 px. */
-.bo-date-field .bo-field__control { min-width: 0; width: 100%; text-align: start; }
-.bo-date-field .bo-field__control::-webkit-date-and-time-value { text-align: start; }
+/* iOS Safari keeps its native date control's intrinsic width (min-width: 0 alone is not enough):
+   `appearance: none` drops it so the field fits its column. */
+.bo-date-field .bo-field__control { display: block; min-width: 0; width: 100%; max-width: 100%;
+  -webkit-appearance: none; appearance: none; text-align: start; line-height: 50px; }
+.bo-date-field .bo-field__control::-webkit-date-and-time-value { text-align: start; margin: 0; }
+/* Installed app (standalone, viewport-fit=cover): content scrolls under the iOS status bar unless
+   something paints behind it. The shell draws this strip in the page color. */
+.bo-status-bar-backdrop { position: fixed; inset-inline: 0; top: 0; height: env(safe-area-inset-top); z-index: 30;
+  background: var(--color-bg); pointer-events: none; }
+html { scroll-padding-top: env(safe-area-inset-top); }
 /* Options of a radio grid that carry a name (the area picker): left-aligned, up to two lines. */
 .bo-key.bo-option-key { justify-content: flex-start; text-align: left; min-height: 52px; padding: 6px 12px; gap: 8px; }
 .bo-option-key__label { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; overflow-wrap: anywhere; }
