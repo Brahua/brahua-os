@@ -187,9 +187,12 @@ describe("Tareas section", () => {
         "No se pudo cambiar la próxima acción; volvió a como estaba. Una tarea hecha no puede ser la próxima acción.",
       ),
     );
-    expect(screen.getByRole("button", { name: "Próxima acción: lijar" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
+    // The notice can render before the optimistic value rolls back.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Próxima acción: lijar" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      ),
     );
     expect(screen.getByRole("button", { name: "Próxima acción: medir paredes" })).toHaveAttribute(
       "aria-pressed",
@@ -480,6 +483,9 @@ describe("the card's Siguiente tarea", () => {
         "No se pudo marcar la tarea; volvió a como estaba. Esta tarea ya no existe (se eliminó).",
       ),
     );
-    expect(screen.getByRole("checkbox", { name: "Hecha: medir paredes" })).toBeInTheDocument();
+    // The notice can render before the optimistic value rolls back.
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Hecha: medir paredes" })).toBeInTheDocument(),
+    );
   });
 });
