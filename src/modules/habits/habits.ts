@@ -23,9 +23,9 @@ import { habitLogs, habits } from "./db/schema";
 import { frequencyColumns } from "./frequency-input";
 import { measureColumns } from "./measure-input";
 import type { CreateHabitInput, DeletedHabit, HabitItem, SetHabitDoneInput } from "./habit-input";
-import { isLoggableDay } from "./schedule";
+import { isLoggableDay, weekStart } from "./schedule";
 
-type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** First key of every advisory lock `habits` takes (its namespace among the app's locks). */
 export const HABITS_ADVISORY_SPACE = 4_000;
@@ -101,10 +101,28 @@ const ROW = {
   )`.mapWith(Boolean),
 };
 
-/** Habits as `HabitItem`s for `day` (that day's log), in their manual order. */
-function selectItems(db: Database | Tx, day: string, where: SQL | undefined) {
+/**
+ * H2: the days done this week (from its Monday) before `day`, for the pad's "2 de 3 esta semana"
+ * (`weekProgress`). A day is done when it reached its own target; read through the primary key
+ * (habit_id, day). Logs of a deleted habit never show: the habit itself is filtered.
+ */
+function weekDoneBefore(day: string) {
+  return sql<number>`(
+    select count(*) from habit_logs week_log
+    where week_log.habit_id = ${habits.id}
+      and week_log.day >= ${weekStart(day)}::date
+      and week_log.day < ${day}::date
+      and week_log.quantity >= week_log.target
+  )`.mapWith(Number);
+}
+
+/**
+ * Habits as `HabitItem`s for `day` (that day's log), in their manual order. Callers filter with
+ * `visibleHabit` or `activeHabit`.
+ */
+export function selectItems(db: Database | Tx, day: string, where: SQL | undefined) {
   return db
-    .select(ROW)
+    .select({ ...ROW, weekDoneBefore: weekDoneBefore(day) })
     .from(habits)
     .leftJoin(lifeAreas, eq(lifeAreas.id, habits.lifeAreaId))
     .leftJoin(dayLog, and(eq(dayLog.habitId, habits.id), eq(dayLog.day, day)))

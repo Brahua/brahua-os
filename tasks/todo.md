@@ -6,11 +6,11 @@
 
 ## Fase 1 — Base
 
-- [ ] **H1: Datos, crear y registrar con un toque** — tablas `habits`, `habit_logs`, `habit_pauses` (con `kind`, `CHECK`, índices, locks en el espacio 4000, `visibleHabit`) y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja slots para H2 y H3. *(En PR, rama `feat/habits-h1-base`; slots en HANDOFF → "Cómo funciona habits".)*
+- [x] **H1: Datos, crear y registrar con un toque** — tablas `habits`, `habit_logs`, `habit_pauses` (con `kind`, `CHECK`, índices, locks en el espacio 4000, `visibleHabit`) y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja slots para H2 y H3. *(PR #62 integrado; slots en HANDOFF → "Cómo funciona habits".)*
 
 ## Fase 2 — Reglas *(H2 y H3 en paralelo)*
 
-- [ ] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar.
+- [ ] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar. *(En PR, rama `feat/habits-h2-frequencies`; ver HANDOFF → "Cómo funciona habits" → "H2".)*
 - [ ] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída).
 
 ## Fase 3 — Rachas e historial

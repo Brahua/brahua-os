@@ -18,11 +18,20 @@ import { measureSummary } from "../measure-input";
 import {
   CREATE_HABIT_FIELDS,
   createHabitInputSchema,
+  updateHabitInputSchema,
   type CreateHabitField,
   type HabitAreaSummary,
   type HabitItem,
 } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
+import { updateHabit } from "../organize-actions";
+import { ORGANIZE_COPY } from "../organize-copy";
+import {
+  FrequencyField,
+  focusFrequencyField,
+  frequencyDraftOf,
+  frequencyValues,
+} from "./frequency-field";
 
 /** The area picker's value for "Sin área". */
 const NO_AREA = "";
@@ -53,29 +62,40 @@ export type HabitFormSheetProps = {
   areas: readonly HabitAreaSummary[];
   /** Where focus goes if the sheet closes without creating (the key that opened it). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
-  /** The habit was created: the screen closes the sheet and focuses its pad. */
+  /** H2: the habit to edit (the form starts from it and saves with `updateHabit`). */
+  habit?: HabitItem | null;
+  /** Created (or, editing, saved): the screen closes the sheet and focuses its pad. */
   onCreated: (habit: HabitItem) => void;
   /** Called once the sheet has fully closed (see `Sheet`). */
   onClosed?: () => void;
 };
 
 /**
- * "Nuevo hábito" (SPEC-habits "Crear y editar"): the name (focused) and an optional area. H2 and
- * H3 fill their slots (frequency; kind and measure) and "Más detalles". Validates on the client
- * with the action's own schema; the Server Action validates again (the authority). Not
- * optimistic: it waits for the server ("Creando…"), and the sheet stays open meanwhile.
+ * "Nuevo hábito" and, with `habit`, "Editar hábito" (SPEC-habits "Crear y editar"): the name
+ * (focused), the frequency (H2) and an optional area. H3 fills its slot (kind and measure) and
+ * "Más detalles". Validates on the client with the action's own schema; the Server Action
+ * validates again (the authority). Not optimistic: it waits for the server ("Creando…",
+ * "Guardando…"), and the sheet stays open meanwhile.
  */
 export function HabitFormSheet({
   open,
   onOpenChange,
-  areas,
+  areas: activeAreas,
   returnFocusRef,
+  habit = null,
   onCreated,
   onClosed,
 }: HabitFormSheetProps) {
   const isDesktop = useIsDesktop();
-  const [name, setName] = useState("");
-  const [pickedAreaId, setLifeAreaId] = useState<string>(NO_AREA);
+  const editing = habit !== null;
+  // Editing a habit whose area was archived since: that area stays offered (and picked), so
+  // saving never drops it by accident (SPEC-habits "Área": it is kept).
+  const keptArea =
+    habit?.area && !activeAreas.some((area) => area.id === habit.area?.id) ? habit.area : null;
+  const areas = keptArea ? [...activeAreas, keptArea] : activeAreas;
+  const [name, setName] = useState(habit?.name ?? "");
+  const [pickedAreaId, setLifeAreaId] = useState<string>(habit?.area?.id ?? NO_AREA);
+  const [frequency, setFrequency] = useState(() => frequencyDraftOf(habit));
   // Only an area that is still offered counts as picked: after "areaUnavailable" the page
   // brings the current areas, and an archived one drops out of the selection by itself.
   const lifeAreaId = areas.some((area) => area.id === pickedAreaId) ? pickedAreaId : NO_AREA;
@@ -89,6 +109,7 @@ export function HabitFormSheet({
   const formId = `${ids}-form`;
   const nameInput = useRef<HTMLInputElement>(null);
   const areaGroup = useRef<HTMLDivElement>(null);
+  const frequencyGroup = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!focusFirstInvalid.current) return;
@@ -96,6 +117,9 @@ export function HabitFormSheet({
     const first = CREATE_HABIT_FIELDS.find((field) => errors[field]);
     if (first === "name") nameInput.current?.focus();
     else if (first === "lifeAreaId") focusRadioGrid(areaGroup.current);
+    else if (first === "frequency" || first === "weeklyTarget" || first === "weekdays") {
+      focusFrequencyField(frequencyGroup.current, first);
+    }
   });
 
   // While saving, the sheet stays open: Esc, the scrim, ✕ and Cancelar do nothing.
@@ -123,7 +147,10 @@ export function HabitFormSheet({
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
-    const parsed = createHabitInputSchema.safeParse({ name, lifeAreaId });
+    const values = { name, lifeAreaId, ...frequencyValues(frequency) };
+    const parsed = habit
+      ? updateHabitInputSchema.safeParse({ id: habit.id, ...values })
+      : createHabitInputSchema.safeParse(values);
     if (!parsed.success) {
       const failed = fail(parsed.error);
       if (!failed.ok) showErrors(failed);
@@ -133,7 +160,7 @@ export function HabitFormSheet({
     startTransition(async () => {
       let result: ActionResult<HabitItem>;
       try {
-        result = await createHabit(parsed.data);
+        result = await (habit ? updateHabit(parsed.data) : createHabit(parsed.data));
       } catch {
         // Network failure or a new deployment: the action itself never throws.
         result = fail(HABITS_COPY.unexpected);
@@ -152,20 +179,23 @@ export function HabitFormSheet({
       label: HABITS_COPY.noArea,
       children: <span className="bo-option-key__label">{HABITS_COPY.noArea}</span>,
     },
-    ...areas.map((area) => ({
-      value: area.id,
-      label: area.name,
-      children: (
-        <>
-          <Led area={area.color} size="sm" />
-          <Icon icon={AREA_ICONS[area.icon]} size="sm" />
-          {/* Up to two lines: long area names stay readable on the phone. */}
-          <span className="bo-option-key__label" title={area.name}>
-            {area.name}
-          </span>
-        </>
-      ),
-    })),
+    ...areas.map((area) => {
+      const label = area.id === keptArea?.id ? ORGANIZE_COPY.archivedArea(area.name) : area.name;
+      return {
+        value: area.id,
+        label,
+        children: (
+          <>
+            <Led area={area.color} size="sm" />
+            <Icon icon={AREA_ICONS[area.icon]} size="sm" />
+            {/* Up to two lines: long area names stay readable on the phone. */}
+            <span className="bo-option-key__label" title={label}>
+              {label}
+            </span>
+          </>
+        ),
+      };
+    }),
   ];
 
   const areaLabelId = `${ids}-area-label`;
@@ -178,7 +208,7 @@ export function HabitFormSheet({
       open={open}
       onOpenChange={requestOpenChange}
       variant={isDesktop ? "side" : "bottom"}
-      title={HABITS_COPY.newHabit}
+      title={editing ? ORGANIZE_COPY.editHabit : HABITS_COPY.newHabit}
       returnFocusRef={returnFocusRef}
       onClosed={onClosed}
       closeDisabled={pending}
@@ -200,7 +230,13 @@ export function HabitFormSheet({
             aria-disabled={pending || undefined}
             aria-describedby={summaryId}
           >
-            {pending ? HABITS_COPY.creating : HABITS_COPY.create}
+            {editing
+              ? pending
+                ? ORGANIZE_COPY.saving
+                : ORGANIZE_COPY.save
+              : pending
+                ? HABITS_COPY.creating
+                : HABITS_COPY.create}
           </Key>
         </>
       }
@@ -233,7 +269,22 @@ export function HabitFormSheet({
         {/* H3 slot (Tipo y Medición): SegmentedControl "A cumplir · A evitar" and "Sí/No ·
             Cantidad" (meta, unidad y paso). Its fields go in createHabitInputSchema. */}
 
-        {/* H2 slot (Frecuencia): "Diaria · Por semana · Días fijos" and "Varias veces al día". */}
+        {/* H2 (Frecuencia): "Diaria · Por semana · Días fijos", with X or the days. ("Varias
+            veces al día" is H3's shortcut: a daily quantity habit.) */}
+        <FrequencyField
+          ref={frequencyGroup}
+          id={`${ids}-frequency`}
+          draft={frequency}
+          onDraftChange={(next) => {
+            setFrequency(next);
+            if (errors.frequency || errors.weeklyTarget || errors.weekdays) {
+              clearError("frequency");
+              clearError("weeklyTarget");
+              clearError("weekdays");
+            }
+          }}
+          errors={errors}
+        />
 
         <div className={cn("bo-field", errors.lifeAreaId && "is-error")}>
           <span id={areaLabelId} className="bo-field__label">
@@ -264,7 +315,9 @@ export function HabitFormSheet({
 
         <p className="bo-text-body-sm text-text-secondary">
           <span className="bo-text-label">{HABITS_COPY.summaryLabel}: </span>
-          <span id={summaryId}>{ruleSummary({ name, lifeAreaId })}</span>
+          <span id={summaryId}>
+            {ruleSummary({ name, lifeAreaId, ...frequencyValues(frequency) })}
+          </span>
         </p>
 
         {formError ? (
@@ -275,7 +328,7 @@ export function HabitFormSheet({
         ) : null}
         {/* The key's text changes too, but a screen reader on another control wouldn't hear it. */}
         <p role="status" className="sr-only">
-          {pending ? HABITS_COPY.creatingStatus : ""}
+          {pending ? (editing ? ORGANIZE_COPY.savingStatus : HABITS_COPY.creatingStatus) : ""}
         </p>
       </form>
     </Sheet>

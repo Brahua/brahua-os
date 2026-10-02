@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import type { HabitItem } from "./habit-input";
 import { selectActiveHabits } from "./habits";
+import { selectArchivedHabits } from "./organize";
 
 /**
  * The active habits (neither archived nor deleted) with today's log (Lima day of `now`), in their
@@ -13,4 +14,10 @@ import { selectActiveHabits } from "./habits";
 export async function listActiveHabits(now: Date): Promise<HabitItem[]> {
   await requireOwner();
   return selectActiveHabits(getDb(), ownerDateKey(now));
+}
+
+/** The archived habits (not deleted), in their old order: "Archivados" with "Reactivar" (H2). */
+export async function listArchivedHabits(now: Date): Promise<HabitItem[]> {
+  await requireOwner();
+  return selectArchivedHabits(getDb(), ownerDateKey(now));
 }
