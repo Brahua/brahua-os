@@ -87,3 +87,19 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   verified in Playwright; ask the owner to check on the device (reinstalling the app after meta changes).
 - **Disk hygiene:** delete `.next`, test output and `.pgdata` when an agent finishes, and remove finished
   worktrees; a full disk stalls every agent.
+
+## Lessons from `tasks` (retrospective, 2026-10-02)
+
+- **Anchor ignore patterns:** `.vercelignore` and similar files match at any depth; write `/tasks/`, never
+  `tasks/` (it dropped `src/modules/tasks/` from the deploy). Check with `vercel deploy --dry` when you edit it.
+- **CI minutes are finite:** agents push once, with the local gate green, and don't re-run CI to "check";
+  docs-only changes and screenshot runs cost the same full pipeline. When Actions stops starting jobs, don't
+  merge without CI: verify locally and deploy a commit that already passed CI by hand.
+- **Timers in components:** every `setTimeout` that sets state is cleared on unmount; for live-region
+  messages use core's `useAnnouncer()`. An uncleared timer fails the unit job ("window is not defined").
+- **Exhaustive tests:** loops with thousands of cases collect mismatches and assert once (with an explicit
+  timeout); an `expect` per case timed out on CI runners.
+- **Checkpoint in production:** with the owner signed in to their own Chrome, the agent can run the
+  checkpoint walkthrough with Claude in Chrome (prefix data with `[QA]`, delete it after, restore theme,
+  window size and sidebar). Use element refs, not coordinates, and wait after scrolling: clicks during a
+  smooth scroll or before hydration are lost. Never type with no field focused (keys hit app shortcuts).
