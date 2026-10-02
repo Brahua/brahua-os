@@ -17,8 +17,9 @@
 ## Fase 2 — Vistas y reglas *(T2, T3 y T4 en paralelo)*
 
 - [x] **T2: Vistas y detalle** — Hoy, Próximas, Todas (filtros por área, proyecto y etiqueta), Hechas; detalle con título, notas Markdown, área/proyecto/hito, fecha y prioridad editables. PR #53 integrado; el filtro por etiqueta queda como slot para T4. Detalle en `docs/HANDOFF.md` → "T2: vistas y detalle".
-- [ ] **T3: Recurrencia** — las 5 reglas (cálculo puro en hora de Lima), crear la siguiente al completar en la misma transacción, deshacer borra la creada, editor con resumen legible. PR #52 (sin merge).
-- [ ] **T4: Etiquetas** — crear al escribir, reutilizar, quitar; filtro por etiqueta; etiquetas en la fila.
+- [x] **T3: Recurrencia** — las 5 reglas (cálculo puro en hora de Lima), crear la siguiente al completar en la misma transacción, deshacer borra la creada, editor con resumen legible. PR #52 integrado.
+- [ ] **T4: Etiquetas** — crear al escribir, reutilizar, quitar; filtro por etiqueta; etiquetas en la fila. PR #51 `feat/tasks-t4-tags` (sin merge; rebasada sobre T2 y T3). Ver "T4: etiquetas" en `docs/HANDOFF.md`.
+  - Seguimiento: renombrar y eliminar etiquetas de forma global; limpiar las sin uso.
 
 ## Fase 3 — Proyectos y contratos
 

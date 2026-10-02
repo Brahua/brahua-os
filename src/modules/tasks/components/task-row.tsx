@@ -12,7 +12,9 @@ import { isUrgentDue, taskDueState } from "../task-due";
 import type { TaskItem } from "../task-input";
 import { doneLabel } from "../task-views";
 import { TASKS_COPY } from "../tasks-copy";
+import { TAGS_COPY } from "../tags-copy";
 import { VIEWS_COPY } from "../views-copy";
+import { TaskRowTags } from "./task-row-tags";
 
 /**
  * Every focusable control of a row carries `data-task-focus="<control>:<id>"`, so focus can be
@@ -58,6 +60,7 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: T
     due?.label,
     task.priority === "high" ? TASKS_COPY.highPriority : null,
     task.recurrence ? RECURRENCE_COPY.rowDescription(recurrenceSummary(task.recurrence)) : null,
+    task.tags.length > 0 ? TAGS_COPY.rowDescription(task.tags.map((tag) => tag.name)) : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -134,7 +137,7 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: T
               </span>
             ) : null}
 
-            {/* ── T4 slot (Etiquetas): the tags, from task.tags. ── */}
+            <TaskRowTags tags={task.tags} />
           </p>
         ) : null}
       </div>

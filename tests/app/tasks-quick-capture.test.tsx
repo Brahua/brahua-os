@@ -10,6 +10,10 @@ import { QuickCaptureSheet } from "@/modules/tasks/components/quick-capture-shee
 import { TASK_ERRORS, type TaskItem, type TaskTargets } from "@/modules/tasks/task-input";
 
 vi.mock("@/modules/tasks/actions", () => ({ createTask: vi.fn(), listTaskTargets: vi.fn() }));
+vi.mock("@/modules/tasks/tag-actions", () => ({
+  listTaskTags: vi.fn(async () => ({ ok: true, data: ["compras", "hogar"] })),
+  setTaskTags: vi.fn(),
+}));
 
 const HEALTH_ID = "11111111-1111-4111-8111-111111111111";
 const PROJECT_ID = "22222222-2222-4222-8222-222222222222";

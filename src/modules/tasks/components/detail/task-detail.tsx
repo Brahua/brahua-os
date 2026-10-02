@@ -8,6 +8,7 @@ import { TaskNotesSection } from "./task-notes-section";
 import { TaskPlanSection } from "./task-plan-section";
 import { TaskPrioritySection } from "./task-priority-section";
 import { TaskRecurrenceSection } from "./task-recurrence-section";
+import { TaskTagsSection } from "./task-tags-section";
 import { TaskTitleSection } from "./task-title-section";
 
 /**
@@ -40,7 +41,7 @@ export function TaskDetail() {
 
       <TaskPrioritySection />
 
-      {/* ── T4 slot (Etiquetas): <TaskTagsSection /> ── */}
+      <TaskTagsSection />
 
       <TaskRecurrenceSection />
 

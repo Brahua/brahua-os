@@ -5,8 +5,9 @@ import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-prefer
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
 import { getDeletedTask, getTaskTargets, listInboxTasks } from "@/modules/tasks/queries";
 import { DELETED_PARAM, parseTaskView, VIEW_PARAM, type TaskView } from "@/modules/tasks/routes";
-import { parseFilterParams, resolveFilters } from "@/modules/tasks/task-filters";
-import type { TaskItem, TaskTargets } from "@/modules/tasks/task-input";
+import { getTaskTagOptions } from "@/modules/tasks/tag-queries";
+import { parseFilterParams, resolveFilters, TAG_PARAM } from "@/modules/tasks/task-filters";
+import type { TaskItem, TaskTagSummary, TaskTargets } from "@/modules/tasks/task-input";
 import { matchesFilters } from "@/modules/tasks/task-views";
 import { TASK_VIEW_LABELS, TASKS_COPY } from "@/modules/tasks/tasks-copy";
 import {
@@ -47,9 +48,11 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const deletedId = search[DELETED_PARAM];
   // One instant for every row: the views and the due labels all count from the same Lima day.
   const now = new Date();
-  const [tasks, targets, deleted, cookieStore] = await Promise.all([
+  const [tasks, targets, tagsInUse, deleted, cookieStore] = await Promise.all([
     listViewTasks(view, now),
     getTaskTargets(),
+    // T4: only with a tag in the URL ("Todas"), so it stays offered after its last pending task.
+    view === "todas" && search[TAG_PARAM] ? getTaskTagOptions() : Promise.resolve([]),
     // Just deleted from its page: the undo notice needs its title (only while it is deleted).
     typeof deletedId === "string" ? getDeletedTask(deletedId) : Promise.resolve(null),
     cookies(),
@@ -73,6 +76,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
             view={view}
             tasks={tasks}
             targets={targets}
+            tagsInUse={tagsInUse}
             search={search}
             shortcuts={shortcuts}
           />
@@ -104,11 +108,12 @@ type ViewContentProps = {
   view: TaskView;
   tasks: TaskItem[];
   targets: TaskTargets;
+  tagsInUse: TaskTagSummary[];
   search: SearchParams;
   shortcuts: boolean;
 };
 
-function ViewContent({ view, tasks, targets, search, shortcuts }: ViewContentProps) {
+function ViewContent({ view, tasks, targets, tagsInUse, search, shortcuts }: ViewContentProps) {
   switch (view) {
     case "bandeja":
       return <InboxView tasks={tasks} shortcuts={shortcuts} headingId={VIEW_HEADING_ID} />;
@@ -119,14 +124,19 @@ function ViewContent({ view, tasks, targets, search, shortcuts }: ViewContentPro
     case "hechas":
       return <DoneView tasks={tasks} headingId={VIEW_HEADING_ID} />;
     case "todas": {
-      const { filters, choices } = resolveFilters(parseFilterParams(search), targets, tasks);
+      const { filters, choices } = resolveFilters(
+        parseFilterParams(search),
+        targets,
+        tasks,
+        tagsInUse,
+      );
       const area = choices.areas.find((item) => item.id === filters.areaId);
       return (
         <AllView
           tasks={tasks.filter((task) => matchesFilters(task, filters))}
           filters={filters}
           choices={choices}
-          params={{ area: area?.slug ?? null, project: filters.projectId }}
+          params={{ area: area?.slug ?? null, project: filters.projectId, tagId: filters.tagId }}
           headingId={VIEW_HEADING_ID}
         />
       );

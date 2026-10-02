@@ -46,17 +46,18 @@ export const doneSinceDay = (now: Date) => addDays(ownerDateKey(now), -DONE_WIND
 export type TaskFilters = {
   areaId: string | null;
   projectId: string | null;
-  // ── T4 slot (Etiqueta): `tagId: string | null` (the tag id, stable under rename; `?etiqueta=<tagId>`). ──
+  /** T4: the tag id (stable under a rename; `?etiqueta=<tagId>`). */
+  tagId: string | null;
 };
 
-export const NO_FILTERS: TaskFilters = { areaId: null, projectId: null };
+export const NO_FILTERS: TaskFilters = { areaId: null, projectId: null, tagId: null };
 
 type FilterTask = Pick<TaskItem, "area" | "projectId" | "tags">;
 
 export function matchesFilters(task: FilterTask, filters: TaskFilters): boolean {
   if (filters.areaId !== null && task.area?.id !== filters.areaId) return false;
   if (filters.projectId !== null && task.projectId !== filters.projectId) return false;
-  // ── T4 slot (Etiqueta): `task.tags.some((tag) => tag.id === filters.tagId)`. ──
+  if (filters.tagId !== null && !task.tags.some((tag) => tag.id === filters.tagId)) return false;
 
   return true;
 }

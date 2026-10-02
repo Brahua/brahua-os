@@ -201,9 +201,12 @@ describe("Todas: filters", () => {
         .filter((item) => matchesFilters(item, filters))
         .map((item) => item.id);
     expect(ids(NO_FILTERS)).toEqual([inHome.id, inProject.id, inWork.id, inbox.id]);
-    expect(ids({ areaId: HOME.id, projectId: null })).toEqual([inHome.id, inProject.id]);
-    expect(ids({ areaId: null, projectId: PROJECT.id })).toEqual([inProject.id]);
-    expect(ids({ areaId: WORK.id, projectId: PROJECT.id })).toEqual([]);
+    expect(ids({ areaId: HOME.id, projectId: null, tagId: null })).toEqual([
+      inHome.id,
+      inProject.id,
+    ]);
+    expect(ids({ areaId: null, projectId: PROJECT.id, tagId: null })).toEqual([inProject.id]);
+    expect(ids({ areaId: WORK.id, projectId: PROJECT.id, tagId: null })).toEqual([]);
     expect(isPendingMatching({ ...inHome, doneAt: LIMA_MORNING }, NO_FILTERS)).toBe(false);
   });
 
@@ -235,33 +238,31 @@ describe("Todas: filters", () => {
   });
 
   test("the URL: area by slug, project by id; unknown or of another area means all", () => {
-    expect(parseFilterParams({})).toEqual({ area: null, project: null });
+    const none = { area: null, project: null, tagId: null };
+    expect(parseFilterParams({})).toEqual(none);
     expect(parseFilterParams({ area: "home", proyecto: "not-a-uuid" })).toEqual({
+      ...none,
       area: "home",
-      project: null,
     });
-    expect(parseFilterParams({ area: ["home", "work"] })).toEqual({ area: null, project: null });
-    expect(resolveFilters({ area: "home", project: null }, TARGETS, pending).filters).toEqual({
+    expect(parseFilterParams({ area: ["home", "work"] })).toEqual(none);
+    expect(resolveFilters({ ...none, area: "home" }, TARGETS, pending).filters).toEqual({
+      ...NO_FILTERS,
       areaId: HOME.id,
-      projectId: null,
     });
-    expect(resolveFilters({ area: "nada", project: null }, TARGETS, pending).filters).toEqual(
-      NO_FILTERS,
-    );
-    expect(resolveFilters({ area: null, project: "p-1" }, TARGETS, pending).filters).toEqual({
-      areaId: null,
+    expect(resolveFilters({ ...none, area: "nada" }, TARGETS, pending).filters).toEqual(NO_FILTERS);
+    expect(resolveFilters({ ...none, project: "p-1" }, TARGETS, pending).filters).toEqual({
+      ...NO_FILTERS,
       projectId: "p-1",
     });
     // Cocina is in Hogar: with Trabajo chosen, the project filter doesn't apply.
-    expect(resolveFilters({ area: "work", project: "p-1" }, TARGETS, pending).filters).toEqual({
-      areaId: WORK.id,
-      projectId: null,
-    });
+    expect(
+      resolveFilters({ ...none, area: "work", project: "p-1" }, TARGETS, pending).filters,
+    ).toEqual({ ...NO_FILTERS, areaId: WORK.id });
   });
 
   test("links keep the view and the filters", () => {
-    expect(allViewHref({ area: null, project: null })).toBe("/tasks?vista=todas");
-    expect(allViewHref({ area: "home", project: "p-1" })).toBe(
+    expect(allViewHref({ area: null, project: null, tagId: null })).toBe("/tasks?vista=todas");
+    expect(allViewHref({ area: "home", project: "p-1", tagId: null })).toBe(
       "/tasks?vista=todas&area=home&proyecto=p-1",
     );
   });
