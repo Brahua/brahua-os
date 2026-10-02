@@ -244,7 +244,10 @@ describe("the section", () => {
     const user = renderPage([PERMISO], []);
     await user.click(screen.getByRole("button", { name: "Quitar «Permiso municipal»" }));
     await waitFor(() => expect(notices()).toHaveTextContent(/Revisa tu conexión/));
-    expect(within(blockerList()!).getByText("Permiso municipal")).toBeInTheDocument();
+    // The notice can render before the optimistic removal rolls back.
+    await waitFor(() =>
+      expect(within(blockerList()!).getByText("Permiso municipal")).toBeInTheDocument(),
+    );
   });
 });
 

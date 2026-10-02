@@ -516,7 +516,10 @@ describe("status", () => {
         "No se pudo guardar el estado; volvió a como estaba. Revisa tu conexión e inténtalo de nuevo.",
       ),
     );
-    expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked();
+    // The notice can render before the optimistic value rolls back.
+    await waitFor(() =>
+      expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked(),
+    );
   });
 
   test("due notice per state: only idea, active and paused; maintenance hides the end date", async () => {
