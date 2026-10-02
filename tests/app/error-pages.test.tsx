@@ -167,3 +167,13 @@ test("global-error: its own Spanish document, dark by default, without details",
   expect(html).toContain("Código del error: 42");
   expect(html).not.toContain(SECRET);
 });
+
+test("global-error: keeps clear of the iOS status bar like the root layout", () => {
+  const html = renderToStaticMarkup(<GlobalError error={serverError("42")} retry={vi.fn()} />);
+
+  expect(html).toContain(
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>',
+  );
+  expect(html).toContain('<div aria-hidden="true" class="bo-status-bar-backdrop"></div>');
+  expect(html).toMatch(/<main class="bo-safe-area /);
+});
