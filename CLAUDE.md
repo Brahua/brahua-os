@@ -66,3 +66,21 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **E2E stability:** wait for hydration markers before keyboard input, serialize tests that mutate shared
   data, and assert something that can fail (negative tests need a positive control).
 - **Docs:** after each merge, update `tasks/todo.md` and HANDOFF status lines (no stale "sin merge").
+
+## Lessons from `projects` (retrospective, 2026-10-02)
+
+- **Verify before merging:** read `gh pr view N --json statusCheckRollup` and confirm all 3 checks green on the
+  final head *before* `gh pr merge`. A dispatched run (after a bot screenshot commit) counts; a red
+  `pull_request` run on the same head must be understood, not ignored.
+- **Parallel work needs contracts first:** the task that builds a page leaves named slots and a context
+  (`enqueue`, `toaster`, `announce`) for the parallel tasks; each parallel agent gets its own
+  `TEST_DB_PORT` and `E2E_PORT` and a merge order. Cross-module features go through registered contracts
+  (`registerProgressSource`), never imports in the wrong direction.
+- **Advisory locks:** two-key form `(module space, hashtext(key))`, always the first lock of the
+  transaction, never taken after a row lock; document the rule next to the lock.
+- **E2E after a save:** run `afterSaveSettled(page)` (no `[data-saving]`, `<title>` present, animations
+  settled) before axe or screenshots; Next 16 streams metadata and the title can be briefly missing.
+- **iPhone is the source of truth for PWA chrome:** status bar, safe areas and native date inputs can't be
+  verified in Playwright; ask the owner to check on the device (reinstalling the app after meta changes).
+- **Disk hygiene:** delete `.next`, test output and `.pgdata` when an agent finishes, and remove finished
+  worktrees; a full disk stalls every agent.
