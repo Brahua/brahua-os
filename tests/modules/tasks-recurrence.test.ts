@@ -169,20 +169,27 @@ describe("day X of the month: the first one from tomorrow (clamped)", () => {
     expect(nextDueDate(monthDay(29), limaNoon("2027-01-29"))).toBe("2027-02-28");
   });
 
-  test("every day 1–31 from every day of 2027 and 2028 (a leap year)", () => {
+  // ~22,600 cases: collect mismatches and assert once (an `expect` per probe timed out on CI runners).
+  test("every day 1–31 from every day of 2027 and 2028 (a leap year)", { timeout: 30_000 }, () => {
+    const failures: string[] = [];
     for (const today of daysFrom("2027-01-01", 731)) {
       for (let target = 1; target <= 31; target++) {
         const next = nextDueDate(monthDay(target), limaNoon(today));
         const [y, m, d] = next.split("-").map(Number);
-        expect(next > today).toBe(true);
-        expect(d).toBe(Math.min(target, daysInMonth(y, m)));
+        if (next <= today) failures.push(`${today} day ${target}: ${next} is not after today`);
+        if (d !== Math.min(target, daysInMonth(y, m))) {
+          failures.push(`${today} day ${target}: ${next} is the wrong day`);
+        }
         // No earlier day from tomorrow fits.
         for (let probe = keyPlusDays(today, 1); probe < next; probe = keyPlusDays(probe, 1)) {
           const [py, pm, pd] = probe.split("-").map(Number);
-          expect(pd).not.toBe(Math.min(target, daysInMonth(py, pm)));
+          if (pd === Math.min(target, daysInMonth(py, pm))) {
+            failures.push(`${today} day ${target}: ${probe} fits before ${next}`);
+          }
         }
       }
     }
+    expect(failures).toEqual([]);
   });
 });
 
