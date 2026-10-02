@@ -20,8 +20,13 @@ const LINK_CELLS = ["col-start-1", "col-start-2", "col-start-4", "col-start-5"] 
 type BottomNavProps = {
   items: readonly NavItem[];
   pathname: string;
-  /** Opens quick capture. Without it the capture key is shown as not available yet. */
-  onCapture?: () => void;
+  /**
+   * Opens quick capture with the key that was pressed. Without it the capture key is shown as
+   * not available yet (no capture provider registered).
+   */
+  onCapture?: (trigger: HTMLElement) => void;
+  /** Fetches the capture's code ahead (the key is pointed at, focused or touched). */
+  onCapturePreload?: () => void;
   /** Accessible name of the nav landmark (it must be unique on the page). */
   label?: string;
   className?: string;
@@ -38,6 +43,7 @@ export function BottomNav({
   items,
   pathname,
   onCapture,
+  onCapturePreload,
   label = NAV_COPY.mainNav,
   className,
   ref,
@@ -67,6 +73,7 @@ export function BottomNav({
         className="bo-key--icon bo-key--lg bo-bottomnav__capture"
         anchorClassName="col-start-3 row-start-1 justify-self-center"
         onCapture={onCapture}
+        onPreload={onCapturePreload}
       >
         <Icon icon={Plus} size="xl" />
       </CaptureKey>

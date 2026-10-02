@@ -9,8 +9,14 @@ import { NAV_COPY } from "../copy";
 const HINT_MS = 2000;
 
 type CaptureKeyProps = {
-  /** Opens quick capture. Without it the key is marked unavailable (quick capture isn't built yet). */
-  onCapture?: () => void;
+  /**
+   * Opens quick capture, with the key that was pressed (focus returns there on close). Without
+   * it the key is marked unavailable: no module registered a capture provider
+   * (src/lib/quick-capture.ts).
+   */
+  onCapture?: (trigger: HTMLElement) => void;
+  /** Fetches the capture's code ahead (pointer over, focus or touch on the key). */
+  onPreload?: () => void;
   /** Show the "C" shortcut (only when capture is available and shortcuts are on). */
   shortcut?: boolean;
   placement: TooltipPlacement;
@@ -22,13 +28,14 @@ type CaptureKeyProps = {
 };
 
 /**
- * The orange capture key of the navigation. Until quick capture exists it stays in place (so the
- * layout doesn't change when it arrives) but is `aria-disabled`, still reachable with Tab, and
- * its tooltip explains why — read as the button's description. Touch screens have no hover, so
- * tapping it shows the explanation for a moment.
+ * The orange capture key of the navigation. With a capture provider it opens quick capture
+ * (`aria-haspopup="dialog"`). Without one it stays in place (so the layout doesn't change) but is
+ * `aria-disabled`, still reachable with Tab, and its tooltip explains why — read as the button's
+ * description. Touch screens have no hover, so tapping it shows the explanation for a moment.
  */
 export function CaptureKey({
   onCapture,
+  onPreload,
   shortcut = false,
   placement,
   className,
@@ -60,8 +67,13 @@ export function CaptureKey({
         className={cn("bo-key bo-key--signal", !available && "is-disabled", className)}
         aria-label={NAV_COPY.capture}
         aria-disabled={available ? undefined : true}
+        aria-haspopup={available ? "dialog" : undefined}
         aria-keyshortcuts={showShortcut ? "C" : undefined}
-        onClick={available ? onCapture : () => setHint(true)}
+        data-capture-key=""
+        onPointerEnter={available ? onPreload : undefined}
+        onFocus={available ? onPreload : undefined}
+        onTouchStart={available ? onPreload : undefined}
+        onClick={available ? (event) => onCapture(event.currentTarget) : () => setHint(true)}
       >
         {children}
       </button>
