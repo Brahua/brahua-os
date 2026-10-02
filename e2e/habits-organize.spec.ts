@@ -120,10 +120,12 @@ test("create on fixed days of another day: 'Nada toca hoy' and 'No tocan hoy' op
   );
 });
 
-test("create a weekly habit: '0 de 3 esta semana', a tap makes it 1", async ({
+test("create a weekly habit: '0 de N esta semana', a tap makes it 1", async ({
   page,
 }, testInfo) => {
   const name = unique("Gimnasio", testInfo);
+  // H4: created today, this week asks for its part: ceil(3 × days left until Sunday / 7).
+  const quota = Math.ceil((3 * (8 - limaWeekday(0))) / 7);
   await openHabits(page);
   await page.getByRole("button", { name: "Nuevo hábito" }).click();
   const sheet = page.getByRole("dialog", { name: "Nuevo hábito" });
@@ -134,11 +136,15 @@ test("create a weekly habit: '0 de 3 esta semana', a tap makes it 1", async ({
   await untilSaved(page, () => sheet.getByRole("button", { name: "Crear hábito" }).click());
   await expect(sheet).toBeHidden();
   await expect(pad(page, name)).toBeFocused();
-  await expect(pad(page, name)).toHaveAccessibleDescription("0 de 3 esta semana");
+  await expect(pad(page, name)).toHaveAccessibleDescription(`0 de ${quota} esta semana`);
   await untilSaved(page, () => pad(page, name).click());
-  await expect(pad(page, name).locator("[data-habit-week]")).toHaveText("1 de 3 esta semana");
+  await expect(pad(page, name).locator("[data-habit-week]")).toHaveText(
+    `1 de ${quota} esta semana`,
+  );
   await page.reload();
-  await expect(pad(page, name)).toHaveAccessibleDescription("1 de 3 esta semana");
+  await expect(pad(page, name)).toHaveAccessibleDescription(
+    new RegExp(`^1 de ${quota} esta semana`),
+  );
   expect(await readHabitByName(name)).toMatchObject({ frequency: "weekly_count", weeklyTarget: 3 });
 });
 

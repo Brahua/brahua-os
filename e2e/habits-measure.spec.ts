@@ -41,7 +41,8 @@ const unique = (prefix: string, testInfo: TestInfo) =>
   `${prefix} ${testInfo.project.name} ${Math.random().toString(36).slice(2, 6)}`;
 
 /** The pad's status line ("3/8 VASOS"). */
-const status = (page: Page, name: string) => pad(page, name).locator(".bo-key__sub");
+const status = (page: Page, name: string) =>
+  pad(page, name).locator(".bo-key__sub:not([data-habit-streak])");
 
 test("8 vasos: each tap adds one until the goal; Deshacer takes one back", async ({
   page,
