@@ -2,6 +2,7 @@
 
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { Icon, Key, Sheet, TextField } from "@/design-system";
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
@@ -90,7 +91,7 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
   const recurrenceRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [announcement, setAnnouncement] = useState("");
+  const [announcement, announce] = useAnnouncer();
   const [pending, startTransition] = useTransition();
 
   const [targets, setTargets] = useState<TaskTargets | null>(null);
@@ -138,12 +139,6 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
     // (No cleanup: the next render would cancel it.)
     window.setTimeout(() => target?.focus(), 0);
   });
-
-  function announce(message: string) {
-    // Cleared first, so the same message twice is read twice.
-    setAnnouncement("");
-    window.setTimeout(() => setAnnouncement(message), 50);
-  }
 
   /** A rule that can't be saved yet: open "Más detalles", show why and go there. */
   function showRecurrenceErrors(errors: RecurrenceDraftErrors) {

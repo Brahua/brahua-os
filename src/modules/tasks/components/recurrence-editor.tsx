@@ -2,6 +2,7 @@
 
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { useState } from "react";
+import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { Icon, Key, TextField } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatDateKey } from "@/lib/time";
@@ -70,14 +71,12 @@ export function RecurrenceEditor({
   // What screen readers hear: the summary once a change is made (a choice at once, a typed
   // number when it is left), never on every keystroke. "No se repite" says nothing here: the
   // radio already says it (and the detail announces "Ya no se repite." once saved).
-  const [spoken, setSpoken] = useState("");
+  const [spoken, sayText] = useAnnouncer();
   const speak = (next: RecurrenceDraft) => {
     if (next.mode === "none") return;
     const text = summaryOf(next, now, dueDate);
     if (!text) return;
-    // Cleared first, so the same summary twice is read twice.
-    setSpoken("");
-    window.setTimeout(() => setSpoken(text), 50);
+    sayText(text);
   };
   const change = (patch: Partial<RecurrenceDraft>, typed = false) => {
     const next = { ...draft, ...patch };

@@ -9,6 +9,7 @@ import {
   useOptimistic,
   useState,
 } from "react";
+import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { TriangleAlert } from "lucide-react";
 import { Icon } from "@/design-system";
 import type { ActionResult } from "@/lib/action-result";
@@ -108,7 +109,7 @@ export function TaskDetailProvider({ task, host, onDeleted, children }: TaskDeta
   const { push } = toaster;
   const screenAnnounce = screen.announce;
   // Messages shown inside the sheet (see `reportError`); unused on the page.
-  const [sheetStatus, setSheetStatus] = useState("");
+  const [sheetStatus, announceInSheet] = useAnnouncer();
   const [sheetError, setSheetError] = useState<string | null>(null);
   const inSheet = host === "sheet";
 
@@ -118,11 +119,9 @@ export function TaskDetailProvider({ task, host, onDeleted, children }: TaskDeta
         screenAnnounce(message);
         return;
       }
-      // Cleared first, so the same message twice is read twice.
-      setSheetStatus("");
-      window.setTimeout(() => setSheetStatus(message), 50);
+      announceInSheet(message);
     },
-    [inSheet, screenAnnounce],
+    [announceInSheet, inSheet, screenAnnounce],
   );
 
   const reportError = useCallback(
