@@ -407,9 +407,9 @@ describe("soft delete and undo", () => {
       ok: true,
       data: { id: task.id, title: "x" },
     });
-    // Only the list: the task's page would turn into its 404 before the client leaves it.
-    expect(revalidatePath).toHaveBeenCalledTimes(1);
-    expect(revalidatePath).toHaveBeenCalledWith("/tasks");
+    // The list and (T5) the project screens, never the task's page: it would turn into its 404
+    // before the client leaves it.
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/tasks"], ["/projects", "layout"]]);
     expect((await row(task.id)).deletedAt).toBeInstanceOf(Date);
     expect(await listInboxTasks()).toEqual([]);
     expect(await getTask(task.id)).toBeNull();

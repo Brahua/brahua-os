@@ -12,6 +12,7 @@ import {
   toPlacement,
   type PlacementValue,
 } from "../placement";
+import type { SpawnUndo } from "../recurrence-db";
 import type { DeletedTask, TaskItem, TaskPlacement } from "../task-input";
 import { applyTaskListChange, neighborOf } from "../task-list-optimistic";
 import { groupRuns, type TaskGroup } from "../task-views";
@@ -56,6 +57,17 @@ type TaskListProps = {
   groupOf?: (task: TaskItem) => TaskGroup;
   /** Every row gets a visible "Deshacer" that reopens it ("Hechas"). */
   reopenable?: boolean;
+  /**
+   * T5 (a project's "Tareas"): rows leave out the area and project (the page is the project's),
+   * get an extra control after the row (`rowAction`, the next-action mark), and "Deshacer" of a
+   * completion can go through another call (`undoCompletion`: for the next action, reopen and
+   * mark it again in one transaction). Return null to use the plain reopen.
+   */
+  hidePlacement?: boolean;
+  rowAction?: (task: TaskItem) => React.ReactNode;
+  undoCompletion?: (
+    task: TaskItem,
+  ) => (() => Promise<ActionResult<{ spawn: SpawnUndo | null }>>) | null;
 };
 
 type Opening = { task: TaskItem; key: number };
@@ -79,6 +91,9 @@ export function TaskList({
   header,
   groupOf,
   reopenable = false,
+  hidePlacement = false,
+  rowAction,
+  undoCompletion,
 }: TaskListProps) {
   const groupIds = useId();
   const { now, targets, enqueue, toaster, announce } = useTasksScreen();
@@ -233,7 +248,8 @@ export function TaskList({
       // "Deshacer" of a completion: back in its place, unless pending tasks don't belong here.
       if (belongs(reopened)) apply({ type: "restore", task: reopened, index });
       else apply({ type: "remove", id: task.id });
-      const queued = await runReopen(task);
+      const custom = undoCompletion?.(task);
+      const queued = custom ? await enqueue(`task-done:${task.id}`, custom) : await runReopen(task);
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
       // T3: says whether the next occurrence went away with the undo or stayed (edited).
@@ -391,7 +407,9 @@ export function TaskList({
           onOpen={openDetail}
           onClassify={classify ? openClassify : undefined}
           onReopen={reopenable ? (item) => reopenFromRow(item, "reopen") : undefined}
+          hidePlacement={hidePlacement}
         />
+        {rowAction?.(task)}
       </li>
     ));
 
@@ -405,14 +423,15 @@ export function TaskList({
           {groupRuns(view, groupOf).map(({ group, tasks: items }) => {
             const headingId = `${groupIds}-${group.key}`;
             return (
-              <section key={group.key} aria-labelledby={headingId} className="flex flex-col gap-2">
+              // A div, not a named <section>: a group isn't a landmark (its list is named by the h3).
+              <div key={group.key} className="flex flex-col gap-2">
                 <h3 id={headingId} className="bo-text-body-strong" data-task-group={group.key}>
                   {group.label}
                 </h3>
                 <ul aria-labelledby={headingId} className="bo-list">
                   {rows(items)}
                 </ul>
-              </section>
+              </div>
             );
           })}
         </div>

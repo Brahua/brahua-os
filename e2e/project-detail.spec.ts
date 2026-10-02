@@ -143,7 +143,7 @@ test("Marcar como terminado warns about open milestones, then the card is in His
     has: page.getByRole("link", { name }),
   });
   await expect(card).toContainText(`Terminado el ${formatOwnerDay(new Date(), "short")}`);
-  await expect(card).toContainText("1 de 3 hitos");
+  await expect(card).toContainText("1 de 3");
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await expectNoOverflow(page, card);

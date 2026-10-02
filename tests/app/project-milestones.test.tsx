@@ -253,7 +253,7 @@ describe("list and progress", () => {
     expect(screen.getByRole("button", { name: "Editar hito Muebles" })).toHaveAccessibleDescription(
       "Para el 30 nov. 2026",
     );
-    expect(meter()).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos");
+    expect(meter()).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
     expect(meter()).toHaveAttribute("aria-valuenow", "1");
     expect(meter()).toHaveAttribute("aria-valuemax", "3");
     // The meter is inside "Objetivo y fechas".
@@ -284,7 +284,7 @@ describe("add", () => {
     expect(titles()).toEqual(["Planos", "Muebles", "Luces", "Encimera"]);
     expect(addField()).toHaveValue("");
     expect(addField()).toHaveFocus();
-    expect(meter()).toHaveAccessibleName("Avance: 25%, 1 de 4 hitos");
+    expect(meter()).toHaveAccessibleName("Avance: 25%, 1 de 4 hitos y tareas");
     await user.type(addField(), "Pintura{Enter}");
     expect(titles()).toEqual(["Planos", "Muebles", "Luces", "Encimera", "Pintura"]);
 
@@ -329,7 +329,7 @@ describe("check", () => {
     const box = screen.getByRole("checkbox", { name: "Hecho: Luces" });
     await user.click(box);
     expect(box).toBeChecked();
-    expect(meter()).toHaveAccessibleName("Avance: 67%, 2 de 3 hitos");
+    expect(meter()).toHaveAccessibleName("Avance: 67%, 2 de 3 hitos y tareas");
     expect(checkMilestone).toHaveBeenCalledWith({ projectId: PROJECT.id, id: M3, done: true });
     expect(box).toHaveFocus();
     await server.answer();
@@ -342,7 +342,7 @@ describe("check", () => {
     const box = screen.getByRole("checkbox", { name: "Hecho: Planos" });
     await user.click(box);
     await waitFor(() => expect(box).toBeChecked());
-    expect(meter()).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos");
+    expect(meter()).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
     expect(notices()).toHaveTextContent(
       "No se pudo marcar el hito; volvió a como estaba. Revisa tu conexión",
     );
@@ -402,7 +402,7 @@ describe("delete and undo", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Editar hito Muebles" })).toHaveFocus(),
     );
-    expect(meter()).toHaveAccessibleName("Avance: 0%, 0 de 2 hitos");
+    expect(meter()).toHaveAccessibleName("Avance: 0%, 0 de 2 hitos y tareas");
     expect(notices()).toHaveTextContent("«Planos» se eliminó.");
     await server.answer();
 
@@ -566,7 +566,7 @@ describe("card", () => {
     );
     document.body.innerHTML = html;
     const link = screen.getByRole("link", { name: "Cocina" });
-    expect(link).toHaveAccessibleDescription("Avance: 60%, 3 de 5 hitos");
+    expect(link).toHaveAccessibleDescription("Avance: 60%, 3 de 5 hitos y tareas");
     // Read once (the link's description): the drawn meter is hidden from assistive tech.
     expect(screen.queryByRole("meter")).toBeNull();
     expect(document.querySelector("[data-progress]")).toHaveAttribute("aria-hidden", "true");

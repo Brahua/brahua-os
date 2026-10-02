@@ -2,13 +2,16 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 // P6: the progress sources of other modules (tasks), registered before progress is computed.
 import { ensureProgressSources } from "@/lib/progress-sources";
+// T5: the sections other modules add to the page ("Tareas"), registered before rendering them.
+import { ensureProjectExtensions } from "@/lib/project-extensions";
 import { Markdown } from "@/lib/markdown/markdown";
 import { listLifeAreas } from "@/modules/core/queries";
-import { contributedProgress } from "@/modules/projects/contracts";
+import { contributedProgress, renderProjectSections } from "@/modules/projects/contracts";
 import { getProjectMilestones } from "@/modules/projects/milestone-queries";
 import { countMilestones } from "@/modules/projects/progress";
 import { listProjectLinks } from "@/modules/projects/link-queries";
@@ -68,7 +71,16 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   if (!project) notFound();
   // P6: what other modules (tasks) add to its progress; no source registered → no work.
   ensureProgressSources();
-  const contributed = (await contributedProgress([project.id])).get(project.id);
+  ensureProjectExtensions();
+  const [contributions, sections] = await Promise.all([
+    contributedProgress([project.id]),
+    // T5: the sections of other modules ("Tareas"), with the project and its live milestones.
+    renderProjectSections({
+      project: { id: project.id, name: project.name, status: project.status },
+      milestones: milestones.map(({ id, title }) => ({ id, title })),
+    }),
+  ]);
+  const contributed = contributions.get(project.id);
   const justCreated = search[CREATED_PARAM] === "1";
   // One instant for the whole page: the due notice counts Lima days from it.
   const now = new Date();
@@ -98,6 +110,10 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           />
           {/* ── P3 slot (Hitos): <ProjectMilestonesSection … /> ── */}
           <ProjectMilestonesSection milestones={milestones} />
+          {/* ── T5: sections of other modules (tasks: "Tareas"), through the contract. ── */}
+          {sections.map(({ id: sectionId, node }) => (
+            <Fragment key={sectionId}>{node}</Fragment>
+          ))}
           <ProjectDependenciesSection
             blockers={dependencies.blockers}
             candidates={dependencies.candidates}

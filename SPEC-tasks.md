@@ -105,7 +105,7 @@ export const taskTagLinks = pgTable("task_tag_links", {
 - **Índices:** `UNIQUE (project_id) WHERE is_next_action AND deleted_at IS NULL` (una próxima acción por proyecto); `(due_date) WHERE done_at IS NULL AND deleted_at IS NULL`; `(project_id)`; `(life_area_id)`.
 - **Hito del mismo proyecto:** se valida en la acción, dentro de la transacción, con `FOR SHARE` sobre el hito.
 - **Recurrencia:** completar una recurrente crea la siguiente en la **misma transacción** (sin duplicados ante dobles toques: la acción es idempotente por `done_at`).
-- **Bloqueos:** la tarea toma el lock de su proyecto (`PROJECTS_ADVISORY_SPACE`/convención de `projects`) cuando cambia la próxima acción; siempre como primer lock de la transacción.
+- **Bloqueos:** la próxima acción (marcar, desmarcar y el "Deshacer" que la devuelve) toma el **lock de tareas del proyecto**, `(TASKS_ADVISORY_SPACE = 3000, hashtext(<proyecto>))`: la convención de dos claves de `projects`, en el espacio propio de `tasks`, y no uno en `PROJECTS_ADVISORY_SPACE`. Es el mismo lock que ya toma toda escritura que mete o saca una tarea de un proyecto (crear, mover, completar con recurrencia), así que la marca se serializa con todas ellas sin coordinar con los locks de `projects` (que siguen siendo de hitos y dependencias). Siempre el primer lock de la transacción, nunca después de un lock de fila; luego la tarea `FOR UPDATE` y el proyecto `FOR SHARE`.
 - Migraciones aditivas; tablas en `pnpm db:export` y en el respaldo.
 
 ## Contratos

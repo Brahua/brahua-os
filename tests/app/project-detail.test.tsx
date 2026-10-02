@@ -48,6 +48,10 @@ vi.mock("next/navigation", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// The contributions of other modules (T5: tasks) read the database; these page tests run
+// without them (their integration tests run against the database).
+vi.mock("@/lib/progress-sources", () => ({ ensureProgressSources: vi.fn() }));
+vi.mock("@/lib/project-extensions", () => ({ ensureProjectExtensions: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/projects/queries", () => ({
   getProject: vi.fn(),

@@ -23,7 +23,7 @@
 
 ## Fase 3 — Proyectos y contratos
 
-- [ ] **T5: Tareas en proyectos** — sección "Tareas" en el detalle del proyecto (agrupadas por hito), próxima acción única, `ProgressSource` registrada, fuente de próxima acción para la tarjeta del proyecto ("Siguiente: …"), aviso de tareas abiertas al terminar el proyecto.
+- [ ] **T5: Tareas en proyectos** — sección "Tareas" en el detalle del proyecto (agrupadas por hito), próxima acción única, `ProgressSource` registrada, fuente de próxima acción para la tarjeta del proyecto ("Siguiente: …"), aviso de tareas abiertas al terminar el proyecto. PR #54 `feat/tasks-t5-projects` (sin merge; rebasada sobre T3 y T4). Detalle y decisiones para revisar en `docs/HANDOFF.md` → "T5: tareas en proyectos".
 - [ ] **T6: Contrato con today y navegación definitiva** — `getTasksTodaySummary(now)`; navegación según el diseño iterado en Claude Design.
 
 ### Checkpoint final

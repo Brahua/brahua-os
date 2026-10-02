@@ -61,10 +61,12 @@ export const MILESTONES_COPY = {
     reorder: "No se pudo guardar el orden de los hitos; volvió a como estaba.",
   },
 
-  // Progress
+  // Progress: milestones and tasks add up (T5 of `tasks`, SPEC-tasks "Contratos"), so the figure
+  // is "N de M" and what it counts is said once ("hitos y tareas").
   progressLabel: "Avance",
-  progressCount: (done: number, total: number) => `${done} de ${milestones(total)}`,
+  progressCount: (done: number, total: number) => `${done} de ${total}`,
+  progressUnits: "hitos y tareas",
   /** Accessible name of the meter (and of the card's progress). */
   progressName: (percent: string, done: number, total: number) =>
-    `Avance: ${percent}, ${done} de ${milestones(total)}`,
+    `Avance: ${percent}, ${done} de ${total} hitos y tareas`,
 } as const;

@@ -92,10 +92,10 @@ test("groups by state in order, sorted by priority, due date and name, with due 
     "1/3",
   );
   await expect(page.getByRole("link", { name: "Viaje a Cusco" })).toHaveAccessibleDescription(
-    /Avance: 33%, 1 de 3 hitos/,
+    /Avance: 33%, 1 de 3 hitos y tareas/,
   );
   await expect(page.getByRole("link", { name: "Renovar pasaporte" })).toHaveAccessibleDescription(
-    /Avance: 100%, 2 de 2 hitos/,
+    /Avance: 100%, 2 de 2 hitos y tareas/,
   );
   await expect(card("Mapa de viajes").locator("[data-progress]")).toHaveCount(0);
   await expect(card("Ruta por Europa").locator("[data-progress]")).toHaveCount(0);

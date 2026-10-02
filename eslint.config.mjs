@@ -50,11 +50,35 @@ const screenshotsThroughHelper = {
   },
 };
 
+// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks). A module never imports one that
+// depends on it: cross-module features go through registered contracts and the composition roots
+// in src/lib (progress-sources.ts, project-extensions.ts, capture-providers.tsx).
+const TASKS_IMPORT = {
+  group: ["@/modules/tasks", "@/modules/tasks/*"],
+  message:
+    "`tasks` depende de este módulo: usa un contrato registrado (p. ej. registerProjectSection) y su raíz de composición en src/lib.",
+};
+const PROJECTS_IMPORT = {
+  group: ["@/modules/projects", "@/modules/projects/*"],
+  message: "`projects` depende de `core`: core no puede importarlo (usa un contrato registrado).",
+};
+const moduleBoundaries = [
+  {
+    files: ["src/modules/projects/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT] }] },
+  },
+  {
+    files: ["src/modules/core/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT, PROJECTS_IMPORT] }] },
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   designTokensOnly,
   screenshotsThroughHelper,
+  ...moduleBoundaries,
   // Must stay last: turns off stylistic rules that conflict with Prettier.
   prettier,
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", ".claude/**"]),

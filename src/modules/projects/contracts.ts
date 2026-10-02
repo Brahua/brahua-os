@@ -11,6 +11,12 @@
 //
 // 2. getProjectsTodaySummary(now) (for `today`): the projects due within a week or overdue and
 //    the blocked ones, in two parallel queries.
+//
+// 3. Project sections and next-action sources (T5 of `tasks`): a module adds a section to a
+//    project's page (`registerProjectSection`) and gives the list's cards each project's next
+//    action (`registerNextActionSource`). Same rules as the progress sources: idempotent by id,
+//    registered by the composition root `src/lib/project-extensions.ts`
+//    (`ensureProjectExtensions()`, imported by name), never imported by `projects`.
 import "server-only";
 import { and, eq, exists, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -24,6 +30,14 @@ import {
   type ProgressCounts,
   type ProgressSource,
 } from "./progress-source";
+import {
+  createNextActionRegistry,
+  createProjectSectionRegistry,
+  type NextActionSource,
+  type ProjectNextAction,
+  type ProjectSection,
+  type ProjectSectionContext,
+} from "./project-extensions";
 import { selectActiveBlockers } from "./projects";
 import {
   buildTodaySummary,
@@ -34,6 +48,15 @@ import {
 
 export type { ProgressCounts, ProgressSource } from "./progress-source";
 export type { ProjectTodayItem } from "./today-summary";
+export type {
+  NextAction,
+  NextActionCall,
+  NextActionSource,
+  NextActionUndoCall,
+  ProjectNextAction,
+  ProjectSection,
+  ProjectSectionContext,
+} from "./project-extensions";
 
 // ── Progress sources ────────────────────────────────────────────────────────────────────────
 
@@ -59,6 +82,45 @@ export function contributedProgress(
   projectIds: readonly string[],
 ): Promise<Map<string, ProgressCounts>> {
   return registry.countsFor(projectIds);
+}
+
+// ── Sections of a project's page and next actions (T5 of `tasks`) ─────────────────────────────
+
+const sections = createProjectSectionRegistry();
+const nextActions = createNextActionRegistry();
+
+/**
+ * Adds a section to every project's page (by id: registering it again replaces it). Called by
+ * the composition root (`ensureProjectExtensions()`). Returns a function that removes it (tests).
+ */
+export function registerProjectSection(section: ProjectSection): () => void {
+  return sections.register(section);
+}
+
+/** The registered sections rendered for one project (the page checked the owner first). */
+export function renderProjectSections(
+  context: ProjectSectionContext,
+): Promise<{ id: string; node: React.ReactNode }[]> {
+  return sections.render(context);
+}
+
+/**
+ * Registers the module that knows each project's next action (by id). Called by the composition
+ * root (`ensureProjectExtensions()`). Returns a function that removes it (tests).
+ */
+export function registerNextActionSource(source: NextActionSource): () => void {
+  return nextActions.register(source);
+}
+
+/**
+ * The next action of each of `projectIds` that has one, with the calls that complete it from the
+ * card and undo that. One read per source for the whole list; none registered → empty, no work.
+ * Callers check the owner first (the list does, with requireOwner()).
+ */
+export function projectNextActions(
+  projectIds: readonly string[],
+): Promise<Map<string, ProjectNextAction>> {
+  return nextActions.nextActionsFor(projectIds);
 }
 
 // ── Today ───────────────────────────────────────────────────────────────────────────────────

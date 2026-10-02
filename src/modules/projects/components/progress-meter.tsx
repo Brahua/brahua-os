@@ -30,8 +30,8 @@ type ProgressMeterProps = {
 };
 
 /**
- * A project's progress (SPEC-projects "Avance"): the percentage as a `StatNumber`, "N de M
- * hitos" and a `SegmentBar`, like the Claude Design pattern `ProjectCard`. One meter for
+ * A project's progress (SPEC-projects "Avance"): the percentage as a `StatNumber`, "N de M"
+ * (milestones and tasks, T5) and a `SegmentBar`, like the Claude Design pattern `ProjectCard`. One meter for
  * assistive tech: the bar carries the full name ("Avance: 60 %, 3 de 5 hitos"); the figures
  * next to it are hidden from it so they aren't read twice. Renders on the server too.
  */
@@ -60,6 +60,8 @@ export function ProgressMeter({
         <StatNumber value={ratio} kind="percent" size={variant === "detail" ? "md" : "sm"} />
         <span className="bo-text-label text-text-secondary">
           {MILESTONES_COPY.progressCount(done, total)}
+          {/* The detail says what is counted; the card stays compact (its name says it). */}
+          {variant === "detail" ? ` · ${MILESTONES_COPY.progressUnits}` : null}
         </span>
       </div>
       <SegmentBar

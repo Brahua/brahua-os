@@ -12,6 +12,10 @@ import {
 import type { ActionResult } from "@/lib/action-result";
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
+import {
+  ScreenServicesContext,
+  type ScreenServices,
+} from "@/modules/core/components/screen-services";
 import { ToastViewport } from "@/modules/core/components/toast-viewport";
 import type { ProjectDetail } from "@/modules/projects/project-input";
 import {
@@ -141,10 +145,17 @@ export function ProjectDetailProvider({ project, now, children }: ProjectDetailP
     () => ({ project: view, now, enqueue, toaster, announce }),
     [view, now, enqueue, toaster, announce],
   );
+  // The same queue, notices and announcer for sections other modules add (T5: "Tareas").
+  const services = useMemo<ScreenServices>(
+    () => ({ enqueue, toaster, announce }),
+    [enqueue, toaster, announce],
+  );
 
   return (
     <ProjectDetailContext value={value}>
-      <ProjectFieldsContext value={saveField}>{children}</ProjectFieldsContext>
+      <ScreenServicesContext value={services}>
+        <ProjectFieldsContext value={saveField}>{children}</ProjectFieldsContext>
+      </ScreenServicesContext>
       <p role="status" aria-live="polite" className="sr-only" data-detail-announcer>
         {announcement}
       </p>

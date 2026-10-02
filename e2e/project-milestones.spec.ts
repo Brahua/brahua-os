@@ -72,13 +72,13 @@ test("add with Enter, check, edit: progress follows, and it all survives a reloa
   // Enter adds another: the field is still under the cursor.
   await expect(addField(page)).toBeFocused();
   expect(await titles(page)).toEqual(["Comprar madera", "Armar la mesa", "Barnizar"]);
-  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 3 hitos");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 3 hitos y tareas");
 
   // The checkbox and the meter change at once.
   await untilSaved(page, () =>
     page.getByRole("checkbox", { name: "Hecho: Comprar madera" }).check(),
   );
-  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
 
   // Edit in the row: title and date; Enter saves and focus returns to the title.
   await page.getByRole("button", { name: "Editar hito Barnizar" }).click();
@@ -94,12 +94,12 @@ test("add with Enter, check, edit: progress follows, and it all survives a reloa
   await page.reload();
   expect(await titles(page)).toEqual(["Comprar madera", "Armar la mesa", "Barnizar dos manos"]);
   await expect(page.getByRole("checkbox", { name: "Hecho: Comprar madera" })).toBeChecked();
-  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
 
   // The card in the list shows the same progress (and the link is described by it).
   await page.goto(`/projects?area=${CREATE_AREA.slug}`);
   const link = page.getByRole("link", { name, exact: true });
-  await expect(link).toHaveAccessibleDescription(/Avance: 33%, 1 de 3 hitos/);
+  await expect(link).toHaveAccessibleDescription(/Avance: 33%, 1 de 3 hitos y tareas/);
   const card = page.locator("article", { has: link });
   // Drawn, and read once (as the link's description: the meter itself is hidden from AT).
   await expect(card.locator("[data-progress]")).toHaveAttribute("data-progress", "1/3");
@@ -120,7 +120,7 @@ test("delete from the editor and Deshacer puts it back in its place", async ({
   // Focus moves to the next row; the notice offers Deshacer without taking focus.
   await expect(page.getByRole("button", { name: "Editar hito Pintar" })).toBeFocused();
   await expect(notices(page)).toContainText("«Cortar» se eliminó.");
-  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 2 hitos");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 2 hitos y tareas");
 
   await untilSaved(page, () => undo(page).click());
   expect(await titles(page)).toEqual(["Medir", "Cortar", "Pintar"]);
@@ -237,7 +237,7 @@ test("Mantenimiento keeps the milestones but shows no progress, here or on the c
   await openProject(page, id);
   await addField(page).focus();
   await addMilestones(page, ["Podar"]);
-  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 1 hito");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 1 hitos y tareas");
 
   // Control: the meter is there; switching to Mantenimiento hides it at once.
   await untilSaved(page, () =>

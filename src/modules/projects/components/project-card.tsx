@@ -4,6 +4,7 @@ import { AreaTag, formatStat, Icon, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatOwnerDay } from "@/lib/time";
 import { MILESTONES_COPY } from "../milestones-copy";
+import { NEXT_ACTION_COPY } from "../next-action-copy";
 import type { DueState, Progress } from "../progress";
 import type { ProjectSummary } from "../project-input";
 import { DEPENDENCIES_COPY, PROJECTS_COPY } from "../projects-copy";
@@ -19,6 +20,11 @@ type ProjectCardProps = {
   headingLevel?: 3 | 4;
   /** Names of the projects that still block it (P4); none or empty: not blocked. */
   blockedBy?: readonly string[];
+  /**
+   * Its next action (T5, from the registered next-action source): the "Siguiente tarea" key
+   * (`NextActionKey`, with its check) and its title, which the name link also says.
+   */
+  nextAction?: { title: string; key: React.ReactNode } | null;
   className?: string;
 };
 
@@ -27,8 +33,9 @@ type ProjectCardProps = {
  * the name (a link to the detail that covers the whole card), the objective and, only when it
  * is high, the priority. Server-renderable (no hooks).
  *
- * Ported without the pattern's "Siguiente tarea" key (it belongs to `tasks`); the progress only
- * shows with milestones and outside Mantenimiento (P3): a card never shows an empty slot.
+ * The pattern's "Siguiente tarea" key comes from `tasks` through the next-action contract (T5),
+ * only when the project has one; the progress only shows with something to count and outside
+ * Mantenimiento: a card never shows an empty slot.
  */
 export function ProjectCard({
   project,
@@ -36,6 +43,7 @@ export function ProjectCard({
   progress = null,
   headingLevel = 3,
   blockedBy = [],
+  nextAction = null,
   className,
 }: ProjectCardProps) {
   const Heading = headingLevel === 3 ? "h3" : "h4";
@@ -48,11 +56,13 @@ export function ProjectCard({
   const blockedId = `project-${project.id}-blocked`;
   const blocked = blockedBy.length > 0;
   const progressId = `project-${project.id}-progress`;
+  const nextId = `project-${project.id}-next`;
   const describedBy = [
     due ? dueId : null,
     high ? priorityId : null,
     blocked ? blockedId : null,
     progress ? progressId : null,
+    nextAction ? nextId : null,
   ].filter((id): id is string => id !== null);
   return (
     <article
@@ -139,6 +149,14 @@ export function ProjectCard({
             {DEPENDENCIES_COPY.blockedBy(blockedBy)}
           </span>
         </p>
+      ) : null}
+      {nextAction ? (
+        <>
+          <span id={nextId} hidden>
+            {NEXT_ACTION_COPY.description(nextAction.title)}
+          </span>
+          {nextAction.key}
+        </>
       ) : null}
     </article>
   );
