@@ -27,7 +27,7 @@ export default function GlobalError({ error, retry }: ErrorScreenProps) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <main className="flex flex-1 flex-col">
+        <main className="bo-safe-area flex flex-1 flex-col">
           <ErrorScreen error={error} retry={retry} />
         </main>
       </body>

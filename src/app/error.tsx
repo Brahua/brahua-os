@@ -9,7 +9,7 @@ import { ErrorScreen, type ErrorScreenProps } from "@/modules/core/components/er
  */
 export default function RootError({ error, retry }: ErrorScreenProps) {
   return (
-    <main className="flex flex-1 flex-col">
+    <main className="bo-safe-area flex flex-1 flex-col">
       <ErrorScreen error={error} retry={retry} />
     </main>
   );
