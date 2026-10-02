@@ -297,6 +297,25 @@ describe("undo (Deshacer)", () => {
     expect(await spawnsOf(task.id)).toHaveLength(1);
   });
 
+  test("a kept (edited) occurrence, then completing again: still exactly ONE pending occurrence", async () => {
+    const task = await recurring();
+    const { next } = await complete(task.id);
+    await editTask({ id: next!.id, title: "regar las plantas del patio" });
+    // Several undo / complete cycles (each undo keeps it: it was edited).
+    for (let cycle = 0; cycle < 3; cycle++) {
+      expect(await reopen(task.id)).toMatchObject({ spawn: "kept" });
+      expect(await complete(task.id)).toMatchObject({ next: { id: next!.id } });
+    }
+    const pending = await testDb
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(and(eq(tasks.spawnedFromId, task.id), isNull(tasks.doneAt), isNull(tasks.deletedAt)));
+    expect(pending.map((item) => item.id)).toEqual([next!.id]);
+    // Never a deleted extra either: no other occurrence was ever created.
+    expect(await testDb.$count(tasks, eq(tasks.spawnedFromId, task.id))).toBe(1);
+    expect(await testDb.$count(tasks)).toBe(2);
+  });
+
   test("keeps an occurrence whose rule changed, or that was completed", async () => {
     const a = await recurring();
     const { next: nextA } = await complete(a.id);

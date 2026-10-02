@@ -47,10 +47,10 @@
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
 - **tasks:** en curso. `SPEC-tasks.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas T1–T6 en `tasks/todo.md`.
-  - T1 (datos, captura rápida y bandeja): PR `feat/tasks-t1-capture-inbox` (sin merge). Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4. **Pendiente del owner:** Checkpoint T1 en el iPhone.
-  - T3 (recurrencia): PR `feat/tasks-t3-recurrence` (sin merge; orden T2 → T3 → T4). Ver "Cómo funciona tasks" → "T3: recurrencia".
+  - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4. **Pendiente del owner:** Checkpoint T1 en el iPhone.
+  - T3 (recurrencia): PR #52 `feat/tasks-t3-recurrence` (sin merge; rebasada sobre T2; luego T4). Ver "Cómo funciona tasks" → "T3: recurrencia".
   - **Siguiente:** T2, T3 y T4 en paralelo (ver "Puntos de extensión" en "Cómo funciona tasks").
-  - T2 (vistas y detalle): PR `feat/tasks-t2-views` (sin merge). Ver "Cómo funciona tasks" → "T2: vistas y detalle".
+  - ✅ T2 (vistas y detalle): PR #53 integrado. Ver "Cómo funciona tasks" → "T2: vistas y detalle".
 
 ## C2a: pasos del usuario (en orden)
 
