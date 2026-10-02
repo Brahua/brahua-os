@@ -329,6 +329,48 @@ describe("resume", () => {
   });
 });
 
+describe("undo of resume and removal limits", () => {
+  test("Deshacer of Reanudar: a pause from today to the old end, next to the ended one", async () => {
+    const id = await insertHabit();
+    const first = await pauseHabit({ id, startDate: day(-3), endDate: day(5), reason: "Viaje" });
+    if (!first.ok) throw new Error("pause failed");
+    expect(await resumeHabit({ id, pauseId: first.data.pause.id })).toMatchObject({
+      ok: true,
+      data: { outcome: "ended" },
+    });
+    const again = await pauseHabit({ id, startDate: day(0), endDate: day(5), reason: "Viaje" });
+    expect(again).toMatchObject({ ok: true });
+    expect(await livePauses(id)).toEqual([
+      { startDate: day(-3), endDate: day(-1), reason: "Viaje", deleted: null },
+      { startDate: day(0), endDate: day(5), reason: "Viaje", deleted: null },
+    ]);
+    expect((await itemOf(id))?.pause).toMatchObject({ startDate: day(0), endDate: day(5) });
+    expect((await itemOf(id))?.recentPaused).toEqual([day(-3), day(-2), day(-1)]);
+  });
+
+  test("a pause can't start before the habit; an old pause can't be removed", async () => {
+    const young = await insertHabit({ name: "Nuevo" }, 2);
+    expect(await pauseHabit({ id: young, startDate: day(-3), endDate: day(1) })).toMatchObject({
+      ok: false,
+      fieldErrors: { startDate: [PAUSE_ERRORS.startOutOfWindow] },
+    });
+    // Positive control: from its start date.
+    expect(await pauseHabit({ id: young, startDate: day(-2), endDate: day(1) })).toMatchObject({
+      ok: true,
+    });
+    const id = await insertHabit({}, 60);
+    const [old] = await testDb
+      .insert(habitPauses)
+      .values({ habitId: id, startDate: day(-40), endDate: day(-30) })
+      .returning({ id: habitPauses.id });
+    expect(await removeHabitPause({ id, pauseId: old.id })).toEqual({
+      ok: false,
+      error: PAUSE_ERRORS.notFound,
+    });
+    expect(await livePauses(id)).toHaveLength(1);
+  });
+});
+
 describe("logging another day (up to 7 back)", () => {
   test("yesterday and 7 days back are fine; 8 back, the future and before the start are not", async () => {
     const id = await insertHabit({}, 7);
@@ -391,6 +433,44 @@ describe("logging another day (up to 7 back)", () => {
 });
 
 describe("the streak fields of HabitItem", () => {
+  test("older than 7 days: marked days are read, partial ones break (the SQL filter)", async () => {
+    const run = Array.from({ length: 20 }, (_, index) => day(-20 + index));
+    const daily = await insertHabit({}, 40);
+    await mark(daily, run);
+    expect((await itemOf(daily))?.streak).toEqual({ unit: "days", done: 21, notDone: 20 });
+    const water = await insertHabit(
+      { name: "Agua", measure: "quantity", goal: 8, unit: "vasos" },
+      40,
+    );
+    await mark(
+      water,
+      run.filter((d) => d !== day(-10)),
+      8,
+      8,
+    );
+    await mark(water, [day(-10)], 3, 8);
+    // 3 of 8 ten days ago is open: the run is the 9 days after it.
+    expect((await itemOf(water))?.streak).toEqual({ unit: "days", done: 10, notDone: 9 });
+    const avoid = await insertHabit({ name: "No fumar", kind: "avoid" }, 30);
+    expect((await itemOf(avoid))?.streak).toEqual({ unit: "days", done: 31, notDone: 0 });
+    await mark(avoid, [day(-12)]);
+    expect((await itemOf(avoid))?.streak).toEqual({ unit: "days", done: 12, notDone: 0 });
+    // An unmarked old relapse (0) is a clean day.
+    await testDb
+      .update(habitLogs)
+      .set({ quantity: 0 })
+      .where(and(eq(habitLogs.habitId, avoid), eq(habitLogs.day, day(-12))));
+    expect((await itemOf(avoid))?.streak).toEqual({ unit: "days", done: 31, notDone: 0 });
+  });
+
+  test("a relapse logged yesterday on a habit to avoid: today alone", async () => {
+    const id = await insertHabit({ name: "No fumar", kind: "avoid" }, 10);
+    expect((await itemOf(id))?.streak.done).toBe(11);
+    expect(await setHabitDone({ id, day: day(-1), done: true })).toMatchObject({ ok: true });
+    expect((await itemOf(id))?.streak).toEqual({ unit: "days", done: 1, notDone: 0 });
+    expect((await itemOf(id))?.recentLogs).toEqual([{ day: day(-1), quantity: 1, target: 1 }]);
+  });
+
   test("streak, paused today, the week's available days and done days before today", async () => {
     const daily = await insertHabit({}, 20);
     await mark(daily, [day(-2), day(-1), day(0)]);

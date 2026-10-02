@@ -57,7 +57,12 @@ function dayState(habit: HabitItem): string {
 export function otherDaysOf(habit: HabitItem, today: string): OtherDay[] {
   return otherLoggableDays(habit.startDate, today).map((day) => {
     const log = habit.recentLogs.find((entry) => entry.day === day);
-    return { day, quantity: log?.quantity ?? 0, target: log?.target ?? habit.goal };
+    return {
+      day,
+      quantity: log?.quantity ?? 0,
+      target: log?.target ?? habit.goal,
+      paused: habit.recentPaused.includes(day),
+    };
   });
 }
 
@@ -146,7 +151,7 @@ export function useQuantityLog({
             ? MEASURE_COPY.reachedTitle
             : MEASURE_COPY.addedTitle,
         text: milestone
-          ? STREAK_COPY.milestone(saved.name, milestone.count, milestone.unit, progress)
+          ? STREAK_COPY.milestone(saved.name, milestone.count, progress)
           : MEASURE_COPY.added(saved.name, saved.quantity, saved.target, unit, progress),
         action:
           applied === 0

@@ -18,11 +18,6 @@ const WEEKDAY_DAY_FORMAT = new Intl.DateTimeFormat("es-PE", {
   month: "long",
   timeZone: "UTC",
 });
-const SHORT_WEEKDAY_FORMAT = new Intl.DateTimeFormat("es-PE", {
-  weekday: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 
 const asDate = (day: string) => new Date(`${day}T00:00:00Z`);
 
@@ -32,9 +27,11 @@ export const formatPauseDay = (day: string) => DAY_FORMAT.format(asDate(day));
 /** "martes, 29 de septiembre" (a Lima day). */
 export const formatLongDay = (day: string) => WEEKDAY_DAY_FORMAT.format(asDate(day));
 
-/** "mar 29" (a Lima day), short for a key: the dot of the abbreviation dropped. */
-export const formatShortDay = (day: string) =>
-  SHORT_WEEKDAY_FORMAT.format(asDate(day)).replace(".", "").replace(",", "");
+/** "martes 29 de septiembre" (a Lima day), a day key's full name. */
+export const formatDayName = (day: string) => formatLongDay(day).replace(",", "");
+
+/** "martes 29" (a Lima day): what a day key shows (the start of its full name). */
+export const formatWeekdayDay = (day: string) => formatDayName(day).split(" de ")[0];
 
 export const PAUSE_ERRORS = {
   startRequired: "Elige el día en que empieza la pausa.",
@@ -43,6 +40,7 @@ export const PAUSE_ERRORS = {
   tooLong: `Una pausa dura hasta ${HABIT_PAUSE_MAX_DAYS} días.`,
   startTooEarly: `Una pausa puede empezar hasta ${HABIT_LOG_WINDOW_DAYS} días atrás.`,
   startTooLate: "Una pausa puede empezar hasta un año adelante.",
+  startBeforeHabit: "La pausa no puede empezar antes que el hábito.",
   startOutOfWindow: `Una pausa empieza desde ${HABIT_LOG_WINDOW_DAYS} días atrás hasta un año adelante.`,
   reasonTooLong: `Usa ${HABIT_PAUSE_REASON_MAX_LENGTH} caracteres como máximo.`,
   reasonInvisible: "Quita los caracteres invisibles o de control del motivo.",
@@ -68,24 +66,16 @@ export const STREAK_COPY = {
   /** The notice of a milestone (7, 30, 90, 365): a title and a text of its own per milestone. */
   milestoneTitle: (count: number, unit: StreakUnit) =>
     `¡${count} ${unitText(count, unit)} seguid${unit === "weeks" ? "as" : "os"}!`,
-  milestone: (name: string, count: number, unit: StreakUnit, progress: string) => {
-    const span = unit === "weeks" ? MILESTONE_WEEKS[count] : MILESTONE_DAYS[count];
-    return `«${name}»: ${span ?? `${count} ${unitText(count, unit)} seguidos`}. ${progress}.`;
-  },
+  /** The same words for days and weeks, and for fixed days (not "una semana entera"). */
+  milestone: (name: string, count: number, progress: string) =>
+    `«${name}»: ${MILESTONE_WORDS[count] ?? "sigue así"}. ${progress}.`,
 } as const;
 
-const MILESTONE_DAYS: Record<number, string> = {
-  7: "una semana entera, así empieza un hábito",
-  30: "un mes completo, ya es parte de tu día",
-  90: "tres meses seguidos, esto ya eres tú",
-  365: "un año entero, todos los días que tocaban",
-};
-
-const MILESTONE_WEEKS: Record<number, string> = {
-  7: "siete semanas cumplidas, un ritmo propio",
-  30: "treinta semanas cumplidas, más de medio año",
-  90: "noventa semanas cumplidas, casi dos años",
-  365: "trescientas sesenta y cinco semanas, siete años de constancia",
+const MILESTONE_WORDS: Record<number, string> = {
+  7: "así empieza un hábito",
+  30: "ya es parte de tu rutina",
+  90: "esto ya es parte de quien eres",
+  365: "un hito enorme, constancia de verdad",
 };
 
 export const PAUSE_COPY = {
@@ -146,6 +136,10 @@ export const PAUSE_COPY = {
   doneLabel: "Hecho ese día",
   slipLabel: "Recaída ese día",
   pausedDayNote: "Ese día estaba en pausa: se guarda, pero no cuenta para la racha.",
+  /** A day key's name: what it shows, then the full day ("Ayer, jueves 1 de octubre"). */
+  dayName: (shown: string, full: string, paused: boolean) =>
+    `${full.startsWith(shown) ? full : `${shown}, ${full}`}${paused ? ", en pausa" : ""}`,
+  pausedDayMark: "en pausa",
   loggedTitle: "Registrado",
   logged: (name: string, day: string, state: string) =>
     `«${name}», ${formatLongDay(day)}: ${state}.`,

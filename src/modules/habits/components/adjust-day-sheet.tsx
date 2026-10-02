@@ -8,7 +8,7 @@ import { RadioGrid, type RadioGridOption } from "@/modules/core/components/radio
 import { HABIT_QUANTITY_MAX } from "../habit-constants";
 import type { HabitItem } from "../habit-input";
 import { MEASURE_COPY } from "../measure-copy";
-import { formatLongDay, formatShortDay, PAUSE_COPY } from "../pause-copy";
+import { formatDayName, formatWeekdayDay, PAUSE_COPY } from "../pause-copy";
 import { quantitySchema } from "../quantity-input";
 
 /** The field's text as a number for the schema: blank is "missing", anything else as typed. */
@@ -17,8 +17,8 @@ function parseQuantity(text: string): number | undefined {
   return trimmed === "" ? undefined : Number(trimmed);
 }
 
-/** H4: a day "Registrar otro día" offers, with what it has logged. */
-export type OtherDay = { day: string; quantity: number; target: number };
+/** H4: a day "Registrar otro día" offers, with what it has logged and whether it was paused. */
+export type OtherDay = { day: string; quantity: number; target: number; paused: boolean };
 
 export type AdjustDaySheetProps = {
   open: boolean;
@@ -67,6 +67,7 @@ export function AdjustDaySheet({
   const fieldId = `${ids}-quantity`;
   const labelId = `${ids}-quantity-label`;
   const dayLabelId = `${ids}-day-label`;
+  const pausedNoteId = `${ids}-paused-note`;
   const [nudged, setNudged] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const unit = habit.unit ?? "";
@@ -95,6 +96,8 @@ export function AdjustDaySheet({
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // "Registrar otro día" always has a day picked (never today by mistake).
+    if (other && !picked) return;
     const parsed = quantitySchema.safeParse(parseQuantity(text));
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message);
@@ -104,15 +107,23 @@ export function AdjustDaySheet({
     onSave(habit, parsed.data, picked);
   }
 
-  const dayOptions: RadioGridOption<string>[] = (days ?? []).map((option, index) => ({
-    value: option.day,
-    label: formatLongDay(option.day),
-    children: (
-      <span className="bo-option-key__label">
-        {index === 0 ? PAUSE_COPY.yesterday : formatShortDay(option.day)}
-      </span>
-    ),
-  }));
+  // Each key's name starts with what it shows (WCAG 2.5.3): "Ayer, jueves 1 de octubre",
+  // "martes 29, …"; a paused day says so in words too (not only a mark).
+  const dayOptions: RadioGridOption<string>[] = (days ?? []).map((option, index) => {
+    const shown = index === 0 ? PAUSE_COPY.yesterday : formatWeekdayDay(option.day);
+    return {
+      value: option.day,
+      label: PAUSE_COPY.dayName(shown, formatDayName(option.day), option.paused),
+      children: (
+        <span className="bo-option-key__label">
+          {shown}
+          {option.paused ? (
+            <span className="block text-text-secondary">{PAUSE_COPY.pausedDayMark}</span>
+          ) : null}
+        </span>
+      ),
+    };
+  });
 
   const marked = Number(text) > 0;
   const quantityField = (
@@ -205,9 +216,15 @@ export function AdjustDaySheet({
               value={picked?.day ?? null}
               onValueChange={pickDay}
               labelledBy={dayLabelId}
+              describedBy={picked?.paused ? pausedNoteId : undefined}
               className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2"
               itemClassName="bo-option-key min-w-0"
             />
+            {picked?.paused ? (
+              <span id={pausedNoteId} className="bo-field__help" data-paused-day-note="">
+                {PAUSE_COPY.pausedDayNote}
+              </span>
+            ) : null}
           </div>
         ) : null}
         {quantity ? (

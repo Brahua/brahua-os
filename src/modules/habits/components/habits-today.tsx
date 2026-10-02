@@ -27,7 +27,7 @@ import { HabitPad, habitPadSelector } from "./habit-pad";
 import { ArchivedHabits, FoldedSection, reactivateSelector } from "./habit-sections";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 import { PausedHabits, resumeSelector } from "./paused-habits";
-import { usePauseFlow } from "./use-pause-flow";
+import { usePauseFlow, type TrackFocus } from "./use-pause-flow";
 import { useQuantityLog } from "./use-quantity-log";
 
 // The sheets' code loads on demand: as soon as a key that opens one is pointed at, focused or
@@ -201,8 +201,28 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     focusFallback: () => document.getElementById(headingId)?.focus(),
   });
 
+  /**
+   * H4: a habit about to move between a grid and "En pausa" ("Deshacer", a rollback): if focus
+   * was on it (its pad, its row, a notice's "Deshacer") or lost, it follows the habit.
+   */
+  const trackFocus: TrackFocus = (habit) => {
+    const active = document.activeElement;
+    const id = CSS.escape(habit.id);
+    const had =
+      active === null ||
+      active === document.body ||
+      (active instanceof HTMLElement &&
+        active.closest(
+          `[data-habit-cell="${id}"], [data-paused-habit="${id}"], .bo-toast-viewport`,
+        ) !== null);
+    return (moved) => {
+      if (had) focusWhenReady(revealSelector(moved));
+    };
+  };
+
   // H4: "Pausar", "Reanudar" and their "Deshacer".
   const pauses = usePauseFlow({
+    trackFocus,
     apply,
     startSaving,
     notSaved,
@@ -224,6 +244,8 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
    * From "En pausa", focus goes to the next paused habit's "Reanudar", else to its pad.
    */
   function resumeFrom(habit: HabitItem, fromRow: boolean) {
+    // One at a time per habit: a second activation while it is on its way does nothing.
+    if (pauses.isBusy(habit)) return;
     const back = { ...habit, pause: null };
     const index = paused.findIndex((item) => item.id === habit.id);
     const next = fromRow ? (paused[index + 1] ?? paused[index - 1]) : undefined;
@@ -279,7 +301,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
       if (undoable && milestone) {
         push({
           title: STREAK_COPY.milestoneTitle(milestone.count, milestone.unit),
-          text: STREAK_COPY.milestone(habit.name, milestone.count, milestone.unit, progress),
+          text: STREAK_COPY.milestone(habit.name, milestone.count, progress),
           action: { label: HABITS_COPY.undo, run: () => logDay(habit, !done, false) },
         });
       } else if (undoable) {
@@ -768,6 +790,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
           expanded={pausedOpen}
           onExpandedChange={setPausedOpen}
           onResume={(habit) => resumeFrom(habit, true)}
+          isBusy={pauses.isBusy}
           onOptions={openOptions}
           onOptionsHover={preloadOptions}
         />

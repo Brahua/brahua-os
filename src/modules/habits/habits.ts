@@ -36,6 +36,7 @@ import {
   availableDaysInWeek,
   isAvailableOn,
   isDoneOn,
+  isPausedOn,
   streakChoice,
   type StreakHistory,
   type StreakRules,
@@ -246,6 +247,10 @@ function historyFields(
   for (const [logDay, log] of history.logs) {
     if (logDay >= windowStart && logDay < today) recentLogs.push({ day: logDay, ...log });
   }
+  const recentPaused: string[] = [];
+  for (let other = windowStart; other < today; other = addDays(other, 1)) {
+    if (isPausedOn(history.pauses, other)) recentPaused.push(other);
+  }
   const pause =
     history.pauses.find((range) => range.startDate <= today && today <= range.endDate) ??
     history.pauses.find((range) => range.startDate > today) ??
@@ -258,6 +263,7 @@ function historyFields(
       ? { id: pause.id, startDate: pause.startDate, endDate: pause.endDate, reason: pause.reason }
       : null,
     recentLogs,
+    recentPaused,
   };
 }
 

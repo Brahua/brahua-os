@@ -11,18 +11,21 @@ import { habitPauses, habits } from "./db/schema";
 import type { HabitItem, HabitPauseSummary } from "./habit-input";
 import { lockHabit, selectHabitItemById, visibleHabit, type HabitFailure, type Tx } from "./habits";
 import { pauseStartError, type HabitPauseInput, type PauseHabitInput } from "./pause-input";
-import { addDays } from "./schedule";
+import { addDays, logWindowStart } from "./schedule";
 
-/** The habit to pause or resume, read FOR SHARE after its lock: visible and not archived. */
-async function pausableHabit(tx: Tx, id: string): Promise<HabitFailure | null> {
+/**
+ * The habit to pause or resume, read FOR SHARE after its lock: visible and not archived. Returns
+ * its start date, or why not.
+ */
+async function pausableHabit(tx: Tx, id: string): Promise<{ startDate: string } | HabitFailure> {
   const [habit] = await tx
-    .select({ archivedAt: habits.archivedAt })
+    .select({ archivedAt: habits.archivedAt, startDate: habits.startDate })
     .from(habits)
     .where(and(eq(habits.id, id), visibleHabit))
     .for("share");
   if (!habit) return "notFound";
   if (habit.archivedAt !== null) return "archived";
-  return null;
+  return { startDate: habit.startDate };
 }
 
 /**
@@ -38,9 +41,9 @@ export async function insertHabitPause(
 ): Promise<PausedHabit | HabitFailure> {
   return db.transaction(async (tx) => {
     await lockHabit(tx, input.id);
-    const refused = await pausableHabit(tx, input.id);
-    if (refused) return refused;
-    if (pauseStartError(input.startDate, today)) return "pauseStartOutOfWindow";
+    const target = await pausableHabit(tx, input.id);
+    if (typeof target === "string") return target;
+    if (pauseStartError(input.startDate, today, target.startDate)) return "pauseStartOutOfWindow";
     const [overlap] = await tx
       .select({ id: habitPauses.id })
       .from(habitPauses)
@@ -119,8 +122,8 @@ export async function resumeHabitPauseById(
 ): Promise<ResumedHabit | HabitFailure> {
   return db.transaction(async (tx) => {
     await lockHabit(tx, input.id);
-    const refused = await pausableHabit(tx, input.id);
-    if (refused) return refused;
+    const target = await pausableHabit(tx, input.id);
+    if (typeof target === "string") return target;
     const pause = await findPause(tx, input);
     if (!pause) return "pauseNotFound";
     let outcome: ResumeOutcome = "none";
@@ -143,7 +146,8 @@ export async function resumeHabitPauseById(
 }
 
 /**
- * Removes a pause (soft), whatever its dates: the "Deshacer" of pausing. Under the habit's lock.
+ * Removes a pause (soft): the "Deshacer" of pausing. Only one that still reaches the 7-day window
+ * (a pause just created always does), so older history isn't rewritten. Under the habit's lock.
  * Returns the habit as it is today, or why not.
  */
 export async function removeHabitPauseById(
@@ -153,10 +157,10 @@ export async function removeHabitPauseById(
 ): Promise<HabitItem | HabitFailure> {
   return db.transaction(async (tx) => {
     await lockHabit(tx, input.id);
-    const refused = await pausableHabit(tx, input.id);
-    if (refused) return refused;
+    const target = await pausableHabit(tx, input.id);
+    if (typeof target === "string") return target;
     const pause = await findPause(tx, input);
-    if (!pause) return "pauseNotFound";
+    if (!pause || pause.endDate < logWindowStart(today)) return "pauseNotFound";
     await tx
       .update(habitPauses)
       .set({ deletedAt: sql`now()` })

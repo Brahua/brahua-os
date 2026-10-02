@@ -9,6 +9,7 @@ import {
   bestStreak,
   currentStreak,
   dayStatus,
+  isDoneOn,
   reachedMilestone,
   shownStreak,
   streakChoice,
@@ -407,6 +408,33 @@ describe("X por semana streak (weeks)", () => {
       current: 1,
     },
     {
+      name: "this week fully paused from Monday: neutral, the weeks before count",
+      habit: weekly(2),
+      input: {
+        marked: ["2026-09-21", "2026-09-22", "2026-09-28"],
+        pauses: [["2026-09-28", "2026-10-04"]],
+      },
+      current: 1,
+    },
+    {
+      name: "a past week met only with paused days' logs is open and breaks",
+      habit: weekly(2),
+      input: {
+        marked: [
+          "2026-09-14",
+          "2026-09-15",
+          "2026-09-21",
+          "2026-09-22",
+          "2026-09-28",
+          "2026-09-29",
+        ],
+        pauses: [["2026-09-21", "2026-09-22"]],
+      },
+      // This week met (1); last week 0 of ceil(2 × 5 / 7) = 2 is open: it breaks the run (best 1).
+      current: 1,
+      best: 1,
+    },
+    {
       name: "across a year change (the week of Monday 2026-12-28)",
       habit: weekly(2),
       today: "2027-01-06",
@@ -634,7 +662,7 @@ describe("weekCompliance (H5's week view)", () => {
 
 describe("invariants over many random histories", () => {
   test(
-    "best ≥ current, both ≥ 0; a done today never lowers the streak",
+    "best ≥ current ≥ 0; a done today never lowers it; the pad's pick is the server's streak",
     { timeout: 30_000 },
     () => {
       // A small seeded PRNG: the same cases on every run.
@@ -652,16 +680,22 @@ describe("invariants over many random histories", () => {
       const mismatches: string[] = [];
       for (let index = 0; index < 2_000; index += 1) {
         const habit = kinds[index % kinds.length];
-        const marked: string[] = [];
+        // Done, partial (3 of 8) or empty days, with targets that changed over time.
+        const logs: Record<string, DayLog> = {};
         for (let day = "2026-08-01"; day <= TODAY; day = addDays(day, 1)) {
-          if (random() < 0.7) marked.push(day);
+          const roll = random();
+          const target = day < "2026-09-15" ? 8 : 10;
+          if (roll < 0.6) logs[day] = { quantity: target + (random() < 0.2 ? 2 : 0), target };
+          else if (roll < 0.75) logs[day] = { quantity: 3, target };
         }
         const pauses: [string, string][] = [];
-        if (random() < 0.5) {
-          const start = addDays("2026-08-01", Math.floor(random() * 60));
-          pauses.push([start, addDays(start, Math.floor(random() * 10))]);
+        for (let count = 0; count < 2; count += 1) {
+          if (random() < 0.5) {
+            const start = addDays("2026-08-01", Math.floor(random() * 62));
+            pauses.push([start, addDays(start, Math.floor(random() * 10))]);
+          }
         }
-        const data = history({ marked, pauses });
+        const data = history({ logs, pauses });
         const current = currentStreak(habit, data, TODAY).count;
         const best = bestStreak(habit, data, TODAY).count;
         const choice = streakChoice(habit, data, TODAY);
@@ -669,6 +703,9 @@ describe("invariants over many random histories", () => {
           mismatches.push(`#${index}: current ${current}, best ${best}`);
         if (choice.done < choice.notDone)
           mismatches.push(`#${index}: choice ${JSON.stringify(choice)}`);
+        // What the pad shows (today's own state) is what the server counts.
+        const shown = shownStreak(choice, isDoneOn(habit, data, TODAY)).count;
+        if (shown !== current) mismatches.push(`#${index}: shown ${shown}, current ${current}`);
       }
       expect(mismatches).toEqual([]);
     },

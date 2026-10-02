@@ -69,6 +69,7 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     streak: { unit: "days", done: 0, notDone: 0 },
     pause: null,
     recentLogs: [],
+    recentPaused: [],
     ...values,
   };
 }
@@ -277,9 +278,7 @@ describe("milestones", () => {
     await user.click(pad("Meditar"));
     await server.answer();
     expect(within(notices()).getByText("¡7 días seguidos!")).toBeVisible();
-    expect(
-      within(notices()).getByText(/«Meditar»: una semana entera, así empieza un hábito\./),
-    ).toBeVisible();
+    expect(within(notices()).getByText(/«Meditar»: así empieza un hábito\./)).toBeVisible();
     // Still undoable.
     expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeVisible();
     expect(document.querySelector("canvas")).toBeNull();
@@ -463,10 +462,10 @@ describe("Registrar otro día", () => {
     const sheet = await openOther(user, "Leer");
     const days = within(sheet).getAllByRole("radio");
     expect(days).toHaveLength(7);
-    expect(days[0]).toHaveAccessibleName("jueves, 1 de octubre");
+    expect(days[0]).toHaveAccessibleName("Ayer, jueves 1 de octubre");
     expect(days[0]).toHaveTextContent("Ayer");
     expect(days[0]).toHaveAttribute("aria-checked", "true");
-    expect(days[6]).toHaveAccessibleName("viernes, 25 de setiembre");
+    expect(days[6]).toHaveAccessibleName("viernes 25 de setiembre");
     const done = within(sheet).getByRole("switch", { name: "Hecho ese día" });
     expect(done).toHaveAttribute("aria-checked", "false");
     await user.click(done);
@@ -486,7 +485,7 @@ describe("Registrar otro día", () => {
     const sheet = await openOther(user, "Agua");
     const field = within(sheet).getByRole("textbox", { name: "Cantidad (vasos)" });
     expect(field).toHaveValue("0");
-    await user.click(within(sheet).getByRole("radio", { name: "miércoles, 30 de setiembre" }));
+    await user.click(within(sheet).getByRole("radio", { name: "miércoles 30 de setiembre" }));
     expect(field).toHaveValue("6");
     expect(field).toHaveAccessibleDescription("Meta del día: 8 vasos.");
     await user.clear(field);
@@ -512,5 +511,191 @@ describe("Registrar otro día", () => {
     ).not.toBeInTheDocument();
     // Positive control: it can still be paused.
     expect(within(options).getByRole("button", { name: "Pausar" })).toBeVisible();
+  });
+});
+
+describe("more pause flows", () => {
+  const AHEAD = habit({
+    name: "Nadar",
+    pause: {
+      id: "00000000-0000-4000-8000-0000000000cc",
+      startDate: "2026-10-10",
+      endDate: "2026-10-20",
+      reason: null,
+    },
+  });
+
+  test("a pause that starts later: the habit stays in the grid; its notice says when", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "Leer");
+    await user.click(within(options).getByRole("button", { name: "Pausar" }));
+    const sheet = await screen.findByRole("dialog", { name: "Pausar «Leer»" });
+    const start = within(sheet).getByLabelText("Desde");
+    const end = within(sheet).getByLabelText("Hasta (incluido)");
+    await user.clear(end);
+    await user.type(end, "2026-10-15");
+    await user.clear(start);
+    await user.type(start, "2026-10-10");
+    await user.click(within(sheet).getByRole("button", { name: "Pausar" }));
+    await server.answer();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(
+      within(notices()).getByText("«Leer» se pausará del 10 de octubre al 15 de octubre."),
+    ).toBeVisible();
+    expect(pad("Leer")).toBeInTheDocument();
+    expect(count()).toBe("0 de 5 hoy");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Opciones de «Leer»" })).toHaveFocus(),
+    );
+  });
+
+  test("Cancelar la pausa (not started): its Deshacer sends the same dates", async () => {
+    server.habits = [AHEAD];
+    vi.mocked(resumeHabit).mockImplementationOnce(async (input) => {
+      const { id } = input as { id: string };
+      return serverChange(
+        id,
+        (item) => ({ ...item, pause: null }),
+        (item) => ({ habit: item, outcome: "removed" as const, pause: AHEAD.pause! }),
+      );
+    });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "Nadar");
+    expect(within(options).getByText("Pausa del 10 de octubre al 20 de octubre")).toBeVisible();
+    await user.click(within(options).getByRole("button", { name: "Cancelar la pausa" }));
+    await waitFor(() => expect(resumeHabit).toHaveBeenCalled());
+    await server.answer();
+    expect(within(notices()).getByText("La pausa de «Nadar» se canceló.")).toBeVisible();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(pauseHabit).toHaveBeenCalledWith({
+      id: AHEAD.id,
+      startDate: "2026-10-10",
+      endDate: "2026-10-20",
+      reason: null,
+    });
+  });
+
+  test("a pause that had already ended: the notice has no Deshacer", async () => {
+    vi.mocked(resumeHabit).mockImplementationOnce(async (input) => {
+      const { id } = input as { id: string };
+      return serverChange(
+        id,
+        (item) => ({ ...item, pause: null }),
+        (item) => ({ habit: item, outcome: "none" as const, pause: CORRER.pause! }),
+      );
+    });
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /^En pausa\s*1$/ }));
+    await user.click(screen.getByRole("button", { name: "Reanudar «Correr»" }));
+    await server.answer();
+    expect(within(notices()).getByText("«Correr» volvió a tus hábitos de hoy.")).toBeVisible();
+    expect(within(notices()).queryByRole("button", { name: "Deshacer" })).not.toBeInTheDocument();
+  });
+
+  test("Reanudar twice quickly sends it once", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /^En pausa\s*1$/ }));
+    const resume = screen.getByRole("button", { name: "Reanudar «Correr»" });
+    await user.dblClick(resume);
+    expect(resumeHabit).toHaveBeenCalledTimes(1);
+  });
+
+  test("Deshacer of Pausar: focus follows the habit back to its pad", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "Leer");
+    await user.click(within(options).getByRole("button", { name: "Pausar" }));
+    const sheet = await screen.findByRole("dialog", { name: "Pausar «Leer»" });
+    await user.click(within(sheet).getByRole("button", { name: "Pausar" }));
+    await server.answer();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reanudar «Leer»" })).toHaveFocus(),
+    );
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(pad("Leer")).toHaveFocus());
+    await server.answer();
+    expect(count()).toBe("0 de 5 hoy");
+  });
+});
+
+describe("more milestones and other days", () => {
+  test("weeks: '¡7 semanas seguidas!'", async () => {
+    server.habits = [
+      habit({
+        name: "Gimnasio",
+        frequency: "weekly_count",
+        weeklyTarget: 3,
+        weekDoneBefore: 2,
+        streak: { unit: "weeks", done: 7, notDone: 6 },
+      }),
+    ];
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(pad("Gimnasio"));
+    await server.answer();
+    expect(within(notices()).getByText("¡7 semanas seguidas!")).toBeVisible();
+  });
+
+  test("a failed tap that would reach 7: no celebration, the streak back", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(pad("Meditar"));
+    expect(streakLine("Meditar")).toBe("RACHA 7");
+    await server.answer(fail("No."));
+    expect(within(notices()).getByText("Sin guardar")).toBeVisible();
+    expect(within(notices()).queryByText(/seguidos!/)).not.toBeInTheDocument();
+    await waitFor(() => expect(streakLine("Meditar")).toBe("RACHA 6"));
+  });
+
+  test("a habit to avoid: 'Recaída ese día'; a paused day is marked in words", async () => {
+    server.habits = [
+      habit({
+        name: "No fumar",
+        kind: "avoid",
+        streak: { unit: "days", done: 9, notDone: 0 },
+        recentPaused: ["2026-09-30"],
+      }),
+    ];
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "No fumar");
+    await user.click(within(options).getByRole("button", { name: "Registrar otro día" }));
+    const sheet = await screen.findByRole("dialog", { name: "Registrar «No fumar»" });
+    const paused = within(sheet).getByRole("radio", {
+      name: "miércoles 30 de setiembre, en pausa",
+    });
+    await user.click(paused);
+    expect(within(sheet).getByText(/Ese día estaba en pausa/)).toBeVisible();
+    await user.click(within(sheet).getByRole("switch", { name: "Recaída ese día" }));
+    await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
+    expect(setHabitDone).toHaveBeenCalledWith({
+      id: server.habits[0].id,
+      day: "2026-09-30",
+      done: true,
+    });
+    await server.answer();
+    expect(
+      within(notices()).getByText("«No fumar», miércoles, 30 de setiembre: recaída registrada."),
+    ).toBeVisible();
+  });
+
+  test("a failed save of another day says so", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "Leer");
+    await user.click(within(options).getByRole("button", { name: "Registrar otro día" }));
+    const sheet = await screen.findByRole("dialog", { name: "Registrar «Leer»" });
+    expect(within(sheet).getAllByRole("radio")[0]).toHaveAccessibleName(
+      "Ayer, jueves 1 de octubre",
+    );
+    await user.click(within(sheet).getByRole("switch", { name: "Hecho ese día" }));
+    await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
+    await server.answer(fail("Solo puedes registrar hoy y los 7 días anteriores."));
+    expect(within(notices()).getByText("Sin guardar")).toBeVisible();
+    expect(within(notices()).getByText(/No se pudo registrar ese día\./)).toBeVisible();
   });
 });

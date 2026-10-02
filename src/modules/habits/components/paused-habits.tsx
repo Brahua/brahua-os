@@ -17,6 +17,8 @@ type PausedHabitsProps = {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onResume: (habit: HabitItem) => void;
+  /** Whether its pause change is on its way ("Reanudar" is aria-disabled meanwhile). */
+  isBusy?: (habit: HabitItem) => boolean;
   /** Opens the habit's options (edit, archive, delete…); `trigger` gets focus back. */
   onOptions: (habit: HabitItem, trigger: HTMLElement) => void;
   onOptionsHover?: () => void;
@@ -32,6 +34,7 @@ export function PausedHabits({
   expanded,
   onExpandedChange,
   onResume,
+  isBusy,
   onOptions,
   onOptionsHover,
 }: PausedHabitsProps) {
@@ -75,6 +78,8 @@ export function PausedHabits({
               icon={Play}
               aria-label={PAUSE_COPY.resumeRow(habit.name)}
               data-habit-resume={habit.id}
+              // Never `disabled` (it may have focus): the flow guards a second activation.
+              aria-disabled={isBusy?.(habit) || undefined}
               onClick={() => onResume(habit)}
             >
               <span className="max-sm:sr-only">{PAUSE_COPY.resume}</span>

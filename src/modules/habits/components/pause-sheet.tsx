@@ -39,6 +39,8 @@ export type PauseSheetProps = {
   habit: HabitItem;
   /** Lima's today (the screen's): the default start and the start's window. */
   today: string;
+  /** False when the page is out of date (Lima's day changed): it reloads instead of saving. */
+  canSave?: () => boolean;
   /** Where focus goes if the sheet closes without pausing (the options key). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
   /** Paused: the screen closes the sheet, says so and offers "Deshacer" (removes `pause`). */
@@ -57,6 +59,7 @@ export function PauseSheet({
   onOpenChange,
   habit,
   today,
+  canSave,
   returnFocusRef,
   onPaused,
   onClosed,
@@ -120,11 +123,12 @@ export function PauseSheet({
       if (!failed.ok) showErrors(failed);
       return;
     }
-    const outOfWindow = pauseStartError(parsed.data.startDate, today);
+    const outOfWindow = pauseStartError(parsed.data.startDate, today, habit.startDate);
     if (outOfWindow) {
       showErrors({ error: outOfWindow, fieldErrors: { startDate: [outOfWindow] } });
       return;
     }
+    if (canSave && !canSave()) return;
     setFormError(null);
     startTransition(async () => {
       let result: ActionResult<{ habit: HabitItem; pause: HabitPauseSummary }>;

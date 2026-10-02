@@ -52,6 +52,7 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     streak: { unit: "days", done: 0, notDone: 0 },
     pause: null,
     recentLogs: [],
+    recentPaused: [],
     ...values,
   };
 }

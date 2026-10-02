@@ -96,6 +96,8 @@ export type HabitItem = {
    * otro día".
    */
   recentLogs: HabitDayLog[];
+  /** H4: which of the 7 days before today were paused ("Registrar otro día" says so). */
+  recentPaused: string[];
 };
 
 /** A pause as the screens show it (H4). Days in Lima, both ends included. */

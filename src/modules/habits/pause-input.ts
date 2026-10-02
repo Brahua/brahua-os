@@ -60,9 +60,19 @@ export const pauseHabitInputSchema = z
 
 export type PauseHabitInput = z.output<typeof pauseHabitInputSchema>;
 
-/** Why a pause's start is out of its window on `today`, or null when it is fine. */
-export function pauseStartError(startDate: string, today: string): string | null {
+/**
+ * Why a pause's start is out of its window on `today`, or null when it is fine: from 7 days back
+ * (never before the habit's start date, when given) to a year ahead.
+ */
+export function pauseStartError(
+  startDate: string,
+  today: string,
+  habitStartDate?: string,
+): string | null {
   if (startDate < addDays(today, -HABIT_LOG_WINDOW_DAYS)) return PAUSE_ERRORS.startTooEarly;
+  if (habitStartDate !== undefined && startDate < habitStartDate) {
+    return PAUSE_ERRORS.startBeforeHabit;
+  }
   if (startDate > addDays(today, HABIT_PAUSE_START_AHEAD_DAYS)) return PAUSE_ERRORS.startTooLate;
   return null;
 }
