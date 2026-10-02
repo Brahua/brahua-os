@@ -14,6 +14,7 @@ import {
   insertHabitPause,
   removeHabitPauseById,
   resumeHabitPauseById,
+  type PausedHabit,
   type ResumedHabit,
 } from "./pauses";
 import { revalidateHabitScreens } from "./revalidate";
@@ -21,9 +22,9 @@ import { revalidateHabitScreens } from "./revalidate";
 const pause = ownerAction(
   pauseHabitInputSchema,
   async (data) => {
-    const habit = await insertHabitPause(getDb(), data, ownerDateKey(new Date()));
+    const paused = await insertHabitPause(getDb(), data, ownerDateKey(new Date()));
     revalidateHabitScreens();
-    return typeof habit === "string" ? refused<HabitItem>(habit) : ok(habit);
+    return typeof paused === "string" ? refused<PausedHabit>(paused) : ok(paused);
   },
   { name: "pauseHabit" },
 );
@@ -31,9 +32,10 @@ const pause = ownerAction(
 /**
  * Pauses a habit from `startDate` to `endDate` (Lima days, both included, ≤ 90 days) with an
  * optional reason (SPEC-habits "Pausas"). The start goes from 7 days back (Lima) to a year
- * ahead, and it can't overlap another pause of the habit. Returns the habit as it is today.
+ * ahead, and it can't overlap another pause of the habit. Returns the habit as it is today and
+ * the new pause.
  */
-export async function pauseHabit(input: unknown): Promise<ActionResult<HabitItem>> {
+export async function pauseHabit(input: unknown): Promise<ActionResult<PausedHabit>> {
   return pause(input);
 }
 

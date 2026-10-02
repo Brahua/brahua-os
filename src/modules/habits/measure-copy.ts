@@ -60,8 +60,6 @@ export const MEASURE_COPY = {
   /** The quantity pad's description: what is logged and what a tap does. */
   padQuantityHelp: (quantity: number, target: number, unit: string, step: number) =>
     `${formatNumber(quantity)} de ${formatNumber(target)} ${unit}. Suma ${formatNumber(step)} cada vez.`,
-  padClean: "SIN RECAÍDAS HOY",
-  padSlipped: "RECAÍDA REGISTRADA HOY",
   /** The avoid pad's name: what a tap does, with the habit's (visible) name. */
   padAvoidName: (name: string) => `Registrar recaída: ${name}`,
   padAvoidHelp: (slipped: boolean) =>

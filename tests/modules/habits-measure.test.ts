@@ -300,7 +300,7 @@ describe("isDayDone", () => {
 });
 
 describe("the pad", () => {
-  test("status line: 3/8 VASOS, HECHO, SIN RECAÍDAS HOY / RECAÍDA REGISTRADA HOY", () => {
+  test("status line: 3/8 VASOS, HECHO; a habit to avoid's clean days (H4) or a new start", () => {
     expect(
       padStatus(habit({ measure: "quantity", goal: 8, target: 8, unit: "vasos", quantity: 3 })),
     ).toBe("3/8 VASOS");
@@ -309,8 +309,12 @@ describe("the pad", () => {
     ).toBe("10/8 VASOS");
     expect(padStatus(habit({ quantity: 1 }))).toBe("HECHO");
     expect(padStatus(habit({ quantity: 0 }))).toBe("");
-    expect(padStatus(habit({ kind: "avoid", quantity: 0 }))).toBe("SIN RECAÍDAS HOY");
-    expect(padStatus(habit({ kind: "avoid", quantity: 1 }))).toBe("RECAÍDA REGISTRADA HOY");
+    const streak = { unit: "days", done: 12, notDone: 0 } as const;
+    expect(padStatus(habit({ kind: "avoid", quantity: 0, streak }))).toBe("12 DÍAS LIMPIO");
+    expect(padStatus(habit({ kind: "avoid", quantity: 0, streak: { ...streak, done: 1 } }))).toBe(
+      "1 DÍA LIMPIO",
+    );
+    expect(padStatus(habit({ kind: "avoid", quantity: 1, streak }))).toBe("EMPIEZAS DE NUEVO HOY");
   });
 
   test("its bar: one segment per unit up to 10, then 10 in proportion, full only at the goal", () => {

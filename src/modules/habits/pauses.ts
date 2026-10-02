@@ -28,13 +28,14 @@ async function pausableHabit(tx: Tx, id: string): Promise<HabitFailure | null> {
 /**
  * Pauses a habit from `startDate` to `endDate` (both included; ≤ 90 days, validated before).
  * The start goes from 7 days back to a year ahead of `today`; it can't overlap another pause of
- * the habit (checked under the habit's lock). Returns the habit as it is today, or why not.
+ * the habit (checked under the habit's lock). Returns the habit as it is today with the new
+ * pause (its "Deshacer" removes it), or why not.
  */
 export async function insertHabitPause(
   db: Database,
   input: PauseHabitInput,
   today: string,
-): Promise<HabitItem | HabitFailure> {
+): Promise<PausedHabit | HabitFailure> {
   return db.transaction(async (tx) => {
     await lockHabit(tx, input.id);
     const refused = await pausableHabit(tx, input.id);
@@ -53,15 +54,27 @@ export async function insertHabitPause(
       )
       .limit(1);
     if (overlap) return "pauseOverlap";
-    await tx.insert(habitPauses).values({
-      habitId: input.id,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      reason: input.reason,
-    });
-    return (await selectHabitItemById(tx, input.id, today)) as HabitItem;
+    const [pause] = await tx
+      .insert(habitPauses)
+      .values({
+        habitId: input.id,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason,
+      })
+      .returning({
+        id: habitPauses.id,
+        startDate: habitPauses.startDate,
+        endDate: habitPauses.endDate,
+        reason: habitPauses.reason,
+      });
+    const habit = (await selectHabitItemById(tx, input.id, today)) as HabitItem;
+    return { habit, pause };
   });
 }
+
+/** A habit just paused, with that pause. */
+export type PausedHabit = { habit: HabitItem; pause: HabitPauseSummary };
 
 /** What "Reanudar" did: ended the pause yesterday, removed it (it hadn't started), or nothing. */
 export type ResumeOutcome = "ended" | "removed" | "none";
