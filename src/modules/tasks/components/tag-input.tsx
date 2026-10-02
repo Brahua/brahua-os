@@ -2,6 +2,7 @@
 
 import { Tag, TriangleAlert, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { Icon } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { normalizeTagName, suggestTags, tagNameProblem, TASK_TAGS_MAX } from "../task-tags";
@@ -49,7 +50,7 @@ export function TagInput({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [ownError, setOwnError] = useState<string | null>(null);
-  const [status, setStatus] = useState("");
+  const [status, say] = useAnnouncer();
   // Tags added here that may not be in `known` yet (created a moment ago): suggested too if
   // removed again, without asking the server.
   const [created, setCreated] = useState<string[]>([]);
@@ -87,7 +88,7 @@ export function TagInput({
     const count = optionsKey.split("\n").length;
     const timer = window.setTimeout(() => say(TAGS_COPY.suggestionsCount(count)), 300);
     return () => window.clearTimeout(timer);
-  }, [optionsKey]);
+  }, [optionsKey, say]);
 
   // Focus after a chip left (it unmounted with the key that had focus).
   useEffect(() => {
@@ -102,12 +103,6 @@ export function TagInput({
           );
     (key ?? input.current)?.focus();
   }, [value]);
-
-  function say(message: string) {
-    // Cleared first, so the same message twice is read twice.
-    setStatus("");
-    window.setTimeout(() => setStatus(message), 50);
-  }
 
   /**
    * Adds these names in order (normalized; one already chosen is skipped). Stops at the first
