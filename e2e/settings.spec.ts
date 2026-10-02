@@ -49,7 +49,9 @@ async function recordKeys(page: Page) {
 const recordedKeys = (page: Page) =>
   page.evaluate(() => (window as unknown as { __keys: unknown[] }).__keys);
 
-test("Ajustes has its title and sections, and is current in the navigation", async ({ page }) => {
+test("Ajustes has its title and sections, and is current in the navigation", async ({
+  page,
+}, testInfo) => {
   await page.goto("/settings");
 
   await expect(page).toHaveTitle("Ajustes · brahua-os");
@@ -57,7 +59,17 @@ test("Ajustes has its title and sections, and is current in the navigation", asy
   for (const name of ["Apariencia", "Teclado", /^Passkeys/, "Sesión"]) {
     await expect(page.getByRole("region", { name })).toBeVisible();
   }
-  await expect(page.getByRole("link", { name: "Ajustes" })).toHaveAttribute("aria-current", "page");
+  if (isDesktop(testInfo)) {
+    await expect(page.getByRole("link", { name: "Ajustes" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  } else {
+    // On the phone Ajustes lives under "Más" (5 sections since Tareas).
+    await expect(page.getByRole("button", { name: "Más (actual: Ajustes)" })).toHaveAttribute(
+      "data-active",
+    );
+  }
   await expect(page.getByRole("link", { name: "Hoy" })).not.toHaveAttribute("aria-current");
   // Moved here from the home page.
   await page.goto("/");

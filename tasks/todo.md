@@ -6,7 +6,7 @@
 
 ## Fase 1 — Base
 
-- [ ] **T1: Datos, captura rápida y bandeja**
+- [ ] **T1: Datos, captura rápida y bandeja** — PR `feat/tasks-t1-capture-inbox` (sin merge). Detalle y puntos de extensión para T2–T4 en `docs/HANDOFF.md` → "Cómo funciona tasks".
   - **Qué:** esquema completo (`tasks`, `task_tags`, `task_tag_links`) con `CHECK` e índices; `tasksModule` provisional (Tareas, `/tasks`, atajo 3); captura rápida global (tecla naranja y `C`) con título, área/proyecto y fecha visibles; `/tasks` con la vista Bandeja; completar con un toque y "Deshacer"; borrado lógico; tablas en `pnpm db:export`. El detalle de la tarea queda armado por secciones con puntos de inserción para T2–T4.
   - **Aceptación:** captura en < 10 s en el celular; completar y deshacer; acciones rechazadas sin sesión; `CHECK` probados; axe en 0.
   - **Tamaño:** M

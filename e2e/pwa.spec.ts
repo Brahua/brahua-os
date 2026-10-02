@@ -215,9 +215,13 @@ test.describe("signed in", () => {
 
     // Client-side: the marker survives only if the document is not reloaded.
     await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
-    await page.getByRole("link", { name: "Áreas", exact: true }).filter({ visible: true }).click();
-    await expect(page).toHaveURL("/areas");
-    await expect(page.getByRole("heading", { level: 1, name: "Áreas" })).toBeVisible();
+    // Proyectos is a visible link on both widths (on the phone Áreas went under "Más").
+    await page
+      .getByRole("link", { name: "Proyectos", exact: true })
+      .filter({ visible: true })
+      .click();
+    await expect(page).toHaveURL("/projects");
+    await expect(page.getByRole("heading", { level: 1, name: "Proyectos" })).toBeVisible();
     expect(await page.evaluate(() => "__sameDocument" in window)).toBe(true);
     await expectThemeColor(page, brandHex("lightBackground"));
   });
