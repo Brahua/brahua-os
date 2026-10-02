@@ -236,7 +236,10 @@ describe("the section", () => {
         "No se pudo quitar «Permiso municipal»; volvió a como estaba. Este proyecto ya no existe.",
       ),
     );
-    expect(within(blockerList()!).getByText("Permiso municipal")).toBeInTheDocument();
+    // The notice can render before the optimistic value rolls back.
+    await waitFor(() =>
+      expect(within(blockerList()!).getByText("Permiso municipal")).toBeInTheDocument(),
+    );
   });
 
   test("a network failure while removing says to check the connection", async () => {

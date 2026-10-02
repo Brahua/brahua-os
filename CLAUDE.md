@@ -97,6 +97,8 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   merge without CI: verify locally and deploy a commit that already passed CI by hand.
 - **Timers in components:** every `setTimeout` that sets state is cleared on unmount; for live-region
   messages use core's `useAnnouncer()`. An uncleared timer fails the unit job ("window is not defined").
+- **Optimistic rollback in tests:** the failure notice can render before `useOptimistic` rolls back; assert
+  the rolled-back state inside `waitFor`, never right after waiting for the notice (it flaked three tests).
 - **Exhaustive tests:** loops with thousands of cases collect mismatches and assert once (with an explicit
   timeout); an `expect` per case timed out on CI runners.
 - **Checkpoint in production:** with the owner signed in to their own Chrome, the agent can run the
