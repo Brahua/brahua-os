@@ -69,7 +69,7 @@ test("Áreas has its title, is in the navigation and lists the seeded areas in o
   if (isDesktop(testInfo)) {
     await expect(page.getByRole("link", { name: "Áreas" })).toHaveAttribute("aria-current", "page");
   } else {
-    // On the phone Áreas lives under "Más" (5 sections since Tareas): the key says it is current.
+    // On the phone Áreas lives under "Más" (6 sections since Hábitos): the key says it is current.
     await expect(page.getByRole("button", { name: "Más (actual: Áreas)" })).toHaveAttribute(
       "data-active",
     );

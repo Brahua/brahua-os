@@ -65,7 +65,7 @@ test("Ajustes has its title and sections, and is current in the navigation", asy
       "page",
     );
   } else {
-    // On the phone Ajustes lives under "Más" (5 sections since Tareas).
+    // On the phone Ajustes lives under "Más" (6 sections since Hábitos).
     await expect(page.getByRole("button", { name: "Más (actual: Ajustes)" })).toHaveAttribute(
       "data-active",
     );

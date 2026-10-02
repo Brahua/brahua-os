@@ -6,7 +6,7 @@
 
 ## Fase 1 — Base
 
-- [ ] **H1: Datos, crear y registrar con un toque** — tablas `habits`, `habit_logs`, `habit_pauses` (con `kind`, `CHECK`, índices, locks en el espacio 4000, `visibleHabit`) y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja slots para H2 y H3.
+- [ ] **H1: Datos, crear y registrar con un toque** — tablas `habits`, `habit_logs`, `habit_pauses` (con `kind`, `CHECK`, índices, locks en el espacio 4000, `visibleHabit`) y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja slots para H2 y H3. *(En PR, rama `feat/habits-h1-base`; slots en HANDOFF → "Cómo funciona habits".)*
 
 ## Fase 2 — Reglas *(H2 y H3 en paralelo)*
 

@@ -50,7 +50,7 @@ const screenshotsThroughHelper = {
   },
 };
 
-// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks). A module never imports one that
+// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks; core ← habits). A module never imports one that
 // depends on it: cross-module features go through registered contracts and the composition roots
 // in src/lib (progress-sources.ts, project-extensions.ts, capture-providers.tsx).
 const TASKS_IMPORT = {
@@ -62,14 +62,30 @@ const PROJECTS_IMPORT = {
   group: ["@/modules/projects", "@/modules/projects/*"],
   message: "`projects` depende de `core`: core no puede importarlo (usa un contrato registrado).",
 };
+// `habits` depends on `core` only (SPEC-habits "Límites entre módulos"); none of the others
+// imports it (`today` will, from H6 on).
+const HABITS_IMPORT = {
+  group: ["@/modules/habits", "@/modules/habits/*"],
+  message:
+    "`habits` depende de `core`: core, projects y tasks no pueden importarlo (usa un contrato registrado).",
+};
 const moduleBoundaries = [
   {
+    files: ["src/modules/tasks/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { patterns: [HABITS_IMPORT] }] },
+  },
+  {
     files: ["src/modules/projects/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT] }] },
+    rules: { "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT, HABITS_IMPORT] }] },
   },
   {
     files: ["src/modules/core/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT, PROJECTS_IMPORT] }] },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [TASKS_IMPORT, PROJECTS_IMPORT, HABITS_IMPORT] },
+      ],
+    },
   },
 ];
 

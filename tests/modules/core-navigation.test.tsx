@@ -230,7 +230,10 @@ describe("AppNav", () => {
     expect(fireEvent.keyDown(document.body, { key: "3" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/tasks");
     push.mockReset();
-    expect(fireEvent.keyDown(document.body, { key: "4" })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: "4" })).toBe(false);
+    expect(push).toHaveBeenCalledWith("/habits");
+    push.mockReset();
+    expect(fireEvent.keyDown(document.body, { key: "5" })).toBe(true);
     expect(push).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(document.body, { key: "7" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/areas");
