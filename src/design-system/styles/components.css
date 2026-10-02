@@ -193,8 +193,10 @@ textarea.bo-field__control { height: auto; min-height: 112px; padding: 14px 16px
 .bo-sheet--side { width: var(--panel-width); max-width: 100%; box-shadow: -1px 0 0 var(--color-border), var(--shadow-panel); transition: transform var(--duration-panel) var(--ease-drawer); }
 .bo-sheet__handle { width: 40px; height: 5px; border-radius: 3px; background: var(--color-border-strong); align-self: center; }
 .bo-sheet__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.bo-sheet--side .bo-sheet__header { height: var(--topbar-height); padding: 0 18px 0 24px; border-bottom: 1px solid var(--color-divider); }
+.bo-sheet--side .bo-sheet__header { min-height: var(--topbar-height); height: auto; padding: 16px 18px 16px 24px; border-bottom: 1px solid var(--color-divider); }
 .bo-sheet__title { font: 700 22px/1.1 var(--font-sans); font-stretch: 125%; }
+.bo-sheet__heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bo-sheet__description { margin-top: 6px; font-family: var(--text-body-sm--font-family); font-size: var(--text-body-sm); line-height: var(--text-body-sm--line-height); font-weight: var(--text-body-sm--font-weight); color: var(--color-text-secondary); text-wrap: pretty; }
 .bo-sheet__body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 20px; }
 .bo-sheet--side .bo-sheet__body { padding: 22px 24px; }
 .bo-sheet__footer { display: flex; gap: 10px; }
