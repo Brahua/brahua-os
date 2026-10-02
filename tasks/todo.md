@@ -23,36 +23,36 @@
 
 ## Fase 2 — Detalle
 
-- [ ] **P2: Detalle y edición**
+- [x] **P2: Detalle y edición** (PR #36, integrado)
   - **Qué:** `/projects/[id]` (P1 dejó una versión mínima con su 404) con nombre, área, estado, prioridad, objetivo y fechas editables en el lugar (UI optimista); `completed_at` al pasar a Terminado; vencimiento visible ("Vence hoy / en N días / vencido hace N días", Lima) en `progress.ts`; Eliminar (borrado lógico) con "Deshacer". El detalle queda armado por secciones para P3–P5.
   - **Aceptación:** criterios 1, 5 y 7 (eliminar) de la spec; pruebas de vencimiento alrededor de la medianoche de Lima.
   - **Tamaño:** M
-  - **Estado:** implementado en `feat/projects-p2-detail` (PR abierto, sin merge). Cómo funciona, decisiones y los puntos de inserción de P3–P5: `docs/HANDOFF.md`, "Cómo funciona projects" → "Detalle y edición (P2)".
+  - **Estado:** integrado (PR #36). Cómo funciona, decisiones y los puntos de inserción de P3–P5: `docs/HANDOFF.md`, "Cómo funciona projects" → "Detalle y edición (P2)".
 
-- [ ] **P3: Hitos y avance** *(paralelo a P4 y P5)*
+- [x] **P3: Hitos y avance** (PR #40, integrado)
   - **Qué:** agregar en línea, editar título y fecha, marcar, eliminar con "Deshacer"; reordenar arrastrando (`@dnd-kit`, patrón de C6) y con Subir/Bajar, en transacción con lock por proyecto; avance hechos/total en la tarjeta y el detalle (sin hitos o en Mantenimiento, sin avance).
   - **Aceptación:** criterio 3 de la spec; E2E con teclado y arrastre; movimiento reducido.
   - **Tamaño:** M
-  - **Estado:** implementado en `feat/projects-p3-milestones` (PR abierto, sin merge). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects" → "Hitos y avance (P3)".
+  - **Estado:** integrado (PR #40). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects" → "Hitos y avance (P3)".
 
-- [ ] **P4: Dependencias** *(paralelo a P3 y P5)* — PR abierto en `feat/projects-p4-dependencies`, sin merge.
+- [x] **P4: Dependencias** (PR #38, integrado)
   - **Qué:** "Bloqueado por" con buscador (excluye el propio, eliminados y los que crearían un ciclo); quitar; insignia "Bloqueado" en la tarjeta y el detalle mientras un bloqueador no esté terminado o cancelado; rechazo de ciclos directos e indirectos en la base.
   - **Aceptación:** criterio 4 de la spec; integración con ciclos y concurrencia.
   - **Tamaño:** S/M
 
-- [ ] **P5: Notas en Markdown y enlaces** *(paralelo a P3 y P4)*
+- [x] **P5: Notas en Markdown y enlaces** (PR #41, integrado)
   - **Qué:** `src/lib/markdown/` con `react-markdown` + `remark-gfm` + `rehype-sanitize` (reutilizable); notas con "Escribir" / "Vista previa", guardado explícito y aviso de cambios sin guardar; enlaces `http(s)` con etiqueta: agregar, editar, reordenar, quitar.
   - **Aceptación:** criterio 6 de la spec; pruebas de saneado (`<script>`, `javascript:`, HTML crudo).
   - **Tamaño:** M
-  - **Estado:** implementado en `feat/projects-p5-notes-links` (PR abierto, sin merge). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Notas y enlaces (P5)".
+  - **Estado:** integrado (PR #41). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Notas y enlaces (P5)".
 
 ## Fase 3 — Contratos
 
-- [ ] **P6: Contratos con otros módulos**
+- [x] **P6: Contratos con otros módulos** (PR #42, integrado)
   - **Qué:** `registerProgressSource()` en `progress.ts` (lo usará `tasks`); `getProjectsTodaySummary()` (vencen en ≤ 7 días, vencidos, bloqueados) para `today`; documentarlos en la spec.
   - **Aceptación:** pruebas unitarias del contrato con una fuente de avance falsa.
   - **Tamaño:** S
-  - **Estado:** implementado en `feat/projects-p6-contracts` (PR abierto, sin merge), en `contracts.ts` (no en `progress.ts`, que es de P3). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects" → "Contratos (P6)".
+  - **Estado:** integrado (PR #42), en `contracts.ts` (no en `progress.ts`, que es de P3). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Cómo funciona projects" → "Contratos (P6)".
 
 ### Checkpoint final
 - [ ] Recorrido completo en celular y escritorio: crear, detalle, hitos, dependencias, notas, eliminar y deshacer.
