@@ -112,7 +112,11 @@ export const taskTagLinks = pgTable("task_tag_links", {
 
 - **Con `projects`:** `src/modules/tasks/progress-source.ts` registra una `ProgressSource` (`registerProgressSource`) que cuenta tareas **no eliminadas** de cada proyecto: hechas = con `done_at`, total = todas. Se carga desde `src/lib/progress-sources.ts`. El texto del medidor de avance pasa de "N de M hitos" a "N de M" con el detalle "hitos y tareas". El aviso de "Marcar como terminado" ya suma tareas abiertas por este mismo contrato.
 - **Próxima acción en la tarjeta del proyecto:** `projects` no lee tareas; `tasks` expone `getNextActions(projectIds)` y la lista de proyectos la recibe por una segunda fuente registrada (`registerNextActionSource`, mismo patrón que el avance) — se define en `contracts.ts` de `projects` en la primera tarea de este módulo.
-- **Con `today`:** `getTasksTodaySummary(now)` devuelve las retrasadas y las que vencen hoy (pendientes, no eliminadas), ordenadas por retraso, prioridad y creación, con área/proyecto para mostrarlas.
+- **Con `today`:** `getTasksTodaySummary(now)` (`src/modules/tasks/contracts.ts`, `server-only`, con `requireOwner()`) devuelve las retrasadas y las que vencen hoy (pendientes, no eliminadas y visibles: nunca las de un proyecto eliminado), por día de Lima, ordenadas por retraso (la más retrasada primero), prioridad (Alta primero) y creación (la más vieja primero), en **una sola consulta**. Cada elemento (`TaskTodayItem`, en `today-summary.ts`) trae solo lo necesario para mostrarla y enlazarla (`taskPath(id)`):
+  - `id`, `title`, `priority`, `dueDate` (`YYYY-MM-DD`, siempre presente);
+  - `due`: `{ kind: "overdue", days, label: "Retrasada hace N días" }` o `{ kind: "today", days: 0, label: "Vence hoy" }` (las mismas etiquetas de `taskDueState`);
+  - `area`: la que la tarea muestra (la propia o la de su proyecto; `null` en la bandeja) y `project`: `{ id, name }` o `null`;
+  - `isNextAction` (falso si el proyecto está Terminado o Cancelado: como en la tarjeta del proyecto, la marca de un proyecto cerrado no se muestra; la tarea pendiente sí entra, igual que en la vista Hoy).
 
 ## Comandos y estructura
 

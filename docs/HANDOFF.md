@@ -54,7 +54,8 @@
     - T3, completar antes de tiempo: con "ciertos días de la semana" o "el día X del mes", la siguiente fecha empieza el día después de lo más tarde entre hoy y la fecha límite de la completada (completar el lunes la del jueves no crea otra para ese jueves). Las reglas "cada N…" siguen contando desde que se completa.
     - T3, dónde va la siguiente: si el proyecto de la completada ya no está abierto (Terminado, Cancelado o eliminado) o su área propia está archivada, la siguiente va a la bandeja y el aviso lo dice ("La siguiente quedó en la bandeja porque el proyecto ya no está abierto." / "… porque el área está archivada."). Un hito eliminado no se copia.
   - ✅ T4 (etiquetas): PR #51 integrado. Ver "Cómo funciona tasks" → "T4: etiquetas".
-  - T5 (tareas en proyectos): PR `feat/tasks-t5-projects` (sin merge; rebasada sobre T3 y T4). Ver "Cómo funciona tasks" → "T5: tareas en proyectos", con las **decisiones para revisar con el owner** y lo que hay que tocar al rebasar sobre T3 y T4.
+  - ✅ T5 (tareas en proyectos): PR #54 integrado. Ver "Cómo funciona tasks" → "T5: tareas en proyectos", con las **decisiones para revisar con el owner** y lo que hay que tocar al rebasar sobre T3 y T4.
+  - T6, parte del contrato (`getTasksTodaySummary`): PR `feat/tasks-t6-today-contract` (PR #55, sin merge; rebasada sobre T3, T4 y T5). Ver "Cómo funciona tasks" → "T6: contrato con `today`", con sus decisiones para revisar con el owner. La navegación definitiva de T6 espera el diseño del owner en Claude Design.
 
 ## C2a: pasos del usuario (en orden)
 
@@ -574,6 +575,22 @@ PR #54 `feat/tasks-t5-projects` (sin merge; rebasada sobre T3 y T4, ya en `main`
   7. **Agregar en línea no es optimista** (la fila llega con la revalidación, < 1 s); el campo se vacía al momento para escribir la siguiente.
   8. **La bandera** (ícono `Flag`) marca la próxima acción en cada fila; en el detalle es un `Switch`. Diseño propio con el DS (el patrón de Claude Design no incluye la sección): conviene revisarlo en Claude Design junto con la tecla "Siguiente tarea" de la tarjeta (pozo `--color-well` con el checkbox).
   9. **Revalidar `/projects` con `layout`** en toda acción de tareas (y no solo el proyecto afectado): una acción no siempre conoce el proyecto de antes (mover, eliminar); con un solo usuario el costo es despreciable.
+
+### T6: contrato con `today`
+
+Solo la parte del contrato. **La navegación definitiva de T6 sigue pendiente**: espera a que el owner itere el diseño en Claude Design; la navegación provisional de T1 no cambió. Archivos nuevos, sin tocar los de T1–T5 (como `projects` en P6):
+
+- **`today-summary.ts`** (puro, apto para el cliente): `TaskTodayItem` (`id`, `title`, `priority`, `dueDate` —`YYYY-MM-DD`, siempre presente—, `due: TaskTodayDue`, `area` —la que la tarea muestra: la propia o la de su proyecto; `null` en la bandeja—, `project: { id, name } | null`, `isNextAction`), `TaskTodayDue` (las dos variantes de `TaskDueState` que cuentan: `overdue` con "Retrasada hace N días" y `today` con "Vence hoy") y `buildTasksTodaySummary(filas, now)`: se queda con las que `taskDueState` marca retrasadas o de hoy (la misma regla de las etiquetas, por día de Lima) y ordena con `compareByDue` de T2 (la fecha más antigua = la más retrasada primero, luego prioridad Alta→Baja, luego creación, el id desempata), o sea el mismo orden que la vista Hoy. `createdAt` y `doneAt` solo están en la fila, no en el DTO.
+- **`contracts.ts`** (`server-only`): `selectTasksTodaySummary(db, now)` (**una consulta**: `visibleTask`, `done_at IS NULL` y `due_date <= limaToday(now)`, con el área propia, el proyecto y el área del proyecto por `left join`; cabe en el índice parcial `tasks_due_date_idx`) y `getTasksTodaySummary(now)` (con `requireOwner()`, como `view-queries.ts`: sin owner redirige a `/login`).
+- **Uso desde `today`:** `import { getTasksTodaySummary, type TaskTodayItem } from "@/modules/tasks/contracts"`; enlazar con `taskPath(item.id)` (`routes.ts`) y pintar la etiqueta con `item.due.label` (naranja con LED, como `isUrgentDue`).
+- **Pruebas (T6):** unitarias en `tests/modules/tasks-today-summary.test.ts` (qué entra: retrasadas y de hoy, fuera hechas, futuras y sin fecha; orden por retraso, prioridad, creación e id, sin depender del orden de entrada; la medianoche de Lima a las 23:59:59 y a las 00:00; la forma del DTO). Integración en `tests/integration/tasks-today-summary.test.ts` (entran hoy, retrasada y la de un proyecto; fuera mañana, en un mes, sin fecha, hecha, eliminada y la de un proyecto eliminado, con control positivo al restaurarlo; orden; medianoche de Lima; el DTO con área propia, proyecto con su área, bandeja y próxima acción; el área sigue al proyecto; vacío; **una sola consulta** con 10 tareas; sin sesión / cookie falsa / otro usuario → `/login`, con control positivo del owner).
+- **Decisiones para revisar con el owner (T6):**
+  - El resumen incluye las tareas de la **bandeja** (sin área ni proyecto) con fecha: la spec dice "retrasadas y las que vencen hoy" sin excluirlas, y la vista Hoy también las muestra. Llegan con `area: null` y `project: null`.
+  - **Mismo orden que la vista Hoy** (se reutiliza `compareByDue`), así `today` y `/tasks?vista=hoy` nunca discrepan. Sin tope de cantidad: `today` decide cuántas mostrar.
+  - `project` lleva solo `{ id, name }` (sin estado): una tarea pendiente solo puede estar en un proyecto abierto o que se cerró después; `today` no lo necesita para mostrarla.
+  - `due` es la etiqueta de `taskDueState` ("Retrasada hace N días" / "Vence hoy"), no la de proyectos ("Vencido hace N días"), para que la tarea diga lo mismo en `today` y en `/tasks`.
+  - Sin `href` en el DTO: `today` usa `taskPath(id)`, como el resto de la app.
+  - **Proyecto cerrado** (revisado al rebasar sobre T5): `visibleTask` solo saca las de un proyecto **eliminado**; una tarea pendiente de un proyecto Terminado o Cancelado sigue entrando (como en la vista Hoy), pero con `isNextAction: false`, la misma regla de T5 (la marca queda en la base y no se muestra; al reabrir vuelve). Prueba de integración con control positivo.
 
 ## Pruebas E2E
 
