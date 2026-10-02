@@ -24,6 +24,8 @@ export const INTERVAL_RECURRENCE_KINDS = ["every_days", "every_weeks", "every_mo
 export const TASK_TITLE_MAX_LENGTH = 200;
 export const TASK_NOTES_MAX_LENGTH = 20_000;
 export const TASK_TAG_NAME_MAX_LENGTH = 30;
+/** At most this many tags on one task (T4). */
+export const TASK_TAGS_MAX = 10;
 export const RECURRENCE_INTERVAL_MAX = 365;
 /** ISO weekdays: 1 = Monday … 7 = Sunday. */
 export const ISO_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;

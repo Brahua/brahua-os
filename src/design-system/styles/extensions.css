@@ -172,3 +172,17 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 @supports (-webkit-touch-callout: none) {
   .bo-date-empty { display: flex; position: absolute; inset-block: 0; inset-inline-start: 16px; align-items: center; pointer-events: none; color: var(--color-placeholder); }
 }
+/* Task tags (T4). In a row: compact outlined chips that truncate. In the tag field: a chip with
+   its remove key, and the combobox's suggestions under the field (in the flow, not floating, so
+   a sheet's scroll never clips them). */
+.bo-task-tag { display: inline-block; min-width: 0; max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px; border-radius: var(--radius-full); box-shadow: inset 0 0 0 1px var(--color-border); color: var(--color-text-secondary); font: 500 12px/18px var(--font-sans); }
+.bo-tag-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; height: 32px; padding: 0 2px 0 10px; border-radius: var(--radius-full); box-shadow: inset 0 0 0 1px var(--color-border); color: var(--color-text); font: 500 14px/18px var(--font-sans); }
+.bo-tag-chip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 28 px drawn, 44 px to touch (principios-ux #14): the ::before reaches 8 px around it. */
+.bo-tag-chip__remove { position: relative; display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.bo-tag-chip__remove::before { content: ""; position: absolute; inset: -8px; }
+.bo-tag-chip__remove:hover { background: var(--color-surface-hover); color: var(--color-text); }
+.bo-tag-chip__remove:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 0; }
+.bo-tag-listbox { margin: 0; padding: 0; list-style: none; }
+.bo-tag-listbox[hidden] { display: none; }
+.bo-tag-listbox .bo-row { cursor: pointer; }

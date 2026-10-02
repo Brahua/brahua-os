@@ -12,6 +12,7 @@ import {
   type RecurrenceKind,
   type TaskPriority,
 } from "./task-constants";
+import { taskTagsSchema } from "./task-tags";
 
 export { TASK_PRIORITIES, TASK_TITLE_MAX_LENGTH, type TaskPriority } from "./task-constants";
 
@@ -157,7 +158,10 @@ function checkPlacement(value: PlacementFields, context: z.RefinementCtx) {
 export const taskPlacementSchema = z.object(placementShape).superRefine(checkPlacement);
 export type TaskPlacement = z.output<typeof taskPlacementSchema>;
 
-/** Quick capture and inline add: a title, and optionally where it goes, a due date and priority. */
+/**
+ * Quick capture and inline add: a title, and optionally where it goes, a due date, priority and
+ * tags (T4; created on first use, at most 10).
+ */
 export const createTaskInputSchema = z
   .object({
     title,
@@ -166,6 +170,7 @@ export const createTaskInputSchema = z
     priority: priority.default("medium"),
     // T3: an optional recurrence rule ("Más detalles"); missing or null: none.
     recurrence: optionalRecurrenceSchema.optional(),
+    tags: taskTagsSchema.optional(),
   })
   .superRefine(checkPlacement);
 
@@ -180,6 +185,7 @@ export const CREATE_TASK_FIELDS = [
   "dueDate",
   "priority",
   "recurrence",
+  "tags",
 ] as const;
 
 /**

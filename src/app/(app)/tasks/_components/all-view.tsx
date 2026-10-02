@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderKanban, LayoutGrid, ListTodo, SearchX } from "lucide-react";
+import { FolderKanban, LayoutGrid, ListTodo, SearchX, Tag, Tags } from "lucide-react";
 import Link from "next/link";
 import { useCallback } from "react";
 import { AreaTag, Icon, keyClasses } from "@/design-system";
@@ -12,6 +12,7 @@ import {
 } from "@/modules/tasks/task-filters";
 import type { TaskItem } from "@/modules/tasks/task-input";
 import { isPendingMatching, type TaskFilters } from "@/modules/tasks/task-views";
+import { TAGS_COPY } from "@/modules/tasks/tags-copy";
 import { TASK_VIEW_LABELS } from "@/modules/tasks/tasks-copy";
 import { VIEWS_COPY } from "@/modules/tasks/views-copy";
 import { TaskFilter } from "./task-filter";
@@ -34,9 +35,10 @@ type AllViewProps = {
  */
 export function AllView({ tasks, filters, choices, params, headingId }: AllViewProps) {
   const belongs = useCallback((task: TaskItem) => isPendingMatching(task, filters), [filters]);
-  const filtered = params.area !== null || params.project !== null;
+  const filtered = params.area !== null || params.project !== null || params.tagId !== null;
   const area = choices.areas.find((item) => item.id === filters.areaId) ?? null;
   const project = choices.projects.find((item) => item.id === filters.projectId) ?? null;
+  const tag = choices.tags.find((item) => item.id === filters.tagId) ?? null;
 
   const areaOptions: FilterOption[] = [
     {
@@ -88,6 +90,30 @@ export function AllView({ tasks, filters, choices, params, headingId }: AllViewP
       title: <span className="block truncate">{option.name}</span>,
       // With an area chosen, every project is of that area: no need to repeat it.
       subtitle: area === null && option.area ? option.area.name : undefined,
+    })),
+  ];
+
+  // T4: tags by id (`?etiqueta=<tagId>`); the links keep the area and the project.
+  const tagOptions: FilterOption[] = [
+    {
+      id: null,
+      href: allViewHref({ ...params, tagId: null }),
+      title: (
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <Icon icon={Tags} size="sm" className="shrink-0 text-text-secondary" />
+          {TAGS_COPY.filterAllOption}
+        </span>
+      ),
+    },
+    ...choices.tags.map((option) => ({
+      id: option.id,
+      href: allViewHref({ ...params, tagId: option.id }),
+      title: (
+        <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+          <Icon icon={Tag} size="sm" className="shrink-0 text-text-secondary" />
+          <span className="truncate">{option.name}</span>
+        </span>
+      ),
     })),
   ];
 
@@ -161,7 +187,23 @@ export function AllView({ tasks, filters, choices, params, headingId }: AllViewP
               }
               nameOf={(id) => choices.projects.find((item) => item.id === id)?.name ?? null}
             />
-            {/* ── T4 slot (Etiqueta): another generic <TaskFilter> ("Etiqueta:"), its options built like the projects ones (`id` = tag id, `href` = allViewHref({ ...params, tagId })). ── */}
+            <TaskFilter
+              trigger={TAGS_COPY.filterTrigger}
+              triggerName={TAGS_COPY.filterTriggerName}
+              valueName={tag?.name ?? TAGS_COPY.filterAll}
+              value={
+                <span className="inline-flex min-w-0 items-center gap-1.5" data-tag-filter="">
+                  <Icon icon={Tag} size="sm" className="shrink-0" />
+                  <span className="truncate">{tag?.name ?? TAGS_COPY.filterAll}</span>
+                </span>
+              }
+              sheetTitle={TAGS_COPY.filterTitle}
+              listLabel={TAGS_COPY.filterOptions}
+              options={tagOptions}
+              selectedId={filters.tagId}
+              note={choices.tags.length > 0 ? undefined : TAGS_COPY.filterNone}
+              nameOf={(id) => choices.tags.find((item) => item.id === id)?.name ?? null}
+            />
           </div>
         </>
       )}
@@ -170,7 +212,7 @@ export function AllView({ tasks, filters, choices, params, headingId }: AllViewP
           <ViewEmpty icon={SearchX} title={VIEWS_COPY.filteredEmptyTitle} view="todas">
             <p className="bo-text-body-sm text-text-secondary">{VIEWS_COPY.filteredEmptyText}</p>
             <Link
-              href={allViewHref({ area: null, project: null })}
+              href={allViewHref({ area: null, project: null, tagId: null })}
               prefetch={false}
               className={keyClasses({ variant: "ghost" })}
             >

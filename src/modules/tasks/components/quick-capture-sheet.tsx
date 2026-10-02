@@ -11,6 +11,7 @@ import { createTask, listTaskTargets } from "../actions";
 import { INBOX_VALUE, placementName, toPlacement, type PlacementValue } from "../placement";
 import type { TaskPriority } from "../task-constants";
 import { createTaskInputSchema, type TaskItem, type TaskTargets } from "../task-input";
+import { TAGS_COPY } from "../tags-copy";
 import { TASKS_COPY } from "../tasks-copy";
 import {
   draftFromRule,
@@ -22,6 +23,8 @@ import { DateField } from "./date-field";
 import { PlacementSelect } from "./placement-select";
 import { PriorityPicker } from "./priority-picker";
 import { RecurrenceEditor } from "./recurrence-editor";
+import { TagInput } from "./tag-input";
+import { useKnownTags } from "./use-known-tags";
 
 /** The server's errors on the recurrence rule (`recurrence.<field>`). */
 function recurrenceErrorsOf(fieldErrors: FieldErrors | undefined): RecurrenceDraftErrors {
@@ -33,7 +36,7 @@ function recurrenceErrorsOf(fieldErrors: FieldErrors | undefined): RecurrenceDra
   return errors;
 }
 
-type Field = "title" | "placement" | "dueDate" | "priority";
+type Field = "title" | "placement" | "dueDate" | "priority" | "tags";
 type Errors = Partial<Record<Field, string>>;
 
 /** The server's field errors on the capture's own fields (area/project/milestone → placement). */
@@ -44,14 +47,17 @@ function errorsOf(fieldErrors: FieldErrors | undefined): Errors {
   const placement = first("lifeAreaId") ?? first("projectId") ?? first("milestoneId");
   const dueDate = first("dueDate");
   const priority = first("priority");
+  // T4: "tags" or "tags.<n>" (one of them).
+  const tags = Object.entries(fieldErrors ?? {}).find(([key]) => key.split(".")[0] === "tags")?.[1][0];
   if (title) errors.title = title;
   if (placement) errors.placement = placement;
   if (dueDate) errors.dueDate = dueDate;
   if (priority) errors.priority = priority;
+  if (tags) errors.tags = tags;
   return errors;
 }
 
-const FIELD_ORDER: Field[] = ["title", "placement", "dueDate", "priority"];
+const FIELD_ORDER: Field[] = ["title", "placement", "dueDate", "priority", "tags"];
 
 /**
  * Quick capture (SPEC-tasks: under 10 s on the phone). The title has focus; area or project and
@@ -71,6 +77,8 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
   const [placement, setPlacement] = useState<PlacementValue>(INBOX_VALUE);
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [tags, setTags] = useState<string[]>([]);
+  const knownTags = useKnownTags();
   const [detailsOpen, setDetailsOpen] = useState(false);
   // T3: the recurrence rule (none by default), its errors shown after a submit.
   // Lima's "today" for the editor: refreshed when "Más detalles" opens (the editor shows only
@@ -123,7 +131,9 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
           ? placementSelect.current
           : first === "dueDate"
             ? dueInput.current
-            : null;
+            : first === "tags"
+              ? document.getElementById(`${ids}-tags`)
+              : null;
     // After the commit settles: a select focused mid-commit stalled the transition in jsdom.
     // (No cleanup: the next render would cancel it.)
     window.setTimeout(() => target?.focus(), 0);
@@ -159,7 +169,7 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
     const fieldErrors = errorsOf(result.fieldErrors);
     focusFirstInvalid.current = true;
     setErrors(fieldErrors);
-    if (fieldErrors.priority) setDetailsOpen(true);
+    if (fieldErrors.priority || fieldErrors.tags) setDetailsOpen(true);
     setFormError(Object.keys(fieldErrors).length > 0 ? null : result.error);
     // Enter leaves focus in the title, so moving focus there says nothing: the first field error
     // is read through the sheet's status region (the general error is a role="alert" below).
@@ -193,6 +203,8 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
       priority,
       // Only a rule is sent (none: the field is left out).
       recurrence: rule.ok && rule.rule ? rule.rule : undefined,
+      // Only with some: a capture without tags sends what it did before T4.
+      ...(tags.length > 0 ? { tags } : {}),
     });
     if (!parsed.success) {
       const failed = fail(parsed.error);
@@ -231,6 +243,7 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
       setRecurrence(draftFromRule(null, savedAt));
       setRecurrenceShowErrors(false);
       setRecurrenceServerErrors({});
+      setTags([]);
       setErrors({});
       titleInput.current?.focus();
       announce(where ? TASKS_COPY.addedTo(where) : TASKS_COPY.addedToInbox);
@@ -367,7 +380,17 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
                 labelledBy={priorityLabelId}
               />
             </div>
-            {/* ── T4 slot (Etiquetas): the tag field goes here. ── */}
+            <TagInput
+              id={`${ids}-tags`}
+              label={TAGS_COPY.label}
+              value={tags}
+              known={knownTags}
+              error={errors.tags}
+              onValueChange={(next) => {
+                setTags(next);
+                clearError("tags");
+              }}
+            />
 
             <div ref={recurrenceRef}>
               <RecurrenceEditor

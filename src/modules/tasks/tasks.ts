@@ -25,6 +25,7 @@ import {
   type SpawnInbox,
   type SpawnUndo,
 } from "./recurrence-db";
+import { writeTaskTags } from "./tag-links";
 import type {
   CreateTaskInput,
   DeletedTask,
@@ -299,6 +300,8 @@ export async function insertTask(
         ...recurrenceColumns(input.recurrence),
       })
       .returning({ id: tasks.id });
+    // T4: its tags, created on first use, in the same transaction.
+    if (input.tags?.length) await writeTaskTags(tx, created.id, input.tags, { fresh: true });
     return (await selectTaskById(tx, created.id)) as TaskItem;
   });
 }
