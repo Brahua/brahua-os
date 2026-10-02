@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "tasks_spawned_from_unique" ON "tasks" USING btree ("spawned_from_id") WHERE "tasks"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "tasks_spawned_from_id_idx" ON "tasks" USING btree ("spawned_from_id");

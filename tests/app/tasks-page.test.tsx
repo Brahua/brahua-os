@@ -65,6 +65,28 @@ vi.mock("@/modules/tasks/actions", () => ({
   deleteTask: vi.fn(),
   restoreTask: vi.fn(),
 }));
+// T3: the list completes and undoes through the recurrence variants; here they answer like the
+// plain actions above (no next occurrence), so these tests drive `completeTask` / `reopenTask`.
+vi.mock("@/modules/tasks/recurrence-actions", async () => {
+  const actions = await import("@/modules/tasks/actions");
+  return {
+    setTaskRecurrence: vi.fn(),
+    completeTaskWithNext: vi.fn(async (input: { id: string }) => {
+      const result = await actions.completeTask(input);
+      return result.ok
+        ? { ok: true, data: { task: result.data, next: null, nextInbox: null } }
+        : result;
+    }),
+    reopenTaskWithSpawn: vi.fn(async (input: { id: string }) => {
+      const result = await actions.reopenTask(input);
+      return result.ok ? { ok: true, data: { task: result.data, spawn: null } } : result;
+    }),
+    restoreTaskWithSpawn: vi.fn(async (input: { id: string }) => {
+      const result = await actions.restoreTask(input);
+      return result.ok ? { ok: true, data: { task: result.data, detached: false } } : result;
+    }),
+  };
+});
 
 // 10:00 in Lima on Oct 2, 2026.
 const NOW = new Date("2026-10-02T15:00:00.000Z");

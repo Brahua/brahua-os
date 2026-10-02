@@ -1,10 +1,12 @@
 "use client";
 
-import { FolderInput, Undo2 } from "lucide-react";
+import { FolderInput, Repeat, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useId } from "react";
-import { AreaTag, IconKey, Key, Led } from "@/design-system";
+import { AreaTag, Icon, IconKey, Key, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
+import { recurrenceSummary } from "../recurrence";
+import { RECURRENCE_COPY } from "../recurrence-copy";
 import { taskPath } from "../routes";
 import { isUrgentDue, taskDueState } from "../task-due";
 import type { TaskItem } from "../task-input";
@@ -55,6 +57,7 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: T
     areaLabel,
     due?.label,
     task.priority === "high" ? TASKS_COPY.highPriority : null,
+    task.recurrence ? RECURRENCE_COPY.rowDescription(recurrenceSummary(task.recurrence)) : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -121,7 +124,15 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: T
                 {TASKS_COPY.highPriorityShort}
               </span>
             ) : null}
-            {/* ── T3 slot (Recurrencia): the recurrence icon, from task.recurrence. ── */}
+            {task.recurrence ? (
+              <span
+                className="inline-flex items-center text-text-secondary"
+                title={recurrenceSummary(task.recurrence)}
+                data-task-recurrence=""
+              >
+                <Icon icon={Repeat} size="sm" />
+              </span>
+            ) : null}
 
             {/* ── T4 slot (Etiquetas): the tags, from task.tags. ── */}
           </p>

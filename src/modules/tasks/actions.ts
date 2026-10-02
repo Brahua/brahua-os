@@ -137,9 +137,9 @@ export async function deleteTask(input: unknown): Promise<ActionResult<DeletedTa
 const restore = ownerAction(
   taskIdInputSchema,
   async ({ id }) => {
-    const task = await restoreTaskById(getDb(), id);
+    const restored = await restoreTaskById(getDb(), id);
     revalidateTask(id);
-    return task ? ok(task) : fail(TASK_ERRORS.notFound);
+    return restored ? ok(restored.task) : fail(TASK_ERRORS.notFound);
   },
   { name: "restoreTask" },
 );

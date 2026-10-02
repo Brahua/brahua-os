@@ -12,9 +12,26 @@ import { INBOX_VALUE, placementName, toPlacement, type PlacementValue } from "..
 import type { TaskPriority } from "../task-constants";
 import { createTaskInputSchema, type TaskItem, type TaskTargets } from "../task-input";
 import { TASKS_COPY } from "../tasks-copy";
+import {
+  draftFromRule,
+  ruleFromDraft,
+  type RecurrenceDraft,
+  type RecurrenceDraftErrors,
+} from "../recurrence-draft";
 import { DateField } from "./date-field";
 import { PlacementSelect } from "./placement-select";
 import { PriorityPicker } from "./priority-picker";
+import { RecurrenceEditor } from "./recurrence-editor";
+
+/** The server's errors on the recurrence rule (`recurrence.<field>`). */
+function recurrenceErrorsOf(fieldErrors: FieldErrors | undefined): RecurrenceDraftErrors {
+  const errors: RecurrenceDraftErrors = {};
+  for (const field of ["interval", "weekdays", "monthDay"] as const) {
+    const message = fieldErrors?.[`recurrence.${field}`]?.[0];
+    if (message) errors[field] = message;
+  }
+  return errors;
+}
 
 type Field = "title" | "placement" | "dueDate" | "priority";
 type Errors = Partial<Record<Field, string>>;
@@ -55,6 +72,14 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // T3: the recurrence rule (none by default), its errors shown after a submit.
+  // Lima's "today" for the editor: refreshed when "Más detalles" opens (the editor shows only
+  // then) and after each save, so a sheet kept open past midnight doesn't use yesterday.
+  const [now, setNow] = useState(() => new Date());
+  const [recurrence, setRecurrence] = useState<RecurrenceDraft>(() => draftFromRule(null, now));
+  const [recurrenceShowErrors, setRecurrenceShowErrors] = useState(false);
+  const [recurrenceServerErrors, setRecurrenceServerErrors] = useState<RecurrenceDraftErrors>({});
+  const recurrenceRef = useRef<HTMLDivElement>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -110,7 +135,27 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
     window.setTimeout(() => setAnnouncement(message), 50);
   }
 
+  /** A rule that can't be saved yet: open "Más detalles", show why and go there. */
+  function showRecurrenceErrors(errors: RecurrenceDraftErrors) {
+    setDetailsOpen(true);
+    setRecurrenceShowErrors(true);
+    const first = errors.interval ?? errors.weekdays ?? errors.monthDay;
+    if (first) announce(first);
+    // After the commit (the details were hidden): the invalid field, or the first weekday.
+    window.setTimeout(() => {
+      recurrenceRef.current
+        ?.querySelector<HTMLElement>('[aria-invalid="true"], [data-weekday]')
+        ?.focus();
+    }, 0);
+  }
+
   function showErrors(result: { error: string; fieldErrors?: FieldErrors }) {
+    const serverRecurrence = recurrenceErrorsOf(result.fieldErrors);
+    if (Object.keys(serverRecurrence).length > 0) {
+      setRecurrenceServerErrors(serverRecurrence);
+      showRecurrenceErrors(serverRecurrence);
+      return;
+    }
     const fieldErrors = errorsOf(result.fieldErrors);
     focusFirstInvalid.current = true;
     setErrors(fieldErrors);
@@ -140,15 +185,22 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
+    const rule = ruleFromDraft(recurrence);
     const parsed = createTaskInputSchema.safeParse({
       title,
       ...toPlacement(placement),
       dueDate,
       priority,
+      // Only a rule is sent (none: the field is left out).
+      recurrence: rule.ok && rule.rule ? rule.rule : undefined,
     });
     if (!parsed.success) {
       const failed = fail(parsed.error);
       if (!failed.ok) showErrors(failed);
+      return;
+    }
+    if (!rule.ok) {
+      showRecurrenceErrors(rule.errors);
       return;
     }
     setFormError(null);
@@ -174,6 +226,11 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
       setPlacement(INBOX_VALUE);
       setDueDate("");
       setPriority("medium");
+      const savedAt = new Date();
+      setNow(savedAt);
+      setRecurrence(draftFromRule(null, savedAt));
+      setRecurrenceShowErrors(false);
+      setRecurrenceServerErrors({});
       setErrors({});
       titleInput.current?.focus();
       announce(where ? TASKS_COPY.addedTo(where) : TASKS_COPY.addedToInbox);
@@ -283,7 +340,15 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
             className="bo-text-body-sm flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-md font-semibold text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
-            onClick={() => setDetailsOpen((value) => !value)}
+            onClick={() => {
+              if (!detailsOpen) {
+                const openedAt = new Date();
+                setNow(openedAt);
+                // Without a rule yet, its defaults (today's weekday and day) follow today.
+                if (recurrence.mode === "none") setRecurrence(draftFromRule(null, openedAt));
+              }
+              setDetailsOpen((value) => !value);
+            }}
           >
             <Icon icon={ChevronDown} size="sm" className={cn(detailsOpen && "rotate-180")} />
             {TASKS_COPY.moreDetails}
@@ -304,7 +369,20 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
             </div>
             {/* ── T4 slot (Etiquetas): the tag field goes here. ── */}
 
-            {/* ── T3 slot (Recurrencia): the recurrence editor goes here. ── */}
+            <div ref={recurrenceRef}>
+              <RecurrenceEditor
+                id={`${ids}-recurrence`}
+                draft={recurrence}
+                now={now}
+                dueDate={dueDate || null}
+                showErrors={recurrenceShowErrors}
+                serverErrors={recurrenceServerErrors}
+                onDraftChange={(next) => {
+                  setRecurrence(next);
+                  setRecurrenceServerErrors({});
+                }}
+              />
+            </div>
           </div>
         </div>
 

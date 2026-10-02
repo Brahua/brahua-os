@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AreaColor, AreaIconName } from "@/design-system/areas";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
+import { optionalRecurrenceSchema } from "./recurrence-input";
 import {
   TASK_PRIORITIES,
   TASK_TITLE_MAX_LENGTH,
@@ -158,7 +159,14 @@ export type TaskPlacement = z.output<typeof taskPlacementSchema>;
 
 /** Quick capture and inline add: a title, and optionally where it goes, a due date and priority. */
 export const createTaskInputSchema = z
-  .object({ title, ...placementShape, dueDate: day, priority: priority.default("medium") })
+  .object({
+    title,
+    ...placementShape,
+    dueDate: day,
+    priority: priority.default("medium"),
+    // T3: an optional recurrence rule ("Más detalles"); missing or null: none.
+    recurrence: optionalRecurrenceSchema.optional(),
+  })
   .superRefine(checkPlacement);
 
 export type CreateTaskInput = z.output<typeof createTaskInputSchema>;
@@ -171,6 +179,7 @@ export const CREATE_TASK_FIELDS = [
   "milestoneId",
   "dueDate",
   "priority",
+  "recurrence",
 ] as const;
 
 /**

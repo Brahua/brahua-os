@@ -156,6 +156,13 @@ export const tasks = pgTable(
     // The FK's restrict check when a milestone row is deleted (milestones are soft-deleted, but
     // a cascade from a project would look here).
     index("tasks_milestone_id_idx").on(table.milestoneId),
+    // Recurrence (T3): a completion spawns at most one live occurrence (defense in depth behind
+    // the done_at guard: a double tap or a re-completion never leaves two).
+    uniqueIndex("tasks_spawned_from_unique")
+      .on(table.spawnedFromId)
+      .where(sql`${table.deletedAt} is null`),
+    // "The occurrence this one spawned" (undo) and the self-FK's restrict check, deleted rows too.
+    index("tasks_spawned_from_id_idx").on(table.spawnedFromId),
   ],
 );
 
