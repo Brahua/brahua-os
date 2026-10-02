@@ -12,6 +12,9 @@ import { TASK_ERRORS } from "./task-input";
 
 export { TASK_NOTES_MAX_LENGTH } from "./task-constants";
 
+/** From this many characters on, the notes editor shows how many are used. */
+export const TASK_NOTES_COUNTER_FROM = TASK_NOTES_MAX_LENGTH - 2_000;
+
 const formatCount = (n: number) => n.toLocaleString("es");
 
 export const TASK_NOTES_ERRORS = {
@@ -47,13 +50,17 @@ export type UpdateTaskNotesInput = z.output<typeof updateTaskNotesInputSchema>;
 /** Reading a task's notes (the detail sheet asks when it opens). */
 export const taskNotesInputSchema = z.object({ id });
 
-/** Sets (a milestone id) or clears (null or "") the task's milestone. */
+/**
+ * Sets (a milestone id) or clears (`null` or `""`) the task's milestone. The key is required: a
+ * missing `milestoneId` is a validation error, never a silent clear.
+ */
 export const setTaskMilestoneInputSchema = z.object({
   id,
-  milestoneId: z.preprocess(
-    (value) => (value === "" || value === undefined ? null : value),
-    z.uuid({ error: TASK_ERRORS.milestone }).nullable(),
-  ),
+  milestoneId: z
+    .union([z.literal(""), z.null(), z.uuid({ error: TASK_ERRORS.milestone })], {
+      error: TASK_ERRORS.milestone,
+    })
+    .transform((value) => (value === "" ? null : value)),
 });
 
 /** The milestones a task of this project can be in. */

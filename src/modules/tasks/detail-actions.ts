@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
+import { projectPath } from "@/modules/projects/routes";
 import {
   setTaskMilestoneInputSchema,
   taskMilestoneOptionsInputSchema,
@@ -91,6 +92,8 @@ const setMilestone = ownerAction(
         fieldErrors: { milestoneId: [MILESTONE_FAILURES[result]] },
       };
     }
+    // The project's page groups its tasks by milestone (T5).
+    if (result.projectId) revalidatePath(projectPath(result.projectId));
     return ok(result);
   },
   { name: "setTaskMilestone" },

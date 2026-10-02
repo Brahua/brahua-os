@@ -9,9 +9,11 @@ import type { TaskItem } from "./task-input";
 /** "Próximas": due in the next 7 days, today excluded (today is in "Hoy"). */
 export const UPCOMING_DAYS = 7;
 
-/** "Hechas": done in the last 30 days (counted as instants: 30 × 24 h back from now). */
+/**
+ * "Hechas": done in the last 30 days, by Lima's calendar (from Lima's midnight 30 days before
+ * today), so the window and the "Hecha el …" labels count the same days.
+ */
 export const DONE_WINDOW_DAYS = 30;
-const DAY_MS = 86_400_000;
 
 type ViewTask = Pick<TaskItem, "dueDate" | "doneAt">;
 
@@ -27,13 +29,13 @@ export function isUpcoming(task: ViewTask, now: Date): boolean {
   return left >= 1 && left <= UPCOMING_DAYS;
 }
 
-/** "Hechas": done in the last 30 days. */
+/** "Hechas": done on Lima's day 30 days before today or later. */
 export function isRecentlyDone(task: Pick<TaskItem, "doneAt">, now: Date): boolean {
-  return task.doneAt !== null && now.getTime() - task.doneAt.getTime() <= DONE_WINDOW_DAYS * DAY_MS;
+  return task.doneAt !== null && ownerDateKey(task.doneAt) >= doneSinceDay(now);
 }
 
-/** The first instant "Hechas" includes (for the query). */
-export const doneSince = (now: Date) => new Date(now.getTime() - DONE_WINDOW_DAYS * DAY_MS);
+/** The first Lima day "Hechas" includes (YYYY-MM-DD, for the query). */
+export const doneSinceDay = (now: Date) => addDays(ownerDateKey(now), -DONE_WINDOW_DAYS);
 
 // ── Filters of "Todas" (in the URL) ──────────────────────────────────────────────────────────
 
@@ -44,7 +46,7 @@ export const doneSince = (now: Date) => new Date(now.getTime() - DONE_WINDOW_DAY
 export type TaskFilters = {
   areaId: string | null;
   projectId: string | null;
-  // ── T4 slot (Etiqueta): the tag filter (`tagId`), read from `?etiqueta=`. ──
+  // ── T4 slot (Etiqueta): `tagId: string | null` (the tag id, stable under rename; `?etiqueta=<tagId>`). ──
 };
 
 export const NO_FILTERS: TaskFilters = { areaId: null, projectId: null };

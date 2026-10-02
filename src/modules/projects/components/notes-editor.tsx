@@ -8,8 +8,7 @@ import dynamic from "next/dynamic";
 import { useId, useRef } from "react";
 import { Icon, Key, TextArea } from "@/design-system";
 import type { MarkdownProps } from "@/lib/markdown/markdown";
-import { NOTES_COPY, NOTES_COUNTER_FROM } from "@/modules/projects/notes-links-copy";
-import { PROJECT_NOTES_MAX_LENGTH } from "@/modules/projects/project-notes-input";
+import { NOTES_COPY } from "@/modules/projects/notes-links-copy";
 
 export const loadMarkdown = () =>
   import("@/lib/markdown/markdown").then((module) => module.Markdown);
@@ -80,6 +79,8 @@ export function NotesEditor({
   error,
   textarea,
   headingOffset,
+  maxLength,
+  counterFrom,
   onTab,
   onChange,
   onSave,
@@ -91,6 +92,10 @@ export function NotesEditor({
   textarea: React.RefObject<HTMLTextAreaElement | null>;
   /** Headings in the preview start this many levels down (under the section's heading). */
   headingOffset: NonNullable<MarkdownProps["headingOffset"]>;
+  /** The most characters the notes may have (the schema's limit: the server refuses more). */
+  maxLength: number;
+  /** From this many characters on, the help shows the counter. */
+  counterFrom: number;
   onTab: (tab: NotesTab) => void;
   onChange: (value: string) => void;
   onSave: () => void;
@@ -102,10 +107,10 @@ export function NotesEditor({
   const panelId = (value: NotesTab) => `${ids}-panel-${value}`;
   const used = draft.length;
   const help =
-    used > PROJECT_NOTES_MAX_LENGTH
-      ? NOTES_COPY.overLimit(used)
-      : used >= NOTES_COUNTER_FROM
-        ? NOTES_COPY.counter(used)
+    used > maxLength
+      ? NOTES_COPY.overLimit(used, maxLength)
+      : used >= counterFrom
+        ? NOTES_COPY.counter(used, maxLength)
         : NOTES_COPY.help;
 
   // Automatic activation (WAI-ARIA tabs): arrows, Home and End move and select.

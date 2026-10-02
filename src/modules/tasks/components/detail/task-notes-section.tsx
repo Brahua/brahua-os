@@ -22,7 +22,11 @@ import {
   type NotesTab,
 } from "@/modules/projects/components/notes-editor";
 import { readTaskNotes, updateTaskNotes } from "../../detail-actions";
-import { updateTaskNotesInputSchema } from "../../detail-input";
+import {
+  TASK_NOTES_COUNTER_FROM,
+  TASK_NOTES_MAX_LENGTH,
+  updateTaskNotesInputSchema,
+} from "../../detail-input";
 import { TASKS_COPY } from "../../tasks-copy";
 import { VIEWS_COPY } from "../../views-copy";
 import { useDetailCloseGuard } from "./detail-close-guard";
@@ -206,6 +210,8 @@ export function TaskNotesSection() {
             error={error}
             textarea={textarea}
             headingOffset={headingOffset}
+            maxLength={TASK_NOTES_MAX_LENGTH}
+            counterFrom={TASK_NOTES_COUNTER_FROM}
             onTab={setTab}
             onChange={(value) => {
               setDraft(value);

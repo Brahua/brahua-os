@@ -3,8 +3,9 @@
 // task, or one of a deleted project, is never shown). The rows are sorted with the same pure
 // comparators the client uses (task-views.ts). Callers check the owner first.
 import "server-only";
-import { and, eq, gt, gte, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
+import { OWNER_TIME_ZONE } from "@/lib/time";
 import { tasks } from "./db/schema";
 import type { TaskItem } from "./task-input";
 import { selectItems, toItem, visibleTask } from "./tasks";
@@ -12,7 +13,7 @@ import {
   addDays,
   compareByDoneDesc,
   compareByDue,
-  doneSince,
+  doneSinceDay,
   limaToday,
   UPCOMING_DAYS,
 } from "./task-views";
@@ -53,11 +54,16 @@ export async function selectPendingTasks(db: Database): Promise<TaskItem[]> {
   return rows.map((row) => toItem(row)).sort(compareByDue);
 }
 
-/** "Hechas": done in the last 30 days, the most recent first. */
+/** "Hechas": done since Lima's day 30 days before today, the most recent first. */
 export async function selectDoneTasks(db: Database, now: Date): Promise<TaskItem[]> {
   const rows = await selectItems(
     db,
-    and(visibleTask, isNotNull(tasks.doneAt), gte(tasks.doneAt, doneSince(now))),
+    and(
+      visibleTask,
+      isNotNull(tasks.doneAt),
+      // By Lima's calendar day, like the client's `isRecentlyDone` and the "Hecha el …" labels.
+      gte(sql`(${tasks.doneAt} at time zone ${OWNER_TIME_ZONE})::date`, doneSinceDay(now)),
+    ),
   );
   return rows.map((row) => toItem(row)).sort(compareByDoneDesc);
 }

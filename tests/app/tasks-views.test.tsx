@@ -8,7 +8,7 @@ import { DoneView } from "@/app/(app)/tasks/_components/date-views";
 import TasksPage from "@/app/(app)/tasks/page";
 import { fail, ok } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
-import { completeTask, reopenTask } from "@/modules/tasks/actions";
+import { completeTask, deleteTask, reopenTask } from "@/modules/tasks/actions";
 import { TaskDetailSheet } from "@/modules/tasks/components/detail/task-detail-sheet";
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
 import {
@@ -300,9 +300,11 @@ describe("views", () => {
     await user.click(
       screen.getByRole("button", { name: "Deshacer «lavar ropa» (vuelve a pendientes)" }),
     );
-    // Gone at once; focus goes to the next row.
+    // Gone at once; focus goes to the same control of the next row (its "Deshacer").
     expect(screen.queryByRole("link", { name: "lavar ropa" })).toBeNull();
-    expect(screen.getByRole("checkbox", { name: "Hecha: sacar basura" })).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "Deshacer «sacar basura» (vuelve a pendientes)" }),
+    ).toHaveFocus();
     expect(reopenTask).toHaveBeenCalledWith({ id: DONE_TODAY.id });
     await act(async () => reopened(ok({ ...DONE_TODAY, doneAt: null })));
     const notices = screen.getByRole("region", { name: "Avisos" });
@@ -446,6 +448,83 @@ describe("detail: Notas", () => {
     onOpenChange.mockClear();
     await user.click(within(dialog).getByRole("button", { name: /Cerrar/ }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("detail: Notas, leaving the sheet", () => {
+  function renderSheet(onOpenChange = vi.fn(), onDeleted = vi.fn()) {
+    desktop = true;
+    render(
+      <TasksScreen now={NOW} targets={TARGETS}>
+        <TaskDetailSheet
+          open
+          onOpenChange={onOpenChange}
+          task={TODAY}
+          returnFocusRef={{ current: null }}
+          onDeleted={onDeleted}
+        />
+      </TasksScreen>,
+    );
+    return { onOpenChange, onDeleted };
+  }
+
+  async function startDraft(user: ReturnType<typeof userEvent.setup>) {
+    const dialog = await screen.findByRole("dialog", { name: "regar plantas" });
+    const section = within(dialog).getByRole("region", { name: "Notas" });
+    await user.click(await within(section).findByRole("button", { name: "Escribir notas" }));
+    await user.type(within(section).getByRole("textbox", { name: "Notas en Markdown" }), "algo");
+    return { dialog, section };
+  }
+
+  test("Escape on the confirmation keeps the sheet open and the draft", async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    const { onOpenChange } = renderSheet();
+    const { dialog, section } = await startDraft(user);
+    await user.click(within(dialog).getByRole("button", { name: /Cerrar/ }));
+    const confirm = within(dialog).getByRole("group", {
+      name: "Tienes cambios sin guardar en las notas.",
+    });
+    expect(within(confirm).getByRole("button", { name: "Seguir editando" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "regar plantas" })).toBeInTheDocument();
+    expect(within(section).getByRole("textbox", { name: "Notas en Markdown" })).toHaveValue("algo");
+  });
+
+  test("Eliminar tarea with unsaved notes asks first; Salir sin guardar then deletes", async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    vi.mocked(deleteTask)
+      .mockReset()
+      .mockResolvedValue(ok({ id: TODAY.id, title: TODAY.title }));
+    const { onDeleted } = renderSheet();
+    const { dialog } = await startDraft(user);
+    await user.click(within(dialog).getByRole("button", { name: "Eliminar tarea" }));
+    expect(deleteTask).not.toHaveBeenCalled();
+    const confirm = within(dialog).getByRole("group", {
+      name: "Tienes cambios sin guardar en las notas.",
+    });
+    await user.click(within(confirm).getByRole("button", { name: "Salir sin guardar" }));
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(deleteTask).toHaveBeenCalledWith({ id: TODAY.id });
+  });
+
+  test("on the page, Eliminar tarea with unsaved notes asks first too", async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    vi.mocked(deleteTask)
+      .mockReset()
+      .mockResolvedValue(ok({ id: TODAY.id, title: TODAY.title }));
+    vi.mocked(getTask).mockResolvedValue(TODAY);
+    render(await TaskPage({ params: Promise.resolve({ id: TODAY.id }) }));
+    const section = screen.getByRole("region", { name: "Notas" });
+    await user.click(within(section).getByRole("button", { name: "Escribir notas" }));
+    await user.type(within(section).getByRole("textbox", { name: "Notas en Markdown" }), "algo");
+    await user.click(screen.getByRole("button", { name: "Eliminar tarea" }));
+    expect(deleteTask).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Salir sin guardar" }));
+    await waitFor(() => expect(deleteTask).toHaveBeenCalledWith({ id: TODAY.id }));
   });
 });
 

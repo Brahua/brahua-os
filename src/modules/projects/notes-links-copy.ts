@@ -18,9 +18,10 @@ export const NOTES_COPY = {
   tabPreview: "Vista previa",
   textLabel: "Notas en Markdown",
   help: "Markdown: **negrita**, _cursiva_, listas, [enlace](https://…), tablas y casillas (- [ ]). ⌘↵ o Ctrl+↵ guarda.",
-  counter: (used: number) => `${count(used)} de ${count(PROJECT_NOTES_MAX_LENGTH)} caracteres.`,
-  overLimit: (used: number) =>
-    `${count(used)} de ${count(PROJECT_NOTES_MAX_LENGTH)} caracteres: quita ${count(used - PROJECT_NOTES_MAX_LENGTH)} para guardar.`,
+  /** The editor's counter, for any limit (projects and tasks both allow 20 000 today). */
+  counter: (used: number, max: number) => `${count(used)} de ${count(max)} caracteres.`,
+  overLimit: (used: number, max: number) =>
+    `${count(used)} de ${count(max)} caracteres: quita ${count(used - max)} para guardar.`,
   previewEmpty: "Nada que mostrar todavía.",
   previewLoading: "Cargando la vista previa…",
   save: "Guardar",

@@ -36,6 +36,11 @@ type TaskFilterProps = {
  * projects' area filter. It opens a sheet of links (`?area=…`, `?proyecto=…`), so the filter
  * survives a reload or a shared link. Once the page shows the picked option and the sheet is
  * gone, the result is announced.
+ *
+ * Generic: it knows nothing about areas or projects. Each filter passes its own options (`id`,
+ * `href`, `title`, optional `subtitle`; `id: null` is "all"), the value shown on the key and the
+ * names to announce. "Todas" renders it for Área and Proyecto; T4 renders it for Etiqueta
+ * (`id` = tag id, `href` = `allViewHref({ ...params, tagId })`).
  */
 export function TaskFilter({
   trigger,

@@ -125,12 +125,17 @@ describe("Próximas", () => {
 });
 
 describe("Hechas", () => {
-  test("done in the last 30 days; pending never", () => {
+  test("done from Lima's midnight 30 days ago on (Lima days, like the labels); pending never", () => {
     expect(isRecentlyDone(task({ doneAt: LIMA_MORNING }), LIMA_MORNING)).toBe(true);
-    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T15:00:00Z") }), LIMA_MORNING)).toBe(
+    // 00:00 on Sep 2 in Lima is 05:00 UTC: in; a second earlier (Sep 1 in Lima): out.
+    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T05:00:00Z") }), LIMA_MORNING)).toBe(
       true,
     );
-    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T14:59:59Z") }), LIMA_MORNING)).toBe(
+    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T04:59:59Z") }), LIMA_MORNING)).toBe(
+      false,
+    );
+    // At Lima's midnight the window moves a day.
+    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T05:00:00Z") }), LIMA_MIDNIGHT)).toBe(
       false,
     );
     expect(isRecentlyDone(task(), LIMA_MORNING)).toBe(false);

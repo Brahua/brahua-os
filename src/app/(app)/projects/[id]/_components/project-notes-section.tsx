@@ -11,9 +11,12 @@ import {
   NotesLeaveConfirm,
   type NotesTab,
 } from "@/modules/projects/components/notes-editor";
-import { NOTES_COPY } from "@/modules/projects/notes-links-copy";
+import { NOTES_COPY, NOTES_COUNTER_FROM } from "@/modules/projects/notes-links-copy";
 import { updateProjectNotes } from "@/modules/projects/notes-actions";
-import { updateProjectNotesInputSchema } from "@/modules/projects/project-notes-input";
+import {
+  PROJECT_NOTES_MAX_LENGTH,
+  updateProjectNotesInputSchema,
+} from "@/modules/projects/project-notes-input";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
 import { useInlineEditor } from "./inline-editor";
 import { useProjectDetail } from "./project-detail-context";
@@ -139,6 +142,8 @@ export function ProjectNotesSection({ rendered }: ProjectNotesSectionProps) {
             error={error}
             textarea={textarea}
             headingOffset={HEADING_OFFSET}
+            maxLength={PROJECT_NOTES_MAX_LENGTH}
+            counterFrom={NOTES_COUNTER_FROM}
             onTab={setTab}
             onChange={(value) => {
               setDraft(value);

@@ -167,9 +167,17 @@ describe("Hechas", () => {
     await insert({ title: "ayer", doneAt: new Date("2026-10-01T15:00:00Z") });
     await insert({ title: "hace 30 días justos", doneAt: new Date("2026-09-02T15:00:00Z") });
     await insert({ title: "hace 31 días", doneAt: new Date("2026-09-01T15:00:00Z") });
+    // 23:59:59 on Sep 1 in Lima (already Sep 2 in UTC): outside, by Lima's day.
+    await insert({ title: "1 set. 23:59 Lima", doneAt: new Date("2026-09-02T04:59:59Z") });
+    await insert({ title: "2 set. 00:00 Lima", doneAt: new Date("2026-09-02T05:00:00Z") });
     await insert({ title: "hoy", doneAt: new Date("2026-10-02T14:00:00Z") });
     await insert({ title: "pendiente" });
-    expect(titles(await listDoneTasks(NOW))).toEqual(["hoy", "ayer", "hace 30 días justos"]);
+    expect(titles(await listDoneTasks(NOW))).toEqual([
+      "hoy",
+      "ayer",
+      "hace 30 días justos",
+      "2 set. 00:00 Lima",
+    ]);
   });
 });
 
@@ -296,10 +304,28 @@ describe("milestone", () => {
     expect(set.ok && set.data.milestoneId).toBe(milestone.id);
     expect(revalidatePath).toHaveBeenCalledWith("/tasks");
     expect(revalidatePath).toHaveBeenCalledWith(`/tasks/${task.id}`);
+    expect(revalidatePath).toHaveBeenCalledWith(`/projects/${project.id}`);
     const cleared = await setTaskMilestone({ id: task.id, milestoneId: "" });
     expect(cleared.ok && cleared.data.milestoneId).toBeNull();
     const [stored] = await testDb.select().from(tasks).where(eq(tasks.id, task.id));
     expect(stored.milestoneId).toBeNull();
+    // null clears too.
+    await setTaskMilestone({ id: task.id, milestoneId: milestone.id });
+    const nulled = await setTaskMilestone({ id: task.id, milestoneId: null });
+    expect(nulled.ok && nulled.data.milestoneId).toBeNull();
+  });
+
+  test("a missing milestoneId is a validation error, never a silent clear", async () => {
+    const project = await newProject();
+    const milestone = await newMilestone(project.id);
+    const task = await insert({ title: "x", projectId: project.id, milestoneId: milestone.id });
+    expect(await setTaskMilestone({ id: task.id })).toMatchObject({
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { milestoneId: [TASK_ERRORS.milestone] },
+    });
+    const [stored] = await testDb.select().from(tasks).where(eq(tasks.id, task.id));
+    expect(stored.milestoneId).toBe(milestone.id);
   });
 
   test("another project's milestone, a deleted one, or a task without a project: refused", async () => {

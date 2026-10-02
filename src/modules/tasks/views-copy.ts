@@ -41,7 +41,8 @@ export const VIEWS_COPY = {
   projectFilterOptions: "Proyectos",
   allProjects: "Todos",
   allProjectsOption: "Todos los proyectos",
-  noProjects: "Ningún proyecto tiene tareas pendientes en esta área.",
+  noProjects: "Ningún proyecto tiene tareas pendientes.",
+  noProjectsInArea: (area: string) => `Ningún proyecto de «${area}» tiene tareas pendientes.`,
   filterApplied: (what: string) => `Filtro aplicado: ${what}.`,
   filterCleared: "Sin filtro.",
 
@@ -62,6 +63,8 @@ export const VIEWS_COPY = {
   milestoneHelp: "Opcional. Los hitos de este proyecto.",
   milestoneNone: "Este proyecto no tiene hitos.",
   milestoneLoading: "Cargando los hitos…",
+  milestoneLoadingOption: "Cargando…",
+  milestoneCurrentOption: "El hito actual",
   milestoneLoadFailed: "No se pudieron cargar los hitos. Inténtalo de nuevo en un momento.",
   milestoneSaved: "Se guardó el hito.",
   milestoneCleared: "La tarea quedó sin hito.",

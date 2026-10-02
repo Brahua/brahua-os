@@ -7,7 +7,7 @@ import type { TaskFilters } from "./task-views";
 
 export const AREA_PARAM = "area";
 export const PROJECT_PARAM = "proyecto";
-// ── T4 slot (Etiqueta): `TAG_PARAM = "etiqueta"`. ──
+// ── T4 slot (Etiqueta): `TAG_PARAM = "etiqueta"` (its value is the tag id, `?etiqueta=<tagId>`). ──
 
 /** An area the filter offers; `archived` when it is only there because a task still shows it. */
 export type AreaFilterChoice = TaskAreaSummary & { archived: boolean };
@@ -21,7 +21,7 @@ export type FilterChoices = { areas: AreaFilterChoice[]; projects: ProjectFilter
 export type FilterParams = {
   area: string | null;
   project: string | null;
-  // ── T4 slot (Etiqueta): `tag: string | null`. ──
+  // ── T4 slot (Etiqueta): `tagId: string | null` (a uuid, like `project`). ──
 };
 
 const collator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
@@ -101,7 +101,7 @@ export function allViewHref(params: FilterParams): string {
   const search = new URLSearchParams({ [VIEW_PARAM]: "todas" });
   if (params.area) search.set(AREA_PARAM, params.area);
   if (params.project) search.set(PROJECT_PARAM, params.project);
-  // ── T4 slot (Etiqueta): `if (params.tag) search.set(TAG_PARAM, params.tag);` ──
+  // ── T4 slot (Etiqueta): `if (params.tagId) search.set(TAG_PARAM, params.tagId);` ──
 
   return `${TASKS_PATH}?${search.toString()}`;
 }

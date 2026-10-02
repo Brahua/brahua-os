@@ -152,10 +152,16 @@ export function AllView({ tasks, filters, choices, params, headingId }: AllViewP
               listLabel={VIEWS_COPY.projectFilterOptions}
               options={projectOptions}
               selectedId={filters.projectId}
-              note={choices.projects.length === 0 ? VIEWS_COPY.noProjects : undefined}
+              note={
+                choices.projects.length > 0
+                  ? undefined
+                  : area
+                    ? VIEWS_COPY.noProjectsInArea(area.name)
+                    : VIEWS_COPY.noProjects
+              }
               nameOf={(id) => choices.projects.find((item) => item.id === id)?.name ?? null}
             />
-            {/* ── T4 slot (Etiqueta): the tag filter key. ── */}
+            {/* ── T4 slot (Etiqueta): another generic <TaskFilter> ("Etiqueta:"), its options built like the projects ones (`id` = tag id, `href` = allViewHref({ ...params, tagId })). ── */}
           </div>
         </>
       )}

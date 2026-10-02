@@ -103,7 +103,11 @@ function MilestoneSelect({ projectId }: { projectId: string }) {
           ))}
           {value !== "" && !listed.some((milestone) => milestone.id === value) ? (
             // Loading (or failed): the current one, so the select never shows a wrong value.
-            <option value={value}>{VIEWS_COPY.milestoneLabel}</option>
+            <option value={value}>
+              {options === undefined
+                ? VIEWS_COPY.milestoneLoadingOption
+                : VIEWS_COPY.milestoneCurrentOption}
+            </option>
           ) : null}
         </select>
         <Icon icon={ChevronDown} size="sm" className="bo-select__chevron" />
