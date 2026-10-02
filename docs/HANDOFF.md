@@ -39,12 +39,12 @@
   - Checkpoint final: criterios de éxito cumplidos o diferidos por el owner (2026-10-01): el LCP se acepta por ahora y su medición con datos reales queda en "Backlog técnico" de `tasks/todo.md`; Android es N/A (el owner usa iPhone).
 - **projects:** en curso. `SPEC-projects.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas P1–P6 en `tasks/todo.md`.
   - ✅ P1 (datos, lista y crear): PR #33 integrado. Ver "Cómo funciona projects".
-  - P2 (detalle y edición): rama `feat/projects-p2-detail`, PR abierto, sin merge. Ver "Cómo funciona projects" → "Detalle y edición (P2)", con los puntos de inserción de P3–P5.
+  - P2 (detalle y edición): ✅ PR #36 integrado. Ver "Cómo funciona projects" → "Detalle y edición (P2)", con los puntos de inserción de P3–P5.
   - ✅ P3 (hitos y avance): PR #40 integrado. Ver "Cómo funciona projects" → "Hitos y avance (P3)".
-  - **Siguiente:** revisar y mergear P2; luego P3, P4 y P5 en paralelo.
-  - P4 (dependencias): rama `feat/projects-p4-dependencies`, PR abierto, sin merge. Ver "Cómo funciona projects" → "Dependencias (P4)".
-  - P6 (contratos con otros módulos): rama `feat/projects-p6-contracts`, PR abierto, sin merge. Ver "Cómo funciona projects" → "Contratos (P6)".
-  - P5 (notas y enlaces): rama `feat/projects-p5-notes-links`, PR abierto, sin merge. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
+  - **Siguiente:** Checkpoint final de `projects` con el owner (recorrido completo en celular y escritorio); luego la spec de `tasks`.
+  - P4 (dependencias): ✅ PR #38 integrado. Ver "Cómo funciona projects" → "Dependencias (P4)".
+  - P6 (contratos con otros módulos): ✅ PR #42 integrado. Ver "Cómo funciona projects" → "Contratos (P6)".
+  - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
 ## C2a: pasos del usuario (en orden)
 
