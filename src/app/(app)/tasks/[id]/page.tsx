@@ -4,10 +4,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+import { Markdown } from "@/lib/markdown/markdown";
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
 import { getTask, getTaskTargets } from "@/modules/tasks/queries";
 import { TASKS_PATH } from "@/modules/tasks/routes";
 import { TASKS_COPY } from "@/modules/tasks/tasks-copy";
+import { getTaskNotes } from "@/modules/tasks/view-queries";
 import { TaskPageDetail } from "./task-page-detail";
 
 type TaskPageProps = { params: Promise<{ id: string }> };
@@ -29,7 +31,11 @@ export async function generateMetadata({ params }: TaskPageProps): Promise<Metad
 export default async function TaskPage({ params }: TaskPageProps) {
   await requireOwner();
   const { id } = await params;
-  const [task, targets] = await Promise.all([getTask(id), getTaskTargets()]);
+  const [task, targets, notes] = await Promise.all([
+    getTask(id),
+    getTaskTargets(),
+    getTaskNotes(id),
+  ]);
   if (!task) notFound();
   const now = new Date();
 
@@ -44,7 +50,14 @@ export default async function TaskPage({ params }: TaskPageProps) {
           {TASKS_COPY.backToList}
         </Link>
         <div className="flex max-w-180 flex-col gap-8">
-          <TaskPageDetail task={task} headingId={HEADING_ID} />
+          <TaskPageDetail
+            task={task}
+            headingId={HEADING_ID}
+            notes={notes}
+            // Rendered on the server, so no Markdown code ships for them (`#` is an h3 under
+            // the h2 "Notas").
+            renderedNotes={notes ? <Markdown headingOffset={2}>{notes}</Markdown> : null}
+          />
         </div>
       </div>
     </TasksScreen>

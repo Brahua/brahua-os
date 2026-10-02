@@ -8,6 +8,7 @@ import { TASKS_COPY } from "../../tasks-copy";
 import { DateField } from "../date-field";
 import { PlacementSelect } from "../placement-select";
 import { useSaveTaskField, useTaskDetail } from "./task-detail-context";
+import { TaskMilestoneField } from "./task-milestone-field";
 
 /** A full YYYY-MM-DD from the date input (a half-typed date is ""). */
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,7 +46,7 @@ export function TaskPlanSection() {
           )
         }
       />
-      {/* ── T2 slot (Hito): the milestone picker of the task's project goes here. ── */}
+      <TaskMilestoneField />
       <DateField
         id={`${ids}-due`}
         label={TASKS_COPY.dueLabel}

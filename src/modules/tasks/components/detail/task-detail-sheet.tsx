@@ -2,6 +2,7 @@
 
 import { Sheet } from "@/design-system";
 import type { TaskItem } from "../../task-input";
+import { DetailCloseGuardProvider, useAllowDetailClose } from "./detail-close-guard";
 import { TaskDetail } from "./task-detail";
 import {
   TaskDetailProvider,
@@ -25,7 +26,9 @@ export type TaskDetailSheetProps = {
 export function TaskDetailSheet({ task, onDeleted, ...sheet }: TaskDetailSheetProps) {
   return (
     <TaskDetailProvider task={task} host="sheet" onDeleted={onDeleted}>
-      <DetailSheetFrame {...sheet} />
+      <DetailCloseGuardProvider>
+        <DetailSheetFrame {...sheet} />
+      </DetailCloseGuardProvider>
     </TaskDetailProvider>
   );
 }
@@ -38,10 +41,15 @@ function DetailSheetFrame({
 }: Omit<TaskDetailSheetProps, "task" | "onDeleted">) {
   // The title follows the edits (optimistic), like the page's h1.
   const { task } = useTaskDetail();
+  // Unsaved notes (T2) keep the sheet open and ask inside it first.
+  const allowClose = useAllowDetailClose();
   return (
     <Sheet
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!next && !allowClose(() => onOpenChange(false))) return;
+        onOpenChange(next);
+      }}
       variant="side"
       title={task.title}
       returnFocusRef={returnFocusRef}

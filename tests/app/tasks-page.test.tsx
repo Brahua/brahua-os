@@ -1,5 +1,6 @@
 // T1: /tasks (views as links, the inbox with its rows: complete and undo, classify, delete) and
 // the detail (side sheet on the desktop, the task's page on the phone), against a fake server.
+// The views of T2 are in tasks-views.test.tsx.
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
@@ -41,6 +42,19 @@ vi.mock("@/modules/tasks/queries", () => ({
   getTask: vi.fn(),
   getDeletedTask: vi.fn(),
   getTaskTargets: vi.fn(),
+}));
+vi.mock("@/modules/tasks/view-queries", () => ({
+  listTodayTasks: vi.fn(async () => []),
+  listUpcomingTasks: vi.fn(async () => []),
+  listPendingTasks: vi.fn(async () => []),
+  listDoneTasks: vi.fn(async () => []),
+  getTaskNotes: vi.fn(async () => null),
+}));
+vi.mock("@/modules/tasks/detail-actions", () => ({
+  readTaskNotes: vi.fn(async () => ({ ok: true, data: { notes: null } })),
+  updateTaskNotes: vi.fn(),
+  listTaskMilestones: vi.fn(async () => ({ ok: true, data: [] })),
+  setTaskMilestone: vi.fn(),
 }));
 vi.mock("@/modules/tasks/actions", () => ({
   createTask: vi.fn(),
@@ -138,9 +152,6 @@ function Harness() {
   }, []);
   return (
     <TasksScreen now={NOW} targets={TARGETS}>
-      <h2 id="view" tabIndex={-1}>
-        Bandeja
-      </h2>
       <InboxView tasks={tasks} shortcuts headingId="view" />
     </TasksScreen>
   );
@@ -268,25 +279,23 @@ describe("/tasks", () => {
         ]),
     ).toEqual([
       ["Bandeja", "/tasks"],
-      // The views T2 builds say so to screen readers before following the link.
-      ["Hoy (próximamente)", "/tasks?vista=hoy"],
-      ["Próximas (próximamente)", "/tasks?vista=proximas"],
-      ["Todas (próximamente)", "/tasks?vista=todas"],
-      ["Hechas (próximamente)", "/tasks?vista=hechas"],
+      ["Hoy", "/tasks?vista=hoy"],
+      ["Próximas", "/tasks?vista=proximas"],
+      ["Todas", "/tasks?vista=todas"],
+      ["Hechas", "/tasks?vista=hechas"],
     ]);
+    // The view's heading counts what it shows ("Bandeja 3", read "Bandeja: 3 tareas").
+    expect(screen.getByRole("heading", { level: 2, name: "Bandeja: 3 tareas" })).toBeInTheDocument();
     expect(views.getByRole("link", { name: "Bandeja" })).toHaveAttribute("aria-current", "page");
     expect(titles()).toEqual(["comprar pilas", "regar plantas", "devolver libro"]);
   });
 
-  test("the views T2 builds say Próximamente; an unknown view is the inbox", async () => {
+  test("another view doesn't read the inbox; an unknown view is the inbox", async () => {
     const { unmount } = render(
       await TasksPage({ searchParams: Promise.resolve({ vista: "hoy" }) }),
     );
-    expect(screen.getByRole("link", { name: "Hoy (próximamente)" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("heading", { name: "Hoy: próximamente" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { level: 2, name: "Hoy" })).toBeInTheDocument();
     expect(listInboxTasks).not.toHaveBeenCalled();
     unmount();
     render(await TasksPage({ searchParams: Promise.resolve({ vista: "nada" }) }));

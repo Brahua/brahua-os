@@ -4,6 +4,7 @@ import { formatOwnerDay } from "@/lib/time";
 import { TASKS_COPY } from "../../tasks-copy";
 import { useTaskDetail } from "./task-detail-context";
 import { TaskDeleteSection } from "./task-delete-section";
+import { TaskNotesSection } from "./task-notes-section";
 import { TaskPlanSection } from "./task-plan-section";
 import { TaskPrioritySection } from "./task-priority-section";
 import { TaskTitleSection } from "./task-title-section";
@@ -42,7 +43,7 @@ export function TaskDetail() {
 
       {/* ── T3 slot (Recurrencia): <TaskRecurrenceSection /> ── */}
 
-      {/* ── T2 slot (Notas): <TaskNotesSection /> ── */}
+      <TaskNotesSection />
 
       <TaskDeleteSection />
     </div>

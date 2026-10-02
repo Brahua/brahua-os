@@ -92,7 +92,7 @@ const ROW = {
 
 type Row = Awaited<ReturnType<typeof selectItems>>[number];
 
-function toItem(row: Row): TaskItem {
+export function toItem(row: Row): TaskItem {
   return {
     id: row.id,
     title: row.title,
@@ -123,7 +123,7 @@ function toItem(row: Row): TaskItem {
 }
 
 /** Tasks with what they show (their area or their project's, the project, the tags). */
-function selectItems(db: Database | Tx, where: SQL | undefined) {
+export function selectItems(db: Database | Tx, where: SQL | undefined) {
   return db
     .select(ROW)
     .from(tasks)
