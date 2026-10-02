@@ -137,7 +137,9 @@ describe("Sheet", () => {
     const user = userEvent.setup();
     render(<Capture />);
     await user.click(screen.getByRole("button", { name: "Capturar" }));
-    await user.click(screen.getByRole("button", { name: "Cerrar" }));
+    const close = screen.getByRole("button", { name: "Cerrar (Esc)" });
+    expect(close).toHaveAttribute("aria-keyshortcuts", "Escape");
+    await user.click(close);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -152,11 +154,33 @@ describe("Sheet", () => {
     const dialog = screen.getByRole("dialog", { name: "Agregar bloqueador" });
     expect(dialog).toHaveAccessibleDescription(text);
     const description = screen.getByText(text);
-    // Sentence case in the secondary color, not the uppercase mono label.
-    expect(description).toHaveClass("bo-text-body-sm", "text-text-secondary");
+    // Sentence case in the secondary color (upstream class), not the uppercase mono label.
+    expect(description).toHaveClass("bo-sheet__description");
     expect(description).not.toHaveClass("bo-text-label");
-    expect(description.parentElement).toHaveClass("gap-2");
-    expect(dialog.querySelector(".bo-sheet__header")).toHaveClass("bo-sheet__header--described");
+    expect(description.parentElement).toHaveClass("bo-sheet__heading");
+    // The close key sits at the top of the header (extensions.css), by the title.
+    expect(screen.getByRole("button", { name: "Cerrar (Esc)" })).toHaveClass("bo-sheet__close");
+  });
+
+  test("a subtitle and a description together: the description describes the dialog", () => {
+    render(
+      <Sheet
+        open
+        onOpenChange={() => {}}
+        variant="side"
+        title="Certificación AWS"
+        subtitle="Aprendizaje · meta"
+        description="Termina el curso antes del examen."
+      >
+        <p>…</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Certificación AWS" });
+    expect(dialog).toHaveAccessibleDescription("Termina el curso antes del examen.");
+    expect(screen.getByText("Aprendizaje · meta")).toHaveClass("bo-text-label");
+    // The side panel shows the Esc key next to the ✕.
+    const close = screen.getByRole("button", { name: "Cerrar (Esc)" });
+    expect(close.querySelector("kbd")).toHaveTextContent("Esc");
   });
 
   test("a subtitle stays a short label", () => {
@@ -166,10 +190,10 @@ describe("Sheet", () => {
       </Sheet>,
     );
     expect(screen.getByRole("dialog")).toHaveAccessibleDescription("Aprendizaje · meta");
-    expect(screen.getByText("Aprendizaje · meta")).toHaveClass("bo-text-label");
-    expect(document.querySelector(".bo-sheet__header")).not.toHaveClass(
-      "bo-sheet__header--described",
-    );
+    const label = screen.getByText("Aprendizaje · meta");
+    expect(label).toHaveClass("bo-text-label");
+    expect(label.parentElement).toHaveClass("bo-sheet__heading");
+    expect(document.querySelector(".bo-sheet__description")).toBeNull();
   });
 });
 

@@ -13,12 +13,15 @@ type SheetProps = {
   /** `bottom` sheet (phone) or 420 px `side` panel (desktop). */
   variant?: "bottom" | "side";
   title: string;
-  /** A short label under the title (mono, uppercase), e.g. "Aprendizaje · meta 20 nov". */
+  /**
+   * A short label under the title (mono, uppercase), e.g. "Aprendizaje · meta 20 nov". Without a
+   * `description`, it is the dialog's description.
+   */
   subtitle?: string;
   /**
    * A sentence or two explaining the sheet, under the title as body text (sentence case,
-   * secondary color). It is the dialog's description. Use it instead of `subtitle` for anything
-   * longer than a label.
+   * secondary color, 8 px under the title). It is the dialog's description. Use it instead of
+   * `subtitle` for anything longer than a label; the side panel's header grows with it.
    */
   description?: string;
   footer?: React.ReactNode;
@@ -116,10 +119,8 @@ export function Sheet({
           )}
         >
           {!side ? <div className="bo-sheet__handle" aria-hidden /> : null}
-          {/* bo-sheet__header--described (overrides.css): top-aligned and, on the side panel,
-              as tall as its text (the header's fixed height fits a title only). */}
-          <div className={cn("bo-sheet__header", description && "bo-sheet__header--described")}>
-            <div className={cn("flex min-w-0 flex-col", description ? "gap-2" : "gap-1")}>
+          <div className="bo-sheet__header">
+            <div className="bo-sheet__heading">
               <Dialog.Title
                 ref={titleRef}
                 tabIndex={focusTitleOnOpen ? -1 : undefined}
@@ -127,22 +128,30 @@ export function Sheet({
               >
                 {title}
               </Dialog.Title>
+              {subtitle ? (
+                description ? (
+                  <span className="bo-text-label text-text-secondary">{subtitle}</span>
+                ) : (
+                  // Without a description, the label describes the dialog.
+                  <Dialog.Description className="bo-text-label text-text-secondary">
+                    {subtitle}
+                  </Dialog.Description>
+                )
+              ) : null}
               {description ? (
-                <Dialog.Description className="bo-text-body-sm text-text-secondary">
+                <Dialog.Description className="bo-sheet__description">
                   {description}
-                </Dialog.Description>
-              ) : subtitle ? (
-                <Dialog.Description className="bo-text-label text-text-secondary">
-                  {subtitle}
                 </Dialog.Description>
               ) : null}
             </div>
+            {/* Top-aligned (extensions.css): it stays by the title when a description wraps. */}
             <Dialog.Close
               className={cn(
                 "bo-key bo-key--ghost bo-key--sm bo-sheet__close",
                 closeDisabled && "is-disabled",
               )}
-              aria-label="Cerrar"
+              aria-label="Cerrar (Esc)"
+              aria-keyshortcuts="Escape"
               // aria-disabled, never disabled: the button may have focus (it keeps it).
               aria-disabled={closeDisabled || undefined}
               onClick={closeDisabled ? (event) => event.preventDefault() : undefined}

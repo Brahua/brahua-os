@@ -7,7 +7,8 @@
 .bo-sheet-overlay { position: fixed; inset: 0; z-index: 50; }
 .bo-sheet-position--side { position: fixed; top: 0; right: 0; bottom: 0; z-index: 51; }
 .bo-sheet-position--bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 92dvh; }
-.bo-sheet__close { box-shadow: none; gap: 8px; }
+/* The close key (upstream Sheet.jsx inline styles): flat, at the top of the header. */
+.bo-sheet__close { box-shadow: none; gap: 8px; align-self: flex-start; flex-shrink: 0; }
 
 .bo-sheet-overlay[data-state="open"] { animation: bo-fade-in var(--duration-panel) var(--ease-drawer); }
 .bo-sheet-overlay[data-state="closed"] { animation: bo-fade-out var(--duration-panel) var(--ease-drawer); }
