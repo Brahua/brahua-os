@@ -46,7 +46,7 @@
   - P6 (contratos con otros módulos): ✅ PR #42 integrado. Ver "Cómo funciona projects" → "Contratos (P6)".
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
-- **tasks:** en curso. `SPEC-tasks.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas T1–T6 en `tasks/todo.md`.
+- **tasks:** código completo y en producción (2026-10-02); **falta el Checkpoint final del owner** y la navegación definitiva (espera el diseño en Claude Design). `SPEC-tasks.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas T1–T6 en `tasks/todo.md`.
   - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4. **Pendiente del owner:** Checkpoint T1 en el iPhone.
   - ✅ T3 (recurrencia): PR #52 integrado. Ver "Cómo funciona tasks" → "T3: recurrencia".
   - ✅ T2 (vistas y detalle): PR #53 integrado. Ver "Cómo funciona tasks" → "T2: vistas y detalle".
@@ -55,7 +55,8 @@
     - T3, dónde va la siguiente: si el proyecto de la completada ya no está abierto (Terminado, Cancelado o eliminado) o su área propia está archivada, la siguiente va a la bandeja y el aviso lo dice ("La siguiente quedó en la bandeja porque el proyecto ya no está abierto." / "… porque el área está archivada."). Un hito eliminado no se copia.
   - ✅ T4 (etiquetas): PR #51 integrado. Ver "Cómo funciona tasks" → "T4: etiquetas".
   - ✅ T5 (tareas en proyectos): PR #54 integrado. Ver "Cómo funciona tasks" → "T5: tareas en proyectos", con las **decisiones para revisar con el owner** y lo que hay que tocar al rebasar sobre T3 y T4.
-  - T6, parte del contrato (`getTasksTodaySummary`): PR `feat/tasks-t6-today-contract` (PR #55, sin merge; rebasada sobre T3, T4 y T5). Ver "Cómo funciona tasks" → "T6: contrato con `today`", con sus decisiones para revisar con el owner. La navegación definitiva de T6 espera el diseño del owner en Claude Design.
+  - ✅ Arreglo: los anuncios de `tasks` usan `useAnnouncer` de core (PR #56): un temporizador sin limpiar dejó `main` en rojo tras T5.
+  - ✅ T6, parte del contrato (`getTasksTodaySummary`): PR #55 integrado. Ver "Cómo funciona tasks" → "T6: contrato con `today`", con sus decisiones para revisar con el owner. La navegación definitiva de T6 espera el diseño del owner en Claude Design.
 
 ## C2a: pasos del usuario (en orden)
 
@@ -529,7 +530,7 @@ Estado: T1 (datos, captura rápida y bandeja). T2–T4 se construyen en paralelo
 
 ### T5: tareas en proyectos
 
-PR #54 `feat/tasks-t5-projects` (sin merge; rebasada sobre T3 y T4, ya en `main`). Las capturas nuevas y cambiadas se generan con `update-screenshots.yml`.
+PR #54 integrado. Las capturas nuevas y cambiadas se generan con `update-screenshots.yml`.
 
 - **Contratos nuevos en `projects`** (`projects` sigue sin importar `tasks`; una prueba lo exige):
   - `project-extensions.ts` (puro): `ProjectSection` (`{ id, render(context) }`, con `context = { project: { id, name, status }, milestones: { id, title }[] }`; `render` corre en el servidor y devuelve la sección) y `NextActionSource` (`{ id, nextActionsFor(projectIds) → Map<projectId, { id, title }>, complete, undoComplete }`, las dos últimas son Server Actions del proveedor que la tarjeta llama con `{ id }`). Registros con la misma regla que las fuentes de avance (idempotentes por id; quitar nunca borra uno más nuevo; sin proveedores o sin ids no hay trabajo; con dos fuentes para un proyecto gana la primera registrada; una fuente que falla hace fallar la lectura).
@@ -830,7 +831,8 @@ No hay chequeo de Lighthouse en CI: la accesibilidad ya la cubre axe en cada E2E
 ## CI: acciones fijadas y protección de `main`
 
 - Todas las acciones de los workflows están fijadas a un SHA completo con su versión en un comentario (`# v7.0.1`). Dependabot (`.github/dependabot.yml`, `github-actions`, semanal) propone las actualizaciones.
-- **`main` sin protección: decisión aceptada por el owner (2026-10-01).** El repo es privado en el plan gratuito, que no tiene protección de rama ni rulesets, y el owner decidió no pagar GitHub Pro. La regla "merge solo con CI verde" se cumple por proceso: antes de cada merge, el agente comprueba que los 3 checks (`Lint, types, unit tests, build`, `E2E (Playwright + axe)` e `Integration tests (Postgres)`) están en verde, y nunca hace push directo a `main`. El deploy además exige que el run de ese push pase todos los checks.
+- **Repo público y `main` protegida (2026-10-02).** Se agotaron los 2.000 min/mes de Actions del plan gratuito; con el OK del owner el repo pasó a **público** (Actions gratis) hasta que se renueve el cupo (~2026-11-01), y entonces vuelve a privado. Mientras sea público, el ruleset **"Protect main"** (id 24365031) exige PR y los 3 checks, y bloquea borrar `main` o `force push`. El ruleset solo cuenta el run `pull_request` del PR: tras un commit del bot de capturas ese run queda en `action_required` y hay que aprobarlo (`gh api -X POST repos/Brahua/brahua-os/actions/runs/<id>/approve`). Las ramas se borran solas al integrar. Al volver a privado el ruleset deja de aplicarse (plan gratuito) y rige otra vez lo de abajo.
+- **`main` sin protección (repo privado): decisión aceptada por el owner (2026-10-01).** El repo es privado en el plan gratuito, que no tiene protección de rama ni rulesets, y el owner decidió no pagar GitHub Pro. La regla "merge solo con CI verde" se cumple por proceso: antes de cada merge, el agente comprueba que los 3 checks (`Lint, types, unit tests, build`, `E2E (Playwright + axe)` e `Integration tests (Postgres)`) están en verde, y nunca hace push directo a `main`. El deploy además exige que el run de ese push pase todos los checks.
 
 ## Decisiones recientes a respetar
 
