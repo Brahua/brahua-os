@@ -1,6 +1,20 @@
 /*
  * Local fixes on top of the Claude Design tokens. Every rule here must also be applied in
  * the "brahua-os Design System" project in Claude Design, then removed from this file.
- * Currently empty: the tooltip, bottom-nav reflow, reduced-motion switch and forced-colors
- * fixes are upstream since 2026-10-01.
  */
+
+/*
+ * PENDING UPSTREAM (2026-10-01, Checkpoint final de projects): Sheet with a description. The
+ * description is body text (sentence case), a sentence or two long: the header aligns to the top
+ * (the ✕ stays by the title) and, on the side panel, grows with its text instead of keeping the
+ * one-line `--topbar-height` (the text overflowed into the body).
+ */
+.bo-sheet__header--described {
+  align-items: flex-start;
+}
+.bo-sheet--side .bo-sheet__header--described {
+  height: auto;
+  min-height: var(--topbar-height);
+  padding-top: 16px;
+  padding-bottom: 16px;
+}

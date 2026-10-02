@@ -74,7 +74,7 @@ export function DependencyPickerSheet({
       }}
       variant={isDesktop ? "side" : "bottom"}
       title={DEPENDENCIES_COPY.sheetTitle}
-      subtitle={DEPENDENCIES_COPY.sheetSubtitle}
+      description={DEPENDENCIES_COPY.sheetDescription}
       returnFocusRef={returnFocusRef}
       // Nothing to pick: focus on why. On desktop, on the search; on the phone, on the title
       // (focusing the field would open the keyboard over the list).

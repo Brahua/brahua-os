@@ -13,7 +13,14 @@ type SheetProps = {
   /** `bottom` sheet (phone) or 420 px `side` panel (desktop). */
   variant?: "bottom" | "side";
   title: string;
+  /** A short label under the title (mono, uppercase), e.g. "Aprendizaje · meta 20 nov". */
   subtitle?: string;
+  /**
+   * A sentence or two explaining the sheet, under the title as body text (sentence case,
+   * secondary color). It is the dialog's description. Use it instead of `subtitle` for anything
+   * longer than a label.
+   */
+  description?: string;
   footer?: React.ReactNode;
   /**
    * Modal with scrim (captures focus). Without it, the side panel leaves the page usable
@@ -62,6 +69,7 @@ export function Sheet({
   variant = "bottom",
   title,
   subtitle,
+  description,
   footer,
   modal = true,
   returnFocusRef,
@@ -83,8 +91,8 @@ export function Sheet({
       <Dialog.Portal>
         {modal ? <Dialog.Overlay className="bo-scrim bo-sheet-overlay" /> : null}
         <Dialog.Content
-          // Without a subtitle there is no description; tell Radix so it doesn't warn.
-          {...(subtitle ? {} : { "aria-describedby": undefined })}
+          // Without a subtitle or a description there is none; tell Radix so it doesn't warn.
+          {...(subtitle || description ? {} : { "aria-describedby": undefined })}
           onOpenAutoFocus={(event) => {
             returnFocusTo.current = document.activeElement as HTMLElement | null;
             const target = initialFocusRef?.current ?? (focusTitleOnOpen ? titleRef.current : null);
@@ -108,8 +116,10 @@ export function Sheet({
           )}
         >
           {!side ? <div className="bo-sheet__handle" aria-hidden /> : null}
-          <div className="bo-sheet__header">
-            <div className="flex flex-col gap-0.5">
+          {/* bo-sheet__header--described (overrides.css): top-aligned and, on the side panel,
+              as tall as its text (the header's fixed height fits a title only). */}
+          <div className={cn("bo-sheet__header", description && "bo-sheet__header--described")}>
+            <div className={cn("flex min-w-0 flex-col", description ? "gap-2" : "gap-1")}>
               <Dialog.Title
                 ref={titleRef}
                 tabIndex={focusTitleOnOpen ? -1 : undefined}
@@ -117,7 +127,11 @@ export function Sheet({
               >
                 {title}
               </Dialog.Title>
-              {subtitle ? (
+              {description ? (
+                <Dialog.Description className="bo-text-body-sm text-text-secondary">
+                  {description}
+                </Dialog.Description>
+              ) : subtitle ? (
                 <Dialog.Description className="bo-text-label text-text-secondary">
                   {subtitle}
                 </Dialog.Description>
