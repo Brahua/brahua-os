@@ -73,7 +73,9 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [detailsOpen, setDetailsOpen] = useState(false);
   // T3: the recurrence rule (none by default), its errors shown after a submit.
-  const [now] = useState(() => new Date());
+  // Lima's "today" for the editor: refreshed when "Más detalles" opens (the editor shows only
+  // then) and after each save, so a sheet kept open past midnight doesn't use yesterday.
+  const [now, setNow] = useState(() => new Date());
   const [recurrence, setRecurrence] = useState<RecurrenceDraft>(() => draftFromRule(null, now));
   const [recurrenceShowErrors, setRecurrenceShowErrors] = useState(false);
   const [recurrenceServerErrors, setRecurrenceServerErrors] = useState<RecurrenceDraftErrors>({});
@@ -224,7 +226,9 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
       setPlacement(INBOX_VALUE);
       setDueDate("");
       setPriority("medium");
-      setRecurrence(draftFromRule(null, now));
+      const savedAt = new Date();
+      setNow(savedAt);
+      setRecurrence(draftFromRule(null, savedAt));
       setRecurrenceShowErrors(false);
       setRecurrenceServerErrors({});
       setErrors({});
@@ -336,7 +340,15 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
             className="bo-text-body-sm flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-md font-semibold text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
-            onClick={() => setDetailsOpen((value) => !value)}
+            onClick={() => {
+              if (!detailsOpen) {
+                const openedAt = new Date();
+                setNow(openedAt);
+                // Without a rule yet, its defaults (today's weekday and day) follow today.
+                if (recurrence.mode === "none") setRecurrence(draftFromRule(null, openedAt));
+              }
+              setDetailsOpen((value) => !value);
+            }}
           >
             <Icon icon={ChevronDown} size="sm" className={cn(detailsOpen && "rotate-180")} />
             {TASKS_COPY.moreDetails}
@@ -362,6 +374,7 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
                 id={`${ids}-recurrence`}
                 draft={recurrence}
                 now={now}
+                dueDate={dueDate || null}
                 showErrors={recurrenceShowErrors}
                 serverErrors={recurrenceServerErrors}
                 onDraftChange={(next) => {

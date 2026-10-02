@@ -35,8 +35,6 @@ export const RECURRENCE_COPY = {
   summaryNone: "No se repite.",
   /** What completing it today would create. */
   nextIfToday: (day: string) => `Si la completas hoy, la siguiente vence el ${day}.`,
-  help: "Al marcarla hecha aparece la siguiente con su nueva fecha.",
-  saved: "Se guardó la recurrencia.",
   removed: "Ya no se repite.",
   fieldName: "la recurrencia",
 
@@ -47,6 +45,12 @@ export const RECURRENCE_COPY = {
   completedNext: (title: string, day: string) => `«${title}» está hecha. La siguiente vence el ${day}.`,
   reopenedRemoved: (title: string) =>
     `«${title}» volvió a estar pendiente y se quitó la siguiente.`,
+  restoredDetached: (title: string) =>
+    `«${title}» volvió a tus tareas como una tarea aparte: su recurrencia ya tiene otra siguiente.`,
+  nextInInbox: {
+    project: "La siguiente quedó en la bandeja porque el proyecto ya no está abierto.",
+    area: "La siguiente quedó en la bandeja porque el área está archivada.",
+  },
   reopenedKept: (title: string) =>
     `«${title}» volvió a estar pendiente. La siguiente se quedó porque ya la cambiaste.`,
 } as const;

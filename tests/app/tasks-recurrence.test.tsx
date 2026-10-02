@@ -32,6 +32,7 @@ vi.mock("@/modules/tasks/recurrence-actions", () => ({
   setTaskRecurrence: vi.fn(),
   completeTaskWithNext: vi.fn(),
   reopenTaskWithSpawn: vi.fn(),
+  restoreTaskWithSpawn: vi.fn(),
 }));
 
 // 10:00 in Lima on Friday, Oct 2, 2026.
@@ -84,6 +85,8 @@ function Editor({ initial = null }: { initial?: TaskRecurrence | null }) {
 }
 
 const summary = () => document.querySelector("[data-recurrence-summary]")!;
+/** What screen readers hear (a polite status, after a change is made). */
+const spoken = () => document.querySelector("[data-recurrence-status]")!;
 const modes = () => screen.getByRole("group", { name: "Se repite" });
 
 describe("RecurrenceEditor", () => {
@@ -93,7 +96,7 @@ describe("RecurrenceEditor", () => {
     const none = within(modes()).getByRole("radio", { name: "No se repite" });
     expect(none).toBeChecked();
     expect(summary()).toHaveTextContent("No se repite.");
-    expect(summary()).toHaveAttribute("aria-live", "polite");
+    expect(spoken()).toHaveAttribute("role", "status");
 
     await user.tab();
     expect(none).toHaveFocus();
@@ -108,9 +111,14 @@ describe("RecurrenceEditor", () => {
     await user.tab();
     const interval = screen.getByRole("textbox", { name: "Cada" });
     expect(interval).toHaveFocus();
+    await waitFor(() => expect(spoken()).toHaveTextContent("Cada día desde que la completas"));
     await user.keyboard("{Backspace}3");
     expect(summary()).toHaveTextContent("Cada 3 días desde que la completas");
+    // Typing is seen at once, but heard only once the field is left (not on every keystroke).
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(spoken()).not.toHaveTextContent("Cada 3 días");
     await user.tab();
+    await waitFor(() => expect(spoken()).toHaveTextContent("Cada 3 días desde que la completas"));
     await user.selectOptions(screen.getByRole("combobox", { name: "Unidad" }), "semanas");
     expect(summary()).toHaveTextContent(
       "Cada 3 semanas desde que la completas. Si la completas hoy, la siguiente vence el 23 de octubre de 2026.",
@@ -143,6 +151,16 @@ describe("RecurrenceEditor", () => {
       "Sábado",
       "Domingo",
     ]);
+    // Visible: the first letters of each name, which start the accessible name (WCAG 2.5.3).
+    expect(days.getAllByRole("button").map((key) => key.textContent)).toEqual([
+      "Lu",
+      "Ma",
+      "Mi",
+      "Ju",
+      "Vi",
+      "Sá",
+      "Do",
+    ]);
     // Friday in Lima.
     expect(days.getByRole("button", { name: "Viernes" })).toHaveAttribute("aria-pressed", "true");
     await user.click(days.getByRole("button", { name: "Lunes" }));
@@ -159,7 +177,29 @@ describe("RecurrenceEditor", () => {
     expect(screen.getByRole("group", { name: "Días" })).toHaveAccessibleDescription(
       "Elige al menos un día.",
     );
+    // Said at once (an alert), and no summary while it can't be saved.
+    expect(screen.getByRole("alert")).toHaveTextContent("Elige al menos un día.");
     expect(summary()).toHaveTextContent("");
+  });
+
+  test("weekdays and a day of the month start after the task's due date (completed early)", async () => {
+    const user = userEvent.setup();
+    function WithDue() {
+      const [draft, setDraft] = useState<RecurrenceDraft>(() => draftFromRule(null, NOW));
+      return (
+        <RecurrenceEditor
+          id="d"
+          draft={draft}
+          onDraftChange={setDraft}
+          now={NOW}
+          dueDate="2026-10-10"
+        />
+      );
+    }
+    render(<WithDue />);
+    await user.click(screen.getByRole("radio", { name: "Ciertos días de la semana" }));
+    // Friday the 2nd, due Saturday the 10th: the next Friday after it, the 16th.
+    expect(summary()).toHaveTextContent("la siguiente vence el 16 de octubre de 2026.");
   });
 
   test("a day of the month (today's by default), clamped in words", async () => {
@@ -261,6 +301,11 @@ describe("the list", () => {
     expect(screen.getByRole("link", { name: "regar las plantas" })).toHaveAccessibleDescription(
       "Prioridad alta, Se repite: cada 3 días desde que la completas",
     );
+    // Sighted users get the summary as the icon's tooltip.
+    expect(document.querySelector("[data-task-recurrence]")).toHaveAttribute(
+      "title",
+      "Cada 3 días desde que la completas",
+    );
     expect(document.querySelector("[data-task-recurrence] svg")).toHaveAttribute(
       "aria-hidden",
       "true",
@@ -272,7 +317,7 @@ describe("the list", () => {
     const original = task({ recurrence: EVERY_3_DAYS });
     const next = task({ id: "00000000-0000-4000-8000-000000000002", dueDate: "2026-10-05" });
     vi.mocked(completeTaskWithNext).mockResolvedValue(
-      ok({ task: { ...original, doneAt: NOW }, next }),
+      ok({ task: { ...original, doneAt: NOW }, next, nextInbox: null }),
     );
     vi.mocked(reopenTaskWithSpawn).mockResolvedValue(ok({ task: original, spawn: "removed" }));
     renderList([original]);
@@ -290,11 +335,27 @@ describe("the list", () => {
     );
   });
 
+  test("when its project is no longer open, the notice says the next one is in the inbox", async () => {
+    const user = userEvent.setup();
+    const original = task({ recurrence: EVERY_3_DAYS });
+    const next = task({ id: "00000000-0000-4000-8000-000000000003", dueDate: "2026-10-05" });
+    vi.mocked(completeTaskWithNext).mockResolvedValue(
+      ok({ task: { ...original, doneAt: NOW }, next, nextInbox: "project" }),
+    );
+    renderList([original]);
+    await user.click(screen.getByRole("checkbox", { name: "Hecha: regar las plantas" }));
+    await waitFor(() =>
+      expect(notices()).toHaveTextContent(
+        "La siguiente vence el 5 de octubre de 2026. La siguiente quedó en la bandeja porque el proyecto ya no está abierto.",
+      ),
+    );
+  });
+
   test("Deshacer with an edited next one says it stayed", async () => {
     const user = userEvent.setup();
     const original = task({ recurrence: EVERY_3_DAYS });
     vi.mocked(completeTaskWithNext).mockResolvedValue(
-      ok({ task: { ...original, doneAt: NOW }, next: null }),
+      ok({ task: { ...original, doneAt: NOW }, next: null, nextInbox: null }),
     );
     vi.mocked(reopenTaskWithSpawn).mockResolvedValue(ok({ task: original, spawn: "kept" }));
     renderList([original]);

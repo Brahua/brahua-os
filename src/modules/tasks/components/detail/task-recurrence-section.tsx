@@ -19,7 +19,7 @@ import { useTaskDetail } from "./task-detail-context";
  * a refusal or a network failure puts the saved rule back and says why (`reportError`).
  */
 export function TaskRecurrenceSection() {
-  const { task, host, now, enqueue, adopt, reportError } = useTaskDetail();
+  const { task, host, now, enqueue, adopt, announce, reportError } = useTaskDetail();
   const ids = useId();
   const headingId = `${ids}-heading`;
   const [draft, setDraft] = useState<RecurrenceDraft>(() => draftFromRule(task.recurrence, now));
@@ -39,6 +39,8 @@ export function TaskRecurrenceSection() {
       if (queued.kind === "skipped" || queued.superseded) return;
       if (queued.kind === "done" && queued.value.ok) {
         adopt(queued.value.data);
+        // A rule's summary is read by the editor; a removal is said here.
+        if (parsed.rule === null) announce(RECURRENCE_COPY.removed);
         return;
       }
       const reason =
@@ -62,6 +64,7 @@ export function TaskRecurrenceSection() {
         id={`${ids}-recurrence`}
         draft={draft}
         now={now}
+        dueDate={task.dueDate}
         hideLegend
         onDraftChange={(next) => {
           setDraft(next);

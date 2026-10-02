@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Icon, Key, TextField } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatDateKey } from "@/lib/time";
-import { nextDueDate, recurrenceSummary, WEEKDAY_INITIALS, WEEKDAY_NAMES } from "../recurrence";
+import { nextDueDate, recurrenceSummary, WEEKDAY_NAMES, WEEKDAY_SHORT } from "../recurrence";
 import { RECURRENCE_COPY, RECURRENCE_MODES } from "../recurrence-copy";
 import {
   ruleFromDraft,
@@ -24,6 +24,8 @@ type RecurrenceEditorProps = {
   onDraftChange: (draft: RecurrenceDraft) => void;
   /** Lima's day for "Si la completas hoy, la siguiente vence el …". */
   now: Date;
+  /** The task's due date (YYYY-MM-DD): weekdays and a day of the month start after it. */
+  dueDate?: string | null;
   /**
    * Show every field's error now (e.g. after a submit). Otherwise a typed field shows its error
    * once it is left, and the weekdays as soon as none is left.
@@ -49,6 +51,7 @@ export function RecurrenceEditor({
   draft,
   onDraftChange,
   now,
+  dueDate = null,
   showErrors = false,
   serverErrors,
   onCommit,
@@ -64,9 +67,26 @@ export function RecurrenceEditor({
         : undefined;
     return own ?? serverErrors?.[field];
   };
-  const change = (patch: Partial<RecurrenceDraft>) => onDraftChange({ ...draft, ...patch });
+  // What screen readers hear: the summary once a change is made (a choice at once, a typed
+  // number when it is left), never on every keystroke. "No se repite" says nothing here: the
+  // radio already says it (and the detail announces "Ya no se repite." once saved).
+  const [spoken, setSpoken] = useState("");
+  const speak = (next: RecurrenceDraft) => {
+    if (next.mode === "none") return;
+    const text = summaryOf(next, now, dueDate);
+    if (!text) return;
+    // Cleared first, so the same summary twice is read twice.
+    setSpoken("");
+    window.setTimeout(() => setSpoken(text), 50);
+  };
+  const change = (patch: Partial<RecurrenceDraft>, typed = false) => {
+    const next = { ...draft, ...patch };
+    onDraftChange(next);
+    if (!typed) speak(next);
+  };
   const leave = (field: "interval" | "monthDay") => {
     setLeft((previous) => ({ ...previous, [field]: true }));
+    speak(draft);
     onCommit?.();
   };
 
@@ -111,7 +131,7 @@ export function RecurrenceEditor({
             enterKeyHint="done"
             value={draft.interval}
             error={intervalError}
-            onChange={(event) => change({ interval: event.target.value.trim() })}
+            onChange={(event) => change({ interval: event.target.value.trim() }, true)}
             onBlur={() => leave("interval")}
             onKeyDown={(event) => {
               // Enter keeps the number (in the capture it would also add the task: not here).
@@ -168,17 +188,20 @@ export function RecurrenceEditor({
                     })
                   }
                 >
-                  <span aria-hidden>{WEEKDAY_INITIALS[day]}</span>
+                  <span aria-hidden>{WEEKDAY_SHORT[day]}</span>
                 </Key>
               );
             })}
           </div>
-          {weekdaysError ? (
-            <span id={`${id}-weekdays-error`} className="bo-field__error">
-              <Icon icon={TriangleAlert} size="sm" />
-              {weekdaysError}
-            </span>
-          ) : null}
+          {/* An alert: unpressing the last day says why nothing is saved. */}
+          <div role="alert">
+            {weekdaysError ? (
+              <span id={`${id}-weekdays-error`} className="bo-field__error">
+                <Icon icon={TriangleAlert} size="sm" />
+                {weekdaysError}
+              </span>
+            ) : null}
+          </div>
         </fieldset>
       ) : null}
 
@@ -194,7 +217,7 @@ export function RecurrenceEditor({
           value={draft.monthDay}
           help={RECURRENCE_COPY.monthDayHelp}
           error={monthDayError}
-          onChange={(event) => change({ monthDay: event.target.value.trim() })}
+          onChange={(event) => change({ monthDay: event.target.value.trim() }, true)}
           onBlur={() => leave("monthDay")}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
@@ -204,16 +227,23 @@ export function RecurrenceEditor({
         />
       ) : null}
 
-      {/* The rule in words, read again as it changes. */}
-      <p id={summaryId} aria-live="polite" className="bo-text-body-sm text-text-secondary" data-recurrence-summary="">
-        {parsed.ok
-          ? parsed.rule
-            ? `${recurrenceSummary(parsed.rule)}. ${RECURRENCE_COPY.nextIfToday(
-                formatDateKey(nextDueDate(parsed.rule, now)),
-              )}`
-            : RECURRENCE_COPY.summaryNone
-          : null}
+      {/* The rule in words (seen as it changes; heard through the status below). */}
+      <p id={summaryId} className="bo-text-body-sm text-text-secondary" data-recurrence-summary="">
+        {summaryOf(draft, now, dueDate)}
+      </p>
+      <p role="status" className="sr-only" data-recurrence-status="">
+        {spoken}
       </p>
     </div>
   );
+}
+
+/** "Cada 3 días desde que la completas. Si la completas hoy, …", "No se repite.", or null. */
+function summaryOf(draft: RecurrenceDraft, now: Date, dueDate: string | null): string | null {
+  const parsed = ruleFromDraft(draft);
+  if (!parsed.ok) return null;
+  if (!parsed.rule) return RECURRENCE_COPY.summaryNone;
+  return `${recurrenceSummary(parsed.rule)}. ${RECURRENCE_COPY.nextIfToday(
+    formatDateKey(nextDueDate(parsed.rule, now, dueDate)),
+  )}`;
 }

@@ -186,6 +186,49 @@ describe("day X of the month: the first one from tomorrow (clamped)", () => {
   });
 });
 
+describe("completed early: weekdays and a day of the month start after the due date", () => {
+  test("examples (decision of review round 1)", () => {
+    // Friday 2026-10-02, due Friday the 9th, every Friday: the next is the 16th, not the 9th.
+    expect(nextDueDate(weekdays(5), limaNoon("2026-10-02"), "2026-10-09")).toBe("2026-10-16");
+    // Day 15, due the 15th, completed on the 2nd: November, not October.
+    expect(nextDueDate(monthDay(15), limaNoon("2026-10-02"), "2026-10-15")).toBe("2026-11-15");
+    // Due before today (late) or today: from tomorrow, as without a due date.
+    expect(nextDueDate(weekdays(6), limaNoon("2026-10-02"), "2026-09-20")).toBe("2026-10-03");
+    expect(nextDueDate(weekdays(6), limaNoon("2026-10-02"), "2026-10-02")).toBe("2026-10-03");
+    // Due on the last day of the year: from January 1.
+    expect(nextDueDate(monthDay(1), limaNoon("2026-12-20"), "2026-12-31")).toBe("2027-01-01");
+    // Interval rules keep counting from the completion day.
+    expect(nextDueDate(every("every_days", 3), limaNoon("2026-10-02"), "2026-10-20")).toBe(
+      "2026-10-05",
+    );
+    expect(nextDueDate(every("every_months", 1), limaNoon("2026-10-02"), "2027-01-01")).toBe(
+      "2026-11-02",
+    );
+  });
+
+  test("always after both today and the due date, and the first day that fits", () => {
+    const today = "2026-10-02";
+    for (const due of daysFrom("2026-09-25", 50)) {
+      const from = [keyPlusDays(today, 1), keyPlusDays(due, 1)].sort()[1];
+      for (let mask = 1; mask < 128; mask += 3) {
+        const days = [1, 2, 3, 4, 5, 6, 7].filter((day) => mask & (1 << (day - 1)));
+        const next = nextDueDate(weekdays(...days), limaNoon(today), due);
+        expect(next >= from).toBe(true);
+        expect(days).toContain(isoWeekday(next));
+        for (let probe = from; probe < next; probe = keyPlusDays(probe, 1)) {
+          expect(days).not.toContain(isoWeekday(probe));
+        }
+      }
+      for (let target = 1; target <= 31; target++) {
+        const next = nextDueDate(monthDay(target), limaNoon(today), due);
+        const [y, m, d] = next.split("-").map(Number);
+        expect(next >= from).toBe(true);
+        expect(d).toBe(Math.min(target, daysInMonth(y, m)));
+      }
+    }
+  });
+});
+
 describe("recurrenceSummary", () => {
   test.each<[TaskRecurrence, string]>([
     [every("every_days", 1), "Cada día desde que la completas"],

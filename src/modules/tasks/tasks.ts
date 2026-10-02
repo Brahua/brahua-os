@@ -22,6 +22,7 @@ import {
   recurrenceColumns,
   removeUntouchedSpawn,
   spawnNextOccurrence,
+  type SpawnInbox,
   type SpawnUndo,
 } from "./recurrence-db";
 import type {
@@ -384,7 +385,13 @@ async function lockTaskProject(tx: Tx, id: string) {
 export async function completeTaskById(
   db: Database,
   id: string,
-): Promise<{ task: TaskItem; changed: boolean; next: TaskItem | null } | null> {
+): Promise<{
+  task: TaskItem;
+  changed: boolean;
+  next: TaskItem | null;
+  /** Why the next one went to the inbox (its place was closed), or null. */
+  nextInbox: SpawnInbox | null;
+} | null> {
   return db.transaction(async (tx) => {
     await lockTaskProject(tx, id);
     // The row lock makes a second, concurrent completion wait and then see `done_at` set.
@@ -394,11 +401,11 @@ export async function completeTaskById(
       .where(and(eq(tasks.id, id), visibleTask, pending))
       .returning(COMPLETED_COLUMNS);
     // T3: the next occurrence of a recurring task (only when this call completed it).
-    const nextId = completed ? await spawnNextOccurrence(tx, completed) : null;
+    const spawned = completed ? await spawnNextOccurrence(tx, completed) : null;
     const task = await selectTaskById(tx, id);
     if (!task) return null;
-    const next = nextId ? await selectTaskById(tx, nextId) : null;
-    return { task, changed: completed !== undefined, next };
+    const next = spawned ? await selectTaskById(tx, spawned.id) : null;
+    return { task, changed: completed !== undefined, next, nextInbox: spawned?.inbox ?? null };
   });
 }
 
@@ -442,13 +449,40 @@ export async function softDeleteTask(db: Database, id: string): Promise<DeletedT
 /**
  * Undoes a soft delete. Restoring one that isn't deleted changes nothing (a second "Deshacer" is
  * not an error). Null only when the task doesn't exist at all.
+ *
+ * T3: a deleted occurrence of a recurring task whose completed task already has another live
+ * occurrence (it was deleted, the completion undone and done again) can't come back as a second
+ * "next one" (`tasks_spawned_from_unique`): it comes back **detached**, a task of its own
+ * (`spawned_from_id` cleared, `detached: true`), instead of failing.
  */
-export async function restoreTaskById(db: Database, id: string): Promise<TaskItem | null> {
+export async function restoreTaskById(
+  db: Database,
+  id: string,
+): Promise<{ task: TaskItem; detached: boolean } | null> {
   return db.transaction(async (tx) => {
-    await tx
-      .update(tasks)
-      .set({ deletedAt: null })
-      .where(and(eq(tasks.id, id), isNotNull(tasks.deletedAt)));
-    return selectTaskById(tx, id);
+    const [deleted] = await tx
+      .select({ spawnedFromId: tasks.spawnedFromId })
+      .from(tasks)
+      .where(and(eq(tasks.id, id), isNotNull(tasks.deletedAt)))
+      .for("update");
+    let detached = false;
+    if (deleted) {
+      const parentId = deleted.spawnedFromId;
+      if (parentId !== null) {
+        // A completion of the parent in flight holds its row: wait for it, then look.
+        await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, parentId)).for("share");
+        const [sibling] = await tx
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(and(eq(tasks.spawnedFromId, parentId), isNull(tasks.deletedAt)));
+        detached = sibling !== undefined;
+      }
+      await tx
+        .update(tasks)
+        .set(detached ? { deletedAt: null, spawnedFromId: null } : { deletedAt: null })
+        .where(eq(tasks.id, id));
+    }
+    const task = await selectTaskById(tx, id);
+    return task ? { task, detached } : null;
   });
 }

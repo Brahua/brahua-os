@@ -8,11 +8,17 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
 import { tasks } from "./db/schema";
-import { recurrenceColumns, type SpawnUndo } from "./recurrence-db";
+import { recurrenceColumns, type SpawnInbox, type SpawnUndo } from "./recurrence-db";
 import { setTaskRecurrenceInputSchema } from "./recurrence-input";
 import { TASKS_PATH, taskPath } from "./routes";
 import { TASK_ERRORS, taskIdInputSchema, type TaskItem } from "./task-input";
-import { completeTaskById, reopenTaskById, selectTaskById, visibleTask } from "./tasks";
+import {
+  completeTaskById,
+  reopenTaskById,
+  restoreTaskById,
+  selectTaskById,
+  visibleTask,
+} from "./tasks";
 
 function revalidateTask(id: string) {
   revalidatePath(TASKS_PATH);
@@ -43,8 +49,11 @@ export async function setTaskRecurrence(input: unknown): Promise<ActionResult<Ta
   return setRecurrence(input);
 }
 
-/** A completion, with the occurrence it created (a recurring task) or null. */
-export type CompletedTask = { task: TaskItem; next: TaskItem | null };
+/**
+ * A completion, with the occurrence it created (a recurring task) or null, and why that one went
+ * to the inbox (its place was closed), or null.
+ */
+export type CompletedTask = { task: TaskItem; next: TaskItem | null; nextInbox: SpawnInbox | null };
 
 const complete = ownerAction(
   taskIdInputSchema,
@@ -53,7 +62,11 @@ const complete = ownerAction(
     revalidateTask(id);
     if (!result) return fail(TASK_ERRORS.notFound);
     // A double tap (`changed: false`) creates nothing and reports nothing new.
-    return ok({ task: result.task, next: result.changed ? result.next : null });
+    return ok(
+      result.changed
+        ? { task: result.task, next: result.next, nextInbox: result.nextInbox }
+        : { task: result.task, next: null, nextInbox: null },
+    );
   },
   { name: "completeTaskWithNext" },
 );
@@ -86,4 +99,25 @@ const reopen = ownerAction(
  */
 export async function reopenTaskWithSpawn(input: unknown): Promise<ActionResult<ReopenedTask>> {
   return reopen(input);
+}
+
+/** An undone delete, and whether it came back as a task of its own (see `restoreTaskById`). */
+export type RestoredTask = { task: TaskItem; detached: boolean };
+
+const restore = ownerAction(
+  taskIdInputSchema,
+  async ({ id }) => {
+    const result = await restoreTaskById(getDb(), id);
+    revalidateTask(id);
+    return result ? ok(result) : fail(TASK_ERRORS.notFound);
+  },
+  { name: "restoreTaskWithSpawn" },
+);
+
+/**
+ * `restoreTask` for the lists ("Deshacer" of a delete): the same undo, plus whether a deleted
+ * occurrence came back detached (its recurrence already has another next one), so it can be said.
+ */
+export async function restoreTaskWithSpawn(input: unknown): Promise<ActionResult<RestoredTask>> {
+  return restore(input);
 }

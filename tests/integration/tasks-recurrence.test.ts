@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { lifeAreas } from "@/modules/core/db/schema";
+import { ownerDateKey } from "@/lib/time";
 import { seed } from "@/modules/core/seed";
 import { deleteProject } from "@/modules/projects/actions";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
@@ -16,6 +17,7 @@ import {
   deleteTask,
   editTask,
   reopenTask,
+  restoreTask,
 } from "@/modules/tasks/actions";
 import { tasks, taskTags } from "@/modules/tasks/db/schema";
 import { getTask, listInboxTasks } from "@/modules/tasks/queries";
@@ -23,6 +25,7 @@ import { nextDueDate } from "@/modules/tasks/recurrence";
 import {
   completeTaskWithNext,
   reopenTaskWithSpawn,
+  restoreTaskWithSpawn,
   setTaskRecurrence,
 } from "@/modules/tasks/recurrence-actions";
 import { RECURRENCE_ERRORS } from "@/modules/tasks/recurrence-copy";
@@ -39,6 +42,12 @@ vi.mock("@/lib/db", async (importOriginal) => ({
 }));
 
 const ORIGINAL_ENV = { ...process.env };
+/** Lima's day `days` from today, YYYY-MM-DD. */
+function limaDayKey(days: number): string {
+  const [year, month, day] = ownerDateKey(new Date()).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 const MISSING = "00000000-0000-4000-8000-000000000000";
 const EVERY_3_DAYS: TaskRecurrence = {
   kind: "every_days",
@@ -348,6 +357,144 @@ describe("tasks_spawned_from_unique", () => {
     await expect(insert(null)).rejects.toMatchObject({
       cause: { code: "23505", constraint: "tasks_spawned_from_unique" },
     });
+  });
+});
+
+describe("completed early (weekdays, day of the month)", () => {
+  test("the next one comes after the due date, never a second one on it", async () => {
+    const due = limaDayKey(3);
+    const weekday = new Date(`${due}T00:00:00Z`).getUTCDay() || 7;
+    const task = await capture({
+      title: "sacar la basura",
+      dueDate: due,
+      recurrence: { kind: "weekdays", weekdays: [weekday] },
+    });
+    const { next } = await complete(task.id);
+    // One week after the due date (it was completed 3 days early).
+    expect(next?.dueDate).toBe(limaDayKey(10));
+  });
+});
+
+describe("where the next one goes", () => {
+  async function newProject(status: "active" | "done" | "canceled" = "active") {
+    const [project] = await testDb
+      .insert(projects)
+      .values({ name: "Jardín", lifeAreaId: await areaId("home"), status })
+      .returning();
+    return project;
+  }
+
+  test("a project closed meanwhile (done or canceled): the inbox, and it says why", async () => {
+    for (const status of ["done", "canceled"] as const) {
+      const project = await newProject();
+      const [milestone] = await testDb
+        .insert(projectMilestones)
+        .values({ projectId: project.id, title: "Riego", sortOrder: 0 })
+        .returning();
+      const task = await recurring({
+        projectId: project.id,
+        milestoneId: milestone.id,
+        priority: "high",
+      });
+      await testDb
+        .update(projects)
+        .set({ status, completedAt: status === "done" ? new Date() : null })
+        .where(eq(projects.id, project.id));
+      const result = await complete(task.id);
+      expect(result.nextInbox).toBe("project");
+      expect(result.next).toMatchObject({
+        projectId: null,
+        milestoneId: null,
+        lifeAreaId: null,
+        area: null,
+        priority: "high",
+        recurrence: EVERY_3_DAYS,
+      });
+      expect((await listInboxTasks()).map((item) => item.id)).toContain(result.next!.id);
+    }
+  });
+
+  test("an archived own area: the inbox, and it says why; an active one stays", async () => {
+    const health = await areaId("health");
+    const kept = await recurring({ lifeAreaId: health });
+    expect(await complete(kept.id)).toMatchObject({
+      nextInbox: null,
+      next: { lifeAreaId: health },
+    });
+
+    const task = await recurring({ title: "b", lifeAreaId: health });
+    await testDb
+      .update(lifeAreas)
+      .set({ archivedAt: sql`now()` })
+      .where(eq(lifeAreas.id, health));
+    const result = await complete(task.id);
+    expect(result).toMatchObject({ nextInbox: "area", next: { lifeAreaId: null, area: null } });
+  });
+
+  test("a soft-deleted milestone is not copied (the project stays)", async () => {
+    const project = await newProject();
+    const [milestone] = await testDb
+      .insert(projectMilestones)
+      .values({ projectId: project.id, title: "Riego", sortOrder: 0 })
+      .returning();
+    const task = await recurring({ projectId: project.id, milestoneId: milestone.id });
+    await testDb
+      .update(projectMilestones)
+      .set({ deletedAt: new Date() })
+      .where(eq(projectMilestones.id, milestone.id));
+    const result = await complete(task.id);
+    expect(result.nextInbox).toBeNull();
+    expect(result.next).toMatchObject({ projectId: project.id, milestoneId: null });
+    expect((await row(result.next!.id)).milestoneId).toBeNull();
+  });
+});
+
+describe("conflicts", () => {
+  test("completing again while the kept next one is already done: no new one, no next", async () => {
+    const task = await recurring();
+    const { next } = await complete(task.id);
+    await complete(next!.id);
+    expect(await reopen(task.id)).toMatchObject({ spawn: "kept" });
+    expect(await complete(task.id)).toMatchObject({ next: null, nextInbox: null });
+    expect(await testDb.$count(tasks, eq(tasks.spawnedFromId, task.id))).toBe(1);
+  });
+
+  test("restoring a deleted next one when another already exists: it comes back on its own", async () => {
+    const task = await recurring();
+    // A → B; B deleted; undo A (nothing to remove); A done again → C.
+    const { next: b } = await complete(task.id);
+    await deleteTask({ id: b!.id });
+    expect(await reopen(task.id)).toMatchObject({ spawn: null });
+    const { next: c } = await complete(task.id);
+    expect(c!.id).not.toBe(b!.id);
+    // Restoring B can't make it a second "next one" of A: detached, a task of its own.
+    expect(await restoreTaskWithSpawn({ id: b!.id })).toMatchObject({
+      ok: true,
+      data: { detached: true, task: { id: b!.id } },
+    });
+    expect(await row(b!.id)).toMatchObject({ deletedAt: null, spawnedFromId: null });
+    expect(await row(c!.id)).toMatchObject({ deletedAt: null, spawnedFromId: task.id });
+    // Undoing A now removes C (untouched), never B.
+    expect(await reopen(task.id)).toMatchObject({ spawn: "removed" });
+    expect((await row(c!.id)).deletedAt).toBeInstanceOf(Date);
+    expect((await row(b!.id)).deletedAt).toBeNull();
+  });
+
+  test("restoring a deleted next one with no sibling keeps its link (positive control)", async () => {
+    const task = await recurring();
+    const { next } = await complete(task.id);
+    await deleteTask({ id: next!.id });
+    expect(await restoreTaskWithSpawn({ id: next!.id })).toMatchObject({
+      ok: true,
+      data: { detached: false },
+    });
+    expect((await row(next!.id)).spawnedFromId).toBe(task.id);
+    // The plain restoreTask (T1) detaches the same way instead of failing.
+    await deleteTask({ id: next!.id });
+    await reopen(task.id);
+    await complete(task.id);
+    expect(await restoreTask({ id: next!.id })).toMatchObject({ ok: true });
+    expect((await row(next!.id)).spawnedFromId).toBeNull();
   });
 });
 

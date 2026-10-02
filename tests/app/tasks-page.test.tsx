@@ -73,11 +73,17 @@ vi.mock("@/modules/tasks/recurrence-actions", async () => {
     setTaskRecurrence: vi.fn(),
     completeTaskWithNext: vi.fn(async (input: { id: string }) => {
       const result = await actions.completeTask(input);
-      return result.ok ? { ok: true, data: { task: result.data, next: null } } : result;
+      return result.ok
+        ? { ok: true, data: { task: result.data, next: null, nextInbox: null } }
+        : result;
     }),
     reopenTaskWithSpawn: vi.fn(async (input: { id: string }) => {
       const result = await actions.reopenTask(input);
       return result.ok ? { ok: true, data: { task: result.data, spawn: null } } : result;
+    }),
+    restoreTaskWithSpawn: vi.fn(async (input: { id: string }) => {
+      const result = await actions.restoreTask(input);
+      return result.ok ? { ok: true, data: { task: result.data, detached: false } } : result;
     }),
   };
 });

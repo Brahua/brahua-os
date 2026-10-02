@@ -41,10 +41,16 @@ function isoWeekday(day: Date): number {
  * The due date (YYYY-MM-DD) of the occurrence that follows one completed at `completedAt`:
  * - every N days / weeks / months: counted from the completion day in Lima (months clamp to
  *   the month's end);
- * - some weekdays, or day X of the month (clamped to the month's end): the first day that fits,
- *   from tomorrow on (Lima).
+ * - some weekdays, or day X of the month (clamped to the month's end): the first day that fits
+ *   from tomorrow (Lima) **or from the day after the completed one's due date, whichever is
+ *   later** (`dueDate`): a task completed early never yields a second one due the same day
+ *   (decision of round 1 of review, SPEC-tasks "Recurrencia").
  */
-export function nextDueDate(rule: TaskRecurrence, completedAt: Date): string {
+export function nextDueDate(
+  rule: TaskRecurrence,
+  completedAt: Date,
+  dueDate: string | null = null,
+): string {
   const today = parseKey(ownerDateKey(completedAt));
   switch (rule.kind) {
     case "every_days":
@@ -56,9 +62,10 @@ export function nextDueDate(rule: TaskRecurrence, completedAt: Date): string {
     case "weekdays": {
       const days = new Set(rule.weekdays ?? []);
       if (days.size === 0) throw new Error("A weekdays rule needs at least one day");
-      // Within 7 days from tomorrow every weekday appears once.
-      for (let offset = 1; offset <= 7; offset++) {
-        const candidate = addDays(today, offset);
+      const from = startDay(today, dueDate);
+      // Within 7 days from `from` every weekday appears once.
+      for (let offset = 0; offset < 7; offset++) {
+        const candidate = addDays(from, offset);
         if (days.has(isoWeekday(candidate))) return toKey(candidate);
       }
       throw new Error("Weekdays out of range (ISO 1–7)");
@@ -66,15 +73,23 @@ export function nextDueDate(rule: TaskRecurrence, completedAt: Date): string {
     case "month_day": {
       const target = rule.monthDay;
       if (target === null || target < 1 || target > 31) throw new Error("Day of month out of range");
-      const tomorrow = addDays(today, 1);
+      const from = startDay(today, dueDate);
       const dayIn = (year: number, month: number) =>
         new Date(Date.UTC(year, month, Math.min(target, daysInMonth(year, month))));
-      // Tomorrow's month's (clamped) day if it is not past, else the next month's.
-      const sameMonth = dayIn(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth());
-      if (sameMonth >= tomorrow) return toKey(sameMonth);
-      return toKey(dayIn(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth() + 1));
+      // That month's (clamped) day if it is not past, else the next month's.
+      const sameMonth = dayIn(from.getUTCFullYear(), from.getUTCMonth());
+      if (sameMonth >= from) return toKey(sameMonth);
+      return toKey(dayIn(from.getUTCFullYear(), from.getUTCMonth() + 1));
     }
   }
+}
+
+/** The first day a weekdays / month_day occurrence may fall on: max(tomorrow, due date + 1). */
+function startDay(today: Date, dueDate: string | null): Date {
+  const tomorrow = addDays(today, 1);
+  if (dueDate === null) return tomorrow;
+  const afterDue = addDays(parseKey(dueDate), 1);
+  return afterDue > tomorrow ? afterDue : tomorrow;
 }
 
 function requireInterval(rule: TaskRecurrence): number {
@@ -109,15 +124,18 @@ export const WEEKDAY_NAMES: Record<number, string> = {
   7: "Domingo",
 };
 
-/** One-letter initials of the toggles (Spanish calendars: L M X J V S D). */
-export const WEEKDAY_INITIALS: Record<number, string> = {
-  1: "L",
-  2: "M",
-  3: "X",
-  4: "J",
-  5: "V",
-  6: "S",
-  7: "D",
+/**
+ * The toggles' visible labels: the first letters of each name, so the accessible name ("Lunes")
+ * starts with what is seen (WCAG 2.5.3, Label in Name).
+ */
+export const WEEKDAY_SHORT: Record<number, string> = {
+  1: "Lu",
+  2: "Ma",
+  3: "Mi",
+  4: "Ju",
+  5: "Vi",
+  6: "Sá",
+  7: "Do",
 };
 
 /** "a", "a y b", "a, b y c". */

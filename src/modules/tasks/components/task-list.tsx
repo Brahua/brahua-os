@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { useIsDesktop } from "@/lib/use-is-desktop";
-import { deleteTask, editTask, restoreTask } from "../actions";
+import { deleteTask, editTask } from "../actions";
 import {
   placementName,
   placementPatch,
@@ -17,8 +17,12 @@ import { applyTaskListChange, neighborOf } from "../task-list-optimistic";
 import { groupRuns, type TaskGroup } from "../task-views";
 import { TASK_FIELD_NAMES, TASKS_COPY } from "../tasks-copy";
 import { VIEWS_COPY } from "../views-copy";
-import { completedNotice, reopenedNotice } from "../recurrence-notices";
-import { completeTaskWithNext, reopenTaskWithSpawn } from "../recurrence-actions";
+import { completedNotice, reopenedNotice, restoredNotice } from "../recurrence-notices";
+import {
+  completeTaskWithNext,
+  reopenTaskWithSpawn,
+  restoreTaskWithSpawn,
+} from "../recurrence-actions";
 import { TaskRow, taskFocusSelector, type TaskFocusControl } from "./task-row";
 import { failureReason, useTasksScreen } from "./tasks-screen";
 
@@ -168,7 +172,7 @@ export function TaskList({
       if (result.ok) {
         push({
           title: TASKS_COPY.completedTitle,
-          text: completedNotice(task, result.data.next),
+          text: completedNotice(task, result.data.next, result.data.nextInbox),
           action: { label: TASKS_COPY.undo, run: () => reopen(task, index) },
         });
         return;
@@ -216,7 +220,7 @@ export function TaskList({
       if (result.ok)
         announce(
           result.data.next
-            ? completedNotice(task, result.data.next)
+            ? completedNotice(task, result.data.next, result.data.nextInbox)
             : VIEWS_COPY.completedAgain(task.title),
         );
       else notSaved(TASKS_COPY.notUndone, failureReason(result));
@@ -265,10 +269,13 @@ export function TaskList({
   function restore(task: TaskItem, index: number) {
     startSaving(async () => {
       if (belongs(task)) apply({ type: "restore", task, index });
-      const queued = await enqueue(`task-delete:${task.id}`, () => restoreTask({ id: task.id }));
+      // T3: a deleted occurrence may come back as a task of its own (said in the notice).
+      const queued = await enqueue(`task-delete:${task.id}`, () =>
+        restoreTaskWithSpawn({ id: task.id }),
+      );
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
-      if (result.ok) announce(TASKS_COPY.restored(task.title));
+      if (result.ok) announce(restoredNotice(task, result.data.detached));
       else notSaved(TASKS_COPY.notUndone, failureReason(result));
     });
   }

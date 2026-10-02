@@ -2,10 +2,11 @@
 
 import { startTransition, useEffect, useRef } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
-import { restoreTask } from "@/modules/tasks/actions";
+import { restoreTaskWithSpawn, type RestoredTask } from "@/modules/tasks/recurrence-actions";
+import { restoredNotice } from "@/modules/tasks/recurrence-notices";
 import { useTasksScreen } from "@/modules/tasks/components/tasks-screen";
 import { DELETED_PARAM } from "@/modules/tasks/routes";
-import type { DeletedTask, TaskItem } from "@/modules/tasks/task-input";
+import type { DeletedTask } from "@/modules/tasks/task-input";
 import { TASKS_COPY } from "@/modules/tasks/tasks-copy";
 
 /** A live region only speaks what changes after it is on the page. */
@@ -40,13 +41,13 @@ export function TasksNotices({ headingId, deleted }: TasksNoticesProps) {
 
     function undo() {
       startTransition(async () => {
-        let result: ActionResult<TaskItem>;
+        let result: ActionResult<RestoredTask>;
         try {
-          result = await restoreTask({ id: task.id });
+          result = await restoreTaskWithSpawn({ id: task.id });
         } catch {
           result = fail(TASKS_COPY.checkConnection);
         }
-        if (result.ok) announce(TASKS_COPY.restored(result.data.title));
+        if (result.ok) announce(restoredNotice(result.data.task, result.data.detached));
         else push({ title: TASKS_COPY.notSavedTitle, text: TASKS_COPY.notUndone, tone: "error" });
       });
     }

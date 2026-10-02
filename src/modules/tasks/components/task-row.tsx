@@ -125,7 +125,11 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: T
               </span>
             ) : null}
             {task.recurrence ? (
-              <span className="inline-flex items-center text-text-secondary" data-task-recurrence="">
+              <span
+                className="inline-flex items-center text-text-secondary"
+                title={recurrenceSummary(task.recurrence)}
+                data-task-recurrence=""
+              >
                 <Icon icon={Repeat} size="sm" />
               </span>
             ) : null}
