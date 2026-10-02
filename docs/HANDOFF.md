@@ -47,7 +47,7 @@
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
 - **tasks:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final, recorrido hecho por el agente en producción con el Chrome del owner). Plan y tareas archivados en `tasks/archive/tasks-*.md`. Pendientes en el backlog de `tasks/todo.md`: navegación definitiva (diseño del owner en Claude Design) e hitos en proyectos cerrados. El owner aceptó las decisiones autónomas de abajo.
-- **habits:** siguiente módulo; spec en preparación.
+- **habits:** en curso. `SPEC-habits.md` aprobada (v2, 2026-10-02); plan en `tasks/plan.md` y tareas H1–H6 en `tasks/todo.md`. Autónomo hasta el Checkpoint final.
   - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4.
   - ✅ T3 (recurrencia): PR #52 integrado. Ver "Cómo funciona tasks" → "T3: recurrencia".
   - ✅ T2 (vistas y detalle): PR #53 integrado. Ver "Cómo funciona tasks" → "T2: vistas y detalle".

@@ -1,6 +1,6 @@
 # Spec: habits
 
-> Módulo `habits` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` · Estado: **BORRADOR v2 (para aprobar)** (2026-10-02).
+> Módulo `habits` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` · Estado: **APROBADO v2** (2026-10-02; el owner aceptó también las decisiones marcadas para revisar).
 
 ## Objetivo
 
