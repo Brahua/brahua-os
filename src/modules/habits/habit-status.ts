@@ -9,11 +9,18 @@ import { isWeekMet } from "./week-progress";
 export type HabitDay = Pick<HabitItem, "kind" | "quantity" | "target">;
 
 /**
- * Whether the day is done: its quantity reached its target (a yes/no habit's target is 1). H3
- * slot (A evitar): for `avoid` the day is done when there is no relapse (quantity 0).
+ * Whether the day is done: its quantity reached its target (a yes/no habit's target is 1; a
+ * quantity can go past it, 10/8). For a habit to avoid it is the other way round: the day is
+ * done while there is no relapse (quantity 0, or no log at all).
  */
 export function isDayDone(day: HabitDay): boolean {
+  if (day.kind === "avoid") return day.quantity === 0;
   return day.quantity >= day.target;
+}
+
+/** Whether a habit to avoid has a relapse logged on the day (always false for the others). */
+export function hasRelapse(day: HabitDay): boolean {
+  return day.kind === "avoid" && day.quantity > 0;
 }
 
 /** The habits due on `today`, in the list's (manual) order. */

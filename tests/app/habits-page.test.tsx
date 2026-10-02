@@ -546,6 +546,8 @@ describe("create", () => {
       frequency: "daily",
       weeklyTarget: null,
       weekdays: null,
+      kind: "build",
+      measure: "check",
     });
     // While it waits, the sheet stays open and says so.
     expect(within(dialog).getByRole("button", { name: "Creando…" })).toHaveAttribute(

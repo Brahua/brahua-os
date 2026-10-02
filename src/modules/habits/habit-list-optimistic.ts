@@ -1,6 +1,7 @@
 // The optimistic view of the habits on "Hoy". Pure and client-safe: the screen applies a change
 // at once and the server's answer (the page revalidates) replaces it.
 import { applyOrder } from "@/modules/core/life-area-order";
+import { HABIT_QUANTITY_MAX } from "./habit-constants";
 import type { HabitItem } from "./habit-input";
 
 export type HabitListChange =
@@ -37,6 +38,16 @@ export function applyHabitListChange(list: HabitItem[], change: HabitListChange)
  */
 export function donePatch(done: boolean): Partial<HabitItem> {
   return { quantity: done ? 1 : 0, hasLogs: true };
+}
+
+/**
+ * The patch of a quantity tap (H3): the quantity shown now plus `delta`, clamped like the server
+ * (0–99 999). Absolute on purpose: React keeps every optimistic update of a burst of taps until
+ * the last one settles, re-applied on top of the server's answers, so a relative "+1" would count
+ * a tap the server already applied twice.
+ */
+export function quantityPatch(shown: number, delta: number): Partial<HabitItem> {
+  return { quantity: Math.min(Math.max(shown + delta, 0), HABIT_QUANTITY_MAX), hasLogs: true };
 }
 
 /** The habit to focus when `id` leaves the list: the next one, else the previous, else none. */

@@ -17,6 +17,9 @@ describe("createHabitInputSchema", () => {
     expect(createHabitInputSchema.parse({ name: "  Meditar\t 10   min " })).toEqual({
       name: "Meditar 10 min",
       lifeAreaId: null,
+      // H3's defaults: a yes/no habit to keep.
+      kind: "build",
+      measure: "check",
     });
   });
 
@@ -58,10 +61,10 @@ describe("createHabitInputSchema", () => {
     expect(createHabitInputSchema.parse({ name: "Familia 👨‍👩‍👧" }).name).toBe("Familia 👨‍👩‍👧");
   });
 
-  test("fields of later tasks or of the row are dropped, never stored as sent", () => {
+  test("fields of the row are dropped, never stored as sent", () => {
     expect(
-      createHabitInputSchema.parse({ name: "Leer", sortOrder: 0, deletedAt: "x", measure: "x" }),
-    ).toEqual({ name: "Leer", lifeAreaId: null });
+      createHabitInputSchema.parse({ name: "Leer", sortOrder: 0, deletedAt: "x", target: 3 }),
+    ).toEqual({ name: "Leer", lifeAreaId: null, kind: "build", measure: "check" });
   });
 });
 

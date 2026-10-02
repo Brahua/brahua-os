@@ -18,11 +18,13 @@ import { archiveHabit, reorderHabits, unarchiveHabit } from "../organize-actions
 import { ORGANIZE_COPY } from "../organize-copy";
 import { isScheduledOn } from "../schedule";
 import { FREQUENCY_COPY } from "../frequency-copy";
+import { MEASURE_COPY } from "../measure-copy";
 import { weekProgress } from "../week-progress";
 import { HabitOrderContext, PlainHabitOrder, type HabitOrderListProps } from "./habit-order-rows";
 import { HabitPad, habitPadSelector } from "./habit-pad";
 import { ArchivedHabits, FoldedSection, reactivateSelector } from "./habit-sections";
 import { failureReason, useHabitsScreen } from "./habits-screen";
+import { useQuantityLog } from "./use-quantity-log";
 
 // The sheets' code loads on demand: as soon as a key that opens one is pointed at, focused or
 // touched, so it is usually there by the time it opens.
@@ -155,6 +157,15 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     push({ title: HABITS_COPY.notSavedTitle, text: `${text} ${reason}`, tone: "error" });
   }
 
+  // H3: a quantity's tap and "Ajustar el día".
+  const quantity = useQuantityLog({
+    view,
+    apply,
+    startSaving,
+    notSaved,
+    focusFallback: () => document.getElementById(headingId)?.focus(),
+  });
+
   // ── Log today (a tap) and undo ──
 
   function toggle(habit: HabitItem, done: boolean) {
@@ -192,14 +203,28 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
         notSaved(undoable ? HABITS_COPY.notLogged : HABITS_COPY.notUndone, failureReason(result));
         return;
       }
+      // A habit to avoid: `done` is "a relapse is logged" (H3), said without guilt.
+      const avoid = habit.kind === "avoid";
       if (undoable) {
         push({
-          title: done ? HABITS_COPY.doneTitle : HABITS_COPY.undoneTitle,
-          text: done
-            ? HABITS_COPY.done(habit.name, progress)
-            : HABITS_COPY.undone(habit.name, progress),
+          title: avoid
+            ? done
+              ? MEASURE_COPY.slipTitle
+              : MEASURE_COPY.unslipTitle
+            : done
+              ? HABITS_COPY.doneTitle
+              : HABITS_COPY.undoneTitle,
+          text: avoid
+            ? done
+              ? MEASURE_COPY.slip(habit.name, progress)
+              : MEASURE_COPY.unslip(habit.name, progress)
+            : done
+              ? HABITS_COPY.done(habit.name, progress)
+              : HABITS_COPY.undone(habit.name, progress),
           action: { label: HABITS_COPY.undo, run: () => logDay(habit, !done, false) },
         });
+      } else if (avoid) {
+        announce(done ? MEASURE_COPY.slipAgain(habit.name) : MEASURE_COPY.unslipAgain(habit.name));
       } else {
         announce(done ? HABITS_COPY.doneAgain(habit.name) : HABITS_COPY.undoneAgain(habit.name));
       }
@@ -462,6 +487,15 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     setOptionsOpen(false);
   }
 
+  // H3: "Ajustar el día" opens its own sheet once the options sheet is fully closed (never two
+  // dialogs at once); closing it returns focus to the options key.
+  const adjustNext = useRef<HabitItem | null>(null);
+
+  function adjustFromOptions(habit: HabitItem) {
+    adjustNext.current = habit;
+    setOptionsOpen(false);
+  }
+
   /** After a sheet closes: if its return target left meanwhile, focus never stays on <body>. */
   function afterOptionsClosed() {
     const editing = editAfterOptions.current;
@@ -469,6 +503,12 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
       editAfterOptions.current = null;
       // Back to the options key when the form closes without saving.
       openForm(optionsReturn.current, latest.current.find((h) => h.id === editing.id) ?? editing);
+      return;
+    }
+    const adjust = adjustNext.current;
+    if (adjust) {
+      adjustNext.current = null;
+      quantity.openAdjust(adjust, optionsReturn.current);
       return;
     }
     if (document.activeElement === document.body || document.activeElement === null) {
@@ -487,7 +527,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
       >
         {list.map((habit) => (
           <li key={habit.id} className="relative min-w-0" data-habit-cell={habit.id}>
-            <HabitPad habit={habit} onToggle={toggle} reserveCorner />
+            <HabitPad habit={habit} onToggle={toggle} onAdd={quantity.add} reserveCorner />
             {/* 4 px from the corner: a tap that misses the key by a little hits it, not the pad. */}
             <div className="absolute top-1 right-1">
               {/* No tooltip: it would repeat the habit's (possibly long) name over the next
@@ -642,8 +682,11 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
           onDelete={deleteFromOptions}
           onEdit={editFromOptions}
           onArchive={archiveFromOptions}
+          onAdjust={adjustFromOptions}
         />
       ) : null}
+
+      {quantity.adjustSheet}
     </div>
   );
 }

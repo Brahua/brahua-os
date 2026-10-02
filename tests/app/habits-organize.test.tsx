@@ -376,6 +376,8 @@ describe("the frequency in the form", () => {
       frequency: "weekly_count",
       weeklyTarget: 4,
       weekdays: null,
+      kind: "build",
+      measure: "check",
     });
     await server.answer();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

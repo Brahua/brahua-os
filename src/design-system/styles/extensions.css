@@ -190,3 +190,20 @@ html { scroll-padding-top: env(safe-area-inset-top); }
    sunken well with the check that completes it, above the name link's overlay (relative z-10 on
    the element). Not a synced component: no PENDING UPSTREAM. */
 .bo-next-action { display: flex; align-items: center; gap: 4px; min-width: 0; border-radius: var(--radius-lg); background: var(--color-well); box-shadow: inset 0 0 0 1px var(--color-divider); }
+/* Habits (H3): a quantity pad's short SegmentBar ("3/8 vasos"). Once the goal is reached the pad
+   looks "on" (inverted, `.is-on`): its segments follow the pad's text color there. Decorative
+   (the status line and the description carry the numbers). Not a synced component: no PENDING
+   UPSTREAM. */
+.bo-key.is-on .bo-pad-segbar .bo-segbar__seg { background: color-mix(in srgb, currentColor 30%, transparent); }
+.bo-key.is-on .bo-pad-segbar .bo-segbar__seg.is-filled { background: currentColor; }
+/* Habits (H3): a habit to avoid's pad is a toggle pressed while today has a relapse. Pressed must
+   not look "done" (the inverted key of a habit kept): it stays a plain key, sunk, and its LED goes
+   off (lit while clean). Never red (docs/principios-ux.md). */
+.bo-key--pad[data-habit-kind="avoid"][aria-pressed="true"] { background: var(--color-key); color: var(--color-text); box-shadow: var(--shadow-key-pressed); }
+.bo-key--pad[data-habit-kind="avoid"][aria-pressed="true"] .bo-key__sub { color: var(--color-text-secondary); }
+/* Its LED is drawn for its own (not inverted) background, like a plain key's. */
+.bo-key--pad[data-habit-kind="avoid"][aria-pressed="true"] .bo-led { --led: var(--area-c, var(--color-text-secondary)); }
+/* Forced colors: pressed shows as a dashed outline, not the solid one of a done pad. */
+@media (forced-colors: active) {
+  .bo-key--pad[data-habit-kind="avoid"][aria-pressed="true"] { outline-style: dashed; }
+}

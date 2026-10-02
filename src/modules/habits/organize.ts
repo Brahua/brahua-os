@@ -26,6 +26,7 @@ import {
   type HabitFailure,
 } from "./habits";
 import type { UnarchiveHabitInput } from "./organize-input";
+import { applyMeasureUpdate } from "./quantity";
 
 /** The archived habits (not deleted) with `today`'s log, in their old order. */
 export async function selectArchivedHabits(db: Database, today: string): Promise<HabitItem[]> {
@@ -34,7 +35,8 @@ export async function selectArchivedHabits(db: Database, today: string): Promise
 
 /**
  * Edits an active habit's name, area and frequency (each frequency with exactly its own field;
- * the others are cleared). Never its measure (H3). A new area must be active; the one it already
+ * the others are cleared). Never its kind or measure; a quantity's goal, unit and step (H3, from
+ * today on: `applyMeasureUpdate`). A habit to avoid stays daily ("avoidDaily"). A new area must be active; the one it already
  * has stays even if it was archived since (SPEC-habits "Área"). Returns the habit as it is on
  * `today`, or why not ("archived": reactivate it first).
  */
@@ -46,12 +48,24 @@ export async function updateHabitById(
   return db.transaction(async (tx) => {
     await lockHabit(tx, input.id);
     const [habit] = await tx
-      .select({ lifeAreaId: habits.lifeAreaId, archivedAt: habits.archivedAt })
+      .select({
+        lifeAreaId: habits.lifeAreaId,
+        archivedAt: habits.archivedAt,
+        kind: habits.kind,
+        measure: habits.measure,
+      })
       .from(habits)
       .where(and(eq(habits.id, input.id), visibleHabit))
       .for("update");
     if (!habit) return "notFound";
     if (habit.archivedAt !== null) return "archived";
+    // H3: a habit to avoid is daily; only a quantity has a goal, unit and step.
+    if (habit.kind === "avoid" && input.frequency !== "daily") return "avoidDaily";
+    const measure =
+      input.goal !== undefined && input.unit !== undefined
+        ? { goal: input.goal, unit: input.unit, step: input.step ?? 1 }
+        : null;
+    if (measure && habit.measure !== "quantity") return "notQuantity";
     if (input.lifeAreaId !== null && input.lifeAreaId !== habit.lifeAreaId) {
       const [area] = await tx
         .select({ id: lifeAreas.id })
@@ -64,6 +78,7 @@ export async function updateHabitById(
       .update(habits)
       .set({ name: input.name, lifeAreaId: input.lifeAreaId, ...frequencyColumns(input) })
       .where(eq(habits.id, input.id));
+    if (measure) await applyMeasureUpdate(tx, input.id, measure, today);
     return (await selectHabitItemById(tx, input.id, today)) as HabitItem;
   });
 }

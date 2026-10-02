@@ -32,6 +32,14 @@ import {
   frequencyDraftOf,
   frequencyValues,
 } from "./frequency-field";
+import {
+  MeasureFields,
+  measureDraft,
+  measureEditValues,
+  measureFormValueOf,
+  type MeasureFieldsHandle,
+  type MeasureFormValue,
+} from "./measure-fields";
 
 /** The area picker's value for "Sin área". */
 const NO_AREA = "";
@@ -110,6 +118,14 @@ export function HabitFormSheet({
   const nameInput = useRef<HTMLInputElement>(null);
   const areaGroup = useRef<HTMLDivElement>(null);
   const frequencyGroup = useRef<HTMLDivElement>(null);
+  // H3: kind and measure (and a quantity's goal, unit and step), as typed. Editing starts from
+  // the habit; its kind and measure don't change there (only a quantity's goal, unit and step).
+  const [measure, setMeasure] = useState<MeasureFormValue>(() => measureFormValueOf(habit));
+  const measureFields = useRef<MeasureFieldsHandle>(null);
+  // A habit to avoid is daily: its frequency isn't asked (and is sent as daily).
+  const avoid = measure.kind === "avoid";
+  const sentFrequency = frequencyValues(avoid ? frequencyDraftOf(null) : frequency);
+  const measureValues = habit ? measureEditValues(measure) : measureDraft(measure);
 
   useEffect(() => {
     if (!focusFirstInvalid.current) return;
@@ -119,7 +135,7 @@ export function HabitFormSheet({
     else if (first === "lifeAreaId") focusRadioGrid(areaGroup.current);
     else if (first === "frequency" || first === "weeklyTarget" || first === "weekdays") {
       focusFrequencyField(frequencyGroup.current, first);
-    }
+    } else if (first) measureFields.current?.focus(first);
   });
 
   // While saving, the sheet stays open: Esc, the scrim, ✕ and Cancelar do nothing.
@@ -147,7 +163,7 @@ export function HabitFormSheet({
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
-    const values = { name, lifeAreaId, ...frequencyValues(frequency) };
+    const values = { name, lifeAreaId, ...sentFrequency, ...measureValues };
     const parsed = habit
       ? updateHabitInputSchema.safeParse({ id: habit.id, ...values })
       : createHabitInputSchema.safeParse(values);
@@ -266,25 +282,39 @@ export function HabitFormSheet({
           }}
         />
 
-        {/* H3 slot (Tipo y Medición): SegmentedControl "A cumplir · A evitar" and "Sí/No ·
-            Cantidad" (meta, unidad y paso). Its fields go in createHabitInputSchema. */}
+        {/* H3 (Tipo y Medición): its fields go in createHabitInputSchema (measure-input.ts). */}
+        <MeasureFields
+          ref={measureFields}
+          value={measure}
+          onChange={setMeasure}
+          errors={errors}
+          editing={Boolean(habit)}
+          onEdit={(field) => {
+            if (errors[field]) clearError(field);
+          }}
+          // "Varias veces al día" is a daily habit.
+          onSeveralTimes={() => setFrequency((draft) => ({ ...draft, frequency: "daily" }))}
+        />
 
         {/* H2 (Frecuencia): "Diaria · Por semana · Días fijos", with X or the days. ("Varias
             veces al día" is H3's shortcut: a daily quantity habit.) */}
-        <FrequencyField
-          ref={frequencyGroup}
-          id={`${ids}-frequency`}
-          draft={frequency}
-          onDraftChange={(next) => {
-            setFrequency(next);
-            if (errors.frequency || errors.weeklyTarget || errors.weekdays) {
-              clearError("frequency");
-              clearError("weeklyTarget");
-              clearError("weekdays");
-            }
-          }}
-          errors={errors}
-        />
+        {/* H3: a habit to avoid is daily (its note says so), so no frequency to pick. */}
+        {avoid ? null : (
+          <FrequencyField
+            ref={frequencyGroup}
+            id={`${ids}-frequency`}
+            draft={frequency}
+            onDraftChange={(next) => {
+              setFrequency(next);
+              if (errors.frequency || errors.weeklyTarget || errors.weekdays) {
+                clearError("frequency");
+                clearError("weeklyTarget");
+                clearError("weekdays");
+              }
+            }}
+            errors={errors}
+          />
+        )}
 
         <div className={cn("bo-field", errors.lifeAreaId && "is-error")}>
           <span id={areaLabelId} className="bo-field__label">
@@ -316,7 +346,7 @@ export function HabitFormSheet({
         <p className="bo-text-body-sm text-text-secondary">
           <span className="bo-text-label">{HABITS_COPY.summaryLabel}: </span>
           <span id={summaryId}>
-            {ruleSummary({ name, lifeAreaId, ...frequencyValues(frequency) })}
+            {ruleSummary({ name, lifeAreaId, ...sentFrequency, ...measureDraft(measure) })}
           </span>
         </p>
 
