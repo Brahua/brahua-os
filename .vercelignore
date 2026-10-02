@@ -1,16 +1,18 @@
 # What `vercel deploy` (remote build, ci.yml) must not upload. Vercel already skips .git,
 # node_modules, .next and .vercel. Keep src, scripts, drizzle, e2e and tests: next build
 # type-checks every file tsconfig.json includes.
+# Folder patterns are anchored to the repo root with a leading "/": an unanchored `tasks/` also
+# matched src/modules/tasks/ and broke the production build (2026-10-02).
 .env*
 !.env.example
 *.pem
-.claude/
-.agents/
-.github/
-docs/
-tasks/
-test-results/
-playwright-report/
-e2e/.auth/
-exports/
-.pgdata/
+/.claude/
+/.agents/
+/.github/
+/docs/
+/tasks/
+/test-results/
+/playwright-report/
+/e2e/.auth/
+/exports/
+/.pgdata/
