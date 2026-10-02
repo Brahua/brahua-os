@@ -1,6 +1,15 @@
 "use client";
 
-import { Archive, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  Archive,
+  CalendarClock,
+  CalendarX,
+  Pause,
+  Pencil,
+  Play,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Key, Sheet } from "@/design-system";
 import { useIsDesktop } from "@/lib/use-is-desktop";
@@ -8,6 +17,11 @@ import type { HabitItem } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
 import { MEASURE_COPY } from "../measure-copy";
 import { ORGANIZE_COPY } from "../organize-copy";
+import { isPausedToday } from "../habit-status";
+import { PAUSE_COPY } from "../pause-copy";
+import { otherLoggableDays } from "../schedule";
+import { useHabitsScreen } from "./habits-screen";
+import { preloadPause } from "./use-pause-flow";
 import { preloadAdjust } from "./use-quantity-log";
 
 export type HabitOptionsSheetProps = {
@@ -25,6 +39,12 @@ export type HabitOptionsSheetProps = {
   onArchive?: (habit: HabitItem) => void;
   /** H3: open "Ajustar el día" (the screen closes this sheet first). Quantity habits only. */
   onAdjust?: (habit: HabitItem) => void;
+  /** H4: open "Registrar otro día" (the screen closes this sheet first). */
+  onLogOtherDay?: (habit: HabitItem) => void;
+  /** H4: open "Pausar" (the screen closes this sheet first). */
+  onPause?: (habit: HabitItem) => void;
+  /** H4: "Reanudar" the current pause, or cancel the next one (the screen closes the sheet). */
+  onResume?: (habit: HabitItem) => void;
 };
 
 /**
@@ -42,8 +62,16 @@ export function HabitOptionsSheet({
   onEdit,
   onArchive,
   onAdjust,
+  onLogOtherDay,
+  onPause,
+  onResume,
 }: HabitOptionsSheetProps) {
   const isDesktop = useIsDesktop();
+  const { today } = useHabitsScreen();
+  // H4: the habit's current pause (or the next one) and whether earlier days can be logged.
+  const pause = habit.pause;
+  const pausedToday = isPausedToday(habit, today);
+  const canLogOtherDay = otherLoggableDays(habit.startDate, today).length > 0;
   const [confirming, setConfirming] = useState(false);
   const ids = useId();
   const deleteKey = useRef<HTMLButtonElement>(null);
@@ -75,6 +103,9 @@ export function HabitOptionsSheet({
   const helpId = `${ids}-delete-help`;
   const archiveHelpId = `${ids}-archive-help`;
   const adjustHelpId = `${ids}-adjust-help`;
+  const otherDayHelpId = `${ids}-other-day-help`;
+  const pauseHelpId = `${ids}-pause-help`;
+  const pauseStateId = `${ids}-pause-state`;
   const confirmTextId = `${ids}-confirm-text`;
 
   return (
@@ -142,7 +173,68 @@ export function HabitOptionsSheet({
           </div>
         ) : null}
 
-        {/* H4 slot (Pausar, Reanudar). */}
+        {/* H4: "Registrar otro día" (one of the 7 days before today). */}
+        {onLogOtherDay && canLogOtherDay ? (
+          <div className="flex flex-col items-start gap-2">
+            <Key
+              variant="ghost"
+              icon={CalendarClock}
+              aria-haspopup="dialog"
+              aria-describedby={otherDayHelpId}
+              onPointerEnter={preloadAdjust}
+              onFocus={preloadAdjust}
+              onTouchStart={preloadAdjust}
+              onClick={() => onLogOtherDay(habit)}
+            >
+              {PAUSE_COPY.logOtherDay}
+            </Key>
+            <p id={otherDayHelpId} className="bo-text-body-sm text-text-secondary">
+              {PAUSE_COPY.logOtherDayHelp}
+            </p>
+          </div>
+        ) : null}
+
+        {/* H4: the current (or next) pause with "Reanudar", and "Pausar". */}
+        {onPause || onResume ? (
+          <div className="flex flex-col items-start gap-2">
+            {pause && onResume ? (
+              <>
+                <p id={pauseStateId} className="bo-text-body-sm" data-habit-pause-state="">
+                  {pausedToday
+                    ? PAUSE_COPY.pausedUntil(pause.endDate, pause.reason)
+                    : PAUSE_COPY.pauseAhead(pause.startDate, pause.endDate, pause.reason)}
+                </p>
+                <Key
+                  variant="ghost"
+                  icon={pausedToday ? Play : CalendarX}
+                  aria-describedby={pauseStateId}
+                  onClick={() => onResume(habit)}
+                >
+                  {pausedToday ? PAUSE_COPY.resume : PAUSE_COPY.cancelPause}
+                </Key>
+              </>
+            ) : null}
+            {onPause && !pausedToday ? (
+              <>
+                <Key
+                  variant="ghost"
+                  icon={Pause}
+                  aria-haspopup="dialog"
+                  aria-describedby={pauseHelpId}
+                  onPointerEnter={preloadPause}
+                  onFocus={preloadPause}
+                  onTouchStart={preloadPause}
+                  onClick={() => onPause(habit)}
+                >
+                  {PAUSE_COPY.pause}
+                </Key>
+                <p id={pauseHelpId} className="bo-text-body-sm text-text-secondary">
+                  {PAUSE_COPY.pauseHelp}
+                </p>
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         {confirming ? (
           // No role="group" named by the heading: with focus on the heading it was read twice.

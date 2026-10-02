@@ -41,7 +41,8 @@ const unique = (prefix: string, testInfo: TestInfo) =>
   `${prefix} ${testInfo.project.name} ${Math.random().toString(36).slice(2, 6)}`;
 
 /** The pad's status line ("3/8 VASOS"). */
-const status = (page: Page, name: string) => pad(page, name).locator(".bo-key__sub");
+const status = (page: Page, name: string) =>
+  pad(page, name).locator(".bo-key__sub:not([data-habit-streak])");
 
 test("8 vasos: each tap adds one until the goal; Deshacer takes one back", async ({
   page,
@@ -104,14 +105,14 @@ test("a habit to avoid: one tap logs a relapse, Deshacer takes it back", async (
   await openHabits(page);
   const slip = pad(page, `Registrar recaída: ${name}`);
   await expect(slip).toHaveAttribute("aria-pressed", "false");
-  await expect(slip.locator(".bo-key__sub")).toHaveText("SIN RECAÍDAS HOY");
+  await expect(slip.locator(".bo-key__sub")).toHaveText("8 DÍAS LIMPIO");
   await expect(habitsCount(page)).toHaveText("1 de 1 hoy");
 
   await untilSaved(page, () => slip.click());
   // No confirmation: logged at once, said without guilt.
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(slip).toHaveAttribute("aria-pressed", "true");
-  await expect(slip.locator(".bo-key__sub")).toHaveText("RECAÍDA REGISTRADA HOY");
+  await expect(slip.locator(".bo-key__sub")).toHaveText("EMPIEZAS DE NUEVO HOY");
   await expect(notices(page).getByText(`Anotaste una recaída en «${name}».`)).toBeVisible();
   await expect(habitsCount(page)).toHaveText("0 de 1 hoy");
   await expect.poll(async () => (await readHabit(id)).today).toBe(1);

@@ -11,7 +11,7 @@ import { applyOrder, moveId } from "@/modules/core/life-area-order";
 import { deleteHabit, restoreHabit } from "../actions";
 import type { DeletedHabit, HabitItem } from "../habit-input";
 import { applyHabitListChange, donePatch, neighborOf } from "../habit-list-optimistic";
-import { dueOn, todayCount } from "../habit-status";
+import { dueOn, isPausedToday, notDueOn, pausedOn, todayCount } from "../habit-status";
 import { HABITS_COPY } from "../habits-copy";
 import { setHabitDone } from "../log-actions";
 import { archiveHabit, reorderHabits, unarchiveHabit } from "../organize-actions";
@@ -19,11 +19,15 @@ import { ORGANIZE_COPY } from "../organize-copy";
 import { isScheduledOn } from "../schedule";
 import { FREQUENCY_COPY } from "../frequency-copy";
 import { MEASURE_COPY } from "../measure-copy";
+import { STREAK_COPY } from "../pause-copy";
+import { streakMilestone } from "../streak-notice";
 import { weekProgress } from "../week-progress";
 import { HabitOrderContext, PlainHabitOrder, type HabitOrderListProps } from "./habit-order-rows";
 import { HabitPad, habitPadSelector } from "./habit-pad";
 import { ArchivedHabits, FoldedSection, reactivateSelector } from "./habit-sections";
 import { failureReason, useHabitsScreen } from "./habits-screen";
+import { PausedHabits, resumeSelector } from "./paused-habits";
+import { usePauseFlow, type TrackFocus } from "./use-pause-flow";
 import { useQuantityLog } from "./use-quantity-log";
 
 // The sheets' code loads on demand: as soon as a key that opens one is pointed at, focused or
@@ -45,6 +49,9 @@ type Opening = { habit: HabitItem; key: number };
 
 /** Where a pad is: the grid of the habits due today, or "No tocan hoy". */
 type Grid = "due" | "not-due";
+
+/** Where a habit is on "Hoy": a grid, or (H4) "En pausa" (a row with "Reanudar"). */
+type Place = Grid | "paused";
 
 /** A habit's pad inside one grid (a pad moves between them when its frequency changes). */
 const padIn = (grid: Grid, id: string) => `[data-habits-grid="${grid}"] ${habitPadSelector(id)}`;
@@ -80,10 +87,13 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   const [saving, startSaving] = useTransition();
   const reducedMotion = usePrefersReducedMotion();
   const due = dueOn(view, today);
-  const notDue = view.filter((habit) => !isScheduledOn(habit, today));
+  const notDue = notDueOn(view, today);
+  // H4: paused today, out of the grids and the count.
+  const paused = pausedOn(view, today);
   const count = todayCount(view, today);
   const listHeadingId = `${headingId}-today`;
   const [notDueOpen, setNotDueOpen] = useState(false);
+  const [pausedOpen, setPausedOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
   // Ordering needs two habits. Down to one while ordering (deleted in another tab), the mode
   // ends (adjusted during render, so it never comes back by itself) and focus, which was on the
@@ -143,8 +153,33 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   /** The grid a habit's pad is in today. */
   const gridOf = (habit: HabitItem): Grid => (isScheduledOn(habit, today) ? "due" : "not-due");
 
-  /** What to focus once `id` leaves: its neighbor's pad in the same grid, or the heading. */
+  /** Where a habit is today (H4: a paused one is a row of "En pausa"). */
+  const placeOf = (habit: HabitItem): Place =>
+    isPausedToday(habit, today) ? "paused" : gridOf(habit);
+
+  /**
+   * Opens the folded section `habit` is in (if any) and returns the selector to focus there: its
+   * pad, or its "Reanudar" key in "En pausa".
+   */
+  function revealSelector(habit: HabitItem): string {
+    const place = placeOf(habit);
+    if (place === "not-due") setNotDueOpen(true);
+    if (place === "paused") {
+      setPausedOpen(true);
+      return resumeSelector(habit.id);
+    }
+    return padIn(place, habit.id);
+  }
+
+  /** What to focus once `id` leaves: its neighbor in the same place, or the heading. */
   function neighborElement(id: string): HTMLElement | null {
+    if (paused.some((habit) => habit.id === id)) {
+      const neighbor = neighborOf(paused, id);
+      return (
+        (neighbor ? document.querySelector<HTMLElement>(resumeSelector(neighbor.id)) : null) ??
+        document.getElementById(headingId)
+      );
+    }
     const grid = due.some((habit) => habit.id === id) ? due : notDue;
     const neighbor = neighborOf(grid, id);
     return (
@@ -166,6 +201,62 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     focusFallback: () => document.getElementById(headingId)?.focus(),
   });
 
+  /**
+   * H4: a habit about to move between a grid and "En pausa" ("Deshacer", a rollback): if focus
+   * was on it (its pad, its row, a notice's "Deshacer") or lost, it follows the habit.
+   */
+  const trackFocus: TrackFocus = (habit) => {
+    const active = document.activeElement;
+    const id = CSS.escape(habit.id);
+    const had =
+      active === null ||
+      active === document.body ||
+      (active instanceof HTMLElement &&
+        active.closest(
+          `[data-habit-cell="${id}"], [data-paused-habit="${id}"], .bo-toast-viewport`,
+        ) !== null);
+    return (moved) => {
+      if (had) focusWhenReady(revealSelector(moved));
+    };
+  };
+
+  // H4: "Pausar", "Reanudar" and their "Deshacer".
+  const pauses = usePauseFlow({
+    trackFocus,
+    apply,
+    startSaving,
+    notSaved,
+    // Paused today: the pad left for "En pausa", which opens with focus on its "Reanudar".
+    // Paused later: it stays where it was (the options key the sheet returned focus to).
+    onPausedClosed: (habit, pausedToday) => {
+      if (pausedToday) {
+        setPausedOpen(true);
+        focusWhenReady(resumeSelector(habit.id));
+      } else if (document.activeElement === document.body || document.activeElement === null) {
+        focusWhenReady(padIn(gridOf(habit), habit.id));
+      }
+    },
+    focusFallback: () => document.getElementById(headingId)?.focus(),
+  });
+
+  /**
+   * "Reanudar" (a row of "En pausa", or the options): the habit goes back to its grid at once.
+   * From "En pausa", focus goes to the next paused habit's "Reanudar", else to its pad.
+   */
+  function resumeFrom(habit: HabitItem, fromRow: boolean) {
+    // One at a time per habit: a second activation while it is on its way does nothing.
+    if (pauses.isBusy(habit)) return;
+    const back = { ...habit, pause: null };
+    const index = paused.findIndex((item) => item.id === habit.id);
+    const next = fromRow ? (paused[index + 1] ?? paused[index - 1]) : undefined;
+    pauses.resume(habit);
+    if (next) {
+      focusWhenReady(resumeSelector(next.id));
+      return;
+    }
+    if (isPausedToday(habit, today) || fromRow) focusWhenReady(revealSelector(back));
+  }
+
   // ── Log today (a tap) and undo ──
 
   function toggle(habit: HabitItem, done: boolean) {
@@ -183,6 +274,8 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     // logging the day before by mistake (isCurrentDay refreshes and says so).
     if (!isCurrentDay()) return;
     const change = { type: "update", id: habit.id, patch: donePatch(done) } as const;
+    // H4: a tap that reaches 7, 30, 90 or 365 (days or weeks) is celebrated in the notice.
+    const milestone = undoable ? streakMilestone(habit, { ...habit, ...change.patch }) : null;
     // The count as it will be after this tap ("2 de 3 hoy"), said in the notice too.
     const after = todayCount(applyHabitListChange(view, change), today);
     // A weekly habit says its week too ("2 de 3 hoy. 2 de 3 esta semana"): its pad's line is
@@ -205,7 +298,13 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
       }
       // A habit to avoid: `done` is "a relapse is logged" (H3), said without guilt.
       const avoid = habit.kind === "avoid";
-      if (undoable) {
+      if (undoable && milestone) {
+        push({
+          title: STREAK_COPY.milestoneTitle(milestone.count, milestone.unit),
+          text: STREAK_COPY.milestone(habit.name, milestone.count, progress),
+          action: { label: HABITS_COPY.undo, run: () => logDay(habit, !done, false) },
+        });
+      } else if (undoable) {
         push({
           title: avoid
             ? done
@@ -339,10 +438,10 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   function reactivateFromList(habit: HabitItem) {
     const index = archivedView.findIndex((item) => item.id === habit.id);
     const neighbor = archivedView[index + 1] ?? archivedView[index - 1];
-    // The last one, not due today: "No tocan hoy" opens so its pad can take focus.
-    if (!neighbor && gridOf(habit) === "not-due") setNotDueOpen(true);
+    // The last one: the section its pad goes to ("No tocan hoy", "En pausa") opens for focus.
+    const target = neighbor ? reactivateSelector(neighbor.id) : revealSelector(habit);
     reactivate(habit, null);
-    focusWhenReady(neighbor ? reactivateSelector(neighbor.id) : padIn(gridOf(habit), habit.id));
+    focusWhenReady(target);
   }
 
   // ── Manual order (H2) ──
@@ -446,10 +545,10 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     const habit = created.current;
     if (!habit) return;
     created.current = null;
-    // Not due today (fixed days of another day): "No tocan hoy" opens, so the pad can be seen.
+    // Not due today (fixed days of another day): "No tocan hoy" opens, so the pad can be seen
+    // (H4: a paused one is in "En pausa").
     const grid = gridOf(habit);
-    if (grid === "not-due") setNotDueOpen(true);
-    focusWhenReady(padIn(grid, habit.id));
+    focusWhenReady(revealSelector(habit));
     const message = formHabit ? ORGANIZE_COPY.updated(habit.name) : HABITS_COPY.created(habit.name);
     // Its pad moved to the folded section (or was born there): say where it is.
     announce(grid === "not-due" ? `${message} ${ORGANIZE_COPY.nowNotDue}` : message);
@@ -496,6 +595,30 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     setOptionsOpen(false);
   }
 
+  // H4: "Registrar otro día" and "Pausar" open their sheet once the options sheet is closed;
+  // "Reanudar" closes it and resumes.
+  const afterOptions = useRef<{ kind: "otherDay" | "pause" | "resume"; habit: HabitItem } | null>(
+    null,
+  );
+
+  function logOtherDayFromOptions(habit: HabitItem) {
+    afterOptions.current = { kind: "otherDay", habit };
+    setOptionsOpen(false);
+  }
+
+  function pauseFromOptions(habit: HabitItem) {
+    afterOptions.current = { kind: "pause", habit };
+    setOptionsOpen(false);
+  }
+
+  function resumeFromOptions(habit: HabitItem) {
+    // Paused today, its options key (in "En pausa") leaves with it: focus goes to its pad once
+    // the sheet is gone.
+    if (isPausedToday(habit, today)) optionsReturn.current = null;
+    afterOptions.current = { kind: "resume", habit };
+    setOptionsOpen(false);
+  }
+
   /** After a sheet closes: if its return target left meanwhile, focus never stays on <body>. */
   function afterOptionsClosed() {
     const editing = editAfterOptions.current;
@@ -509,6 +632,15 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     if (adjust) {
       adjustNext.current = null;
       quantity.openAdjust(adjust, optionsReturn.current);
+      return;
+    }
+    const next = afterOptions.current;
+    if (next) {
+      afterOptions.current = null;
+      const habit = latest.current.find((h) => h.id === next.habit.id) ?? next.habit;
+      if (next.kind === "otherDay") quantity.openOtherDay(habit, optionsReturn.current);
+      else if (next.kind === "pause") pauses.openPause(habit, optionsReturn.current);
+      else resumeFrom(habit, false);
       return;
     }
     if (document.activeElement === document.body || document.activeElement === null) {
@@ -651,7 +783,18 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
         </>
       )}
 
-      {/* H4 slot ("En pausa (N)", plegado, con "Reanudar"). */}
+      {/* H4: "En pausa (N)", folded, with "Reanudar". */}
+      {isOrdering ? null : (
+        <PausedHabits
+          habits={paused}
+          expanded={pausedOpen}
+          onExpandedChange={setPausedOpen}
+          onResume={(habit) => resumeFrom(habit, true)}
+          isBusy={pauses.isBusy}
+          onOptions={openOptions}
+          onOptionsHover={preloadOptions}
+        />
+      )}
 
       {/* H2: "Archivados (N)", folded, with "Reactivar" (H5 moves it to "Semana"). */}
       {isOrdering ? null : (
@@ -683,10 +826,14 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
           onEdit={editFromOptions}
           onArchive={archiveFromOptions}
           onAdjust={adjustFromOptions}
+          onLogOtherDay={logOtherDayFromOptions}
+          onPause={pauseFromOptions}
+          onResume={resumeFromOptions}
         />
       ) : null}
 
       {quantity.adjustSheet}
+      {pauses.pauseSheet}
     </div>
   );
 }

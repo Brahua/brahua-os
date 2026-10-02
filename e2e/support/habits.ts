@@ -4,7 +4,7 @@ import { expect, test as base, type Page } from "@playwright/test";
 import { Client } from "pg";
 import { createDb } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
-import { habitLogs, habits } from "@/modules/habits/db/schema";
+import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 import { limaDay } from "./projects";
 
@@ -68,6 +68,12 @@ type NewHabit = {
   kind?: "build" | "avoid";
   /** H3: a quantity habit ("8 vasos": goal, unit, step) and today's quantity. */
   quantity?: { goal: number; unit: string; step?: number; today?: number };
+  /** H4: earlier days logged as done (days from today: -1 is yesterday), for a streak. */
+  doneDays?: number[];
+  /** H4: a pause, in days from today (both included). */
+  pause?: { start: number; end: number; reason?: string };
+  /** H4: started this many days ago (default 7). */
+  startedDaysAgo?: number;
 };
 
 /**
@@ -105,7 +111,7 @@ export function insertHabit(habit: NewHabit): Promise<string> {
         weeklyTarget: habit.weeklyTarget ?? null,
         weekdays: habit.weekdays ?? null,
         archivedAt: habit.archived ? new Date() : null,
-        startDate: limaDay(-7),
+        startDate: limaDay(-(habit.startedDaysAgo ?? 7)),
         sortOrder: habit.sortOrder ?? 1_000 + Math.floor(Math.random() * 1_000),
       })
       .returning({ id: habits.id });
@@ -118,6 +124,19 @@ export function insertHabit(habit: NewHabit): Promise<string> {
     const days = [habit.done ? limaDay(0) : null, habit.loggedBefore ? limaDay(-1) : null];
     for (const day of days) {
       if (day) await db.insert(habitLogs).values({ habitId: row.id, day, quantity: 1, target });
+    }
+    for (const offset of habit.doneDays ?? []) {
+      await db
+        .insert(habitLogs)
+        .values({ habitId: row.id, day: limaDay(offset), quantity: target, target });
+    }
+    if (habit.pause) {
+      await db.insert(habitPauses).values({
+        habitId: row.id,
+        startDate: limaDay(habit.pause.start),
+        endDate: limaDay(habit.pause.end),
+        reason: habit.pause.reason ?? null,
+      });
     }
     return row.id;
   });
@@ -161,6 +180,28 @@ export function readHabit(id: string) {
       .where(and(eq(habitLogs.habitId, id), eq(habitLogs.day, limaDay(0))));
     return { ...row, today: today?.quantity ?? null };
   });
+}
+
+/** H4: a habit's quantity on a day (days from today), or null without a log. */
+export function readDay(id: string, offset: number) {
+  return withDb(async (db) => {
+    const [row] = await db
+      .select({ quantity: habitLogs.quantity })
+      .from(habitLogs)
+      .where(and(eq(habitLogs.habitId, id), eq(habitLogs.day, limaDay(offset))));
+    return row?.quantity ?? null;
+  });
+}
+
+/** H4: a habit's pauses that aren't removed, as stored (days as YYYY-MM-DD). */
+export function readPauses(id: string) {
+  return withDb((db) =>
+    db
+      .select({ startDate: habitPauses.startDate, endDate: habitPauses.endDate })
+      .from(habitPauses)
+      .where(and(eq(habitPauses.habitId, id), isNull(habitPauses.deletedAt)))
+      .orderBy(habitPauses.startDate),
+  );
 }
 
 /** A seeded area's id, by slug. */

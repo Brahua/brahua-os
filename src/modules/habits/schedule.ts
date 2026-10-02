@@ -61,3 +61,21 @@ export function isScheduledOn(habit: HabitSchedule, day: string): boolean {
       return habit.weekdays?.includes(isoWeekday(day)) ?? false;
   }
 }
+
+/** Days from `from` to `to` (negative when `to` is earlier), across months and years. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((toDate(to).getTime() - toDate(from).getTime()) / DAY_MS);
+}
+
+/**
+ * H4: the earlier days "Registrar otro día" offers, newest first: the 7 before `today` (Lima),
+ * never before the start date. Empty for a habit that started today.
+ */
+export function otherLoggableDays(startDate: string, today: string): string[] {
+  const days: string[] = [];
+  for (let back = 1; back <= HABIT_LOG_WINDOW_DAYS; back += 1) {
+    const day = addDays(today, -back);
+    if (day >= startDate) days.push(day);
+  }
+  return days;
+}

@@ -3,6 +3,7 @@ import "server-only";
 import { fail, INVALID_FIELDS_MESSAGE, type ActionResult } from "@/lib/action-result";
 import { HABIT_ERRORS } from "./habit-input";
 import { MEASURE_ERRORS } from "./measure-copy";
+import { PAUSE_ERRORS } from "./pause-copy";
 import type { HabitFailure } from "./habits";
 
 /** A refusal: on its field when it has one (the area), else the general message. */
@@ -22,5 +23,18 @@ export function refused<T>(failure: HabitFailure): ActionResult<T> {
     };
   }
   if (failure === "notQuantity") return fail(MEASURE_ERRORS.notQuantity);
+  // H4: a pause's dates, on the field that shows them.
+  if (failure === "pauseOverlap" || failure === "pauseStartOutOfWindow") {
+    return {
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: {
+        startDate: [
+          failure === "pauseOverlap" ? PAUSE_ERRORS.overlap : PAUSE_ERRORS.startOutOfWindow,
+        ],
+      },
+    };
+  }
+  if (failure === "pauseNotFound") return fail(PAUSE_ERRORS.notFound);
   return fail(HABIT_ERRORS[failure]);
 }

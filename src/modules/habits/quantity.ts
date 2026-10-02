@@ -76,7 +76,7 @@ export async function logHabitDelta(
           updatedAt: sql`now()`,
         },
       });
-    return (await selectHabitItemById(tx, input.id, input.day)) as HabitItem;
+    return (await selectHabitItemById(tx, input.id, input.day, today)) as HabitItem;
   });
 }
 
@@ -99,7 +99,7 @@ export async function setHabitQuantityById(
         target: [habitLogs.habitId, habitLogs.day],
         set: { quantity: input.quantity, updatedAt: sql`now()` },
       });
-    return (await selectHabitItemById(tx, input.id, input.day)) as HabitItem;
+    return (await selectHabitItemById(tx, input.id, input.day, today)) as HabitItem;
   });
 }
 

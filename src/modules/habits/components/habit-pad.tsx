@@ -8,6 +8,8 @@ import { hasRelapse, isDayDone } from "../habit-status";
 import { HABITS_COPY } from "../habits-copy";
 import { FREQUENCY_COPY } from "../frequency-copy";
 import { MEASURE_COPY } from "../measure-copy";
+import { STREAK_COPY } from "../pause-copy";
+import { shownStreak, type Streak } from "../streak";
 import { weekProgress } from "../week-progress";
 
 /** The selector of a habit's pad (focus after create, delete and undo). */
@@ -29,21 +31,38 @@ export function padSegments(quantity: number, target: number): { total: number; 
   };
 }
 
+/** H4: the streak the pad shows, for today's state (it moves at once after a tap). */
+export function padStreak(habit: HabitItem): Streak {
+  return shownStreak(habit.streak, isDayDone(habit));
+}
+
 /**
  * The pad's small status line (mono, uppercase). A yes/no: "HECHO" once the day is done. A
- * quantity: "3/8 VASOS". A habit to avoid: "SIN RECAÍDAS HOY" / "RECAÍDA REGISTRADA HOY" (never
- * red; H4 adds the clean days, "12 DÍAS LIMPIO"). H4 slot (Rachas): "RACHA 8" while not done.
+ * quantity: "3/8 VASOS". A habit to avoid (H4): its clean days, today included, "12 DÍAS
+ * LIMPIO", or "EMPIEZAS DE NUEVO HOY" after a relapse today (never red, never "lost").
  * Decorative (`aria-hidden`): the pressed state, the name and the description already say it.
  */
 export function padStatus(habit: HabitItem): string {
   if (habit.kind === "avoid") {
-    return hasRelapse(habit) ? MEASURE_COPY.padSlipped : MEASURE_COPY.padClean;
+    return hasRelapse(habit)
+      ? STREAK_COPY.padStartAgain
+      : STREAK_COPY.padClean(padStreak(habit).count);
   }
   if (habit.measure === "quantity") {
     return MEASURE_COPY.padQuantity(habit.quantity, habit.target, habit.unit ?? "");
   }
   if (isDayDone(habit)) return HABITS_COPY.padDone;
   return "";
+}
+
+/**
+ * H4: the streak line of a habit to keep, "RACHA 8" (days) or "RACHA 3 SEM" (weeks); none at 0
+ * (an empty line, never "RACHA 0"). The best streak is the habit page's (H5), not the pad's.
+ */
+export function padStreakLine(habit: HabitItem): string | null {
+  if (habit.kind === "avoid") return null;
+  const streak = padStreak(habit);
+  return streak.count > 0 ? STREAK_COPY.pad(streak.count, streak.unit) : null;
 }
 
 type HabitPadProps = {
@@ -82,6 +101,7 @@ export function HabitPad({
   const areaId = `${ids}-area`;
   const helpId = `${ids}-help`;
   const weekId = `${ids}-week`;
+  const streakId = `${ids}-streak`;
   const { area } = habit;
   // H2: "2 de 3 esta semana" for "X veces por semana" (decorative here; the description says it).
   const week = weekProgress(habit, done);
@@ -91,15 +111,23 @@ export function HabitPad({
   const slipped = hasRelapse(habit);
   const unit = habit.unit ?? "";
   const segments = quantity ? padSegments(habit.quantity, habit.target) : null;
+  // H4: "RACHA 8" under the name (a habit to avoid says its clean days in its status line).
+  const streakLine = padStreakLine(habit);
+  const streak = padStreak(habit);
   // A yes/no's status ("HECHO", H4's "RACHA 8") is short: it fits the top row.
   const ownLine = quantity || avoid;
   // What a screen reader hears after the name: what is logged (quantity, avoid) and the area.
   const help = quantity
     ? MEASURE_COPY.padQuantityHelp(habit.quantity, habit.target, unit, habit.step)
     : avoid
-      ? MEASURE_COPY.padAvoidHelp(slipped)
+      ? `${slipped ? STREAK_COPY.startAgainHelp : STREAK_COPY.cleanHelp(streak.count)} ${MEASURE_COPY.padAvoidHelp(slipped)}`
       : null;
-  const describedBy = [help ? helpId : null, area ? areaId : null, weekText ? weekId : null]
+  const describedBy = [
+    help ? helpId : null,
+    area ? areaId : null,
+    weekText ? weekId : null,
+    streakLine ? streakId : null,
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -161,6 +189,11 @@ export function HabitPad({
             {weekText}
           </span>
         ) : null}
+        {streakLine ? (
+          <span className="bo-key__sub" aria-hidden data-habit-streak="">
+            {streakLine}
+          </span>
+        ) : null}
       </Key>
       {help ? (
         <span id={helpId} hidden>
@@ -175,6 +208,11 @@ export function HabitPad({
       {weekText ? (
         <span id={weekId} hidden>
           {weekText}
+        </span>
+      ) : null}
+      {streakLine ? (
+        <span id={streakId} hidden>
+          {STREAK_COPY.padHelp(streak.count, streak.unit)}
         </span>
       ) : null}
     </>

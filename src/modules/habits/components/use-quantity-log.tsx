@@ -11,10 +11,14 @@ import {
 } from "../habit-list-optimistic";
 import { isDayDone, todayCount } from "../habit-status";
 import { HABITS_COPY } from "../habits-copy";
-import { logHabit, setHabitQuantity } from "../log-actions";
+import { logHabit, setHabitDone, setHabitQuantity } from "../log-actions";
 import { FREQUENCY_COPY } from "../frequency-copy";
 import { MEASURE_COPY } from "../measure-copy";
+import { PAUSE_COPY, STREAK_COPY } from "../pause-copy";
+import { otherLoggableDays } from "../schedule";
+import { streakMilestone } from "../streak-notice";
 import { weekProgress } from "../week-progress";
+import type { OtherDay } from "./adjust-day-sheet";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 
 // The adjust sheet's code loads on demand (from the options sheet's "Ajustar el día").
@@ -35,7 +39,32 @@ type QuantityLogArgs = {
   focusFallback: () => void;
 };
 
-type Adjusting = { habit: HabitItem; key: number };
+/** The sheet open: "Ajustar el día" (today) or, with `days`, "Registrar otro día" (H4). */
+type Adjusting = { habit: HabitItem; key: number; days?: OtherDay[] };
+
+/** How a day reads in a notice: "hecho", "recaída registrada", "6 de 8 vasos". */
+function dayState(habit: HabitItem): string {
+  if (habit.kind === "avoid") {
+    return habit.quantity > 0 ? PAUSE_COPY.stateSlip : PAUSE_COPY.stateClean;
+  }
+  if (habit.measure === "quantity") {
+    return PAUSE_COPY.stateQuantity(habit.quantity, habit.target, habit.unit ?? "");
+  }
+  return habit.quantity > 0 ? PAUSE_COPY.stateDone : PAUSE_COPY.stateNotDone;
+}
+
+/** H4: the days "Registrar otro día" offers for a habit, with what each has logged. */
+export function otherDaysOf(habit: HabitItem, today: string): OtherDay[] {
+  return otherLoggableDays(habit.startDate, today).map((day) => {
+    const log = habit.recentLogs.find((entry) => entry.day === day);
+    return {
+      day,
+      quantity: log?.quantity ?? 0,
+      target: log?.target ?? habit.goal,
+      paused: habit.recentPaused.includes(day),
+    };
+  });
+}
 
 /**
  * H3's logging of quantity habits on a habits screen: a tap adds the step (optimistic, through
@@ -95,6 +124,8 @@ export function useQuantityLog({
     const applied = (change.patch.quantity ?? shown.quantity) - shown.quantity;
     const progress = progressAfter(change);
     const wasDone = isDayDone(shown);
+    // H4: a tap that reaches 7, 30, 90 or 365 (days or weeks) is celebrated in the notice.
+    const milestone = undoable ? streakMilestone(shown, { ...shown, ...change.patch }) : null;
     // Two taps in the same frame (before a render) each start from the other's result.
     shownList.current = applyHabitListChange(shownList.current, change);
     startSaving(async () => {
@@ -114,8 +145,14 @@ export function useQuantityLog({
         return;
       }
       push({
-        title: !wasDone && isDayDone(saved) ? MEASURE_COPY.reachedTitle : MEASURE_COPY.addedTitle,
-        text: MEASURE_COPY.added(saved.name, saved.quantity, saved.target, unit, progress),
+        title: milestone
+          ? STREAK_COPY.milestoneTitle(milestone.count, milestone.unit)
+          : !wasDone && isDayDone(saved)
+            ? MEASURE_COPY.reachedTitle
+            : MEASURE_COPY.addedTitle,
+        text: milestone
+          ? STREAK_COPY.milestone(saved.name, milestone.count, progress)
+          : MEASURE_COPY.added(saved.name, saved.quantity, saved.target, unit, progress),
         action:
           applied === 0
             ? undefined
@@ -187,9 +224,63 @@ export function useQuantityLog({
     setAdjustOpen(true);
   }
 
-  function save(habit: HabitItem, quantity: number) {
+  /** H4: "Registrar otro día" for `habit` (one of the 7 days before today). */
+  function openOtherDay(habit: HabitItem, returnTo: HTMLElement | null) {
+    adjustReturn.current = returnTo;
+    const current = shownHabit(habit);
+    const days = otherDaysOf(current, today);
+    setAdjusting((previous) => ({ habit: current, key: (previous?.key ?? 0) + 1, days }));
+    setAdjustOpen(true);
+  }
+
+  function save(habit: HabitItem, quantity: number, day: OtherDay | null) {
     setAdjustOpen(false);
+    if (day) {
+      if (quantity !== day.quantity) setOtherDay(habit, day.day, quantity, day.quantity);
+      return;
+    }
     if (quantity !== habit.quantity) setQuantity(habit, quantity, habit.quantity);
+  }
+
+  /**
+   * H4: logs an earlier day (within the 7 before today): a quantity's exact amount, or a yes/no
+   * (a habit to avoid: a relapse) marked when `quantity` > 0. Not optimistic on "Hoy" (its pads
+   * are today's): the page's answer brings the new streaks. `previous`: the day's quantity
+   * before, for the notice's "Deshacer" (null: this is the undo, only announced).
+   */
+  function setOtherDay(habit: HabitItem, day: string, quantity: number, previous: number | null) {
+    // A page read for another Lima day reloads: the 7 days moved.
+    if (!isCurrentDay()) return;
+    const byQuantity = habit.kind === "build" && habit.measure === "quantity";
+    startSaving(async () => {
+      const queued = byQuantity
+        ? await enqueue(`habit-qty:${habit.id}:${day}`, () =>
+            setHabitQuantity({ id: habit.id, day, quantity }),
+          )
+        : await enqueue(`habit-day:${habit.id}:${day}`, () =>
+            setHabitDone({ id: habit.id, day, done: quantity > 0 }),
+          );
+      if (queued.kind === "skipped" || queued.superseded) return;
+      const result: ActionResult<HabitItem> =
+        queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
+      if (!result.ok) {
+        notSaved(
+          previous === null ? HABITS_COPY.notUndone : PAUSE_COPY.notLoggedOther,
+          failureReason(result),
+        );
+        return;
+      }
+      const state = dayState(result.data);
+      if (previous === null) {
+        announce(PAUSE_COPY.loggedAgain(habit.name, day, state));
+        return;
+      }
+      push({
+        title: PAUSE_COPY.loggedTitle,
+        text: PAUSE_COPY.logged(habit.name, day, state),
+        action: { label: HABITS_COPY.undo, run: () => setOtherDay(habit, day, previous, null) },
+      });
+    });
   }
 
   const adjustSheet = adjusting ? (
@@ -198,6 +289,7 @@ export function useQuantityLog({
       open={adjustOpen}
       onOpenChange={setAdjustOpen}
       habit={adjusting.habit}
+      days={adjusting.days}
       returnFocusRef={adjustReturn}
       onClosed={() => {
         if (document.activeElement === document.body || document.activeElement === null) {
@@ -208,5 +300,5 @@ export function useQuantityLog({
     />
   ) : null;
 
-  return { add, openAdjust, adjustSheet };
+  return { add, openAdjust, openOtherDay, adjustSheet };
 }

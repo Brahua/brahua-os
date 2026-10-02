@@ -11,11 +11,11 @@
 ## Fase 2 — Reglas *(H2 y H3 en paralelo)*
 
 - [x] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar. *(PR #63 integrado; ver HANDOFF → "Cómo funciona habits" → "H2".)*
-- [ ] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída). *(En PR, rama `feat/habits-h3-measures`; ver HANDOFF → "Cómo funciona habits" → "H3".)*
+- [x] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída). *(PR #64 integrado; ver HANDOFF → "Cómo funciona habits" → "H3".)*
 
 ## Fase 3 — Rachas e historial
 
-- [ ] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha y mejor racha en el pad; pausas; registro y corrección hasta 7 días atrás; hitos de racha.
+- [ ] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(En PR, rama `feat/habits-h4-streaks`; ver HANDOFF → "Cómo funciona habits" → "H4", con los puntos de extensión para H5.)*
 - [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados".
 - [ ] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño.
 

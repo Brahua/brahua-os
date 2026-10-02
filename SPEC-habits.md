@@ -205,7 +205,7 @@ Cortes verticales; el detalle va en `tasks/plan.md` al aprobar la spec.
 - **H1 — Datos, crear y registrar con un toque:** las tres tablas (con `kind`), `CHECK`, locks y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja los slots (contexto de pantalla, pad, formulario) para H2–H5.
 - **H2 — Frecuencias y agenda:** X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar.
 - **H3 — Cantidad, varias veces al día y a evitar:** meta, unidad y paso; `target` por día; "Ajustar"; el atajo "Varias veces al día"; tipo "A evitar" (recaída).
-- **H4 — Rachas y pausas:** `streak.ts`; racha y mejor racha en el pad; pausas (crear, reanudar, sin solapes); registro y corrección hasta 7 días atrás; hitos de racha.
+- **H4 — Rachas y pausas:** `streak.ts`; racha en el pad (la mejor racha va en el detalle de H5, como dice "Detalle"); pausas (crear, reanudar, sin solapes); registro y corrección hasta 7 días atrás; hitos de racha.
 - **H5 — Historial:** vista Semana con `DotMatrix` y el total de la semana; detalle con calendario mensual, estadísticas y pausas pasadas; "Archivados".
 - **H6 — Contrato con `today` y navegación:** `getHabitsTodaySummary`, `HabitPad` y acciones reutilizables desde `today`; navegación definitiva cuando llegue el diseño de Claude Design.
 

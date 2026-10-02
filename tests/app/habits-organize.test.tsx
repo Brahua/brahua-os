@@ -80,6 +80,11 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     target: 1,
     hasLogs: false,
     weekDoneBefore: 0,
+    weekAvailable: 7,
+    streak: { unit: "days", done: 0, notDone: 0 },
+    pause: null,
+    recentLogs: [],
+    recentPaused: [],
     ...values,
   };
 }

@@ -60,6 +60,11 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     target: 1,
     hasLogs: false,
     weekDoneBefore: 0,
+    weekAvailable: 7,
+    streak: { unit: "days", done: 0, notDone: 0 },
+    pause: null,
+    recentLogs: [],
+    recentPaused: [],
     ...values,
   };
 }
@@ -75,7 +80,12 @@ const MEDICACION = quantityHabit({
   unit: "veces",
   quantity: 1,
 });
-const FUMAR = habit({ name: "No fumar", kind: "avoid" });
+const FUMAR = habit({
+  name: "No fumar",
+  kind: "avoid",
+  // H4: 12 clean days with today; a relapse today starts again.
+  streak: { unit: "days", done: 12, notDone: 0 },
+});
 const LEER = habit({ name: "Leer" });
 const HABITS = [AGUA, MEDICACION, FUMAR, LEER];
 
@@ -332,8 +342,8 @@ describe("a habit to avoid", () => {
   test("its pad: 'Registrar recaída: <name>', clean today, never red", () => {
     render(<Harness />);
     expect(slipKey()).toHaveAttribute("aria-pressed", "false");
-    expect(slipKey()).toHaveAccessibleDescription("Sin recaídas hoy.");
-    expect(status("Registrar recaída: No fumar")).toBe("SIN RECAÍDAS HOY");
+    expect(slipKey()).toHaveAccessibleDescription("12 días limpio. Sin recaídas hoy.");
+    expect(status("Registrar recaída: No fumar")).toBe("12 DÍAS LIMPIO");
     expect(slipKey().className).not.toMatch(/error|danger|red/);
   });
 
@@ -343,7 +353,7 @@ describe("a habit to avoid", () => {
     await user.click(slipKey());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(slipKey()).toHaveAttribute("aria-pressed", "true");
-    expect(status("Registrar recaída: No fumar")).toBe("RECAÍDA REGISTRADA HOY");
+    expect(status("Registrar recaída: No fumar")).toBe("EMPIEZAS DE NUEVO HOY");
     expect(count()).toBe("0 de 4 hoy");
     expect(setHabitDone).toHaveBeenCalledWith({ id: FUMAR.id, day: TODAY, done: true });
     await server.answer();
