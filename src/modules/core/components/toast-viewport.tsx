@@ -135,7 +135,10 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
   );
 
   // ⌘Z / Ctrl+Z runs the action of the notice on screen; Esc dismisses it.
-  useEffect(() => {
+  // A layout effect: the listener must follow the notice in the same commit that shows it.
+  // Passive effects run in a later task, and a key pressed in between (the notice already on
+  // screen) was silently lost.
+  useLayoutEffect(() => {
     if (!shown) return;
     const notice = shown;
     function onKeyDown(event: KeyboardEvent) {
