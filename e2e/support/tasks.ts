@@ -60,6 +60,21 @@ export async function readTask(id: string) {
   }
 }
 
+/** The task with this (unique) title, as stored, with its area's slug; undefined if none. */
+export async function readTaskByTitle(title: string) {
+  const db = createDb(testDatabaseUrl());
+  try {
+    const [row] = await db
+      .select({ id: tasks.id, doneAt: tasks.doneAt, areaSlug: lifeAreas.slug })
+      .from(tasks)
+      .leftJoin(lifeAreas, eq(lifeAreas.id, tasks.lifeAreaId))
+      .where(eq(tasks.title, title));
+    return row;
+  } finally {
+    await db.$client.end();
+  }
+}
+
 /** Opens a page and waits until the navigation is hydrated (keys and clicks reach React). */
 export async function openReady(page: Page, path: string) {
   await page.goto(path);

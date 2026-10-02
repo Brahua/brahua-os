@@ -3,7 +3,11 @@
 import { Sheet } from "@/design-system";
 import type { TaskItem } from "../../task-input";
 import { TaskDetail } from "./task-detail";
-import { TaskDetailProvider, useTaskDetail } from "./task-detail-context";
+import {
+  TaskDetailProvider,
+  TaskDetailSheetMessages,
+  useTaskDetail,
+} from "./task-detail-context";
 
 export type TaskDetailSheetProps = {
   open: boolean;
@@ -44,7 +48,10 @@ function DetailSheetFrame({
       focusTitleOnOpen
       onClosed={onClosed}
     >
-      <TaskDetail />
+      <div className="flex flex-col gap-6">
+        <TaskDetailSheetMessages />
+        <TaskDetail />
+      </div>
     </Sheet>
   );
 }

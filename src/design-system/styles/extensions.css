@@ -166,3 +166,9 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 /* The views of /tasks: links drawn as a segmented control that wraps (no hidden tabs at 320 px). */
 .bo-segmented.bo-task-views { display: flex; flex-wrap: wrap; }
 .bo-task-views .bo-segmented__item { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-decoration: none; }
+/* Tasks: an empty native date field on iOS is a blank box; "Sin fecha" shows over it there only
+   (-webkit-touch-callout exists only in iOS Safari). Decorative: the label names the field. */
+.bo-date-empty { display: none; }
+@supports (-webkit-touch-callout: none) {
+  .bo-date-empty { display: flex; position: absolute; inset-block: 0; inset-inline-start: 16px; align-items: center; pointer-events: none; color: var(--color-placeholder); }
+}

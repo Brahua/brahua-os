@@ -294,7 +294,10 @@ describe("reorder with the buttons", () => {
     await user.click(screen.getByRole("button", { name: "Bajar Hogar" }));
 
     await server.answer(fail("Primero falló."));
-    // The second move is still pending: its notice and Deshacer stay (the error waits its turn).
+    // The error says why at once; the burst's notice (no time limit) waits behind it, not gone.
+    expect(notices()).toHaveTextContent("Primero falló.");
+    await user.keyboard("{Escape}");
+    // The second move is still pending: its notice and Deshacer are back.
     expect(notices()).toHaveTextContent("«Hogar» pasó al lugar 3 de 3.");
     expect(undoButton()).toBeInTheDocument();
     await server.answer();
@@ -424,26 +427,22 @@ describe("archived areas", () => {
 });
 
 describe("notice queue", () => {
-  test("one notice at a time: the next waits until the first is dismissed with Esc", async () => {
+  test("one notice at a time: an undo notice (no time limit) gives way to the next action's", async () => {
     const user = userEvent.setup();
     await renderAreas(AREAS, [TRAVEL]);
 
     await user.click(screen.getByRole("button", { name: "Bajar Hogar" }));
+    expect(notices()).toHaveTextContent("«Hogar» pasó al lugar 2 de 3.");
     await user.click(screen.getByRole("button", { name: /Archivadas/ }));
     await user.click(screen.getByRole("button", { name: "Desarchivar Viajes" }));
-    expect(notices()).toHaveTextContent("«Hogar» pasó al lugar 2 de 3.");
-    expect(notices()).not.toHaveTextContent("Viajes");
+    // The next action's notice replaces it (an undo notice would otherwise hold the queue forever).
+    expect(notices()).toHaveTextContent("«Viajes» volvió al final de tus áreas.");
+    expect(notices()).not.toHaveTextContent("«Hogar» pasó");
     await server.answerAll();
 
     // Into the notice from the restored row (where Desarchivar left focus), then Esc.
     const before = screen.getByRole("button", { name: "Editar Viajes" });
     expect(before).toHaveFocus();
-    await user.click(undoButton());
-    // The order from before the move, over today's list (Viajes, restored since, goes last).
-    await server.answerAll();
-    expect(reorderLifeAreas).toHaveBeenLastCalledWith({ ids: ["a1", "a2", "a3", "a4"] });
-    // Deshacer took the first notice away; the waiting one shows now.
-    expect(notices()).toHaveTextContent("«Viajes» volvió al final de tus áreas.");
     undoButton().focus();
     await user.keyboard("{Escape}");
     expect(notices()).not.toHaveTextContent("Viajes");

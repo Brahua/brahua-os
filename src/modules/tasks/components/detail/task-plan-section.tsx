@@ -1,10 +1,11 @@
 "use client";
 
 import { useId } from "react";
-import { SectionLabel, TextField } from "@/design-system";
+import { SectionLabel } from "@/design-system";
 import { placementPatch, placementValue, toPlacement } from "../../placement";
 import { taskDueState } from "../../task-due";
 import { TASKS_COPY } from "../../tasks-copy";
+import { DateField } from "../date-field";
 import { PlacementSelect } from "../placement-select";
 import { useSaveTaskField, useTaskDetail } from "./task-detail-context";
 
@@ -16,7 +17,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
  * date is picked or it is cleared), with its label ("Vence hoy", "Retrasada hace 2 días").
  */
 export function TaskPlanSection() {
-  const { task, targets, now } = useTaskDetail();
+  const { task, targets, now, host } = useTaskDetail();
   const save = useSaveTaskField();
   const ids = useId();
   const headingId = `${ids}-heading`;
@@ -24,7 +25,12 @@ export function TaskPlanSection() {
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-4">
-      <SectionLabel id={headingId} as="h2" title={TASKS_COPY.planTitle} />
+      {/* h3 in the sheet (its title is the h2), h2 on the page (under the h1). */}
+      <SectionLabel
+        id={headingId}
+        as={host === "sheet" ? "h3" : "h2"}
+        title={TASKS_COPY.planTitle}
+      />
       <PlacementSelect
         id={`${ids}-placement`}
         targets={targets}
@@ -40,13 +46,11 @@ export function TaskPlanSection() {
         }
       />
       {/* ── T2 slot (Hito): the milestone picker of the task's project goes here. ── */}
-      <TextField
+      <DateField
         id={`${ids}-due`}
-        type="date"
         label={TASKS_COPY.dueLabel}
         value={task.dueDate ?? ""}
         help={due?.label ?? TASKS_COPY.dueHelp}
-        className="bo-date-field"
         onChange={(event) => {
           const value = event.target.value;
           if (value !== "" && !DAY.test(value)) return;

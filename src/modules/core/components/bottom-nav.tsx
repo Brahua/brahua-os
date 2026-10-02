@@ -53,20 +53,24 @@ export function BottomNav({
   const { primary, overflow } = splitBottomNav(items);
   const currentHidden = overflow.find((item) => isActiveHref(item.href, pathname));
 
+  const renderLink = (item: NavItem, index: number) => (
+    <Link
+      key={item.id}
+      href={item.href}
+      className={cn("bo-bottomnav__item row-start-1", LINK_CELLS[index])}
+      aria-current={isActiveHref(item.href, pathname) ? "page" : undefined}
+      aria-label={item.label}
+    >
+      <Icon icon={item.icon} size="md" />
+      <span className="bo-bottomnav__label">{item.label}</span>
+    </Link>
+  );
+
   return (
     <nav ref={ref} aria-label={label} className={cn("bo-bottomnav", className)}>
-      {primary.map((item, index) => (
-        <Link
-          key={item.id}
-          href={item.href}
-          className={cn("bo-bottomnav__item row-start-1", LINK_CELLS[index])}
-          aria-current={isActiveHref(item.href, pathname) ? "page" : undefined}
-          aria-label={item.label}
-        >
-          <Icon icon={item.icon} size="md" />
-          <span className="bo-bottomnav__label">{item.label}</span>
-        </Link>
-      ))}
+      {/* DOM order = visual order (WCAG 1.3.2, 2.4.3): the first two links, the capture key in
+          the middle cell, then the rest and "Más". */}
+      {primary.slice(0, 2).map((item, index) => renderLink(item, index))}
 
       <CaptureKey
         placement="top"
@@ -77,6 +81,8 @@ export function BottomNav({
       >
         <Icon icon={Plus} size="xl" />
       </CaptureKey>
+
+      {primary.slice(2).map((item, index) => renderLink(item, index + 2))}
 
       {overflow.length > 0 ? (
         <>

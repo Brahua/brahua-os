@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vit
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { seed } from "@/modules/core/seed";
+import { changeProjectArea, deleteProject, restoreProject } from "@/modules/projects/actions";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
 import {
   completeTask,
@@ -136,10 +137,50 @@ describe("capture", () => {
       project: { id: project.id, name: "Cocina", status: "active" },
     });
     expect((await row(task.id)).lifeAreaId).toBeNull();
-    // Moving the project to another area moves its tasks.
+    // Moving the project to another area (its own action) moves its tasks.
     const work = await areaId("work");
-    await testDb.update(projects).set({ lifeAreaId: work }).where(eq(projects.id, project.id));
+    expect(await changeProjectArea({ id: project.id, lifeAreaId: work })).toMatchObject({
+      ok: true,
+    });
     expect((await getTask(task.id))?.area?.id).toBe(work);
+    expect((await row(task.id)).lifeAreaId).toBeNull();
+  });
+
+  test("the tasks of a deleted project hide with it and come back when it is restored", async () => {
+    const project = await newProject();
+    const task = await capture({ title: "medir", projectId: project.id });
+    const inbox = await capture({ title: "en la bandeja" });
+    expect((await deleteProject({ id: project.id })).ok).toBe(true);
+    // Its page is a 404, and no action reaches it.
+    expect(await getTask(task.id)).toBeNull();
+    for (const call of [
+      () => editTask({ id: task.id, title: "y" }),
+      () => completeTask({ id: task.id }),
+      () => deleteTask({ id: task.id }),
+    ]) {
+      expect(await call()).toEqual({ ok: false, error: TASK_ERRORS.notFound });
+    }
+    expect(await row(task.id)).toMatchObject({ title: "medir", doneAt: null, deletedAt: null });
+    expect((await getTask(inbox.id))?.id).toBe(inbox.id);
+
+    expect((await restoreProject({ id: project.id })).ok).toBe(true);
+    expect(await getTask(task.id)).toMatchObject({ id: task.id, projectId: project.id });
+  });
+
+  test("a soft-deleted milestone reads as none, and comes back with it", async () => {
+    const project = await newProject();
+    const milestone = await newMilestone(project.id);
+    const task = await capture({ title: "x", projectId: project.id, milestoneId: milestone.id });
+    await testDb
+      .update(projectMilestones)
+      .set({ deletedAt: sql`now()` })
+      .where(eq(projectMilestones.id, milestone.id));
+    expect((await getTask(task.id))?.milestoneId).toBeNull();
+    await testDb
+      .update(projectMilestones)
+      .set({ deletedAt: null })
+      .where(eq(projectMilestones.id, milestone.id));
+    expect((await getTask(task.id))?.milestoneId).toBe(milestone.id);
   });
 
   test("a milestone of that project is fine; of another project it is refused", async () => {
@@ -473,7 +514,7 @@ describe("locks", () => {
     }
   });
 
-  test("a task never lands in a project closed meanwhile (FOR SHARE makes the close wait)", async () => {
+  test("a task never lands in a project closed meanwhile (the create waits for the close)", async () => {
     const project = await newProject();
     const closer = await testDb.$client.connect();
     try {
@@ -482,9 +523,11 @@ describe("locks", () => {
         "update projects set status = 'canceled', updated_at = now() where id = $1",
         [project.id],
       );
-      // The create reads the project FOR SHARE: it waits for the close, then sees it closed.
+      // The create reads the project FOR SHARE, so it must be blocked by the uncommitted close
+      // (polled, not slept: without FOR SHARE it would read the old row and never wait, and this
+      // times out).
       const pending = createTask({ title: "x", projectId: project.id });
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitForBlockedBackends(1);
       await closer.query("commit");
       expect(await pending).toMatchObject({
         ok: false,
@@ -495,7 +538,52 @@ describe("locks", () => {
     }
     expect(await testDb.$count(tasks)).toBe(0);
   });
+
+  test("the reverse race: a close waits for a create that already checked the project", async () => {
+    const project = await newProject();
+    const holder = await testDb.$client.connect();
+    const closer = await testDb.$client.connect();
+    try {
+      // Stalls the create at its insert, after it has read (and FOR SHARE-locked) the project.
+      await holder.query("begin");
+      await holder.query("lock table tasks in exclusive mode");
+      const pending = createTask({ title: "x", projectId: project.id });
+      await waitForBlockedBackends(1);
+      // The close must wait for the create's FOR SHARE: two blocked backends (without the lock
+      // the close would go through at once, and this times out).
+      await closer.query("begin");
+      const closing = closer.query(
+        "update projects set status = 'canceled', updated_at = now() where id = $1",
+        [project.id],
+      );
+      await waitForBlockedBackends(2);
+      await holder.query("commit");
+      expect(await pending).toMatchObject({ ok: true, data: { projectId: project.id } });
+      await closing;
+      await closer.query("commit");
+    } finally {
+      holder.release();
+      closer.release();
+    }
+    // The task went in while the project was open; the close came after it.
+    expect(await testDb.$count(tasks)).toBe(1);
+    const [closed] = await testDb.select().from(projects).where(eq(projects.id, project.id));
+    expect(closed.status).toBe("canceled");
+  });
 });
+
+/** Waits until `count` backends of this database are blocked on a lock (any kind). */
+async function waitForBlockedBackends(count: number) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const result = await testDb.$client.query<{ blocked: number }>(
+      `select count(*)::int as blocked from pg_stat_activity
+       where datname = current_database() and wait_event_type = 'Lock'`,
+    );
+    if (result.rows[0].blocked >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`Expected ${count} blocked backends`);
+}
 
 /** Waits until `count` connections are blocked on this project's task lock. */
 async function waitForLockWaiters(projectId: string, count: number) {

@@ -14,7 +14,9 @@ import { TaskTitleSection } from "./task-title-section";
  * `useTaskDetail()`; the task's own fields save with `useSaveTaskField()`.
  *
  * Extension points (T2–T5 are built in parallel: each one adds its own file and its own line in
- * a marked slot, nothing else):
+ * a marked slot, nothing else; its actions and copy go in its own files too, never appended to
+ * actions.ts or tasks-copy.ts, so the three branches don't touch the same lines). Section
+ * headings: h3 when `host` is "sheet", h2 on the page.
  * - T2 (Notas): `task-notes-section.tsx` in the "Notas" slot; the milestone picker in the slot of
  *   `TaskPlanSection`.
  * - T3 (Recurrencia): `task-recurrence-section.tsx` in its slot.
@@ -33,10 +35,15 @@ export function TaskDetail() {
       <TaskTitleSection />
       <TaskPlanSection />
       {/* ── T5 slot (Próxima acción): <TaskNextActionSection /> ── */}
+
       <TaskPrioritySection />
+
       {/* ── T4 slot (Etiquetas): <TaskTagsSection /> ── */}
+
       {/* ── T3 slot (Recurrencia): <TaskRecurrenceSection /> ── */}
+
       {/* ── T2 slot (Notas): <TaskNotesSection /> ── */}
+
       <TaskDeleteSection />
     </div>
   );

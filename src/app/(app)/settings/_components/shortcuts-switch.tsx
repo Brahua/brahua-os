@@ -30,8 +30,9 @@ export function ShortcutsSwitch({ initialEnabled }: { initialEnabled: boolean })
           Atajos de teclado
         </label>
         <p id={descriptionId} className="bo-text-body-sm text-text-secondary">
-          En pantallas anchas, [ contrae la barra lateral y los números del 1 al 8 abren cada
-          sección. Desactívalos si chocan con tu lector de pantalla o tu control por voz.
+          En pantallas anchas, [ contrae la barra lateral, los números del 1 al 8 abren cada sección
+          y C abre la captura rápida. Desactívalos si chocan con tu lector de pantalla o tu control
+          por voz.
         </p>
       </div>
       <Switch

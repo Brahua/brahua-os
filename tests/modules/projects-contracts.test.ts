@@ -315,12 +315,25 @@ describe("compareTodayItems", () => {
 });
 
 describe("composition root", () => {
-  // The sources register when imported: the pages that compute progress must load them.
-  test.each(["page.tsx", "[id]/page.tsx"])("projects/%s imports @/lib/progress-sources", (file) => {
+  // The code that computes progress registers the sources first, by calling the root (never a
+  // side-effect-only import, which the bundler drops: package.json "sideEffects").
+  test.each([
+    "src/app/(app)/projects/page.tsx",
+    "src/app/(app)/projects/[id]/page.tsx",
+    "src/modules/projects/close-actions.ts",
+  ])("%s calls ensureProgressSources() before contributedProgress()", (file) => {
+    const source = readFileSync(path.resolve(__dirname, "../..", file), "utf8");
+    expect(source).not.toMatch(/^import "@\/lib\/progress-sources";$/m);
+    const ensure = source.indexOf("ensureProgressSources();");
+    expect(ensure).toBeGreaterThan(-1);
+    expect(ensure).toBeLessThan(source.indexOf("contributedProgress(", ensure - 1));
+  });
+
+  test("the root never registers through a side-effect-only import", () => {
     const source = readFileSync(
-      path.resolve(__dirname, "../../src/app/(app)/projects", file),
+      path.resolve(__dirname, "../../src/lib/progress-sources.ts"),
       "utf8",
     );
-    expect(source).toMatch(/^import "@\/lib\/progress-sources";$/m);
+    expect(source).not.toMatch(/^import "@\/modules\//m);
   });
 });

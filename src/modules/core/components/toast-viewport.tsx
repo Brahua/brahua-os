@@ -73,6 +73,10 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
   const dialog = useSyncExternalStore(subscribeToDialogs, dialogOpen, () => false);
   const paused =
     hidden || dialog || (visible !== null && (hoverId === visible.id || focusId === visible.id));
+  // Held while a dialog is open: the page (and so this region) is aria-hidden and under the
+  // sheet, so a notice shown now would be neither heard nor seen (e.g. "Deshacer" after deleting
+  // from a sheet that is still closing). It shows, and is announced, once the dialog is gone.
+  const shown = dialog ? null : visible;
 
   // Time left for the notice on screen; reset when a new one (or new content) shows.
   const remaining = useRef<{ key: number; ms: number } | null>(null);
@@ -132,8 +136,8 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
 
   // ⌘Z / Ctrl+Z runs the action of the notice on screen; Esc dismisses it.
   useEffect(() => {
-    if (!visible) return;
-    const notice = visible;
+    if (!shown) return;
+    const notice = shown;
     function onKeyDown(event: KeyboardEvent) {
       if (isDragActive()) return;
       if (notice.action && isUndoShortcut(event)) {
@@ -147,11 +151,11 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [visible, runAction, restoreFocus, dismiss]);
+  }, [shown, runAction, restoreFocus, dismiss]);
 
   // Publish the space the notice takes, for the scroll padding (see extensions.css).
   const live = useRef<HTMLDivElement>(null);
-  const hasNotice = visible !== null;
+  const hasNotice = shown !== null;
   useLayoutEffect(() => {
     const root = document.documentElement;
     const element = live.current;
@@ -178,14 +182,14 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
       ref={region}
       aria-label={label}
       className="bo-toast-viewport"
-      onMouseEnter={() => setHoverId(visible?.id ?? null)}
+      onMouseEnter={() => setHoverId(shown?.id ?? null)}
       onMouseLeave={() => setHoverId(null)}
       onFocus={(event) => {
         if (!region.current?.contains(event.relatedTarget as Node | null)) {
           returnFocus.current = event.relatedTarget as HTMLElement | null;
         }
         focusInside.current = true;
-        setFocusId(visible?.id ?? null);
+        setFocusId(shown?.id ?? null);
       }}
       onBlur={(event) => {
         if (!region.current?.contains(event.relatedTarget as Node | null)) {
@@ -195,24 +199,24 @@ export function ToastViewport({ toaster, label, actionHint }: ToastViewportProps
       }}
     >
       <div ref={live} role="status" aria-live="polite" aria-atomic="true">
-        {visible ? (
+        {shown ? (
           <Toast
             // By id: an update in place keeps the button (and its focus).
-            key={visible.id}
+            key={shown.id}
             live={false}
-            title={visible.title}
+            title={shown.title}
             text={
-              visible.action ? (
+              shown.action ? (
                 <>
-                  {visible.text}
+                  {shown.text}
                   <span className="sr-only"> {actionHint}</span>
                 </>
               ) : (
-                visible.text
+                shown.text
               )
             }
-            actionLabel={visible.action?.label}
-            onAction={visible.action ? () => runAction(visible) : undefined}
+            actionLabel={shown.action?.label}
+            onAction={shown.action ? () => runAction(shown) : undefined}
             actionProps={{ "aria-keyshortcuts": "Meta+Z Control+Z" }}
           />
         ) : null}

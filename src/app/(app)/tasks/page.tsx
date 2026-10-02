@@ -1,7 +1,9 @@
 import { Construction } from "lucide-react";
 import type { Metadata } from "next";
 import { Icon, SectionLabel } from "@/design-system";
+import { cookies } from "next/headers";
 import { requireOwner } from "@/lib/auth";
+import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
 import { getDeletedTask, getTaskTargets, listInboxTasks } from "@/modules/tasks/queries";
 import { DELETED_PARAM, parseTaskView, VIEW_PARAM } from "@/modules/tasks/routes";
@@ -10,7 +12,6 @@ import { InboxView } from "./_components/inbox-view";
 import { TasksNotices } from "./_components/tasks-notices";
 import { TaskViewTabs } from "./_components/task-view-tabs";
 
-export const metadata: Metadata = { title: TASKS_COPY.pageTitle };
 
 const HEADING_ID = "tasks-title";
 const VIEW_HEADING_ID = "tasks-view-title";
@@ -18,6 +19,12 @@ const VIEW_HEADING_ID = "tasks-view-title";
 type TasksPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+/** Each view has its own title ("Hoy · Tareas · brahua-os"): a view switch is announced. */
+export async function generateMetadata({ searchParams }: TasksPageProps): Promise<Metadata> {
+  const view = parseTaskView((await searchParams)[VIEW_PARAM]);
+  return { title: TASKS_COPY.viewTitle(TASK_VIEW_LABELS[view]) };
+}
 
 /**
  * Tareas (SPEC-tasks "Pantallas"): the views as links (`?vista=`). T1 builds the inbox; Hoy,
@@ -29,12 +36,14 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const search = await searchParams;
   const view = parseTaskView(search[VIEW_PARAM]);
   const deletedId = search[DELETED_PARAM];
-  const [inbox, targets, deleted] = await Promise.all([
+  const [inbox, targets, deleted, cookieStore] = await Promise.all([
     view === "bandeja" ? listInboxTasks() : Promise.resolve([]),
     getTaskTargets(),
     // Just deleted from its page: the undo notice needs its title (only while it is deleted).
     typeof deletedId === "string" ? getDeletedTask(deletedId) : Promise.resolve(null),
+    cookies(),
   ]);
+  const shortcuts = areShortcutsEnabled(cookieStore.get(SHORTCUTS_COOKIE)?.value);
   // One instant for every row: the due labels all count from the same Lima day.
   const now = new Date();
 
@@ -61,7 +70,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
           {view === "bandeja" ? (
             <>
               <p className="bo-text-body-sm text-text-secondary">{TASKS_COPY.inboxHelp}</p>
-              <InboxView tasks={inbox} headingId={VIEW_HEADING_ID} />
+              <InboxView tasks={inbox} shortcuts={shortcuts} headingId={VIEW_HEADING_ID} />
             </>
           ) : (
             // ── T2 slot: the views Hoy, Próximas, Todas and Hechas replace this placeholder. ──

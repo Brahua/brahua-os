@@ -6,7 +6,7 @@ import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { InboxView } from "@/app/(app)/tasks/_components/inbox-view";
 import TaskPage, { generateMetadata } from "@/app/(app)/tasks/[id]/page";
-import TasksPage, { metadata } from "@/app/(app)/tasks/page";
+import TasksPage, { generateMetadata as viewMetadata } from "@/app/(app)/tasks/page";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
 import {
@@ -29,6 +29,13 @@ vi.mock("next/navigation", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+const cookieJar = vi.hoisted(() => ({ shortcuts: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "bo_shortcuts" && cookieJar.shortcuts ? { value: cookieJar.shortcuts } : undefined,
+  }),
+}));
 vi.mock("@/modules/tasks/queries", () => ({
   listInboxTasks: vi.fn(),
   getTask: vi.fn(),
@@ -134,7 +141,7 @@ function Harness() {
       <h2 id="view" tabIndex={-1}>
         Bandeja
       </h2>
-      <InboxView tasks={tasks} headingId="view" />
+      <InboxView tasks={tasks} shortcuts headingId="view" />
     </TasksScreen>
   );
 }
@@ -241,19 +248,31 @@ const notices = () => screen.getByRole("region", { name: "Avisos" });
 
 describe("/tasks", () => {
   test("title, owner check, the views as links with the current one marked", async () => {
-    expect(metadata.title).toBe("Tareas · brahua-os");
+    // Each view has its own title, so a view switch is announced.
+    const title = async (search: Record<string, string>) =>
+      (await viewMetadata({ searchParams: Promise.resolve(search) })).title;
+    expect(await title({})).toBe("Bandeja · Tareas · brahua-os");
+    expect(await title({ vista: "hoy" })).toBe("Hoy · Tareas · brahua-os");
+    expect(await title({ vista: "proximas" })).toBe("Próximas · Tareas · brahua-os");
+    expect(await title({ vista: "nada" })).toBe("Bandeja · Tareas · brahua-os");
     render(await TasksPage({ searchParams: Promise.resolve({}) }));
     expect(requireOwner).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Tareas" })).toBeInTheDocument();
     const views = within(screen.getByRole("navigation", { name: "Vistas de tareas" }));
     expect(
-      views.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")]),
+      views
+        .getAllByRole("link")
+        .map((link) => [
+          link.getAttribute("aria-label") ?? link.textContent,
+          link.getAttribute("href"),
+        ]),
     ).toEqual([
       ["Bandeja", "/tasks"],
-      ["Hoy", "/tasks?vista=hoy"],
-      ["Próximas", "/tasks?vista=proximas"],
-      ["Todas", "/tasks?vista=todas"],
-      ["Hechas", "/tasks?vista=hechas"],
+      // The views T2 builds say so to screen readers before following the link.
+      ["Hoy (próximamente)", "/tasks?vista=hoy"],
+      ["Próximas (próximamente)", "/tasks?vista=proximas"],
+      ["Todas (próximamente)", "/tasks?vista=todas"],
+      ["Hechas (próximamente)", "/tasks?vista=hechas"],
     ]);
     expect(views.getByRole("link", { name: "Bandeja" })).toHaveAttribute("aria-current", "page");
     expect(titles()).toEqual(["comprar pilas", "regar plantas", "devolver libro"]);
@@ -263,7 +282,10 @@ describe("/tasks", () => {
     const { unmount } = render(
       await TasksPage({ searchParams: Promise.resolve({ vista: "hoy" }) }),
     );
-    expect(screen.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Hoy (próximamente)" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(screen.getByRole("heading", { name: "Hoy: próximamente" })).toBeInTheDocument();
     expect(listInboxTasks).not.toHaveBeenCalled();
     unmount();
@@ -271,11 +293,18 @@ describe("/tasks", () => {
     expect(screen.getByRole("link", { name: "Bandeja" })).toHaveAttribute("aria-current", "page");
   });
 
-  test("empty inbox", async () => {
+  test("empty inbox: C is mentioned only with the shortcuts on (and only from 1024 px)", async () => {
     vi.mocked(listInboxTasks).mockResolvedValue([]);
-    render(await TasksPage({ searchParams: Promise.resolve({}) }));
+    cookieJar.shortcuts = undefined;
+    const { unmount } = render(await TasksPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { name: "Bandeja vacía" })).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Tareas en la bandeja" })).toBeNull();
+    expect(screen.getByText(/También puedes pulsar C\./)).toHaveClass("hidden", "lg:inline");
+    unmount();
+    cookieJar.shortcuts = "off";
+    render(await TasksPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.queryByText(/pulsar C/)).toBeNull();
+    cookieJar.shortcuts = undefined;
   });
 
   test("?deleted=<id>: focus on the heading and Tarea eliminada · Deshacer", async () => {
@@ -420,6 +449,53 @@ describe("Clasificar", () => {
 });
 
 describe("detail", () => {
+  test("in the sheet, a refused save and Se guardó are said inside the dialog (the page behind is hidden)", async () => {
+    desktop = true;
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("link", { name: "regar plantas" }));
+    const dialog = await screen.findByRole("dialog", { name: "regar plantas" });
+    // Section headings are h3 under the sheet's title (h2).
+    expect(
+      within(dialog).getByRole("heading", { level: 3, name: "Dónde y cuándo" }),
+    ).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("radio", { name: "Baja" }));
+    await server.answer(fail("Esta tarea ya no existe (se eliminó)."));
+    const alert = within(dialog).getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "No se pudo guardar la prioridad; volvió a como estaba. Esta tarea ya no existe (se eliminó).",
+    );
+    expect(within(dialog).getByRole("radio", { name: "Alta" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    // Not as a notice behind the sheet.
+    expect(within(notices()).queryByText(/No se pudo guardar/)).toBeNull();
+
+    const title = within(dialog).getByRole("textbox", { name: "Título" });
+    await user.clear(title);
+    await user.type(title, "regar más{Enter}");
+    await server.answer();
+    await waitFor(() =>
+      expect(dialog.querySelector("[data-detail-status]")).toHaveTextContent(
+        "Se guardó el título.",
+      ),
+    );
+    // A later save clears the error.
+    expect(within(dialog).getByRole("alert")).toBeEmptyDOMElement();
+  });
+
+  test("the checkbox's 44 px square is its label: tapping anywhere in it completes", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const box = screen.getByRole("checkbox", { name: "Hecha: devolver libro" });
+    expect(box.parentElement?.tagName).toBe("LABEL");
+    await user.click(box.parentElement!);
+    expect(completeTask).toHaveBeenCalledWith({ id: LIBRO.id });
+    await server.answer();
+  });
+
   test("on the desktop the title opens a side sheet with the sections; edits save", async () => {
     desktop = true;
     const user = userEvent.setup();

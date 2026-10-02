@@ -16,7 +16,7 @@ import { useTaskDetail } from "./task-detail-context";
  * ("Eliminando…", the key stays focusable with aria-disabled); a failure is a notice.
  */
 export function TaskDeleteSection() {
-  const { task, onDeleted, toaster } = useTaskDetail();
+  const { task, onDeleted, reportError } = useTaskDetail();
   const [pending, startTransition] = useTransition();
   const helpId = useId();
 
@@ -33,11 +33,7 @@ export function TaskDeleteSection() {
         onDeleted(task);
         return;
       }
-      toaster.push({
-        title: TASKS_COPY.notSavedTitle,
-        text: `${TASKS_COPY.notDeleted} ${failureReason(result)}`,
-        tone: "error",
-      });
+      reportError(`${TASKS_COPY.notDeleted} ${failureReason(result)}`);
     });
   }
 

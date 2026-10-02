@@ -73,7 +73,11 @@ const ROW = {
   createdAt: tasks.createdAt,
   lifeAreaId: tasks.lifeAreaId,
   projectId: tasks.projectId,
-  milestoneId: tasks.milestoneId,
+  // A soft-deleted milestone reads as none ("sin hito"); restoring it brings it back.
+  milestoneId: sql<string | null>`case when exists (
+    select 1 from project_milestones live_milestone
+    where live_milestone.id = ${tasks.milestoneId} and live_milestone.deleted_at is null
+  ) then ${tasks.milestoneId} end`,
   isNextAction: tasks.isNextAction,
   recurrenceKind: tasks.recurrenceKind,
   recurrenceInterval: tasks.recurrenceInterval,
@@ -129,7 +133,20 @@ function selectItems(db: Database | Tx, where: SQL | undefined) {
     .where(where);
 }
 
-const live = isNull(tasks.deletedAt);
+/**
+ * Whether a task is visible (SPEC-tasks "Borrar"): not deleted, and neither is its project. The
+ * tasks of a soft-deleted project hide with it (no view, page, count or write reaches them) and
+ * come back when the project is restored. EVERY read and write of tasks (T2–T6 included: views,
+ * counts, the progress source, the today summary) must filter with it. It doesn't need the
+ * projects join (a subquery), so it fits any query on `tasks`.
+ */
+export const visibleTask = and(
+  isNull(tasks.deletedAt),
+  sql`(${tasks.projectId} is null or exists (
+    select 1 from projects visible_project
+    where visible_project.id = ${tasks.projectId} and visible_project.deleted_at is null
+  ))`,
+) as SQL;
 const pending = isNull(tasks.doneAt);
 const inInbox = and(isNull(tasks.lifeAreaId), isNull(tasks.projectId));
 
@@ -138,7 +155,7 @@ const inInbox = and(isNull(tasks.lifeAreaId), isNull(tasks.projectId));
  * (what was just captured is on top).
  */
 export async function selectInboxTasks(db: Database): Promise<TaskItem[]> {
-  const rows = await selectItems(db, and(live, pending, inInbox)).orderBy(
+  const rows = await selectItems(db, and(visibleTask, pending, inInbox)).orderBy(
     sql`${tasks.createdAt} desc`,
     tasks.id,
   );
@@ -147,7 +164,7 @@ export async function selectInboxTasks(db: Database): Promise<TaskItem[]> {
 
 /** One task (done or not), unless it doesn't exist or is deleted. */
 export async function selectTaskById(db: Database | Tx, id: string): Promise<TaskItem | null> {
-  const [row] = await selectItems(db, and(eq(tasks.id, id), live));
+  const [row] = await selectItems(db, and(eq(tasks.id, id), visibleTask));
   return row ? toItem(row) : null;
 }
 
@@ -302,7 +319,7 @@ export async function updateTask(
       const [before] = await tx
         .select({ projectId: tasks.projectId })
         .from(tasks)
-        .where(and(eq(tasks.id, input.id), live));
+        .where(and(eq(tasks.id, input.id), visibleTask));
       if (!before) return null;
       await lockProjectTasks(tx, [before.projectId, placement.projectId]);
     }
@@ -313,7 +330,7 @@ export async function updateTask(
         milestoneId: tasks.milestoneId,
       })
       .from(tasks)
-      .where(and(eq(tasks.id, input.id), live))
+      .where(and(eq(tasks.id, input.id), visibleTask))
       .for("update");
     if (!current) return null;
 
@@ -351,7 +368,7 @@ export async function completeTaskById(
     const updated = await tx
       .update(tasks)
       .set({ doneAt: sql`now()`, isNextAction: false })
-      .where(and(eq(tasks.id, id), live, pending))
+      .where(and(eq(tasks.id, id), visibleTask, pending))
       .returning({ id: tasks.id });
     // T3 slot: when `updated` has the row, create the next occurrence here (same transaction).
     const task = await selectTaskById(tx, id);
@@ -371,7 +388,7 @@ export async function reopenTaskById(
     const updated = await tx
       .update(tasks)
       .set({ doneAt: null })
-      .where(and(eq(tasks.id, id), live, isNotNull(tasks.doneAt)))
+      .where(and(eq(tasks.id, id), visibleTask, isNotNull(tasks.doneAt)))
       .returning({ id: tasks.id });
     // T3 slot: when `updated` has the row, remove the occurrence it spawned (if untouched).
     const task = await selectTaskById(tx, id);
@@ -387,7 +404,7 @@ export async function softDeleteTask(db: Database, id: string): Promise<DeletedT
   const [task] = await db
     .update(tasks)
     .set({ deletedAt: sql`now()`, isNextAction: false })
-    .where(and(eq(tasks.id, id), live))
+    .where(and(eq(tasks.id, id), visibleTask))
     .returning({ id: tasks.id, title: tasks.title });
   return task ?? null;
 }

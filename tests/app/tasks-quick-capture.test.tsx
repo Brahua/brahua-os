@@ -178,6 +178,8 @@ describe("QuickCaptureSheet", () => {
     expect(createTask).not.toHaveBeenCalled();
     expect(titleField()).toHaveAccessibleDescription(TASK_ERRORS.titleRequired);
     expect(titleField()).toHaveFocus();
+    // Focus was already in the field: the error is read through the sheet's status region.
+    await waitFor(() => expect(status()).toHaveTextContent(TASK_ERRORS.titleRequired));
   });
 
   test("a refused area keeps the text, shows the error on the picker and focuses it", async () => {

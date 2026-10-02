@@ -11,12 +11,14 @@ const inInbox = (task: TaskItem) => task.doneAt === null && isInInbox(task);
 
 type InboxViewProps = {
   tasks: TaskItem[];
+  /** The single-key shortcuts are on (`bo_shortcuts`): the empty state mentions `C`. */
+  shortcuts: boolean;
   /** The view's heading (tabIndex -1): focus goes there when the last task leaves. */
   headingId: string;
 };
 
 /** "Bandeja" (SPEC-tasks): unclassified pending tasks, each with "Clasificar". */
-export function InboxView({ tasks, headingId }: InboxViewProps) {
+export function InboxView({ tasks, shortcuts, headingId }: InboxViewProps) {
   return (
     <TaskList
       tasks={tasks}
@@ -28,7 +30,13 @@ export function InboxView({ tasks, headingId }: InboxViewProps) {
         <div className="bo-card max-w-160 items-start" data-inbox-empty="">
           <Icon icon={Inbox} size="xl" className="text-text-secondary" />
           <h3 className="bo-text-title">{TASKS_COPY.emptyInboxTitle}</h3>
-          <p className="bo-text-body-sm text-text-secondary">{TASKS_COPY.emptyInboxText}</p>
+          <p className="bo-text-body-sm text-text-secondary">
+            {TASKS_COPY.emptyInboxText}
+            {/* `C` only acts from 1024 px: hidden (also for screen readers) below that. */}
+            {shortcuts ? (
+              <span className="hidden lg:inline">{TASKS_COPY.emptyInboxShortcut}</span>
+            ) : null}
+          </p>
         </div>
       }
     />

@@ -4,10 +4,10 @@
 // 1. Progress sources (for `tasks`). `tasks` depends on `projects`, never the other way, so
 //    `projects` can't read tasks: the provider registers a ProgressSource when its file is
 //    imported, and the list and the detail add its counts to the milestones' with
-//    contributedProgress(). Registration is idempotent (by source id) and happens again on every
-//    cold start, because it runs at import time. For a source to be loaded where progress is
-//    computed, its file must be imported for its side effect from `src/lib/progress-sources.ts`,
-//    which the projects pages import (see that file).
+//    contributedProgress(). Registration is idempotent (by source id). The composition root
+//    `src/lib/progress-sources.ts` imports each source by name and registers it in
+//    `ensureProgressSources()`, which the code that computes progress calls first (never a
+//    side-effect-only import: the bundler drops them, see that file).
 //
 // 2. getProjectsTodaySummary(now) (for `today`): the projects due within a week or overdue and
 //    the blocked ones, in two parallel queries.
@@ -37,13 +37,14 @@ export type { ProjectTodayItem } from "./today-summary";
 
 // ── Progress sources ────────────────────────────────────────────────────────────────────────
 
-/** The app's sources: one per server instance, filled when the providers' files are imported. */
+/** The app's sources: one per server instance, filled by `ensureProgressSources()`. */
 const registry = createProgressRegistry();
 
 /**
  * Registers `source` (by its id: registering the same id again replaces it, so a module that is
- * evaluated twice, or hot-reloaded, never counts twice). Call it at the top level of the
- * provider's file. Returns a function that removes it (for tests).
+ * evaluated twice, or hot-reloaded, never counts twice). Called by the composition root
+ * (`ensureProgressSources()` in src/lib/progress-sources.ts). Returns a function that removes it
+ * (for tests).
  */
 export function registerProgressSource(source: ProgressSource): () => void {
   return registry.register(source);

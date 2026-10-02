@@ -13,6 +13,7 @@ import {
   insertTask,
   openReady,
   readTask,
+  readTaskByTitle,
   taskRow,
   uniqueTitle,
 } from "./support/tasks";
@@ -62,7 +63,7 @@ test("phone: capture from another page in a few taps, then it is in the inbox", 
   await expect(captureSheet(page)).toBeHidden();
   await page.locator(".bo-bottomnav--fixed").getByRole("link", { name: "Tareas" }).click();
   await expect(page).toHaveURL("/tasks");
-  await expect(page).toHaveTitle("Tareas · brahua-os");
+  await expect(page).toHaveTitle("Bandeja · Tareas · brahua-os");
   await expect(taskRow(page, title)).toBeVisible();
 });
 
@@ -98,6 +99,8 @@ test("capture into an area: it goes there, not to the inbox", async ({ page }, t
   await captureTitle(page).press("Enter");
   await expect(captureStatus(page)).toHaveText("Tarea agregada a «Trabajo».");
   await page.keyboard.press("Escape");
+  // Positive: it is stored in Trabajo (not only absent from the inbox).
+  expect(await readTaskByTitle(title)).toMatchObject({ areaSlug: "work", doneAt: null });
   await page.reload();
   await expect(inbox(page).getByRole("link", { name: title })).toHaveCount(0);
 });

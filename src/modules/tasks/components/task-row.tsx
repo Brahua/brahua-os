@@ -56,7 +56,8 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify }: TaskRowProp
 
   return (
     <>
-      <span className="flex size-11 shrink-0 items-center justify-center">
+      {/* A label: the whole 44 px square toggles the 20 px checkbox. */}
+      <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center">
         <input
           type="checkbox"
           className="bo-milestone-check"
@@ -65,7 +66,7 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify }: TaskRowProp
           data-task-focus={`check:${task.id}`}
           onChange={(event) => onToggle(task, event.target.checked)}
         />
-      </span>
+      </label>
       <div className="flex min-w-0 flex-1 flex-col gap-1 py-2.5">
         <Link
           href={taskPath(task.id)}
@@ -114,6 +115,7 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify }: TaskRowProp
               </span>
             ) : null}
             {/* ── T3 slot (Recurrencia): the recurrence icon, from task.recurrence. ── */}
+
             {/* ── T4 slot (Etiquetas): the tags, from task.tags. ── */}
           </p>
         ) : null}

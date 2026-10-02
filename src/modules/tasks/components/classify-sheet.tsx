@@ -2,12 +2,13 @@
 
 import { Trash2 } from "lucide-react";
 import { useId, useRef, useState } from "react";
-import { Key, Sheet, TextField } from "@/design-system";
+import { Key, Sheet } from "@/design-system";
 import { fail } from "@/lib/action-result";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { placementValue, toPlacement, type PlacementValue } from "../placement";
 import { editTaskInputSchema, type TaskItem, type TaskTargets } from "../task-input";
 import { TASKS_COPY } from "../tasks-copy";
+import { DateField } from "./date-field";
 import { PlacementSelect } from "./placement-select";
 
 export type ClassifySheetProps = {
@@ -98,25 +99,30 @@ export function ClassifySheet({
           value={placement}
           onValueChange={setPlacement}
         />
-        <TextField
+        <DateField
           ref={dueInput}
           id={`${ids}-due`}
-          type="date"
           label={TASKS_COPY.dueLabel}
           value={dueDate}
           help={TASKS_COPY.dueHelp}
           error={dueError}
-          className="bo-date-field"
           onChange={(event) => {
             setDueDate(event.target.value);
             setDueError(undefined);
           }}
         />
         <div className="flex flex-col items-start gap-2 border-t border-divider pt-5">
-          <Key variant="ghost" icon={Trash2} onClick={() => onDelete(task)}>
+          <Key
+            variant="ghost"
+            icon={Trash2}
+            aria-describedby={`${ids}-delete-help`}
+            onClick={() => onDelete(task)}
+          >
             {TASKS_COPY.deleteTask}
           </Key>
-          <p className="bo-text-body-sm text-text-secondary">{TASKS_COPY.deleteHelp}</p>
+          <p id={`${ids}-delete-help`} className="bo-text-body-sm text-text-secondary">
+            {TASKS_COPY.deleteHelp}
+          </p>
         </div>
       </form>
     </Sheet>

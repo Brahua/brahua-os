@@ -20,6 +20,13 @@ export function TaskViewTabs({ current }: { current: TaskView }) {
             prefetch={false}
             className={cn("bo-segmented__item", view === current && "is-on")}
             aria-current={view === current ? "page" : undefined}
+            // T2 builds the other views: their names say so before following the link (an
+            // sr-only span would be read run together with the label in some engines).
+            aria-label={
+              view === "bandeja"
+                ? undefined
+                : `${TASK_VIEW_LABELS[view]}${TASKS_COPY.comingSoonHidden}`
+            }
           >
             {TASK_VIEW_LABELS[view]}
           </Link>

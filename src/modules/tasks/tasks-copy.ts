@@ -28,7 +28,6 @@ export type TaskField = keyof typeof TASK_FIELD_NAMES;
 
 export const TASKS_COPY = {
   title: "Tareas",
-  pageTitle: "Tareas · brahua-os",
   viewsLabel: "Vistas de tareas",
   noticesLabel: "Avisos",
   undoHint: "Para deshacer, pulsa Ctrl+Z o ⌘Z, o usa el botón Deshacer del aviso.",
@@ -59,6 +58,7 @@ export const TASKS_COPY = {
     "No se pudieron cargar las áreas y proyectos. Puedes guardarla en la bandeja y clasificarla después.",
   dueLabel: "Fecha límite",
   dueHelp: "Opcional.",
+  noDate: "Sin fecha",
   priorityLabel: "Prioridad",
   highPriority: "Prioridad alta",
   highPriorityShort: "Alta",
@@ -73,7 +73,11 @@ export const TASKS_COPY = {
     "Lo que capturas sin área ni proyecto llega aquí. Clasifícalo, ponle fecha o márcalo hecho.",
   emptyInboxTitle: "Bandeja vacía",
   emptyInboxText:
-    "Todo está clasificado. Para anotar algo nuevo, usa la tecla naranja de captura (o C en el teclado).",
+    "Todo está clasificado. Para anotar algo nuevo, usa la tecla naranja de captura.",
+  /** Only with the shortcuts on, and only where they act (≥ 1024 px). */
+  emptyInboxShortcut: " También puedes pulsar C.",
+  comingSoonHidden: " (próximamente)",
+  viewTitle: (view: string) => `${view} · Tareas · brahua-os`,
   comingSoonTitle: (view: string) => `${view}: próximamente`,
   comingSoonText:
     "Esta vista llega en la siguiente entrega. Mientras tanto, lo que clasificas sale de la bandeja y queda guardado.",

@@ -45,9 +45,14 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const [captureOpening, setCaptureOpening] = useState(0);
   const captureTrigger = useRef<HTMLElement | null>(null);
   const openCapture = useCallback((trigger?: HTMLElement) => {
-    // The key that was pressed, or what had focus when `C` was pressed: focus returns there.
+    // The key that was pressed, or what had focus when `C` was pressed: focus returns there. With
+    // nothing focused (<body>), the main content, so focus never ends up on <body>.
+    const active = document.activeElement;
     captureTrigger.current =
-      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      trigger ??
+      (active instanceof HTMLElement && active !== document.body
+        ? active
+        : document.getElementById("content"));
     setCaptureOpening((value) => value + 1);
     setCaptureOpen(true);
   }, []);

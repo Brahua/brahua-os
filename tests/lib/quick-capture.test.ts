@@ -1,53 +1,42 @@
-// The quick capture's extension point (SPEC-tasks): a registry with one owner, and the app's
-// composition root registering `tasks` without `core` importing it.
+// The quick capture's extension point (SPEC-tasks): the composition root hands the shell the
+// provider of `tasks` through context, and `core` never imports `tasks`.
 import { readFileSync } from "node:fs";
+import { render } from "@testing-library/react";
+import { createElement, use } from "react";
 import { describe, expect, test, vi } from "vitest";
-import { createCaptureRegistry, type CaptureProvider } from "@/lib/quick-capture";
+import { QuickCaptureContext } from "@/lib/quick-capture";
 
-const provider = (id: string): CaptureProvider => ({ id, Sheet: () => null });
-
-describe("createCaptureRegistry", () => {
-  test("starts empty: the shell shows the key as not available", () => {
-    expect(createCaptureRegistry().current()).toBeNull();
-  });
-
-  test("register makes it current; its unregister removes it", () => {
-    const registry = createCaptureRegistry();
-    const tasks = provider("tasks");
-    const unregister = registry.register(tasks);
-    expect(registry.current()).toBe(tasks);
-    unregister();
-    expect(registry.current()).toBeNull();
-  });
-
-  test("the same id again replaces it (a hot reload), and the old unregister leaves the new one", () => {
-    const registry = createCaptureRegistry();
-    const first = provider("tasks");
-    const second = provider("tasks");
-    const unregisterFirst = registry.register(first);
-    registry.register(second);
-    expect(registry.current()).toBe(second);
-    unregisterFirst();
-    expect(registry.current()).toBe(second);
-  });
-
-  test("a second owner is refused: only one module owns the capture key", () => {
-    const registry = createCaptureRegistry();
-    registry.register(provider("tasks"));
-    expect(() => registry.register(provider("notes"))).toThrow(/already belongs to "tasks"/);
-    expect(registry.current()?.id).toBe("tasks");
-  });
-});
+vi.mock("next/dynamic", () => ({ default: () => () => null }));
 
 describe("the app's composition root", () => {
-  test("registers the tasks provider when loaded", async () => {
-    vi.resetModules();
-    vi.doMock("next/dynamic", () => ({ default: () => () => null }));
-    const { currentCaptureProvider } = await import("@/lib/quick-capture");
-    expect(currentCaptureProvider()).toBeNull();
-    await import("@/lib/capture-providers");
-    expect(currentCaptureProvider()?.id).toBe("tasks");
-    vi.doUnmock("next/dynamic");
+  test("without the root the shell has no provider (the key says Próximamente)", () => {
+    let seen: unknown = "unset";
+    function Probe() {
+      seen = use(QuickCaptureContext);
+      return null;
+    }
+    render(createElement(Probe));
+    expect(seen).toBeNull();
+  });
+
+  test("CaptureRoot gives the shell the tasks provider", async () => {
+    const { CaptureRoot } = await import("@/lib/capture-providers");
+    let seen: { id: string; preload?: () => void } | null = null;
+    function Probe() {
+      seen = use(QuickCaptureContext);
+      return null;
+    }
+    render(createElement(CaptureRoot, null, createElement(Probe)));
+    expect(seen).toMatchObject({ id: "tasks" });
+    expect(typeof seen!.preload).toBe("function");
+  });
+
+  test("the root imports the provider by name (a side-effect-only import is dropped by the bundler)", () => {
+    const source = readFileSync("src/lib/capture-providers.tsx", "utf8");
+    expect(source).toMatch(
+      /import \{ tasksCaptureProvider \} from "@\/modules\/tasks\/capture-provider";/,
+    );
+    expect(source).not.toMatch(/^import "@\/modules\//m);
   });
 
   test("core never imports tasks: the shell only knows the extension point", () => {

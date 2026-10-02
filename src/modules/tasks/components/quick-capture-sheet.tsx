@@ -12,6 +12,7 @@ import { INBOX_VALUE, placementName, toPlacement, type PlacementValue } from "..
 import type { TaskPriority } from "../task-constants";
 import { createTaskInputSchema, type TaskItem, type TaskTargets } from "../task-input";
 import { TASKS_COPY } from "../tasks-copy";
+import { DateField } from "./date-field";
 import { PlacementSelect } from "./placement-select";
 import { PriorityPicker } from "./priority-picker";
 
@@ -115,6 +116,10 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
     setErrors(fieldErrors);
     if (fieldErrors.priority) setDetailsOpen(true);
     setFormError(Object.keys(fieldErrors).length > 0 ? null : result.error);
+    // Enter leaves focus in the title, so moving focus there says nothing: the first field error
+    // is read through the sheet's status region (the general error is a role="alert" below).
+    const first = FIELD_ORDER.map((field) => fieldErrors[field]).find(Boolean);
+    if (first) announce(first);
   }
 
   function clearError(field: Field) {
@@ -259,16 +264,13 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
           error={errors.placement}
         />
 
-        <TextField
+        <DateField
           ref={dueInput}
           id={`${ids}-due`}
-          type="date"
           label={TASKS_COPY.dueLabel}
-          name="dueDate"
           value={dueDate}
           help={TASKS_COPY.dueHelp}
           error={errors.dueDate}
-          className="bo-date-field"
           onChange={(event) => {
             setDueDate(event.target.value);
             clearError("dueDate");
@@ -301,6 +303,7 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
               />
             </div>
             {/* ── T4 slot (Etiquetas): the tag field goes here. ── */}
+
             {/* ── T3 slot (Recurrencia): the recurrence editor goes here. ── */}
           </div>
         </div>
