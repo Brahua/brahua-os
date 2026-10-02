@@ -343,7 +343,7 @@ describe("while saving", () => {
     expect(cancel).toHaveAttribute("aria-disabled", "true");
     await user.keyboard("{Escape}");
     await user.click(cancel);
-    await user.click(within(dialog()).getByRole("button", { name: "Cerrar" }));
+    await user.click(within(dialog()).getByRole("button", { name: "Cerrar (Esc)" }));
     await user.click(saving); // a second submit is ignored too
     expect(dialog()).toBeInTheDocument();
     expect(createLifeArea).toHaveBeenCalledTimes(1);

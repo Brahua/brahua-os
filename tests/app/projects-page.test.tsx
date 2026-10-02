@@ -423,7 +423,7 @@ describe("create sheet", () => {
       "role",
       "status",
     );
-    const close = within(dialog()).getByRole("button", { name: "Cerrar" });
+    const close = within(dialog()).getByRole("button", { name: "Cerrar (Esc)" });
     expect(close).toHaveAttribute("aria-disabled", "true");
     await user.click(close);
     await user.keyboard("{Escape}");
