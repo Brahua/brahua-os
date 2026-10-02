@@ -22,7 +22,10 @@ Personal "second brain" app (single user). Specs drive the work:
 - One short-lived branch per change: `feat/…`, `fix/…`, `chore/…`, `docs/…`. Open a PR against `main`.
 - Merge only with CI green. Every push to `main` re-runs CI in `.github/workflows/ci.yml`, and the
   `deploy` job publishes to production (https://os.brahua.com) **only if all checks pass**.
-- `main` is unprotected (free private plan; owner's decision, 2026-10-01): before every merge, check that
+- While the repo is public (from 2026-10-02 until ~2026-11-01, when Actions minutes reset), the ruleset
+  "Protect main" enforces PRs and the 3 checks; after a bot screenshot commit, approve the PR's
+  `action_required` run (details in HANDOFF). Back to private, the ruleset stops applying and this holds:
+- `main` is unprotected when private (free plan; owner's decision, 2026-10-01): before every merge, check that
   all 3 CI checks are green, and never push directly to `main`.
 - Vercel's Git auto-deploy is disabled (`vercel.json`); GitHub Actions is the only deployer. The
   `deploy` job runs `vercel deploy --prod` (remote build on Vercel: `scripts/vercel-build.sh`
