@@ -1,6 +1,6 @@
 # Spec: tasks
 
-> Módulo `tasks` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` y `projects` · Estado: **BORRADOR v1** (2026-10-01), pendiente de revisión del owner.
+> Módulo `tasks` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` y `projects` · Estado: **APROBADO v1** (2026-10-01).
 
 ## Objetivo
 
@@ -44,7 +44,7 @@ Fuera de este módulo: recordatorios push/email (`reminders`), tablero diario co
 
 ## Pantallas
 
-**Captura rápida (global):** la tecla naranja de la barra inferior (hoy "Próximamente") y la barra lateral abren un Sheet con un solo campo ("¿Qué hay que hacer?") y Enter guarda en la bandeja. Opcional en el mismo Sheet: "Más detalles" (área/proyecto, fecha, prioridad). Atajo `C` en el escritorio (con las mismas reglas que los demás atajos). El campo recibe el foco al abrir; tras guardar queda listo para otra.
+**Captura rápida (global):** la tecla naranja de la barra inferior (hoy "Próximamente") y la barra lateral abren un Sheet con el campo "¿Qué hay que hacer?" (con el foco) y, **visibles desde el inicio**, área o proyecto y fecha (opcionales; vacíos = bandeja). Enter guarda. Prioridad, etiquetas y recurrencia quedan en "Más detalles" (plegado). Atajo `C` en el escritorio (con las mismas reglas que los demás atajos). Tras guardar, el campo queda listo para otra.
 
 **Tareas (`/tasks`)** con pestañas (enlaces con `?vista=`):
 - **Bandeja:** sin área ni proyecto, con acciones rápidas para asignar área, proyecto y fecha.
@@ -141,8 +141,12 @@ Los mismos de `SPEC-core`. Módulo en `src/modules/tasks/` (como `projects`), p�
 7. Etiquetas libres para filtrar en cualquier área.
 8. Calidad: CI en verde, axe en 0 en ambos temas, sin animaciones de desplazamiento con movimiento reducido.
 
+## Decisiones cerradas (2026-10-01)
+
+1. **Navegación:** se itera en Claude Design (dónde vive Tareas en la barra inferior y en la lateral, y su atajo). Hasta sincronizar el diseño, la implementación usa una ubicación provisional: **Tareas con el atajo 3** en la barra lateral y en el lugar de "Hábitos" de la barra inferior (Hábitos aún no existe).
+2. **Próxima acción:** al completarla, la marca **queda vacía**; el owner elige la siguiente.
+3. **Captura:** título con el foco, y área/proyecto y fecha **visibles desde el inicio** (opcionales); el resto en "Más detalles".
+
 ## Preguntas abiertas
 
-1. **Navegación:** en el diseño de Claude Design, los atajos son Hoy 1, Proyectos 2, Hábitos 3, Finanzas 4, Metas 5, Notas 6, Áreas 7, Ajustes 8, y `tasks` no tiene lugar propio. Propuesta: **Tareas = 3** y los demás se corren (Hábitos 4, Finanzas 5, Metas 6; Notas sin número hasta que haga falta), y en la barra inferior del celular Tareas reemplaza a "Hábitos" por ahora. ¿Ok, o prefieres que Tareas viva dentro de "Hoy"?
-2. **Próxima acción automática:** al completar la próxima acción de un proyecto, ¿la marca pasa sola a la siguiente tarea pendiente del proyecto (por orden) o queda vacía para que elijas? (La spec asume que queda vacía.)
-3. **Captura con detalles:** ¿el Sheet de captura muestra solo el título (y "Más detalles" plegado), o también área y fecha visibles de entrada?
+Ninguna por ahora (la navegación definitiva llega desde Claude Design).
