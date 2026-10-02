@@ -61,7 +61,12 @@ test("phone: capture from another page in a few taps, then it is in the inbox", 
 
   await page.keyboard.press("Escape");
   await expect(captureSheet(page)).toBeHidden();
-  await page.locator(".bo-bottomnav--fixed").getByRole("link", { name: "Tareas" }).click();
+  // Tareas is under "Más" on the phone since Hábitos took its cell (SPEC-habits).
+  await page.locator(".bo-bottomnav--fixed").getByRole("button", { name: "Más" }).click();
+  await page
+    .getByRole("navigation", { name: "Más secciones" })
+    .getByRole("link", { name: "Tareas" })
+    .click();
   await expect(page).toHaveURL("/tasks");
   await expect(page).toHaveTitle("Bandeja · Tareas · brahua-os");
   await expect(taskRow(page, title)).toBeVisible();
@@ -171,7 +176,9 @@ test("the detail: a side sheet on the desktop, its page on the phone; edits and 
 
   await untilSaved(page, () => scope.getByRole("radio", { name: "Alta" }).click());
   await expect(scope.getByRole("radio", { name: "Alta" })).toHaveAttribute("aria-checked", "true");
-  expect((await readTask(id)).priority).toBe("high");
+  // Polled: the detail's own reads (notes, milestones) are Server Actions too, so the response
+  // `untilSaved` saw may not be the priority's (it failed that way once in a full local run).
+  await expect.poll(async () => (await readTask(id)).priority).toBe("high");
 
   await untilSaved(page, () => scope.getByRole("button", { name: "Eliminar tarea" }).click());
   await expect(notices(page).getByText(`«${title}» se eliminó.`)).toBeVisible();

@@ -79,6 +79,7 @@ round() {
   expect_redirect_to_login /
   expect_redirect_to_login /projects
   expect_redirect_to_login /tasks
+  expect_redirect_to_login /habits
   expect_redirect_to_login /areas
   expect_redirect_to_login /settings
 
@@ -119,7 +120,7 @@ round() {
 echo "Smoke test: $BASE_URL"
 for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
   if round; then
-    echo "OK (attempt $attempt): / /projects /tasks /areas /settings → /login, /login 200, /api/auth/ok, manifest and icon, 404s (test routes absent), security headers."
+    echo "OK (attempt $attempt): / /projects /tasks /habits /areas /settings → /login, /login 200, /api/auth/ok, manifest and icon, 404s (test routes absent), security headers."
     exit 0
   fi
   echo "Attempt $attempt/$ATTEMPTS failed:"

@@ -6,6 +6,7 @@
 import { asc, getTableColumns, getTableName, type AnyColumn } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { coreExportTables } from "@/modules/core/export";
+import { habitsExportTables } from "@/modules/habits/export";
 import { projectsExportTables } from "@/modules/projects/export";
 import { tasksExportTables } from "@/modules/tasks/export";
 import type { Database } from "./db";
@@ -29,6 +30,7 @@ export const EXPORTABLE_TABLES: readonly ExportableTable[] = [
   ...coreExportTables,
   ...projectsExportTables,
   ...tasksExportTables,
+  ...habitsExportTables,
 ];
 
 /**

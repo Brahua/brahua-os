@@ -26,6 +26,7 @@ import {
   projectMilestones,
   projects,
 } from "@/modules/projects/db/schema";
+import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
 import { taskTagLinks, taskTags, tasks } from "@/modules/tasks/db/schema";
 import { writeExport } from "../../scripts/db-export";
 import { testDb } from "./test-db";
@@ -138,6 +139,9 @@ describe("pnpm db:export", () => {
       "tasks",
       "task_tags",
       "task_tag_links",
+      "habits",
+      "habit_logs",
+      "habit_pauses",
     ]) {
       expect(data.tables[name]).toEqual({ rowCount: 0, rows: [] });
     }
@@ -235,6 +239,84 @@ describe("pnpm db:export", () => {
     expect(removed.deletedAt).not.toBeNull();
     expect(data.tables.task_tags.rows).toEqual([expect.objectContaining({ name: "compras" })]);
     expect(data.tables.task_tag_links.rows).toEqual([{ task_id: inbox.id, tag_id: tag.id }]);
+  });
+
+  test("exports the habits with their logs and pauses, archived and deleted ones included (H1)", async () => {
+    const [area] = await testDb
+      .insert(lifeAreas)
+      .values({ slug: "health", name: "Salud", icon: "heart-pulse", color: "health" })
+      .returning();
+    const base = { measure: "check", frequency: "daily", startDate: "2026-09-01" } as const;
+    const [meditar, , borrado] = await testDb
+      .insert(habits)
+      .values([
+        {
+          ...base,
+          name: "Meditar",
+          lifeAreaId: area.id,
+          sortOrder: 0,
+          createdAt: new Date("2026-09-01T00:00:00Z"),
+        },
+        {
+          ...base,
+          name: "Archivado",
+          sortOrder: 1,
+          archivedAt: ARCHIVED_AT,
+          createdAt: new Date("2026-09-02T00:00:00Z"),
+        },
+        {
+          ...base,
+          name: "Borrado",
+          sortOrder: 2,
+          deletedAt: ARCHIVED_AT,
+          createdAt: new Date("2026-09-03T00:00:00Z"),
+        },
+      ])
+      .returning();
+    await testDb.insert(habitLogs).values([
+      { habitId: meditar.id, day: "2026-09-30", quantity: 1, target: 1 },
+      { habitId: borrado.id, day: "2026-09-29", quantity: 0, target: 1 },
+    ]);
+    await testDb
+      .insert(habitPauses)
+      .values({ habitId: meditar.id, startDate: "2026-10-10", endDate: "2026-10-20", reason: "Viaje" });
+
+    const data = JSON.parse(JSON.stringify(await buildExport(testDb, NOW))) as DataExport;
+
+    expect(
+      data.tables.habits.rows.map((row) => [row.name, row.archived_at, row.deleted_at]),
+    ).toEqual([
+      ["Meditar", null, null],
+      ["Archivado", "2026-09-15T10:00:00.000Z", null],
+      ["Borrado", null, "2026-09-15T10:00:00.000Z"],
+    ]);
+    expect(data.tables.habits.rows[0]).toMatchObject({
+      life_area_id: area.id,
+      kind: "build",
+      measure: "check",
+      goal: 1,
+      frequency: "daily",
+      weekdays: null,
+      start_date: "2026-09-01",
+      sort_order: 0,
+    });
+    // Every log, the deleted habit's too (sorted by habit, then day).
+    expect(data.tables.habit_logs.rowCount).toBe(2);
+    expect(data.tables.habit_logs.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ habit_id: meditar.id, day: "2026-09-30", quantity: 1, target: 1 }),
+        expect.objectContaining({ habit_id: borrado.id, day: "2026-09-29", quantity: 0 }),
+      ]),
+    );
+    expect(data.tables.habit_pauses.rows).toEqual([
+      expect.objectContaining({
+        habit_id: meditar.id,
+        start_date: "2026-10-10",
+        end_date: "2026-10-20",
+        reason: "Viaje",
+        deleted_at: null,
+      }),
+    ]);
   });
 
   test("never contains auth data: no auth table, no token, hash, key or email", async () => {

@@ -80,17 +80,19 @@ test("the navigation comes from the registry and marks the current page", async 
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy, Proyectos, Tareas, Áreas and Ajustes. On desktop Áreas and
-  // Ajustes are pinned to the sidebar footer; on the phone five don't fit around the capture
-  // key, so Tareas takes the cell after it and Áreas and Ajustes go under "Más".
+  // Only available modules: Hoy, Proyectos, Tareas, Hábitos, Áreas and Ajustes. On desktop Áreas
+  // and Ajustes are pinned to the sidebar footer; on the phone six don't fit around the capture
+  // key, so Hábitos takes the cell after it (SPEC-habits) and Tareas, Áreas and Ajustes go
+  // under "Más".
   const links = page.getByRole("navigation").getByRole("link");
   if (desktop) {
-    await expect(links).toHaveCount(5);
+    await expect(links).toHaveCount(6);
     await expect(links.nth(0)).toHaveAccessibleName("Hoy");
     await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
     await expect(links.nth(2)).toHaveAccessibleName("Tareas");
-    await expect(links.nth(3)).toHaveAccessibleName("Áreas");
-    await expect(links.nth(4)).toHaveAccessibleName("Ajustes");
+    await expect(links.nth(3)).toHaveAccessibleName("Hábitos");
+    await expect(links.nth(4)).toHaveAccessibleName("Áreas");
+    await expect(links.nth(5)).toHaveAccessibleName("Ajustes");
     const footer = page.getByRole("navigation", { name: "Secundaria" });
     await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
     await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
@@ -98,8 +100,8 @@ test("the navigation comes from the registry and marks the current page", async 
     await expect(links).toHaveCount(3);
     await expect(links.nth(0)).toHaveAccessibleName("Hoy");
     await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
-    await expect(links.nth(2)).toHaveAccessibleName("Tareas");
-    // Tareas is right after the capture key (cell 4); "Más" is the last cell.
+    await expect(links.nth(2)).toHaveAccessibleName("Hábitos");
+    // Hábitos is right after the capture key (cell 4); "Más" is the last cell.
     const cells = await bottomNav(page).evaluate((bar) =>
       [...bar.children].map((child) => ({
         name: child.querySelector("[aria-label]")?.getAttribute("aria-label") ?? child.textContent,
@@ -107,7 +109,7 @@ test("the navigation comes from the registry and marks the current page", async 
       })),
     );
     const order = [...cells].sort((a, b) => a.left - b.left).map((cell) => cell.name);
-    expect(order).toEqual(["Hoy", "Proyectos", "Capturar", "Tareas", "Más"]);
+    expect(order).toEqual(["Hoy", "Proyectos", "Capturar", "Hábitos", "Más"]);
   }
   await expect(nav.getByRole("link", { name: "Proyectos" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
@@ -331,8 +333,8 @@ test.describe("keyboard shortcuts", () => {
     await recordKeys(page);
     const historyLength = await page.evaluate(() => history.length);
 
-    // 4 and 5 are unbound (their modules don't exist yet; 2 is Proyectos, 3 Tareas).
-    for (const key of ["4", "5", "Meta+1", "Control+1", "Shift+1"]) {
+    // 5 and 6 are unbound (their modules don't exist yet; 2 is Proyectos, 3 Tareas, 4 Hábitos).
+    for (const key of ["5", "6", "Meta+1", "Control+1", "Shift+1"]) {
       await page.keyboard.press(key);
     }
     const keys = (await recordedKeys(page)) as { key: string; prevented: boolean }[];

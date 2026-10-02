@@ -7,6 +7,7 @@
 // (database, auth, `server-only` modules) or it ends up in the browser bundle.
 import type { LucideIcon } from "lucide-react";
 import { areasModule, homeModule, settingsModule } from "@/modules/core/module";
+import { habitsModule } from "@/modules/habits/module";
 import { projectsModule } from "@/modules/projects/module";
 import { tasksModule } from "@/modules/tasks/module";
 
@@ -23,6 +24,11 @@ export type ModuleManifest = {
   href: string;
   /** Position in the navigation, ascending. Leave gaps (10, 20, 30…) to insert modules later. */
   navOrder: number;
+  /**
+   * Position in the phone bottom bar, when it differs from `navOrder` (a module that keeps the
+   * cell after the capture key while an earlier one moves under "Más"). Default `navOrder`.
+   */
+  bottomNavOrder?: number;
   /**
    * Sidebar group: `main` modules go on top; `footer` ones (Áreas, Ajustes) are pinned to the
    * bottom of the sidebar. Default `main`.
@@ -42,6 +48,7 @@ export const MODULES: readonly ModuleManifest[] = [
   homeModule,
   projectsModule,
   tasksModule,
+  habitsModule,
   areasModule,
   settingsModule,
 ];
@@ -53,6 +60,8 @@ export type NavItem = Pick<ModuleManifest, "id" | "label" | "icon" | "href"> & {
   group: "main" | "footer";
   /** "1"–"8" when the module declares a number key. */
   shortcut?: string;
+  /** Order in the phone bottom bar (`bottomNavOrder`, else `navOrder`). */
+  bottomNavOrder: number;
 };
 
 function assertValidRegistry(modules: readonly ModuleManifest[]) {
@@ -90,6 +99,7 @@ export function navItems(modules: readonly ModuleManifest[] = MODULES): NavItem[
       href: manifest.href,
       group: manifest.navGroup ?? "main",
       shortcut: manifest.shortcut === undefined ? undefined : String(manifest.shortcut),
+      bottomNavOrder: manifest.bottomNavOrder ?? manifest.navOrder,
     }));
 }
 
@@ -100,16 +110,21 @@ export function itemForShortcut(items: readonly NavItem[], digit: number): NavIt
 
 /**
  * Splits the items for the phone bottom bar: up to 4 fit next to the capture key; with more,
- * the first 3 stay and the rest go under "Más" (SPEC-core).
+ * the first 3 stay and the rest go under "Más" (SPEC-core). In the bar's own order: `main`
+ * first, then `footer`, each by `bottomNavOrder` (a stable sort: ties keep the given order).
  */
 export function splitBottomNav(items: readonly NavItem[]): {
   primary: NavItem[];
   overflow: NavItem[];
 } {
-  if (items.length <= BOTTOM_NAV_SLOTS) return { primary: [...items], overflow: [] };
+  const groupRank = (item: NavItem) => (item.group === "footer" ? 1 : 0);
+  const ordered = [...items].sort(
+    (a, b) => groupRank(a) - groupRank(b) || a.bottomNavOrder - b.bottomNavOrder,
+  );
+  if (ordered.length <= BOTTOM_NAV_SLOTS) return { primary: ordered, overflow: [] };
   return {
-    primary: items.slice(0, BOTTOM_NAV_SLOTS - 1),
-    overflow: items.slice(BOTTOM_NAV_SLOTS - 1),
+    primary: ordered.slice(0, BOTTOM_NAV_SLOTS - 1),
+    overflow: ordered.slice(BOTTOM_NAV_SLOTS - 1),
   };
 }
 
