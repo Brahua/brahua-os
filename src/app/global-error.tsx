@@ -12,6 +12,10 @@ import "./globals.css";
  * browser, switches to the stored theme. A server-rendered page in the light theme can show dark
  * for a moment first; acceptable for a page that should almost never appear. The title comes
  * from ErrorScreen. Errors anywhere else render in `error.tsx`, inside the layout.
+ *
+ * It also replaces the root layout's viewport (no metadata API here), so it declares
+ * `viewport-fit=cover` itself (React hoists the <meta> into <head>) and paints the same dark strip
+ * behind the iOS status bar as the root layout.
  */
 export default function GlobalError({ error, retry }: ErrorScreenProps) {
   useLayoutEffect(() => {
@@ -27,6 +31,8 @@ export default function GlobalError({ error, retry }: ErrorScreenProps) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <div aria-hidden="true" className="bo-status-bar-backdrop" />
         <main className="bo-safe-area flex flex-1 flex-col">
           <ErrorScreen error={error} retry={retry} />
         </main>
