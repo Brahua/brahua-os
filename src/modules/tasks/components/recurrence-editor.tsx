@@ -33,6 +33,8 @@ type RecurrenceEditorProps = {
   serverErrors?: RecurrenceDraftErrors;
   /** A typed number was left (the detail saves then). */
   onCommit?: () => void;
+  /** The legend only for screen readers (the detail's section heading already says it). */
+  hideLegend?: boolean;
 };
 
 /**
@@ -50,6 +52,7 @@ export function RecurrenceEditor({
   showErrors = false,
   serverErrors,
   onCommit,
+  hideLegend = false,
 }: RecurrenceEditorProps) {
   const [left, setLeft] = useState<{ interval?: boolean; monthDay?: boolean }>({});
   const parsed = ruleFromDraft(draft);
@@ -75,7 +78,9 @@ export function RecurrenceEditor({
   return (
     <div className="flex flex-col gap-4" data-recurrence-editor="">
       <fieldset className="flex flex-col" aria-describedby={summaryId}>
-        <legend className="bo-field__label mb-1">{RECURRENCE_COPY.modeLegend}</legend>
+        <legend className={hideLegend ? "sr-only" : "bo-field__label mb-1"}>
+          {RECURRENCE_COPY.modeLegend}
+        </legend>
         {RECURRENCE_MODES.map((mode) => (
           <label
             key={mode}

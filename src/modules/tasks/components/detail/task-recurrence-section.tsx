@@ -62,6 +62,7 @@ export function TaskRecurrenceSection() {
         id={`${ids}-recurrence`}
         draft={draft}
         now={now}
+        hideLegend
         onDraftChange={(next) => {
           setDraft(next);
           // Typed numbers wait until they are left (`onCommit`); every other change saves.
