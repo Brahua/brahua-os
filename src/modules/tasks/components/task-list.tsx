@@ -4,13 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { useIsDesktop } from "@/lib/use-is-desktop";
-import {
-  completeTask,
-  deleteTask,
-  editTask,
-  reopenTask,
-  restoreTask,
-} from "../actions";
+import { deleteTask, editTask, restoreTask } from "../actions";
 import {
   placementName,
   placementPatch,
@@ -23,6 +17,8 @@ import { applyTaskListChange, neighborOf } from "../task-list-optimistic";
 import { groupRuns, type TaskGroup } from "../task-views";
 import { TASK_FIELD_NAMES, TASKS_COPY } from "../tasks-copy";
 import { VIEWS_COPY } from "../views-copy";
+import { completedNotice, reopenedNotice } from "../recurrence-notices";
+import { completeTaskWithNext, reopenTaskWithSpawn } from "../recurrence-actions";
 import { TaskRow, taskFocusSelector, type TaskFocusControl } from "./task-row";
 import { failureReason, useTasksScreen } from "./tasks-screen";
 
@@ -142,11 +138,13 @@ export function TaskList({
    * the notice that undoes it.
    */
   function runComplete(task: TaskItem) {
-    return enqueue(`task-done:${task.id}`, () => completeTask({ id: task.id }));
+    // T3: the completion's next occurrence (a recurring task) comes back with it.
+    return enqueue(`task-done:${task.id}`, () => completeTaskWithNext({ id: task.id }));
   }
 
   function runReopen(task: TaskItem) {
-    return enqueue(`task-done:${task.id}`, () => reopenTask({ id: task.id }));
+    // T3: says whether the next occurrence was removed with the undo or kept (edited).
+    return enqueue(`task-done:${task.id}`, () => reopenTaskWithSpawn({ id: task.id }));
   }
 
   function toggle(task: TaskItem, done: boolean) {
@@ -170,7 +168,7 @@ export function TaskList({
       if (result.ok) {
         push({
           title: TASKS_COPY.completedTitle,
-          text: TASKS_COPY.completed(task.title),
+          text: completedNotice(task, result.data.next),
           action: { label: TASKS_COPY.undo, run: () => reopen(task, index) },
         });
         return;
@@ -199,7 +197,7 @@ export function TaskList({
       if (result.ok) {
         push({
           title: VIEWS_COPY.reopenedTitle,
-          text: TASKS_COPY.reopened(task.title),
+          text: reopenedNotice(task, result.data.spawn),
           action: { label: TASKS_COPY.undo, run: () => completeAgain(task, index) },
         });
         return;
@@ -215,7 +213,12 @@ export function TaskList({
       const queued = await runComplete(task);
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
-      if (result.ok) announce(VIEWS_COPY.completedAgain(task.title));
+      if (result.ok)
+        announce(
+          result.data.next
+            ? completedNotice(task, result.data.next)
+            : VIEWS_COPY.completedAgain(task.title),
+        );
       else notSaved(TASKS_COPY.notUndone, failureReason(result));
     });
   }
@@ -229,7 +232,8 @@ export function TaskList({
       const queued = await runReopen(task);
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
-      if (result.ok) announce(TASKS_COPY.reopened(task.title));
+      // T3: says whether the next occurrence went away with the undo or stayed (edited).
+      if (result.ok) announce(reopenedNotice(task, result.data.spawn));
       else notSaved(TASKS_COPY.notUndone, failureReason(result));
     });
   }
