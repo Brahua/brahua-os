@@ -24,14 +24,10 @@ export function ViewHeading({ id, title, count, help }: ViewHeadingProps) {
         tabIndex={-1}
         title={title}
         className="outline-none"
-        count={
-          count > 0 ? (
-            <>
-              <span aria-hidden>{count}</span>
-              <span className="sr-only">{VIEWS_COPY.countHidden(count)}</span>
-            </>
-          ) : undefined
-        }
+        // One name for the heading ("Hoy: 3 tareas"): separate spans would be read run together
+        // or with a stray space depending on the engine.
+        aria-label={count > 0 ? `${title}${VIEWS_COPY.countHidden(count)}` : undefined}
+        count={count > 0 ? <span aria-hidden>{count}</span> : undefined}
       />
       {help ? <p className="bo-text-body-sm text-text-secondary">{help}</p> : null}
     </div>
