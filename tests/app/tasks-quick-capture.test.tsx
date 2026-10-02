@@ -13,8 +13,20 @@ vi.mock("@/modules/tasks/actions", () => ({ createTask: vi.fn(), listTaskTargets
 
 const HEALTH_ID = "11111111-1111-4111-8111-111111111111";
 const PROJECT_ID = "22222222-2222-4222-8222-222222222222";
-const HEALTH = { id: HEALTH_ID, slug: "health", name: "Salud", icon: "heart-pulse", color: "health" } as const;
-const HOME = { id: "33333333-3333-4333-8333-333333333333", slug: "home", name: "Hogar", icon: "house", color: "home" } as const;
+const HEALTH = {
+  id: HEALTH_ID,
+  slug: "health",
+  name: "Salud",
+  icon: "heart-pulse",
+  color: "health",
+} as const;
+const HOME = {
+  id: "33333333-3333-4333-8333-333333333333",
+  slug: "home",
+  name: "Hogar",
+  icon: "house",
+  color: "home",
+} as const;
 const TARGETS: TaskTargets = {
   areas: [HEALTH, HOME],
   projects: [{ id: PROJECT_ID, name: "Cocina", status: "active", area: HOME }],
@@ -84,7 +96,9 @@ describe("QuickCaptureSheet", () => {
     await waitFor(() =>
       expect(within(placementField()).getByRole("option", { name: "Salud" })).toBeInTheDocument(),
     );
-    expect(within(placementField()).getByRole("option", { name: "Cocina · Hogar" })).toBeInTheDocument();
+    expect(
+      within(placementField()).getByRole("option", { name: "Cocina · Hogar" }),
+    ).toBeInTheDocument();
     expect(placementField()).toHaveValue("");
   });
 
@@ -145,7 +159,9 @@ describe("QuickCaptureSheet", () => {
     const user = userEvent.setup();
     renderSheet();
     await waitFor(() =>
-      expect(within(placementField()).getByRole("option", { name: "Cocina · Hogar" })).toBeInTheDocument(),
+      expect(
+        within(placementField()).getByRole("option", { name: "Cocina · Hogar" }),
+      ).toBeInTheDocument(),
     );
     await user.selectOptions(placementField(), "Cocina · Hogar");
     await user.type(titleField(), "medir paredes{Enter}");

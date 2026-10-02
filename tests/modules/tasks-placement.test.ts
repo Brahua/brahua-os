@@ -11,7 +11,13 @@ import {
 import type { TaskItem, TaskTargets } from "@/modules/tasks/task-input";
 import { applyTaskListChange, neighborOf } from "@/modules/tasks/task-list-optimistic";
 
-const HEALTH = { id: "a1", slug: "health", name: "Salud", icon: "heart-pulse", color: "health" } as const;
+const HEALTH = {
+  id: "a1",
+  slug: "health",
+  name: "Salud",
+  icon: "heart-pulse",
+  color: "health",
+} as const;
 const HOME = { id: "a2", slug: "home", name: "Hogar", icon: "house", color: "home" } as const;
 const TARGETS: TaskTargets = {
   areas: [HEALTH, HOME],
@@ -42,7 +48,11 @@ describe("placement values", () => {
     expect(placementValue(task("t", { lifeAreaId: "a1" }))).toBe("area:a1");
     expect(placementValue(task("t", { projectId: "p1" }))).toBe("project:p1");
     expect(toPlacement("")).toEqual({ lifeAreaId: null, projectId: null, milestoneId: null });
-    expect(toPlacement("area:a1")).toEqual({ lifeAreaId: "a1", projectId: null, milestoneId: null });
+    expect(toPlacement("area:a1")).toEqual({
+      lifeAreaId: "a1",
+      projectId: null,
+      milestoneId: null,
+    });
     expect(toPlacement("project:p1")).toEqual({
       lifeAreaId: null,
       projectId: "p1",
@@ -65,7 +75,13 @@ describe("placement values", () => {
       ],
       projects: [{ value: "project:p1", label: "Cocina · Hogar" }],
     });
-    const archived = { id: "a9", slug: "old", name: "Viejo", icon: "house", color: "home" } as const;
+    const archived = {
+      id: "a9",
+      slug: "old",
+      name: "Viejo",
+      icon: "house",
+      color: "home",
+    } as const;
     expect(
       placementOptions(TARGETS, task("t", { lifeAreaId: "a9", area: archived })).areas[0],
     ).toEqual({ value: "area:a9", label: "Viejo (archivada)" });

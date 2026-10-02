@@ -39,7 +39,7 @@ CREATE TABLE "tasks" (
 	CONSTRAINT "tasks_next_action_check" CHECK (not "tasks"."is_next_action" or ("tasks"."project_id" is not null and "tasks"."done_at" is null)),
 	CONSTRAINT "tasks_spawned_from_check" CHECK ("tasks"."spawned_from_id" <> "tasks"."id"),
 	CONSTRAINT "tasks_recurrence_kind_check" CHECK ("tasks"."recurrence_kind" in ('every_days', 'every_weeks', 'every_months', 'weekdays', 'month_day')),
-	CONSTRAINT "tasks_recurrence_check" CHECK ((
+	CONSTRAINT "tasks_recurrence_check" CHECK (coalesce((
         "tasks"."recurrence_kind" is null
         and "tasks"."recurrence_interval" is null
         and "tasks"."recurrence_weekdays" is null
@@ -69,7 +69,7 @@ CREATE TABLE "tasks" (
         and "tasks"."recurrence_interval" is null
         and "tasks"."recurrence_weekdays" is null
         and "tasks"."recurrence_month_day" between 1 and 31
-      ))
+      ), false))
 );
 --> statement-breakpoint
 ALTER TABLE "task_tag_links" ADD CONSTRAINT "task_tag_links_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

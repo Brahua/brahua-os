@@ -13,8 +13,10 @@ const PROJECT = "00000000-0000-4000-8000-0000000000b1";
 const MILESTONE = "00000000-0000-4000-8000-0000000000c1";
 const TASK = "00000000-0000-4000-8000-0000000000d1";
 
-const messages = (result: { success: boolean; error?: { issues: { message: string; path: PropertyKey[] }[] } }) =>
-  result.error?.issues.map((issue) => [issue.path.join("."), issue.message]) ?? [];
+const messages = (result: {
+  success: boolean;
+  error?: { issues: { message: string; path: PropertyKey[] }[] };
+}) => result.error?.issues.map((issue) => [issue.path.join("."), issue.message]) ?? [];
 
 describe("createTaskInputSchema", () => {
   test("a title alone is an inbox task with Media priority and no date", () => {
@@ -52,14 +54,16 @@ describe("createTaskInputSchema", () => {
   });
 
   test("an area or a project (with a milestone), never both; '' means none", () => {
-    expect(createTaskInputSchema.parse({ title: "x", lifeAreaId: AREA, projectId: "" })).toMatchObject(
-      { lifeAreaId: AREA, projectId: null },
-    );
+    expect(
+      createTaskInputSchema.parse({ title: "x", lifeAreaId: AREA, projectId: "" }),
+    ).toMatchObject({ lifeAreaId: AREA, projectId: null });
     expect(
       createTaskInputSchema.parse({ title: "x", projectId: PROJECT, milestoneId: MILESTONE }),
     ).toMatchObject({ projectId: PROJECT, milestoneId: MILESTONE, lifeAreaId: null });
     expect(
-      messages(createTaskInputSchema.safeParse({ title: "x", lifeAreaId: AREA, projectId: PROJECT })),
+      messages(
+        createTaskInputSchema.safeParse({ title: "x", lifeAreaId: AREA, projectId: PROJECT }),
+      ),
     ).toEqual([["projectId", TASK_ERRORS.areaAndProject]]);
     expect(
       messages(createTaskInputSchema.safeParse({ title: "x", milestoneId: MILESTONE })),
@@ -108,7 +112,10 @@ describe("editTaskInputSchema", () => {
       id: TASK,
       dueDate: null,
     });
-    expect(editTaskInputSchema.parse({ id: TASK, dueDate: "" })).toEqual({ id: TASK, dueDate: null });
+    expect(editTaskInputSchema.parse({ id: TASK, dueDate: "" })).toEqual({
+      id: TASK,
+      dueDate: null,
+    });
   });
 
   test("a placement is complete: missing fields mean none, and the rules apply", () => {

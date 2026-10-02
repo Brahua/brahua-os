@@ -49,7 +49,13 @@ vi.mock("@/modules/tasks/actions", () => ({
 const NOW = new Date("2026-10-02T15:00:00.000Z");
 
 const HEALTH_ID = "11111111-1111-4111-8111-111111111111";
-const HEALTH = { id: HEALTH_ID, slug: "health", name: "Salud", icon: "heart-pulse", color: "health" } as const;
+const HEALTH = {
+  id: HEALTH_ID,
+  slug: "health",
+  name: "Salud",
+  icon: "heart-pulse",
+  color: "health",
+} as const;
 const TARGETS: TaskTargets = { areas: [HEALTH], projects: [] };
 
 let serial = 0;
@@ -147,64 +153,78 @@ beforeEach(() => {
   deleted.clear();
   router.push.mockReset();
   router.replace.mockReset();
-  vi.mocked(requireOwner).mockReset().mockResolvedValue({ user: { id: "owner" } } as never);
+  vi.mocked(requireOwner)
+    .mockReset()
+    .mockResolvedValue({ user: { id: "owner" } } as never);
   vi.mocked(listInboxTasks).mockReset().mockResolvedValue(INBOX);
   vi.mocked(getTaskTargets).mockReset().mockResolvedValue(TARGETS);
   vi.mocked(getDeletedTask).mockReset().mockResolvedValue(null);
   vi.mocked(getTask).mockReset();
   const byId = (id: string) => server.tasks.find((item) => item.id === id)!;
-  vi.mocked(completeTask).mockReset().mockImplementation(async (input) => {
-    const { id } = input as { id: string };
-    return serverCall(
-      (tasks) => tasks.map((item) => (item.id === id ? { ...item, doneAt: NOW } : item)),
-      () => byId(id),
-    );
-  });
-  vi.mocked(reopenTask).mockReset().mockImplementation(async (input) => {
-    const { id } = input as { id: string };
-    return serverCall(
-      (tasks) => tasks.map((item) => (item.id === id ? { ...item, doneAt: null } : item)),
-      () => byId(id),
-    );
-  });
-  vi.mocked(editTask).mockReset().mockImplementation(async (input) => {
-    const { id, placement, dueDate, priority, title } = input as {
-      id: string;
-      placement?: { lifeAreaId: string | null };
-      dueDate?: string | null;
-      priority?: TaskItem["priority"];
-      title?: string;
-    };
-    const change = (item: TaskItem): TaskItem => ({
-      ...item,
-      ...(placement ? { lifeAreaId: placement.lifeAreaId, area: placement.lifeAreaId ? HEALTH : null } : {}),
-      ...(dueDate !== undefined ? { dueDate } : {}),
-      ...(priority ? { priority } : {}),
-      ...(title ? { title } : {}),
+  vi.mocked(completeTask)
+    .mockReset()
+    .mockImplementation(async (input) => {
+      const { id } = input as { id: string };
+      return serverCall(
+        (tasks) => tasks.map((item) => (item.id === id ? { ...item, doneAt: NOW } : item)),
+        () => byId(id),
+      );
     });
-    return serverCall(
-      (tasks) => tasks.map((item) => (item.id === id ? change(item) : item)),
-      () => byId(id),
-    );
-  });
-  vi.mocked(deleteTask).mockReset().mockImplementation(async (input) => {
-    const { id } = input as { id: string };
-    const found = byId(id);
-    return serverCall(
-      (tasks) => {
-        deleted.set(id, found);
-        return tasks.filter((item) => item.id !== id);
-      },
-      () => ({ id, title: found.title }),
-    );
-  });
-  vi.mocked(restoreTask).mockReset().mockImplementation(async (input) => {
-    const { id } = input as { id: string };
-    return serverCall(
-      (tasks) => [...tasks, deleted.get(id)!],
-      () => deleted.get(id)!,
-    );
-  });
+  vi.mocked(reopenTask)
+    .mockReset()
+    .mockImplementation(async (input) => {
+      const { id } = input as { id: string };
+      return serverCall(
+        (tasks) => tasks.map((item) => (item.id === id ? { ...item, doneAt: null } : item)),
+        () => byId(id),
+      );
+    });
+  vi.mocked(editTask)
+    .mockReset()
+    .mockImplementation(async (input) => {
+      const { id, placement, dueDate, priority, title } = input as {
+        id: string;
+        placement?: { lifeAreaId: string | null };
+        dueDate?: string | null;
+        priority?: TaskItem["priority"];
+        title?: string;
+      };
+      const change = (item: TaskItem): TaskItem => ({
+        ...item,
+        ...(placement
+          ? { lifeAreaId: placement.lifeAreaId, area: placement.lifeAreaId ? HEALTH : null }
+          : {}),
+        ...(dueDate !== undefined ? { dueDate } : {}),
+        ...(priority ? { priority } : {}),
+        ...(title ? { title } : {}),
+      });
+      return serverCall(
+        (tasks) => tasks.map((item) => (item.id === id ? change(item) : item)),
+        () => byId(id),
+      );
+    });
+  vi.mocked(deleteTask)
+    .mockReset()
+    .mockImplementation(async (input) => {
+      const { id } = input as { id: string };
+      const found = byId(id);
+      return serverCall(
+        (tasks) => {
+          deleted.set(id, found);
+          return tasks.filter((item) => item.id !== id);
+        },
+        () => ({ id, title: found.title }),
+      );
+    });
+  vi.mocked(restoreTask)
+    .mockReset()
+    .mockImplementation(async (input) => {
+      const { id } = input as { id: string };
+      return serverCall(
+        (tasks) => [...tasks, deleted.get(id)!],
+        () => deleted.get(id)!,
+      );
+    });
 });
 
 afterEach(async () => {
@@ -226,7 +246,9 @@ describe("/tasks", () => {
     expect(requireOwner).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Tareas" })).toBeInTheDocument();
     const views = within(screen.getByRole("navigation", { name: "Vistas de tareas" }));
-    expect(views.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+    expect(
+      views.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")]),
+    ).toEqual([
       ["Bandeja", "/tasks"],
       ["Hoy", "/tasks?vista=hoy"],
       ["Próximas", "/tasks?vista=proximas"],
@@ -238,7 +260,9 @@ describe("/tasks", () => {
   });
 
   test("the views T2 builds say Próximamente; an unknown view is the inbox", async () => {
-    const { unmount } = render(await TasksPage({ searchParams: Promise.resolve({ vista: "hoy" }) }));
+    const { unmount } = render(
+      await TasksPage({ searchParams: Promise.resolve({ vista: "hoy" }) }),
+    );
     expect(screen.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "Hoy: próximamente" })).toBeInTheDocument();
     expect(listInboxTasks).not.toHaveBeenCalled();
@@ -278,7 +302,9 @@ describe("inbox rows", () => {
       "Vence hoy, Prioridad alta",
     );
     expect(within(row("devolver libro")).getByRole("link")).not.toHaveAttribute("aria-describedby");
-    expect(within(pilas).getByRole("button", { name: "Clasificar «comprar pilas»" })).toBeInTheDocument();
+    expect(
+      within(pilas).getByRole("button", { name: "Clasificar «comprar pilas»" }),
+    ).toBeInTheDocument();
   });
 
   test("one tap completes it at once (focus to the next row); Deshacer brings it back", async () => {
@@ -313,7 +339,11 @@ describe("inbox rows", () => {
     expect(titles()).toEqual(["comprar pilas", "regar plantas"]);
     await server.answer(fail("Esta tarea ya no existe (se eliminó)."));
     expect(titles()).toEqual(["comprar pilas", "regar plantas", "devolver libro"]);
-    expect(within(notices()).getByText(/No se pudo marcar la tarea; volvió a como estaba\. Esta tarea ya no existe/)).toBeInTheDocument();
+    expect(
+      within(notices()).getByText(
+        /No se pudo marcar la tarea; volvió a como estaba\. Esta tarea ya no existe/,
+      ),
+    ).toBeInTheDocument();
   });
 
   test("the last one leaving sends focus to the view's heading", async () => {
@@ -334,7 +364,10 @@ describe("Clasificar", () => {
     await user.click(screen.getByRole("button", { name: "Clasificar «comprar pilas»" }));
     const dialog = await screen.findByRole("dialog", { name: "Clasificar tarea" });
     expect(dialog).toHaveAccessibleDescription(/«comprar pilas»/);
-    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Área o proyecto" }), "Salud");
+    await user.selectOptions(
+      within(dialog).getByRole("combobox", { name: "Área o proyecto" }),
+      "Salud",
+    );
     await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
     expect(titles()).toEqual(["regar plantas", "devolver libro"]);
     expect(editTask).toHaveBeenCalledWith({
@@ -343,7 +376,9 @@ describe("Clasificar", () => {
       dueDate: "2026-09-30",
     });
     await server.answer();
-    expect(await within(notices()).findByText("«comprar pilas» pasó a «Salud».")).toBeInTheDocument();
+    expect(
+      await within(notices()).findByText("«comprar pilas» pasó a «Salud»."),
+    ).toBeInTheDocument();
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
     expect(titles()).toEqual(["comprar pilas", "regar plantas", "devolver libro"]);
     expect(editTask).toHaveBeenLastCalledWith({
@@ -361,7 +396,9 @@ describe("Clasificar", () => {
     const dialog = await screen.findByRole("dialog", { name: "Clasificar tarea" });
     await user.type(within(dialog).getByLabelText("Fecha límite"), "2026-10-03");
     await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-    expect(within(row("devolver libro")).getByRole("link")).toHaveAccessibleDescription("Vence mañana");
+    expect(within(row("devolver libro")).getByRole("link")).toHaveAccessibleDescription(
+      "Vence mañana",
+    );
     await server.answer();
     expect(titles()).toEqual(["comprar pilas", "regar plantas", "devolver libro"]);
   });
@@ -394,7 +431,10 @@ describe("detail", () => {
     expect(within(dialog).getByLabelText("Fecha límite")).toHaveAccessibleDescription("Vence hoy");
 
     await user.click(within(dialog).getByRole("radio", { name: "Baja" }));
-    expect(within(dialog).getByRole("radio", { name: "Baja" })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("radio", { name: "Baja" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     expect(editTask).toHaveBeenCalledWith({ id: PLANTAS.id, priority: "low" });
     await server.answer();
 

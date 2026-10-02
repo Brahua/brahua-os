@@ -107,10 +107,11 @@ export const tasks = pgTable(
     ),
     // Each rule has exactly its own field: N (1–365) for every_*, ISO weekdays for weekdays
     // (1–7, strictly ascending, so never repeated), the day of the month (1–31) for month_day;
-    // no rule, no fields.
+    // no rule, no fields. Wrapped in coalesce(…, false): a CHECK passes on NULL, and a missing
+    // field would turn a branch into NULL instead of false.
     check(
       "tasks_recurrence_check",
-      sql`(
+      sql`coalesce((
         ${table.recurrenceKind} is null
         and ${table.recurrenceInterval} is null
         and ${table.recurrenceWeekdays} is null
@@ -140,7 +141,7 @@ export const tasks = pgTable(
         and ${table.recurrenceInterval} is null
         and ${table.recurrenceWeekdays} is null
         and ${table.recurrenceMonthDay} between 1 and ${n(MONTH_DAY_MAX)}
-      )`,
+      ), false)`,
     ),
     // One next action per project (SPEC-tasks "Próxima acción").
     uniqueIndex("tasks_next_action_unique")

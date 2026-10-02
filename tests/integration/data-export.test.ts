@@ -26,6 +26,7 @@ import {
   projectMilestones,
   projects,
 } from "@/modules/projects/db/schema";
+import { taskTagLinks, taskTags, tasks } from "@/modules/tasks/db/schema";
 import { writeExport } from "../../scripts/db-export";
 import { testDb } from "./test-db";
 
@@ -134,6 +135,9 @@ describe("pnpm db:export", () => {
       "project_milestones",
       "project_links",
       "project_dependencies",
+      "tasks",
+      "task_tags",
+      "task_tag_links",
     ]) {
       expect(data.tables[name]).toEqual({ rowCount: 0, rows: [] });
     }
@@ -187,6 +191,50 @@ describe("pnpm db:export", () => {
     expect(data.tables.project_dependencies.rows).toEqual([
       { project_id: kept.id, blocked_by_id: deleted.id },
     ]);
+  });
+
+  test("exports the tasks with their tags, done and deleted ones included (T1)", async () => {
+    const [area] = await testDb
+      .insert(lifeAreas)
+      .values({ slug: "home", name: "Hogar", icon: "house", color: "home" })
+      .returning();
+    const [inbox, done, removed] = await testDb
+      .insert(tasks)
+      .values([
+        { title: "comprar pilas", createdAt: new Date("2026-09-01T00:00:00Z") },
+        {
+          title: "regar",
+          lifeAreaId: area.id,
+          doneAt: ARCHIVED_AT,
+          recurrenceKind: "every_days",
+          recurrenceInterval: 3,
+          createdAt: new Date("2026-09-02T00:00:00Z"),
+        },
+        { title: "borrada", deletedAt: ARCHIVED_AT, createdAt: new Date("2026-09-03T00:00:00Z") },
+      ])
+      .returning();
+    const [tag] = await testDb.insert(taskTags).values({ name: "compras" }).returning();
+    await testDb.insert(taskTagLinks).values({ taskId: inbox.id, tagId: tag.id });
+
+    const data = JSON.parse(JSON.stringify(await buildExport(testDb, NOW))) as DataExport;
+
+    expect(data.tables.tasks.rows.map((row) => [row.title, row.done_at, row.deleted_at])).toEqual([
+      ["comprar pilas", null, null],
+      ["regar", "2026-09-15T10:00:00.000Z", null],
+      ["borrada", null, "2026-09-15T10:00:00.000Z"],
+    ]);
+    expect(data.tables.tasks.rows[1]).toMatchObject({
+      id: done.id,
+      life_area_id: area.id,
+      project_id: null,
+      priority: "medium",
+      recurrence_kind: "every_days",
+      recurrence_interval: 3,
+      recurrence_weekdays: null,
+    });
+    expect(removed.deletedAt).not.toBeNull();
+    expect(data.tables.task_tags.rows).toEqual([expect.objectContaining({ name: "compras" })]);
+    expect(data.tables.task_tag_links.rows).toEqual([{ task_id: inbox.id, tag_id: tag.id }]);
   });
 
   test("never contains auth data: no auth table, no token, hash, key or email", async () => {
