@@ -2,3 +2,12 @@
  * Local fixes on top of the Claude Design tokens. Every rule here must also be applied in
  * the "brahua-os Design System" project in Claude Design, then removed from this file.
  */
+
+/*
+ * PENDING UPSTREAM (2026-10-02, "Tema claro" canvas, Más · Tema and Captura): in the light theme
+ * the SegmentedControl's well is sunken (soft inner shadow), not outlined by a hairline. The dark
+ * theme keeps the ring. No contrast change: the ring (--color-divider) was the well's own color.
+ */
+[data-theme="light"] .bo-segmented {
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.08);
+}
