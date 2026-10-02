@@ -56,6 +56,7 @@
 
 ### Checkpoint final
 - [ ] Recorrido completo en celular y escritorio: crear, detalle, hitos, dependencias, notas, eliminar y deshacer.
+- [ ] Ajustes del recorrido del owner (PR `fix/projects-checkpoint`, sin merge): barra de estado del iPhone (`black-translucent` y franja oscura en todas las páginas), tarjeta del Historial que se salía de la pantalla, subtítulo de la hoja como texto, "Cerrar proyecto" (terminar o cancelar con confirmación, y reabrir) y LED en cada prioridad. **Pendiente del owner:** verificar la barra de estado en el iPhone (no se puede probar en Playwright). Ver `docs/HANDOFF.md`, "Ajustes del Checkpoint final".
 - [ ] Se cumplen los criterios de éxito de `SPEC-projects.md`.
 - [ ] Revisión contigo antes del siguiente módulo (`tasks`).
 
