@@ -90,3 +90,33 @@ describe("toastReducer", () => {
     expect(hasNotice(state, "c")).toBe(false);
   });
 });
+
+describe("notices without a time limit (undo, WCAG 2.2.1)", () => {
+  const undo = (id: string): Notice => ({
+    id,
+    title: "T",
+    text: id,
+    action: { label: "Deshacer", run: () => {} },
+    duration: Number.POSITIVE_INFINITY,
+  });
+
+  test("the next notice replaces it (it would hold the queue forever otherwise)", () => {
+    const state = run([
+      { type: "push", notice: undo("a") },
+      { type: "push", notice: notice("b") },
+    ]);
+    expect(state.visible?.id).toBe("b");
+    expect(state.queue).toEqual([]);
+  });
+
+  test("an error shows at once and the undo comes back after it", () => {
+    const state = run([
+      { type: "push", notice: undo("a") },
+      { type: "push", notice: { ...notice("e"), tone: "error" } },
+    ]);
+    expect(state.visible?.id).toBe("e");
+    expect(state.queue.map((item) => item.id)).toEqual(["a"]);
+    const after = toastReducer(state, { type: "dismiss", id: "e" });
+    expect(after.visible?.id).toBe("a");
+  });
+});

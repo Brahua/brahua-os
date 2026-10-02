@@ -83,17 +83,29 @@ describe("ToastViewport", () => {
     expect(live()).toBeEmptyDOMElement();
   });
 
-  test("the timer pauses while a dialog is open", async () => {
+  test("while a dialog is open the notice is held (not shown, timer paused), then shows", async () => {
     render(<Harness />);
-    push("Hola");
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
-    // The MutationObserver reports in a microtask.
-    await act(async () => document.body.append(dialog));
-    advance(60_000);
-    expect(region()).toHaveTextContent("Hola");
-    await act(async () => dialog.remove());
-    advance(TOAST_DURATION.plain);
+    try {
+      // The MutationObserver reports in a microtask.
+      await act(async () => document.body.append(dialog));
+      // e.g. "Deshacer" pushed by a sheet that is still closing: behind it, nobody would hear it.
+      push("Hola", () => {});
+      expect(live()).toBeEmptyDOMElement();
+      // ⌘Z does nothing for a held notice.
+      expect(fireEvent.keyDown(document.body, { key: "z", metaKey: true })).toBe(true);
+      push("Plano");
+      advance(60_000);
+      expect(live()).toBeEmptyDOMElement();
+    } finally {
+      await act(async () => dialog.remove());
+    }
+    // Shown (and so announced) once the dialog is gone, with its full time.
+    expect(region()).toHaveTextContent("Plano");
+    advance(TOAST_DURATION.plain - 1);
+    expect(region()).toHaveTextContent("Plano");
+    advance(1);
     expect(live()).toBeEmptyDOMElement();
   });
 
@@ -128,9 +140,9 @@ describe("ToastViewport", () => {
     const before = screen.getByRole("button", { name: "Antes" });
     act(() => before.focus());
     push("Uno", () => {});
-    push("Dos");
     act(() => screen.getByRole("button", { name: "Deshacer" }).focus());
-    act(() => toaster.dismiss(toaster.state.visible!.id));
+    // The next notice replaces the focused one (an undo notice has no time limit).
+    push("Dos");
     expect(region()).toHaveTextContent("Dos");
     expect(before).toHaveFocus();
   });
@@ -144,15 +156,16 @@ describe("ToastViewport", () => {
     expect(document.documentElement.style.getPropertyValue("--toast-offset")).toBe("");
   });
 
-  test("leaves on its own: 10 s with an action, 6 s without", () => {
+  test("with an action it has no time limit (WCAG 2.2.1) until the next notice; 6 s without", () => {
     render(<Harness />);
+    expect(TOAST_DURATION.withAction).toBe(Number.POSITIVE_INFINITY);
     push("Con acción", () => {});
-    advance(TOAST_DURATION.withAction - 1);
+    advance(60 * 60_000);
     expect(region()).toHaveTextContent("Con acción");
-    advance(1);
-    expect(live()).toBeEmptyDOMElement();
-
+    // The next notice takes its place at once (it doesn't wait behind it forever).
     push("Sin acción");
+    expect(region()).not.toHaveTextContent("Con acción");
+    expect(region()).toHaveTextContent("Sin acción");
     advance(TOAST_DURATION.plain);
     expect(live()).toBeEmptyDOMElement();
   });
@@ -185,7 +198,15 @@ describe("ToastViewport", () => {
 
   test("the timer pauses while focus is inside and while the tab is hidden", () => {
     render(<Harness />);
-    push("Hola", () => {});
+    // A notice with an action and a time limit set by its caller.
+    act(() => {
+      toaster.push({
+        title: "Orden",
+        text: "Hola",
+        action: { label: "Deshacer", run: () => {} },
+        duration: 10_000,
+      });
+    });
     act(() => screen.getByRole("button", { name: "Deshacer" }).focus());
     advance(60_000);
     expect(region()).toHaveTextContent("Hola");
@@ -197,7 +218,7 @@ describe("ToastViewport", () => {
     expect(region()).toHaveTextContent("Hola");
     hidden.mockReturnValue(false);
     act(() => document.dispatchEvent(new Event("visibilitychange")));
-    advance(TOAST_DURATION.withAction);
+    advance(10_000);
     expect(live()).toBeEmptyDOMElement();
   });
 

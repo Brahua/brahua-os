@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Led, SectionLabel, SegmentedControl, type SegmentOption } from "@/design-system";
-import { cn } from "@/lib/cn";
+import { SectionLabel, SegmentedControl, type SegmentOption } from "@/design-system";
 import { RadioGrid, type RadioGridOption } from "@/modules/core/components/radio-grid";
+import { PriorityLed } from "@/modules/projects/components/priority-led";
 import { changeProjectPriority, changeProjectStatus } from "@/modules/projects/actions";
 import { isClosed, OPEN_STATUSES } from "@/modules/projects/project-close";
 import {
@@ -32,21 +32,8 @@ const STATUS_OPTIONS: RadioGridOption<ProjectStatus>[] = OPEN_STATUSES.map((stat
   children: <span className="bo-option-key__label">{PROJECT_STATUS_LABELS[status]}</span>,
 }));
 
-/**
- * The priority's LED, on every option so color is never the only cue (the label stays): Alta in
- * the signal orange (like the card's), Media a neutral LED, Baja a hollow, muted ring. On the
- * selected (inverted) key the neutral ones invert with it; extensions.css `.bo-priority-led`.
- */
-export function PriorityLed({ priority }: { priority: ProjectPriority }) {
-  return (
-    <Led
-      signal={priority === "high"}
-      size="sm"
-      data-priority-led={priority}
-      className={cn("bo-priority-led", `bo-priority-led--${priority}`)}
-    />
-  );
-}
+// Moved to the module so tasks share it; re-exported for the existing imports.
+export { PriorityLed };
 
 const PRIORITY_OPTIONS: SegmentOption<ProjectPriority>[] = PROJECT_PRIORITIES.map((priority) => ({
   value: priority,

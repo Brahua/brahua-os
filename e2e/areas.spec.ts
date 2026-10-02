@@ -63,10 +63,17 @@ const announcements = (page: Page) =>
 
 test("Áreas has its title, is in the navigation and lists the seeded areas in order", async ({
   page,
-}) => {
+}, testInfo) => {
   await openAreas(page);
   await expect(page).toHaveTitle("Áreas · brahua-os");
-  await expect(page.getByRole("link", { name: "Áreas" })).toHaveAttribute("aria-current", "page");
+  if (isDesktop(testInfo)) {
+    await expect(page.getByRole("link", { name: "Áreas" })).toHaveAttribute("aria-current", "page");
+  } else {
+    // On the phone Áreas lives under "Más" (5 sections since Tareas): the key says it is current.
+    await expect(page.getByRole("button", { name: "Más (actual: Áreas)" })).toHaveAttribute(
+      "data-active",
+    );
+  }
 
   const rows = editRows(page);
   await expect(rows.first()).toHaveAccessibleName("Editar Hogar");
@@ -273,6 +280,9 @@ test("short screen (320×256): the preview doesn't stick and every focused contr
   await newAreaButton(page).click();
   await expect(nameField(page)).toBeFocused();
 
+  // The sheet's entry (1 ms with reduced motion) must be over before measuring: under load the
+  // first check could run mid-entry (seen once in a full local run).
+  await animationsSettled(page);
   const preview = sheet(page).locator(".bo-card").first();
   const wrapper = preview.locator("..");
   expect(await wrapper.evaluate((element) => getComputedStyle(element).position)).toBe("static");

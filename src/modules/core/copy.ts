@@ -4,7 +4,7 @@ export const NAV_COPY = {
   footerNav: "Secundaria",
   brand: "brahua-os",
   capture: "Capturar",
-  /** The capture key is visible but not wired until quick capture ships (module `today`). */
+  /** The capture key without a registered capture provider (src/lib/quick-capture.ts). */
   captureUnavailable: "Próximamente",
   collapseSidebar: "Contraer barra lateral",
   expandSidebar: "Expandir barra lateral",

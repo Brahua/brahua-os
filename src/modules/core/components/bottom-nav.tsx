@@ -20,8 +20,13 @@ const LINK_CELLS = ["col-start-1", "col-start-2", "col-start-4", "col-start-5"] 
 type BottomNavProps = {
   items: readonly NavItem[];
   pathname: string;
-  /** Opens quick capture. Without it the capture key is shown as not available yet. */
-  onCapture?: () => void;
+  /**
+   * Opens quick capture with the key that was pressed. Without it the capture key is shown as
+   * not available yet (no capture provider registered).
+   */
+  onCapture?: (trigger: HTMLElement) => void;
+  /** Fetches the capture's code ahead (the key is pointed at, focused or touched). */
+  onCapturePreload?: () => void;
   /** Accessible name of the nav landmark (it must be unique on the page). */
   label?: string;
   className?: string;
@@ -38,6 +43,7 @@ export function BottomNav({
   items,
   pathname,
   onCapture,
+  onCapturePreload,
   label = NAV_COPY.mainNav,
   className,
   ref,
@@ -47,29 +53,36 @@ export function BottomNav({
   const { primary, overflow } = splitBottomNav(items);
   const currentHidden = overflow.find((item) => isActiveHref(item.href, pathname));
 
+  const renderLink = (item: NavItem, index: number) => (
+    <Link
+      key={item.id}
+      href={item.href}
+      className={cn("bo-bottomnav__item row-start-1", LINK_CELLS[index])}
+      aria-current={isActiveHref(item.href, pathname) ? "page" : undefined}
+      aria-label={item.label}
+    >
+      <Icon icon={item.icon} size="md" />
+      <span className="bo-bottomnav__label">{item.label}</span>
+    </Link>
+  );
+
   return (
     <nav ref={ref} aria-label={label} className={cn("bo-bottomnav", className)}>
-      {primary.map((item, index) => (
-        <Link
-          key={item.id}
-          href={item.href}
-          className={cn("bo-bottomnav__item row-start-1", LINK_CELLS[index])}
-          aria-current={isActiveHref(item.href, pathname) ? "page" : undefined}
-          aria-label={item.label}
-        >
-          <Icon icon={item.icon} size="md" />
-          <span className="bo-bottomnav__label">{item.label}</span>
-        </Link>
-      ))}
+      {/* DOM order = visual order (WCAG 1.3.2, 2.4.3): the first two links, the capture key in
+          the middle cell, then the rest and "Más". */}
+      {primary.slice(0, 2).map((item, index) => renderLink(item, index))}
 
       <CaptureKey
         placement="top"
         className="bo-key--icon bo-key--lg bo-bottomnav__capture"
         anchorClassName="col-start-3 row-start-1 justify-self-center"
         onCapture={onCapture}
+        onPreload={onCapturePreload}
       >
         <Icon icon={Plus} size="xl" />
       </CaptureKey>
+
+      {primary.slice(2).map((item, index) => renderLink(item, index + 2))}
 
       {overflow.length > 0 ? (
         <>

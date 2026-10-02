@@ -4,8 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
-// P6: registers the progress sources of other modules (tasks) before progress is computed.
-import "@/lib/progress-sources";
+// P6: the progress sources of other modules (tasks), registered before progress is computed.
+import { ensureProgressSources } from "@/lib/progress-sources";
 import { Markdown } from "@/lib/markdown/markdown";
 import { listLifeAreas } from "@/modules/core/queries";
 import { contributedProgress } from "@/modules/projects/contracts";
@@ -67,6 +67,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   ]);
   if (!project) notFound();
   // P6: what other modules (tasks) add to its progress; no source registered → no work.
+  ensureProgressSources();
   const contributed = (await contributedProgress([project.id])).get(project.id);
   const justCreated = search[CREATED_PARAM] === "1";
   // One instant for the whole page: the due notice counts Lima days from it.

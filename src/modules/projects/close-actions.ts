@@ -3,7 +3,7 @@
 // "Cerrar proyecto" (Checkpoint final de projects): Terminado and Cancelado as a separate,
 // confirmed action, and "Reabrir". Each one goes through ownerAction() like the rest.
 // P6: registers the progress sources of other modules (tasks), so the open count includes them.
-import "@/lib/progress-sources";
+import { ensureProgressSources } from "@/lib/progress-sources";
 import { revalidatePath } from "next/cache";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
@@ -36,6 +36,7 @@ const close = ownerAction(
     if (!project) return fail(PROJECT_ERRORS.notFound);
     // Counted again here, after closing, only for the text of the result ("Quedaron 2 hitos
     // abiertos."): open work never blocks closing, the owner already decided.
+    ensureProgressSources();
     const [milestones, contributed] = await Promise.all([
       selectProjectMilestoneCounts(db, id),
       contributedProgress([id]),

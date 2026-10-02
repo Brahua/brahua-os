@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Icon, SectionLabel } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
-// P6: registers the progress sources of other modules (tasks) before progress is computed.
-import "@/lib/progress-sources";
+// P6: the progress sources of other modules (tasks), registered before progress is computed.
+import { ensureProgressSources } from "@/lib/progress-sources";
 import { listLifeAreas } from "@/modules/core/queries";
 import { ProjectCard } from "@/modules/projects/components/project-card";
 import { contributedProgress } from "@/modules/projects/contracts";
@@ -63,6 +63,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     : projects;
   const { groups, history, historyCount } = groupProjects(visible);
   // P6: what other modules (tasks) add to the milestones' progress; no source registered → no work.
+  ensureProgressSources();
   const contributed = await contributedProgress(visible.map((project) => project.id));
   // One instant for every card: the due notices all count from the same Lima day.
   const now = new Date();

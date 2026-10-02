@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { itemForShortcut, navItems } from "@/lib/modules";
 import { requestNavigation } from "@/lib/navigation-guard";
+import { QuickCaptureContext } from "@/lib/quick-capture";
 import { navShortcutFor } from "@/lib/shortcuts";
 import { sidebarCookie } from "../nav-preferences";
 import { BottomNav } from "./bottom-nav";
@@ -25,8 +26,11 @@ type AppNavProps = {
 
 /**
  * The app's navigation: sidebar from 1024 px, bottom bar below (CSS decides which one shows,
- * so there is no flash). Owns the collapsed state and the global shortcuts `[` and `1`–`8`,
+ * so there is no flash). Owns the collapsed state and the global shortcuts `[`, `1`–`8` and `C`,
  * which only act from 1024 px, where the sidebar that shows them is on screen.
+ *
+ * Quick capture: the orange keys and `C` open the sheet of the registered capture provider
+ * (src/lib/quick-capture.ts; `tasks` registers it). Without one the keys show as not available.
  */
 export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const pathname = usePathname();
@@ -34,6 +38,25 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const collapsedRef = useRef(initialCollapsed);
   const bottomNav = useRef<HTMLElement>(null);
+
+  const capture = use(QuickCaptureContext);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  // New sheet per opening (the form starts empty); none mounted until the first one.
+  const [captureOpening, setCaptureOpening] = useState(0);
+  const captureTrigger = useRef<HTMLElement | null>(null);
+  const openCapture = useCallback((trigger?: HTMLElement) => {
+    // The key that was pressed, or what had focus when `C` was pressed: focus returns there. With
+    // nothing focused (<body>), the main content, so focus never ends up on <body>.
+    const active = document.activeElement;
+    captureTrigger.current =
+      trigger ??
+      (active instanceof HTMLElement && active !== document.body
+        ? active
+        : document.getElementById("content"));
+    setCaptureOpening((value) => value + 1);
+    setCaptureOpen(true);
+  }, []);
+  const canCapture = capture !== null;
 
   // Writes the cookie only on a real toggle (never on mount).
   const toggleSidebar = useCallback(() => {
@@ -55,6 +78,12 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
         toggleSidebar();
         return;
       }
+      if (shortcut.type === "capture") {
+        if (!canCapture) return;
+        event.preventDefault();
+        openCapture();
+        return;
+      }
       const item = itemForShortcut(ITEMS, shortcut.digit);
       if (!item) return;
       event.preventDefault();
@@ -71,7 +100,7 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
       window.removeEventListener("keydown", onKeyDown);
       delete document.documentElement.dataset.navShortcuts;
     };
-  }, [router, shortcutsEnabled, toggleSidebar]);
+  }, [router, shortcutsEnabled, toggleSidebar, canCapture, openCapture]);
 
   useEffect(() => {
     const bar = bottomNav.current;
@@ -99,6 +128,8 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
           collapsed={collapsed}
           onToggle={toggleSidebar}
           shortcuts={shortcutsEnabled}
+          onCapture={capture ? openCapture : undefined}
+          onCapturePreload={capture?.preload}
           className="h-full"
         />
       </div>
@@ -107,9 +138,19 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
           ref={bottomNav}
           items={ITEMS}
           pathname={pathname}
+          onCapture={capture ? openCapture : undefined}
+          onCapturePreload={capture?.preload}
           className="bo-bottomnav--fixed"
         />
       </div>
+      {capture && captureOpening > 0 ? (
+        <capture.Sheet
+          key={captureOpening}
+          open={captureOpen}
+          onOpenChange={setCaptureOpen}
+          returnFocusRef={captureTrigger}
+        />
+      ) : null}
     </>
   );
 }

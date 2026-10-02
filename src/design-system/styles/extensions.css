@@ -150,3 +150,25 @@ html { scroll-padding-top: env(safe-area-inset-top); }
   .bo-priority-led { forced-color-adjust: none; background: ButtonText; }
   .bo-priority-led--low { background: transparent; border-color: ButtonText; }
 }
+
+/*
+ * Tasks (T1): "Área o proyecto" is a native <select> with the field's look (native on purpose:
+ * the system wheel on the phone). The chevron is drawn over it; the select keeps the text clear
+ * of it and cuts long names with an ellipsis.
+ */
+.bo-select { position: relative; }
+.bo-select .bo-field__control { -webkit-appearance: none; appearance: none; padding-inline-end: 44px; text-overflow: ellipsis; cursor: pointer; }
+.bo-select__chevron { position: absolute; inset-inline-end: 16px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--color-text-secondary); }
+/* Task rows: the native checkbox like a milestone's, and the title as the row's main link. */
+.bo-task-title { color: var(--color-text); text-decoration: none; overflow-wrap: anywhere; }
+.bo-task-title:hover { text-decoration: underline; text-underline-offset: 4px; }
+.bo-task-title:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* The views of /tasks: links drawn as a segmented control that wraps (no hidden tabs at 320 px). */
+.bo-segmented.bo-task-views { display: flex; flex-wrap: wrap; }
+.bo-task-views .bo-segmented__item { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-decoration: none; }
+/* Tasks: an empty native date field on iOS is a blank box; "Sin fecha" shows over it there only
+   (-webkit-touch-callout exists only in iOS Safari). Decorative: the label names the field. */
+.bo-date-empty { display: none; }
+@supports (-webkit-touch-callout: none) {
+  .bo-date-empty { display: flex; position: absolute; inset-block: 0; inset-inline-start: 16px; align-items: center; pointer-events: none; color: var(--color-placeholder); }
+}

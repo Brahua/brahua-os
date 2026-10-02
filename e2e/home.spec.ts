@@ -80,24 +80,42 @@ test("the navigation comes from the registry and marks the current page", async 
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy, Proyectos, Áreas and Ajustes. On the phone all four fit in the
-  // bottom bar; on desktop Áreas and Ajustes are pinned to the sidebar footer.
+  // Only available modules: Hoy, Proyectos, Tareas, Áreas and Ajustes. On desktop Áreas and
+  // Ajustes are pinned to the sidebar footer; on the phone five don't fit around the capture
+  // key, so Tareas takes the cell after it and Áreas and Ajustes go under "Más".
   const links = page.getByRole("navigation").getByRole("link");
-  await expect(links).toHaveCount(4);
-  await expect(links.nth(0)).toHaveAccessibleName("Hoy");
-  await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
-  await expect(links.nth(2)).toHaveAccessibleName("Áreas");
-  await expect(links.nth(3)).toHaveAccessibleName("Ajustes");
+  if (desktop) {
+    await expect(links).toHaveCount(5);
+    await expect(links.nth(0)).toHaveAccessibleName("Hoy");
+    await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
+    await expect(links.nth(2)).toHaveAccessibleName("Tareas");
+    await expect(links.nth(3)).toHaveAccessibleName("Áreas");
+    await expect(links.nth(4)).toHaveAccessibleName("Ajustes");
+    const footer = page.getByRole("navigation", { name: "Secundaria" });
+    await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
+    await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
+  } else {
+    await expect(links).toHaveCount(3);
+    await expect(links.nth(0)).toHaveAccessibleName("Hoy");
+    await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
+    await expect(links.nth(2)).toHaveAccessibleName("Tareas");
+    // Tareas is right after the capture key (cell 4); "Más" is the last cell.
+    const cells = await bottomNav(page).evaluate((bar) =>
+      [...bar.children].map((child) => ({
+        name: child.querySelector("[aria-label]")?.getAttribute("aria-label") ?? child.textContent,
+        left: child.getBoundingClientRect().left,
+      })),
+    );
+    const order = [...cells].sort((a, b) => a.left - b.left).map((cell) => cell.name);
+    expect(order).toEqual(["Hoy", "Proyectos", "Capturar", "Tareas", "Más"]);
+  }
   await expect(nav.getByRole("link", { name: "Proyectos" })).toBeVisible();
-  const footer = desktop ? page.getByRole("navigation", { name: "Secundaria" }) : nav;
-  await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
-  await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
 
-  // The capture key is in place but not available yet, and says so.
+  // The capture key opens quick capture (SPEC-tasks): available, a dialog behind it.
   const capture = page.getByRole("button", { name: "Capturar" });
-  await expect(capture).toHaveAttribute("aria-disabled", "true");
-  await expect(capture).toHaveAccessibleDescription("Próximamente");
+  await expect(capture).not.toHaveAttribute("aria-disabled");
+  await expect(capture).toHaveAttribute("aria-haspopup", "dialog");
 
   // Off the home page nothing is current.
   await page.goto("/design");
@@ -107,15 +125,19 @@ test("the navigation comes from the registry and marks the current page", async 
   await expect(nav.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
 });
 
-test("tapping the unavailable capture key shows why", async ({ page }, testInfo) => {
-  test.skip(isDesktop(testInfo), "Touch has no hover: this is the phone fallback");
+test("the capture key opens quick capture and focus returns to it on close", async ({
+  page,
+}, testInfo) => {
   await openReady(page, "/");
-  const hint = bottomNav(page).getByRole("tooltip", { includeHidden: true });
-  await expect(hint).toHaveCSS("opacity", "0");
-  // aria-disabled (not disabled): it still takes the tap, which Playwright calls "not enabled".
-  await bottomNav(page).getByRole("button", { name: "Capturar" }).click({ force: true });
-  await expect(hint).toHaveText("Próximamente");
-  await expect(hint).toHaveCSS("opacity", "1");
+  const key = (isDesktop(testInfo) ? sidebar(page) : bottomNav(page)).getByRole("button", {
+    name: "Capturar",
+  });
+  await key.click();
+  const sheet = page.getByRole("dialog", { name: "Nueva tarea" });
+  await expect(sheet.getByRole("textbox", { name: "¿Qué hay que hacer?" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  await expect(key).toBeFocused();
 });
 
 test("the content and focused elements stay clear of the bottom bar", async ({
@@ -309,8 +331,8 @@ test.describe("keyboard shortcuts", () => {
     await recordKeys(page);
     const historyLength = await page.evaluate(() => history.length);
 
-    // 3 and 4 are unbound (their modules don't exist yet; 2 is Proyectos).
-    for (const key of ["3", "4", "Meta+1", "Control+1", "Shift+1"]) {
+    // 4 and 5 are unbound (their modules don't exist yet; 2 is Proyectos, 3 Tareas).
+    for (const key of ["4", "5", "Meta+1", "Control+1", "Shift+1"]) {
       await page.keyboard.press(key);
     }
     const keys = (await recordedKeys(page)) as { key: string; prevented: boolean }[];
@@ -375,10 +397,13 @@ test.describe("keyboard shortcuts", () => {
     await recordKeys(page);
     await page.keyboard.press("[");
     await page.keyboard.press("1");
+    await page.keyboard.press("c");
     expect(await recordedKeys(page)).toEqual([
       { key: "[", prevented: false },
       { key: "1", prevented: false },
+      { key: "c", prevented: false },
     ]);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(sidebar(page)).toHaveClass(/is-collapsed/);
     await expect(page).toHaveURL("/design");
   });

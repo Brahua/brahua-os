@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { Circle } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { navItems, type ModuleManifest, type NavShortcutKey } from "@/lib/modules";
+import {
+  QuickCaptureContext,
+  type CaptureProvider,
+  type CaptureSheetProps,
+} from "@/lib/quick-capture";
 import { AppNav } from "@/modules/core/components/app-nav";
 import { BottomNav } from "@/modules/core/components/bottom-nav";
 import { Sidebar } from "@/modules/core/components/sidebar";
@@ -222,7 +227,10 @@ describe("AppNav", () => {
     expect(fireEvent.keyDown(document.body, { key: "2" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/projects");
     push.mockReset();
-    expect(fireEvent.keyDown(document.body, { key: "3" })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: "3" })).toBe(false);
+    expect(push).toHaveBeenCalledWith("/tasks");
+    push.mockReset();
+    expect(fireEvent.keyDown(document.body, { key: "4" })).toBe(true);
     expect(push).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(document.body, { key: "7" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/areas");
@@ -258,5 +266,116 @@ describe("AppNav", () => {
     expect(push).not.toHaveBeenCalled();
     expect(container.querySelector("[aria-keyshortcuts]")).toBeNull();
     expect(document.documentElement).not.toHaveAttribute("data-nav-shortcuts");
+  });
+});
+
+describe("AppNav quick capture (extension point)", () => {
+  const opened = vi.fn();
+  const preload = vi.fn();
+  /** A stand-in for the provider's sheet: a dialog that says whether it is open. */
+  function FakeSheet({ open, onOpenChange, returnFocusRef }: CaptureSheetProps) {
+    opened(open, returnFocusRef.current);
+    return open ? (
+      <div role="dialog" aria-label="Captura de prueba">
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Cerrar captura
+        </button>
+      </div>
+    ) : null;
+  }
+  const provider: CaptureProvider = { id: "fake", Sheet: FakeSheet, preload };
+
+  beforeEach(() => {
+    opened.mockReset();
+    preload.mockReset();
+  });
+
+  function renderNav(props: Partial<Parameters<typeof AppNav>[0]> = {}, withProvider = true) {
+    const nav = <AppNav initialCollapsed={false} shortcutsEnabled {...props} />;
+    return render(
+      withProvider ? <QuickCaptureContext value={provider}>{nav}</QuickCaptureContext> : nav,
+    );
+  }
+
+  test("with a provider both capture keys are available, open a dialog and preload it", () => {
+    renderNav();
+    const keys = screen.getAllByRole("button", { name: "Capturar" });
+    expect(keys).toHaveLength(2);
+    for (const key of keys) {
+      expect(key).not.toHaveAttribute("aria-disabled");
+      expect(key).toHaveAttribute("aria-haspopup", "dialog");
+      expect(key).not.toHaveAccessibleDescription("Próximamente");
+    }
+    // Nothing is mounted until the first opening.
+    expect(opened).not.toHaveBeenCalled();
+    fireEvent.pointerEnter(keys[1]);
+    expect(preload).toHaveBeenCalled();
+
+    fireEvent.click(keys[1]);
+    expect(screen.getByRole("dialog", { name: "Captura de prueba" })).toBeInTheDocument();
+    // Focus returns to the key that was pressed.
+    expect(opened).toHaveBeenLastCalledWith(true, keys[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar captura" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("the sidebar shows the C hint and C opens capture from 1024 px", () => {
+    const { container } = renderNav();
+    const sidebarKey = container.querySelector(".bo-sidebar [data-capture-key]")!;
+    expect(sidebarKey).toHaveAttribute("aria-keyshortcuts", "C");
+    expect(fireEvent.keyDown(document.body, { key: "c" })).toBe(false);
+    expect(screen.getByRole("dialog", { name: "Captura de prueba" })).toBeInTheDocument();
+  });
+
+  test("Caps Lock C opens it too; Shift, ⌘ or Ctrl + C don't", () => {
+    renderNav();
+    expect(fireEvent.keyDown(document.body, { key: "C", shiftKey: true })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: "c", metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: "c", ctrlKey: true })).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fireEvent.keyDown(document.body, { key: "C" })).toBe(false);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  test("C does nothing below 1024 px or while typing", () => {
+    desktop = false;
+    const { unmount } = renderNav();
+    expect(fireEvent.keyDown(document.body, { key: "c" })).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    unmount();
+
+    desktop = true;
+    render(
+      <QuickCaptureContext value={provider}>
+        <AppNav initialCollapsed={false} shortcutsEnabled />
+        <input aria-label="Texto" />
+      </QuickCaptureContext>,
+    );
+    const input = screen.getByRole("textbox", { name: "Texto" });
+    act(() => input.focus());
+    expect(fireEvent.keyDown(input, { key: "c" })).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Positive control: the same key outside the field opens it.
+    expect(fireEvent.keyDown(document.body, { key: "c" })).toBe(false);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  test("with shortcuts off, C does nothing and no key shows it; the keys still open it", () => {
+    const { container } = renderNav({ shortcutsEnabled: false });
+    expect(fireEvent.keyDown(document.body, { key: "c" })).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(container.querySelector("[aria-keyshortcuts]")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Capturar" })[0]);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  test("without a provider the keys say Próximamente and C does nothing", () => {
+    renderNav({}, false);
+    for (const key of screen.getAllByRole("button", { name: "Capturar" })) {
+      expect(key).toHaveAttribute("aria-disabled", "true");
+      expect(key).toHaveAccessibleDescription("Próximamente");
+    }
+    expect(fireEvent.keyDown(document.body, { key: "c" })).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

@@ -13,8 +13,13 @@ type SidebarProps = {
   pathname: string;
   collapsed: boolean;
   onToggle: () => void;
-  /** Opens quick capture. Without it the capture key is shown as not available yet. */
-  onCapture?: () => void;
+  /**
+   * Opens quick capture with the key that was pressed. Without it the capture key is shown as
+   * not available yet (no capture provider registered).
+   */
+  onCapture?: (trigger: HTMLElement) => void;
+  /** Fetches the capture's code ahead (the key is pointed at, focused or touched). */
+  onCapturePreload?: () => void;
   /**
    * Show keyboard shortcuts (Kbd hints, `aria-keyshortcuts`). Off when the owner turned the
    * single-key shortcuts off (WCAG 2.1.4), and in demos where the keys aren't bound.
@@ -38,6 +43,7 @@ export function Sidebar({
   collapsed,
   onToggle,
   onCapture,
+  onCapturePreload,
   shortcuts = true,
   labels = { main: NAV_COPY.mainNav, footer: NAV_COPY.footerNav },
   className,
@@ -95,6 +101,7 @@ export function Sidebar({
         className="bo-sidebar__capture"
         anchorClassName="justify-center"
         onCapture={onCapture}
+        onPreload={onCapturePreload}
         shortcut={shortcuts}
       >
         <Icon icon={Plus} size="lg" />

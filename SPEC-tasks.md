@@ -39,7 +39,7 @@ Fuera de este módulo: recordatorios push/email (`reminders`), tablero diario co
 | Deshacer al completar | "Deshacer" en el aviso desmarca la tarea **y borra la siguiente creada por la recurrencia** (si no fue tocada). | Evita duplicados por un toque equivocado. |
 | Etiquetas | Libres, opcionales, varias por tarea. Se crean al escribirlas (minúsculas, 1–30 caracteres, sin duplicados). Sirven para filtrar en cualquier área. | Decisión del owner (reemplazan las 12 categorías de Notion). |
 | Notas | Markdown opcional con el renderizador de `src/lib/markdown/` (el mismo de proyectos). | Reutilización. |
-| Borrar | Borrado lógico (`deleted_at`) con "Deshacer", como proyectos e hitos. | Mismo principio. |
+| Borrar | Borrado lógico (`deleted_at`) con "Deshacer", como proyectos e hitos. Las tareas de un **proyecto eliminado** se ocultan con él (ninguna vista, página, conteo ni acción las alcanza) y vuelven al restaurarlo; un **hito eliminado** se lee como "sin hito" y vuelve con su "Deshacer". | Mismo principio; un proyecto eliminado se puede restaurar con todo lo suyo. |
 | Tareas hechas | Se ocultan de las vistas de trabajo; aparecen en "Hechas" (últimos 30 días) y en el proyecto. | Mantener la vista limpia. |
 
 ## Pantallas

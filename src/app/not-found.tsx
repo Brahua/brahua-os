@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
 import { getOwnerSession, type OwnerSession } from "@/lib/auth";
+import { CaptureRoot } from "@/lib/capture-providers";
 import { describeError } from "@/lib/owner-action";
 import { AppShell } from "@/modules/core/components/app-shell";
 import { NotFoundScreen } from "@/modules/core/components/not-found-screen";
@@ -47,9 +48,11 @@ export default async function NotFound() {
 
   if (session) {
     return (
-      <AppShell>
-        <NotFoundScreen signedIn />
-      </AppShell>
+      <CaptureRoot>
+        <AppShell>
+          <NotFoundScreen signedIn />
+        </AppShell>
+      </CaptureRoot>
     );
   }
   return (

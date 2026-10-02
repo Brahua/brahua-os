@@ -40,8 +40,16 @@ export type ToastEvent =
 /** Older notices are dropped beyond this many waiting: they would show long after the fact. */
 export const MAX_QUEUED = 3;
 
-/** On screen long enough to read and reach "Deshacer"; paused on hover and focus (WCAG 2.2.1). */
-export const TOAST_DURATION = { withAction: 10_000, plain: 6_000, error: 12_000 } as const;
+/**
+ * How long a notice stays (paused on hover and focus). A notice with an action ("Deshacer") has
+ * no time limit (WCAG 2.2.1): it stays until it is dismissed or the next notice replaces it (see
+ * `enqueue`), or the screen goes away. Plain notices and errors keep a timer.
+ */
+export const TOAST_DURATION = {
+  withAction: Number.POSITIVE_INFINITY,
+  plain: 6_000,
+  error: 12_000,
+} as const;
 
 export const EMPTY_TOASTS: ToastState = { visible: null, queue: [], serial: 0 };
 
@@ -52,6 +60,23 @@ function show(state: ToastState, notice: Notice | undefined, queue: Notice[]): T
 
 function enqueue(state: ToastState, notice: Notice): ToastState {
   if (!state.visible) return show(state, notice, state.queue);
+  // A notice without a time limit (an undo) lasts until the next one: it gives way at once
+  // instead of holding the queue forever. To an error it only gives way for a while (the error
+  // says why something failed now; the undo it covered comes back after it); to anything else,
+  // for good (the next action's notice replaces it).
+  if (!Number.isFinite(state.visible.duration)) {
+    // Back to a plain notice (the on-screen `key` is given again when it shows).
+    const covered: Notice = {
+      id: state.visible.id,
+      title: state.visible.title,
+      text: state.visible.text,
+      action: state.visible.action,
+      tone: state.visible.tone,
+      duration: state.visible.duration,
+    };
+    const queue = notice.tone === "error" ? [covered, ...state.queue] : state.queue;
+    return show(state, notice, queue.slice(0, MAX_QUEUED));
+  }
   return { ...state, queue: [...state.queue, notice].slice(-MAX_QUEUED) };
 }
 

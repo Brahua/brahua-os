@@ -8,6 +8,7 @@
 import type { LucideIcon } from "lucide-react";
 import { areasModule, homeModule, settingsModule } from "@/modules/core/module";
 import { projectsModule } from "@/modules/projects/module";
+import { tasksModule } from "@/modules/tasks/module";
 
 /** Number keys 1–8 (SPEC-design-system "Atajos de teclado"). */
 export type NavShortcutKey = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -40,6 +41,7 @@ export type ModuleManifest = {
 export const MODULES: readonly ModuleManifest[] = [
   homeModule,
   projectsModule,
+  tasksModule,
   areasModule,
   settingsModule,
 ];
