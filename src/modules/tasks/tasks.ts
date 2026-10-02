@@ -295,7 +295,10 @@ export async function updateTask(
   return db.transaction(async (tx) => {
     const { placement } = input;
     if (placement) {
-      // Unlocked read of the project it is in now, only to know which locks to take first.
+      // Unlocked read of the project it is in now, only to know which locks to take first. If
+      // another write moves it between this read and the row lock below, the lock of that new
+      // project isn't held: fine for T1 (a move only clears the next-action mark); T5, which
+      // sets the mark, must re-check `current.projectId` against the locked ones.
       const [before] = await tx
         .select({ projectId: tasks.projectId })
         .from(tasks)
