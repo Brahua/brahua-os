@@ -23,9 +23,28 @@ export function hasRelapse(day: HabitDay): boolean {
   return day.kind === "avoid" && day.quantity > 0;
 }
 
-/** The habits due on `today`, in the list's (manual) order. */
+/**
+ * H4: whether a pause covers `today` (the habit goes to "En pausa": out of the grids and the
+ * count). A pause that starts later doesn't.
+ */
+export function isPausedToday(habit: Pick<HabitItem, "pause">, today: string): boolean {
+  const { pause } = habit;
+  return pause !== null && pause.startDate <= today && today <= pause.endDate;
+}
+
+/** The habits due on `today` and not paused (H4), in the list's (manual) order. */
 export function dueOn<T extends HabitItem>(habits: readonly T[], today: string): T[] {
-  return habits.filter((habit) => isScheduledOn(habit, today));
+  return habits.filter((habit) => isScheduledOn(habit, today) && !isPausedToday(habit, today));
+}
+
+/** H2: the ones not due on `today` ("No tocan hoy"), not paused either (H4). */
+export function notDueOn<T extends HabitItem>(habits: readonly T[], today: string): T[] {
+  return habits.filter((habit) => !isScheduledOn(habit, today) && !isPausedToday(habit, today));
+}
+
+/** H4: the ones paused today ("En pausa"). */
+export function pausedOn<T extends HabitItem>(habits: readonly T[], today: string): T[] {
+  return habits.filter((habit) => isPausedToday(habit, today));
 }
 
 /**
@@ -37,7 +56,7 @@ export function countsAsDone(habit: HabitItem): boolean {
   return done || isWeekMet(habit, done);
 }
 
-/** "N de M hoy": how many of the habits due today are done. */
+/** "N de M hoy": how many of the habits due today (paused ones aside) are done. */
 export function todayCount(habits: readonly HabitItem[], today: string) {
   const due = dueOn(habits, today);
   return { done: due.filter(countsAsDone).length, total: due.length };

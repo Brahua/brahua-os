@@ -30,3 +30,5 @@ export const HABIT_PAUSE_MAX_DAYS = 90;
 export const HABIT_PAUSE_REASON_MAX_LENGTH = 60;
 /** Days before today that can still be logged or corrected (SPEC-habits "Registro atrás"). */
 export const HABIT_LOG_WINDOW_DAYS = 7;
+/** H4: a pause can start this many days ahead at most (a planned trip; conservative bound). */
+export const HABIT_PAUSE_START_AHEAD_DAYS = 365;

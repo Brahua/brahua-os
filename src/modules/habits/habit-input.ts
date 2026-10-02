@@ -16,6 +16,7 @@ import {
   refineMeasure,
   refineMeasureUpdate,
 } from "./measure-input";
+import type { StreakChoice } from "./streak";
 import {
   HABIT_NAME_MAX_LENGTH,
   type HabitFrequency,
@@ -74,7 +75,39 @@ export type HabitItem = {
    * pad's "2 de 3 esta semana" (`weekProgress`, H2). Only `weekly_count` habits show it.
    */
   weekDoneBefore: number;
+  /**
+   * H4: the available days (from the start date, not paused) of the week of the day read, 0–7:
+   * the "X por semana" quota is `ceil(X × available / 7)` (`weekQuota`).
+   */
+  weekAvailable: number;
+  /**
+   * H4: the current streak either way today could end (`streakChoice` of streak.ts): the pad
+   * shows `shownStreak(streak, isDayDone(habit))`, so a tap updates it at once. Always counted up
+   * to Lima's today, whatever day was read.
+   */
+  streak: StreakChoice;
+  /**
+   * H4: the pause covering today, else the next one that starts later (null: none). A habit
+   * paused today goes to "En pausa" (`isPausedToday`).
+   */
+  pause: HabitPauseSummary | null;
+  /**
+   * H4: the logs of the 7 days before today (only days with a row, oldest first), for "Registrar
+   * otro día".
+   */
+  recentLogs: HabitDayLog[];
 };
+
+/** A pause as the screens show it (H4). Days in Lima, both ends included. */
+export type HabitPauseSummary = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+};
+
+/** One day's log (H4: "Registrar otro día"). */
+export type HabitDayLog = { day: string; quantity: number; target: number };
 
 /** What the "Hábito eliminado · Deshacer" notice needs of a deleted habit. */
 export type DeletedHabit = { id: string; name: string };

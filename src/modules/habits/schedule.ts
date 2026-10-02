@@ -61,3 +61,8 @@ export function isScheduledOn(habit: HabitSchedule, day: string): boolean {
       return habit.weekdays?.includes(isoWeekday(day)) ?? false;
   }
 }
+
+/** Days from `from` to `to` (negative when `to` is earlier), across months and years. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((toDate(to).getTime() - toDate(from).getTime()) / DAY_MS);
+}
