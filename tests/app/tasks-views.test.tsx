@@ -67,9 +67,25 @@ vi.mock("@/modules/tasks/actions", () => ({
 // 10:00 in Lima on Friday, Oct 2, 2026.
 const NOW = new Date("2026-10-02T15:00:00.000Z");
 
-const HOME = { id: "11111111-1111-4111-8111-111111111111", slug: "home", name: "Hogar", icon: "house", color: "home" } as const;
-const WORK = { id: "22222222-2222-4222-8222-222222222222", slug: "work", name: "Trabajo", icon: "briefcase", color: "work" } as const;
-const KITCHEN = { id: "33333333-3333-4333-8333-333333333333", name: "Cocina", status: "active" } as const;
+const HOME = {
+  id: "11111111-1111-4111-8111-111111111111",
+  slug: "home",
+  name: "Hogar",
+  icon: "house",
+  color: "home",
+} as const;
+const WORK = {
+  id: "22222222-2222-4222-8222-222222222222",
+  slug: "work",
+  name: "Trabajo",
+  icon: "briefcase",
+  color: "work",
+} as const;
+const KITCHEN = {
+  id: "33333333-3333-4333-8333-333333333333",
+  name: "Cocina",
+  status: "active",
+} as const;
 const TARGETS: TaskTargets = {
   areas: [HOME, WORK],
   projects: [{ ...KITCHEN, area: HOME }],
@@ -124,7 +140,9 @@ beforeEach(() => {
     removeEventListener: vi.fn(),
   })) as unknown as typeof window.matchMedia;
   vi.useFakeTimers({ toFake: ["Date"], now: NOW });
-  vi.mocked(requireOwner).mockReset().mockResolvedValue({ user: { id: "owner" } } as never);
+  vi.mocked(requireOwner)
+    .mockReset()
+    .mockResolvedValue({ user: { id: "owner" } } as never);
   vi.mocked(getTaskTargets).mockReset().mockResolvedValue(TARGETS);
   vi.mocked(listTodayTasks).mockReset().mockResolvedValue([LATE, TODAY]);
   vi.mocked(listUpcomingTasks).mockReset().mockResolvedValue([TOMORROW_A, TOMORROW_B, THURSDAY]);
@@ -133,7 +151,9 @@ beforeEach(() => {
     .mockResolvedValue([LATE, TODAY, TOMORROW_A, THURSDAY, IN_KITCHEN]);
   vi.mocked(listDoneTasks).mockReset().mockResolvedValue([DONE_TODAY, DONE_BEFORE]);
   vi.mocked(getTaskNotes).mockReset().mockResolvedValue(null);
-  vi.mocked(readTaskNotes).mockReset().mockResolvedValue(ok({ notes: null }));
+  vi.mocked(readTaskNotes)
+    .mockReset()
+    .mockResolvedValue(ok({ notes: null }));
   vi.mocked(updateTaskNotes).mockReset();
   vi.mocked(listTaskMilestones)
     .mockReset()
@@ -233,7 +253,10 @@ describe("views", () => {
       within(sheet)
         .getAllByRole("link")
         .map((link) => link.getAttribute("href")),
-    ).toEqual(["/tasks?vista=todas&area=home", `/tasks?vista=todas&area=home&proyecto=${KITCHEN.id}`]);
+    ).toEqual([
+      "/tasks?vista=todas&area=home",
+      `/tasks?vista=todas&area=home&proyecto=${KITCHEN.id}`,
+    ]);
   });
 
   test("Todas: a project of another area doesn't apply", async () => {
@@ -259,9 +282,7 @@ describe("views", () => {
     vi.useRealTimers();
     const user = userEvent.setup();
     let reopened: (value: Awaited<ReturnType<typeof reopenTask>>) => void = () => {};
-    vi.mocked(reopenTask).mockImplementation(
-      () => new Promise((resolve) => (reopened = resolve)),
-    );
+    vi.mocked(reopenTask).mockImplementation(() => new Promise((resolve) => (reopened = resolve)));
     vi.mocked(completeTask).mockResolvedValue(ok(DONE_TODAY));
     render(
       <TasksScreen now={NOW} targets={TARGETS}>
@@ -303,7 +324,9 @@ describe("views", () => {
     await user.click(screen.getByRole("checkbox", { name: "Hecha: lavar ropa" }));
     await waitFor(() =>
       expect(
-        within(screen.getByRole("region", { name: "Avisos" })).getByText(/No se pudo marcar la tarea.*ya no existe/),
+        within(screen.getByRole("region", { name: "Avisos" })).getByText(
+          /No se pudo marcar la tarea.*ya no existe/,
+        ),
       ).toBeInTheDocument(),
     );
     expect(screen.getByRole("link", { name: "lavar ropa" })).toBeInTheDocument();
@@ -377,7 +400,10 @@ describe("detail: Notas", () => {
     expect(await within(section).findByText("Vieja")).toBeInTheDocument();
     expect(readTaskNotes).toHaveBeenCalledWith({ id: TODAY.id });
     await user.click(within(section).getByRole("button", { name: "Editar notas" }));
-    await user.type(within(section).getByRole("textbox", { name: "Notas en Markdown" }), " y nueva");
+    await user.type(
+      within(section).getByRole("textbox", { name: "Notas en Markdown" }),
+      " y nueva",
+    );
     await user.click(within(section).getByRole("button", { name: "Guardar" }));
     await waitFor(() =>
       expect(within(dialog).getByRole("alert")).toHaveTextContent(
@@ -433,11 +459,11 @@ describe("detail: Hito", () => {
     expect(listTaskMilestones).toHaveBeenCalledWith({ projectId: KITCHEN.id });
     const select = await screen.findByRole("combobox", { name: "Hito" });
     await waitFor(() =>
-      expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual([
-        "Sin hito",
-        "Planos (hecho)",
-        "Pintura",
-      ]),
+      expect(
+        within(select)
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toEqual(["Sin hito", "Planos (hecho)", "Pintura"]),
     );
     expect(select).toHaveValue(PLANS);
     await user.selectOptions(select, PAINT);

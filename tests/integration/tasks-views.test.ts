@@ -222,7 +222,10 @@ describe("notes", () => {
     const result = await updateTaskNotes({ id: task.id, notes: "\n\n  code\r\nCafé  \n" });
     expect(result).toEqual({ ok: true, data: { notes: "  code\nCafé" } });
     expect(await getTaskNotes(task.id)).toBe("  code\nCafé");
-    expect(await readTaskNotes({ id: task.id })).toEqual({ ok: true, data: { notes: "  code\nCafé" } });
+    expect(await readTaskNotes({ id: task.id })).toEqual({
+      ok: true,
+      data: { notes: "  code\nCafé" },
+    });
     expect(revalidatePath).toHaveBeenCalledWith(`/tasks/${task.id}`);
     expect(await updateTaskNotes({ id: task.id, notes: "   " })).toEqual({
       ok: true,
@@ -262,7 +265,10 @@ describe("notes", () => {
       expect(await readTaskNotes({ id })).toEqual({ ok: false, error: TASK_ERRORS.notFound });
       expect(await getTaskNotes(id)).toBeNull();
     }
-    const [stored] = await testDb.select({ notes: tasks.notes }).from(tasks).where(eq(tasks.id, deleted.id));
+    const [stored] = await testDb
+      .select({ notes: tasks.notes })
+      .from(tasks)
+      .where(eq(tasks.id, deleted.id));
     expect(stored.notes).toBe("n");
   });
 });

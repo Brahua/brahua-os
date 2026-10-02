@@ -285,7 +285,9 @@ describe("/tasks", () => {
       ["Hechas", "/tasks?vista=hechas"],
     ]);
     // The view's heading counts what it shows ("Bandeja 3", read "Bandeja: 3 tareas").
-    expect(screen.getByRole("heading", { level: 2, name: "Bandeja: 3 tareas" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Bandeja: 3 tareas" }),
+    ).toBeInTheDocument();
     expect(views.getByRole("link", { name: "Bandeja" })).toHaveAttribute("aria-current", "page");
     expect(titles()).toEqual(["comprar pilas", "regar plantas", "devolver libro"]);
   });

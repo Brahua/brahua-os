@@ -30,7 +30,13 @@ const LIMA_LAST_SECOND = new Date("2026-10-03T04:59:59Z");
 const LIMA_MIDNIGHT = new Date("2026-10-03T05:00:00Z");
 
 const HOME = { id: "a-home", slug: "home", name: "Hogar", icon: "house", color: "home" } as const;
-const WORK = { id: "a-work", slug: "work", name: "Trabajo", icon: "briefcase", color: "work" } as const;
+const WORK = {
+  id: "a-work",
+  slug: "work",
+  name: "Trabajo",
+  icon: "briefcase",
+  color: "work",
+} as const;
 const OLD = { id: "a-old", slug: "old", name: "Viejo", icon: "house", color: "home" } as const;
 
 let serial = 0;
@@ -61,9 +67,9 @@ describe("Hoy", () => {
     expect(isDueByToday(task({ dueDate: "2026-10-02" }), LIMA_MORNING)).toBe(true);
     expect(isDueByToday(task({ dueDate: "2026-10-03" }), LIMA_MORNING)).toBe(false);
     expect(isDueByToday(task(), LIMA_MORNING)).toBe(false);
-    expect(
-      isDueByToday(task({ dueDate: "2026-10-01", doneAt: LIMA_MORNING }), LIMA_MORNING),
-    ).toBe(false);
+    expect(isDueByToday(task({ dueDate: "2026-10-01", doneAt: LIMA_MORNING }), LIMA_MORNING)).toBe(
+      false,
+    );
   });
 
   test("around Lima's midnight: tomorrow joins Hoy at 00:00 in Lima, not at 00:00 UTC", () => {
@@ -121,12 +127,12 @@ describe("Próximas", () => {
 describe("Hechas", () => {
   test("done in the last 30 days; pending never", () => {
     expect(isRecentlyDone(task({ doneAt: LIMA_MORNING }), LIMA_MORNING)).toBe(true);
-    expect(
-      isRecentlyDone(task({ doneAt: new Date("2026-09-02T15:00:00Z") }), LIMA_MORNING),
-    ).toBe(true);
-    expect(
-      isRecentlyDone(task({ doneAt: new Date("2026-09-02T14:59:59Z") }), LIMA_MORNING),
-    ).toBe(false);
+    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T15:00:00Z") }), LIMA_MORNING)).toBe(
+      true,
+    );
+    expect(isRecentlyDone(task({ doneAt: new Date("2026-09-02T14:59:59Z") }), LIMA_MORNING)).toBe(
+      false,
+    );
     expect(isRecentlyDone(task(), LIMA_MORNING)).toBe(false);
   });
 
@@ -134,9 +140,7 @@ describe("Hechas", () => {
     expect(doneLabel(new Date("2026-10-02T05:00:00Z"), LIMA_MORNING)).toBe("Hecha hoy");
     // 23:30 on the 1st in Lima is already the 2nd in UTC.
     expect(doneLabel(new Date("2026-10-02T04:30:00Z"), LIMA_MORNING)).toBe("Hecha ayer");
-    expect(doneLabel(new Date("2026-09-28T15:00:00Z"), LIMA_MORNING)).toBe(
-      "Hecha el 28 set. 2026",
-    );
+    expect(doneLabel(new Date("2026-09-28T15:00:00Z"), LIMA_MORNING)).toBe("Hecha el 28 set. 2026");
   });
 
   test("the most recently done first", () => {

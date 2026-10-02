@@ -66,7 +66,9 @@ test("Hoy: overdue and due today, the oldest first, then priority; not tomorrow 
 
   // Completing one takes it out of Hoy (and Deshacer brings it back).
   await untilSaved(page, () =>
-    viewRow(page, todayMedium).getByRole("checkbox", { name: `Hecha: ${todayMedium}` }).click(),
+    viewRow(page, todayMedium)
+      .getByRole("checkbox", { name: `Hecha: ${todayMedium}` })
+      .click(),
   );
   await expect(viewRow(page, todayMedium)).toHaveCount(0);
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
@@ -120,9 +122,7 @@ test("Todas: filters by project and area live in the URL and survive a reload", 
     .getByRole("dialog", { name: "Filtrar por área" })
     .getByRole("link", { name: "Trabajo" })
     .click();
-  await expect(page).toHaveURL(
-    `/tasks?vista=todas&area=work&proyecto=${VIEWS_FIXTURE.projectId}`,
-  );
+  await expect(page).toHaveURL(`/tasks?vista=todas&area=work&proyecto=${VIEWS_FIXTURE.projectId}`);
   await filters.getByRole("button", { name: "Filtrar por área: Trabajo" }).click();
   await page
     .getByRole("dialog", { name: "Filtrar por área" })
@@ -186,7 +186,9 @@ test("Notas: write, preview and save Markdown; it is there after reopening", asy
   await expect(notes.getByRole("heading", { name: "Riego" })).toBeVisible();
   await untilSaved(page, () => notes.getByRole("button", { name: "Guardar" }).click());
   await expect(notes.getByText("tres")).toHaveJSProperty("tagName", "STRONG");
-  await expect.poll(async () => (await readViewTask(id)).notes).toBe("## Riego\n\nCada **tres** días.");
+  await expect
+    .poll(async () => (await readViewTask(id)).notes)
+    .toBe("## Riego\n\nCada **tres** días.");
 
   if (desktop) {
     await page.keyboard.press("Escape");
