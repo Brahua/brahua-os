@@ -5,7 +5,7 @@
 
 ## Cómo retomar
 
-1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-tasks.md`).
+1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-habits.md` cuando exista).
 2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
@@ -46,8 +46,9 @@
   - P6 (contratos con otros módulos): ✅ PR #42 integrado. Ver "Cómo funciona projects" → "Contratos (P6)".
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
-- **tasks:** código completo y en producción (2026-10-02); **falta el Checkpoint final del owner** y la navegación definitiva (espera el diseño en Claude Design). `SPEC-tasks.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas T1–T6 en `tasks/todo.md`.
-  - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4. **Pendiente del owner:** Checkpoint T1 en el iPhone.
+- **tasks:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final, recorrido hecho por el agente en producción con el Chrome del owner). Plan y tareas archivados en `tasks/archive/tasks-*.md`. Pendientes en el backlog de `tasks/todo.md`: navegación definitiva (diseño del owner en Claude Design) e hitos en proyectos cerrados. El owner aceptó las decisiones autónomas de abajo.
+- **habits:** siguiente módulo; spec en preparación.
+  - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4.
   - ✅ T3 (recurrencia): PR #52 integrado. Ver "Cómo funciona tasks" → "T3: recurrencia".
   - ✅ T2 (vistas y detalle): PR #53 integrado. Ver "Cómo funciona tasks" → "T2: vistas y detalle".
   - **Decisiones para revisar con el owner** (tomadas en autónomo, opción conservadora; también en `SPEC-tasks.md` → Decisiones):
@@ -460,7 +461,7 @@ Estado: T1 (datos, captura rápida y bandeja). T2–T4 se construyen en paralelo
   - **Fecha vacía en iOS:** `DateField` (`components/date-field.tsx`) muestra "Sin fecha" sobre el campo vacío solo en iOS (`@supports (-webkit-touch-callout: none)`, `.bo-date-empty`); los demás navegadores dibujan su propio marcador.
   - **Slots:** separados por una línea en blanco (`task-detail.tsx`, `task-row.tsx`, la captura) para que dos ramas no choquen en la misma línea. **T3 y T4 agregan sus acciones y textos en archivos propios** (p. ej. `recurrence-actions.ts`, `recurrence-copy.ts`, `tag-actions.ts`, `tags-copy.ts`), sin extender `actions.ts` ni `tasks-copy.ts`.
   - Pruebas nuevas: mensajes dentro de la hoja (rechazo y "Se guardó…"), `h3` en la hoja, la etiqueta del checkbox, títulos por vista, `C` en la bandeja vacía según la cookie, avisos retenidos con un diálogo y "Deshacer" sin límite (`core-toast-viewport`, `toast-queue`), raíz de composición por contexto, `ensureProgressSources()`, tareas de un proyecto eliminado y de vuelta, hito eliminado, `changeProjectArea` mueve el área de sus tareas, y la captura a un área comprueba la tarea guardada en Trabajo (E2E).
-- **Pendiente del owner (Checkpoint T1):** capturar desde el iPhone (app instalada) en < 10 s y completar desde la bandeja; comprobar la rueda del selector y el campo de fecha nativo.
+- **Pendiente del owner (iPhone, fuera del alcance del navegador del agente):** capturar desde el iPhone (app instalada) en < 10 s y completar desde la bandeja; comprobar la rueda del selector y el campo de fecha nativo.
 
 ### T2: vistas y detalle
 
