@@ -14,7 +14,7 @@ import { HabitsScreen, HabitsScreenWithin } from "@/modules/habits/components/ha
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import { HABIT_ERRORS, type HabitAreaSummary, type HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
-import { listActiveHabits } from "@/modules/habits/queries";
+import { listActiveHabits, listArchivedHabits } from "@/modules/habits/queries";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -23,7 +23,10 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
-vi.mock("@/modules/habits/queries", () => ({ listActiveHabits: vi.fn() }));
+vi.mock("@/modules/habits/queries", () => ({
+  listActiveHabits: vi.fn(),
+  listArchivedHabits: vi.fn(),
+}));
 vi.mock("@/modules/habits/actions", () => ({
   createHabit: vi.fn(),
   deleteHabit: vi.fn(),
@@ -63,6 +66,7 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     quantity: 0,
     target: 1,
     hasLogs: false,
+    weekDoneBefore: 0,
     ...values,
   };
 }
@@ -141,6 +145,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ user: { id: "owner" } } as never);
   vi.mocked(listActiveHabits).mockReset().mockResolvedValue(HABITS);
+  vi.mocked(listArchivedHabits).mockReset().mockResolvedValue([]);
   vi.mocked(listLifeAreas)
     .mockReset()
     .mockResolvedValue(AREAS.map((area) => ({ ...area, sortOrder: 0 })));
@@ -203,7 +208,7 @@ const padNames = () =>
     ...screen
       .getByRole("list", { name: "Hábitos de hoy" })
       .querySelectorAll<HTMLElement>("[data-habit-pad]"),
-  ].map((button) => button.lastElementChild?.textContent);
+  ].map((button) => button.querySelector(".line-clamp-3")?.textContent);
 const count = () => document.querySelector("[data-habits-count]")?.textContent;
 const notices = () => screen.getByRole("region", { name: "Avisos" });
 const announcer = () => document.querySelector("[data-habits-announcer]");
@@ -214,6 +219,7 @@ describe("/habits", () => {
     render(await HabitsPage());
     expect(requireOwner).toHaveBeenCalled();
     expect(listActiveHabits).toHaveBeenCalled();
+    expect(listArchivedHabits).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toBeInTheDocument();
     expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]);
     // A toggle per habit: pressed is done today.
@@ -314,10 +320,11 @@ describe("one tap", () => {
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
     expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false");
     await server.answer(fail(HABIT_ERRORS.archived));
-    expect(pad("Meditar")).toHaveAttribute("aria-pressed", "true");
     expect(
-      within(notices()).getByText(`No se pudo deshacer. ${HABIT_ERRORS.archived}`),
+      await within(notices()).findByText(`No se pudo deshacer. ${HABIT_ERRORS.archived}`),
     ).toBeInTheDocument();
+    // The notice can render before useOptimistic rolls back: wait for the rollback.
+    await waitFor(() => expect(pad("Meditar")).toHaveAttribute("aria-pressed", "true"));
   });
 
   test("past Lima's midnight on an open page, a tap reloads instead of logging yesterday", async () => {
@@ -370,11 +377,11 @@ describe("one tap", () => {
     await user.click(pad("Meditar"));
     expect(pad("Meditar")).toHaveAttribute("aria-pressed", "true");
     await server.answer(fail(HABIT_ERRORS.notFound));
-    expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false");
-    expect(count()).toBe("1 de 3 hoy");
     expect(
-      within(notices()).getByText(`No se pudo registrar. ${HABIT_ERRORS.notFound}`),
+      await within(notices()).findByText(`No se pudo registrar. ${HABIT_ERRORS.notFound}`),
     ).toBeInTheDocument();
+    await waitFor(() => expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false"));
+    await waitFor(() => expect(count()).toBe("1 de 3 hoy"));
   });
 
   test("a network failure rolls back too", async () => {
@@ -382,8 +389,10 @@ describe("one tap", () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(pad("Meditar"));
+    expect(
+      await within(notices()).findByText(/No se pudo registrar\. Revisa tu conexión/),
+    ).toBeVisible();
     await waitFor(() => expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false"));
-    expect(within(notices()).getByText(/No se pudo registrar\. Revisa tu conexión/)).toBeVisible();
   });
 });
 
@@ -457,8 +466,10 @@ describe("delete", () => {
     render(<Harness />);
     const dialog = await openOptions(user, "Meditar");
     await user.click(within(dialog).getByRole("button", { name: "Eliminar hábito" }));
+    expect(
+      await within(notices()).findByText(/No se pudo eliminar\. Revisa tu conexión/),
+    ).toBeVisible();
     await waitFor(() => expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]));
-    expect(within(notices()).getByText(/No se pudo eliminar\. Revisa tu conexión/)).toBeVisible();
   });
 
   test("a refused restore takes the pad out again, with a notice", async () => {
@@ -470,10 +481,10 @@ describe("delete", () => {
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
     expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]);
     await server.answer(fail(HABIT_ERRORS.notFound));
-    expect(padNames()).toEqual(["Leer", "Tomar agua"]);
     expect(
-      within(notices()).getByText(`No se pudo deshacer. ${HABIT_ERRORS.notFound}`),
+      await within(notices()).findByText(`No se pudo deshacer. ${HABIT_ERRORS.notFound}`),
     ).toBeInTheDocument();
+    await waitFor(() => expect(padNames()).toEqual(["Leer", "Tomar agua"]));
   });
 
   test("the last pad leaving sends focus to the heading; the empty state shows", async () => {
@@ -495,10 +506,10 @@ describe("delete", () => {
     const dialog = await openOptions(user, "Meditar");
     await user.click(within(dialog).getByRole("button", { name: "Eliminar hábito" }));
     await server.answer(fail(HABIT_ERRORS.notFound));
-    expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]);
     expect(
-      within(notices()).getByText(`No se pudo eliminar. ${HABIT_ERRORS.notFound}`),
+      await within(notices()).findByText(`No se pudo eliminar. ${HABIT_ERRORS.notFound}`),
     ).toBeInTheDocument();
+    await waitFor(() => expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]));
   });
 });
 
@@ -529,7 +540,13 @@ describe("create", () => {
     await user.type(name, "  Estirar ");
     await user.click(within(areas).getByRole("radio", { name: "Salud" }));
     await user.click(within(dialog).getByRole("button", { name: "Crear hábito" }));
-    expect(createHabit).toHaveBeenCalledWith({ name: "Estirar", lifeAreaId: HEALTH.id });
+    expect(createHabit).toHaveBeenCalledWith({
+      name: "Estirar",
+      lifeAreaId: HEALTH.id,
+      frequency: "daily",
+      weeklyTarget: null,
+      weekdays: null,
+    });
     // While it waits, the sheet stays open and says so.
     expect(within(dialog).getByRole("button", { name: "Creando…" })).toHaveAttribute(
       "aria-disabled",

@@ -1,5 +1,6 @@
 // The optimistic view of the habits on "Hoy". Pure and client-safe: the screen applies a change
 // at once and the server's answer (the page revalidates) replaces it.
+import { applyOrder } from "@/modules/core/life-area-order";
 import type { HabitItem } from "./habit-input";
 
 export type HabitListChange =
@@ -8,7 +9,9 @@ export type HabitListChange =
   /** Comes back ("Deshacer") at its old place; replaces it if the list already has it. */
   | { type: "restore"; habit: HabitItem; index: number }
   /** Changes in place (a day logged). */
-  | { type: "update"; id: string; patch: Partial<HabitItem> };
+  | { type: "update"; id: string; patch: Partial<HabitItem> }
+  /** H2: the manual order (habits missing from `ids` keep their relative order, after them). */
+  | { type: "reorder"; ids: readonly string[] };
 
 export function applyHabitListChange(list: HabitItem[], change: HabitListChange): HabitItem[] {
   switch (change.type) {
@@ -23,6 +26,8 @@ export function applyHabitListChange(list: HabitItem[], change: HabitListChange)
     }
     case "update":
       return list.map((habit) => (habit.id === change.id ? { ...habit, ...change.patch } : habit));
+    case "reorder":
+      return applyOrder(list, change.ids);
   }
 }
 

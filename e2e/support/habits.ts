@@ -58,10 +58,17 @@ type NewHabit = {
   /** Logged on an earlier day (it "has logs": deleting it asks first). */
   loggedBefore?: boolean;
   sortOrder?: number;
+  /** H2: "X veces por semana" with this X. */
+  weeklyTarget?: number;
+  /** H2: fixed ISO days (1 = Monday … 7 = Sunday). */
+  weekdays?: number[];
+  /** H2: archived. */
+  archived?: boolean;
 };
 
 /**
- * A daily yes/no habit straight in the database (started a week ago). Returns its id. "Today" is
+ * A yes/no habit straight in the database (started a week ago): daily, weekly (`weeklyTarget`) or
+ * on fixed days (`weekdays`). Returns its id. "Today" is
  * Lima's by this process's clock; the server computes its own, so a run that crosses Lima's
  * midnight (05:00 UTC) can see a `done` habit as not done. Rerun it.
  */
@@ -81,7 +88,10 @@ export function insertHabit(habit: NewHabit): Promise<string> {
         name: habit.name,
         lifeAreaId,
         measure: "check",
-        frequency: "daily",
+        frequency: habit.weeklyTarget ? "weekly_count" : habit.weekdays ? "weekdays" : "daily",
+        weeklyTarget: habit.weeklyTarget ?? null,
+        weekdays: habit.weekdays ?? null,
+        archivedAt: habit.archived ? new Date() : null,
         startDate: limaDay(-7),
         sortOrder: habit.sortOrder ?? 1_000 + Math.floor(Math.random() * 1_000),
       })
@@ -94,11 +104,36 @@ export function insertHabit(habit: NewHabit): Promise<string> {
   });
 }
 
+/** Lima's ISO weekday `days` from today (1 = Monday … 7 = Sunday). */
+export function limaWeekday(days = 0): number {
+  const weekday = new Date(`${limaDay(days)}T00:00:00Z`).getUTCDay();
+  return weekday === 0 ? 7 : weekday;
+}
+
+/** The active habits' names in their manual order (as stored). */
+export function activeHabitOrder() {
+  return withDb(async (db) => {
+    const rows = await db
+      .select({ name: habits.name })
+      .from(habits)
+      .where(and(isNull(habits.deletedAt), isNull(habits.archivedAt)))
+      .orderBy(habits.sortOrder, habits.id);
+    return rows.map((row) => row.name);
+  });
+}
+
 /** A habit as stored, with today's quantity (null without a log for today). */
 export function readHabit(id: string) {
   return withDb(async (db) => {
     const [row] = await db
-      .select({ name: habits.name, deletedAt: habits.deletedAt })
+      .select({
+        name: habits.name,
+        deletedAt: habits.deletedAt,
+        archivedAt: habits.archivedAt,
+        frequency: habits.frequency,
+        weeklyTarget: habits.weeklyTarget,
+        weekdays: habits.weekdays,
+      })
       .from(habits)
       .where(eq(habits.id, id));
     const [today] = await db
@@ -124,7 +159,14 @@ export function areaIdOf(slug: string): Promise<string> {
 export function readHabitByName(name: string) {
   return withDb(async (db) => {
     const [row] = await db
-      .select({ id: habits.id, areaId: habits.lifeAreaId, deletedAt: habits.deletedAt })
+      .select({
+        id: habits.id,
+        areaId: habits.lifeAreaId,
+        deletedAt: habits.deletedAt,
+        frequency: habits.frequency,
+        weeklyTarget: habits.weeklyTarget,
+        weekdays: habits.weekdays,
+      })
       .from(habits)
       .where(eq(habits.name, name));
     return row;
@@ -136,6 +178,12 @@ export const pads = (page: Page) => page.getByRole("list", { name: "Hábitos de 
 export const pad = (page: Page, name: string) =>
   pads(page).getByRole("button", { name, exact: true });
 export const habitsCount = (page: Page) => page.locator("[data-habits-count]");
+/** H2: the folded "No tocan hoy (N)" section's toggle, and its pads. */
+export const notDueToggle = (page: Page) => page.getByRole("button", { name: /^No tocan hoy/ });
+export const notDuePads = (page: Page) => page.locator('[data-habits-grid="not-due"]');
+/** A pad by name anywhere on "Hoy" (also under "No tocan hoy"). */
+export const anyPad = (page: Page, name: string) =>
+  page.locator("[data-habit-pad]").filter({ has: page.getByText(name, { exact: true }) });
 
 /** Opens /habits and waits until it is hydrated (keys and clicks reach React). */
 export async function openHabits(page: Page) {

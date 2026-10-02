@@ -29,6 +29,7 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     quantity: 0,
     target: 1,
     hasLogs: false,
+    weekDoneBefore: 0,
     ...values,
   };
 }

@@ -3,6 +3,7 @@
 // builds the streaks on `isDayDone` (one definition of a done day), not a copy of it.
 import type { HabitItem } from "./habit-input";
 import { isScheduledOn } from "./schedule";
+import { isWeekMet } from "./week-progress";
 
 /** What `isDayDone` needs of a habit and its day. */
 export type HabitDay = Pick<HabitItem, "kind" | "quantity" | "target">;
@@ -20,8 +21,17 @@ export function dueOn<T extends HabitItem>(habits: readonly T[], today: string):
   return habits.filter((habit) => isScheduledOn(habit, today));
 }
 
+/**
+ * Whether a habit due today counts as done in "N de M hoy": its day is done or, for "X veces
+ * por semana", its week is already met (SPEC-habits "Contratos": `done`). H2.
+ */
+export function countsAsDone(habit: HabitItem): boolean {
+  const done = isDayDone(habit);
+  return done || isWeekMet(habit, done);
+}
+
 /** "N de M hoy": how many of the habits due today are done. */
 export function todayCount(habits: readonly HabitItem[], today: string) {
   const due = dueOn(habits, today);
-  return { done: due.filter(isDayDone).length, total: due.length };
+  return { done: due.filter(countsAsDone).length, total: due.length };
 }

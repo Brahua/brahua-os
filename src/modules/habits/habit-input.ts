@@ -4,7 +4,12 @@
 import { z } from "zod";
 import type { AreaColor, AreaIconName } from "@/design-system/areas";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
-import { frequencyInputShape } from "./frequency-input";
+import {
+  FREQUENCY_FIELDS,
+  frequencyInputShape,
+  frequencyUpdateShape,
+  refineFrequency,
+} from "./frequency-input";
 import { measureInputShape } from "./measure-input";
 import {
   HABIT_NAME_MAX_LENGTH,
@@ -59,6 +64,11 @@ export type HabitItem = {
   target: number;
   /** Whether any day was ever logged, even unmarked again (deleting it asks first then). */
   hasLogs: boolean;
+  /**
+   * Days done this week (Monday first) before the day read: with that day's own state, the
+   * pad's "2 de 3 esta semana" (`weekProgress`, H2). Only `weekly_count` habits show it.
+   */
+  weekDoneBefore: number;
 };
 
 /** What the "Hábito eliminado · Deshacer" notice needs of a deleted habit. */
@@ -97,17 +107,41 @@ const day = z.iso.date({ error: HABIT_ERRORS.dayInvalid });
  * the frequency (frequency-input.ts) and H3 the kind and the measure (measure-input.ts), each in
  * its own file, as optional fields with H1's defaults.
  */
-export const createHabitInputSchema = z.object({
-  name,
-  lifeAreaId,
-  ...frequencyInputShape,
-  ...measureInputShape,
-});
+export const createHabitInputSchema = z
+  .object({
+    name,
+    lifeAreaId,
+    ...frequencyInputShape,
+    ...measureInputShape,
+  })
+  // H2: each frequency with exactly its own field (frequency-input.ts).
+  .superRefine(refineFrequency);
 
 export type CreateHabitInput = z.output<typeof createHabitInputSchema>;
 
-/** Field names of the create form, in order (focus goes to the first invalid one). */
-export const CREATE_HABIT_FIELDS = ["name", "lifeAreaId"] as const;
+/**
+ * Editing a habit (H2): its name, area and frequency (the frequency can always change; the
+ * streak is read again with the new rule). The measure is H3's (it doesn't change once the habit
+ * has logs), so it is not here: an edit never touches it.
+ */
+export const updateHabitInputSchema = z
+  .object({
+    id,
+    name,
+    lifeAreaId,
+    ...frequencyUpdateShape,
+  })
+  .superRefine(refineFrequency);
+
+export type UpdateHabitInput = z.output<typeof updateHabitInputSchema>;
+
+/** Field names of the create and edit form, in order (focus goes to the first invalid one). */
+export const CREATE_HABIT_FIELDS = [
+  "name",
+  // H3: the kind and measure fields go here (the form's order).
+  ...FREQUENCY_FIELDS,
+  "lifeAreaId",
+] as const;
 export type CreateHabitField = (typeof CREATE_HABIT_FIELDS)[number];
 
 /** Delete and undo. */

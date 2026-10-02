@@ -47,18 +47,17 @@ export type HabitSchedule = {
 };
 
 /**
- * Whether a habit is due on `day` ("tocan hoy"): never before its start date; a daily habit every
- * day after it.
+ * Whether a habit is due on `day` ("tocan hoy"): never before its start date; after it, a daily
+ * habit every day, a "X veces por semana" one every day too (any day counts, also once the week
+ * is met) and a fixed-days one only on its ISO weekdays (`day` is already Lima's).
  */
 export function isScheduledOn(habit: HabitSchedule, day: string): boolean {
   if (day < habit.startDate) return false;
   switch (habit.frequency) {
     case "daily":
-      return true;
-    // H2 slot (Frecuencias): `weekdays` only on its days (isoWeekday), `weekly_count` every day.
-    // Until H2 nothing creates them; they show every day.
     case "weekly_count":
-    case "weekdays":
       return true;
+    case "weekdays":
+      return habit.weekdays?.includes(isoWeekday(day)) ?? false;
   }
 }

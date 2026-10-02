@@ -1,11 +1,12 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Archive, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Key, Sheet } from "@/design-system";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import type { HabitItem } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
+import { ORGANIZE_COPY } from "../organize-copy";
 
 export type HabitOptionsSheetProps = {
   open: boolean;
@@ -16,6 +17,10 @@ export type HabitOptionsSheetProps = {
   onClosed?: () => void;
   /** Delete it (the screen closes the sheet, removes the pad and offers "Deshacer"). */
   onDelete: (habit: HabitItem) => void;
+  /** H2: edit it (the screen closes this sheet, then opens the form with the habit). */
+  onEdit?: (habit: HabitItem) => void;
+  /** H2: archive it (the screen closes the sheet, removes the pad and offers "Deshacer"). */
+  onArchive?: (habit: HabitItem) => void;
 };
 
 /**
@@ -30,6 +35,8 @@ export function HabitOptionsSheet({
   returnFocusRef,
   onClosed,
   onDelete,
+  onEdit,
+  onArchive,
 }: HabitOptionsSheetProps) {
   const isDesktop = useIsDesktop();
   const [confirming, setConfirming] = useState(false);
@@ -61,6 +68,7 @@ export function HabitOptionsSheet({
   }
 
   const helpId = `${ids}-delete-help`;
+  const archiveHelpId = `${ids}-archive-help`;
   const confirmTextId = `${ids}-confirm-text`;
 
   return (
@@ -75,7 +83,37 @@ export function HabitOptionsSheet({
       focusTitleOnOpen
     >
       <div className="flex flex-col gap-6">
-        {/* H2 slot (Editar, Archivar). */}
+        {/* H2: Editar (opens the form once this sheet is gone) and Archivar. */}
+        {onEdit || onArchive ? (
+          <div className="flex flex-col items-start gap-2">
+            {onEdit ? (
+              <Key
+                variant="ghost"
+                icon={Pencil}
+                aria-haspopup="dialog"
+                data-habit-edit=""
+                onClick={() => onEdit(habit)}
+              >
+                {ORGANIZE_COPY.edit}
+              </Key>
+            ) : null}
+            {onArchive ? (
+              <>
+                <Key
+                  variant="ghost"
+                  icon={Archive}
+                  aria-describedby={archiveHelpId}
+                  onClick={() => onArchive(habit)}
+                >
+                  {ORGANIZE_COPY.archive}
+                </Key>
+                <p id={archiveHelpId} className="bo-text-body-sm text-text-secondary">
+                  {ORGANIZE_COPY.archiveHelp}
+                </p>
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* H3 slot (Ajustar el día). */}
 
