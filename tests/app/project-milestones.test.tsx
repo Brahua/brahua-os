@@ -25,7 +25,7 @@ import {
   type ProjectMilestoneItem,
 } from "@/modules/projects/milestone-input";
 import { countMilestones, milestoneProgress } from "@/modules/projects/progress";
-import type { ProjectSummary } from "@/modules/projects/project-input";
+import type { ProjectDetail } from "@/modules/projects/project-input";
 
 // jsdom has no custom elements upgrade for NumberFlow's digits; the figure itself is enough here.
 vi.mock("@number-flow/react", () => ({ default: ({ value }: { value: number }) => <>{value}</> }));
@@ -45,7 +45,7 @@ vi.mock("@/modules/projects/milestone-actions", () => ({
 const NOW = new Date("2026-10-01T15:00:00.000Z");
 const DONE_AT = new Date("2026-09-20T15:00:00.000Z");
 
-const PROJECT: ProjectSummary = {
+const PROJECT: ProjectDetail = {
   id: "00000000-0000-4000-8000-000000000001",
   name: "Cocina",
   objective: null,
@@ -55,6 +55,7 @@ const PROJECT: ProjectSummary = {
   dueDate: null,
   completedAt: null,
   area: { id: "a", slug: "home", name: "Hogar", color: "home", icon: "house" },
+  notes: null,
 };
 
 const milestone = (
@@ -80,7 +81,7 @@ const MUEBLES = milestone(M2, "Muebles", 1, { dueDate: "2026-11-30" });
 const LUCES = milestone(M3, "Luces", 2);
 const MILESTONES = [PLANOS, MUEBLES, LUCES];
 
-type State = { project: ProjectSummary; milestones: ProjectMilestoneItem[] };
+type State = { project: ProjectDetail; milestones: ProjectMilestoneItem[] };
 
 /**
  * A fake server: each action call waits until the test answers it (in order), then applies the

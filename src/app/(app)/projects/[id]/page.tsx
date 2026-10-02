@@ -6,10 +6,12 @@ import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 // P6: registers the progress sources of other modules (tasks) before progress is computed.
 import "@/lib/progress-sources";
+import { Markdown } from "@/lib/markdown/markdown";
 import { listLifeAreas } from "@/modules/core/queries";
 import { contributedProgress } from "@/modules/projects/contracts";
 import { getProjectMilestones } from "@/modules/projects/milestone-queries";
 import { countMilestones } from "@/modules/projects/progress";
+import { listProjectLinks } from "@/modules/projects/link-queries";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
 import { getProject, getProjectDependencies } from "@/modules/projects/queries";
 import { CREATED_PARAM } from "@/modules/projects/routes";
@@ -20,6 +22,8 @@ import { ProjectDependenciesSection } from "./_components/project-dependencies-s
 import { ProjectDetailProvider } from "./_components/project-detail-context";
 import { ProjectHeader } from "./_components/project-header";
 import { ProjectMilestonesSection } from "./_components/project-milestones-section";
+import { ProjectLinksSection } from "./_components/project-links-section";
+import { ProjectNotesSection } from "./_components/project-notes-section";
 import { ProjectPlanSection } from "./_components/project-plan-section";
 import { ProjectStateSection } from "./_components/project-state-section";
 import { CreatedNotice } from "./created-notice";
@@ -51,14 +55,14 @@ export async function generateMetadata({ params }: ProjectPageProps): Promise<Me
 export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   await requireOwner();
   const [{ id }, search] = await Promise.all([params, searchParams]);
-  const [project, areas, milestones, dependencies] = await Promise.all([
+  const [project, areas, milestones, dependencies, links] = await Promise.all([
     getProject(id),
     listLifeAreas(),
     // P3 (Hitos): the project's milestones.
     getProjectMilestones(id),
     // P4 (Dependencias): its blockers and the candidates.
     getProjectDependencies(id),
-    // P5 (Notas y enlaces): its links (the notes come with the project).
+    listProjectLinks(id), // P5 (Notas y enlaces): its links (the notes come with the project).
   ]);
   if (!project) notFound();
   // P6: what other modules (tasks) add to its progress; no source registered → no work.
@@ -96,8 +100,12 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             blockers={dependencies.blockers}
             candidates={dependencies.candidates}
           />
-          {/* ── P5 slot (Enlaces): <ProjectLinksSection … /> ── */}
-          {/* ── P5 slot (Notas): <ProjectNotesSection … /> ── */}
+          {/* ── P5 (Enlaces) ── */}
+          <ProjectLinksSection links={links} />
+          {/* ── P5 (Notas): rendered on the server, so no Markdown code ships for them. ── */}
+          <ProjectNotesSection
+            rendered={project.notes ? <Markdown headingOffset={2}>{project.notes}</Markdown> : null}
+          />
           <ProjectDeleteSection />
         </div>
         {justCreated ? (

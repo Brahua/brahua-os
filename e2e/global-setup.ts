@@ -9,6 +9,7 @@ import { seed } from "@/modules/core/seed";
 import { autoStartTestDatabase } from "../scripts/test-db";
 import { migrateDatabase, resetDatabase, testDatabaseUrl } from "../tests/integration/helpers";
 import { E2E_OWNER } from "./support/owner";
+import { seedNotesLinksFixture } from "./support/project-notes-links";
 import { seedProjects } from "./support/projects";
 
 export default async function globalSetup() {
@@ -20,6 +21,7 @@ export default async function globalSetup() {
     await upsertOwner(db, E2E_OWNER);
     await seed(db);
     await seedProjects(db);
+    await seedNotesLinksFixture(db); // P5: the notes and links screenshots.
   } finally {
     await db.$client.end();
   }

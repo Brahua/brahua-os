@@ -1,0 +1,190 @@
+/*
+ * Rendered Markdown (src/lib/markdown/markdown.tsx), with design system tokens only. Headings
+ * keep the look of the level that was written (`.bo-md-h1`…), whatever tag the page outline needs.
+ */
+.bo-markdown {
+  color: var(--color-text);
+  font-family: var(--text-body--font-family);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.bo-markdown > :first-child {
+  margin-top: 0;
+}
+.bo-markdown > :last-child {
+  margin-bottom: 0;
+}
+.bo-markdown :where(p, ul, ol, blockquote, pre, .bo-md-table, hr, section) {
+  margin: 0 0 var(--space-3);
+}
+
+.bo-markdown .bo-md-h1,
+.bo-markdown .bo-md-h2 {
+  margin: var(--space-6) 0 var(--space-3);
+  font-family: var(--text-heading--font-family);
+  font-size: var(--text-heading);
+  line-height: var(--text-heading--line-height);
+  font-weight: var(--text-heading--font-weight);
+  font-stretch: var(--text-heading--font-stretch);
+}
+.bo-markdown .bo-md-h1 {
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-stretch: var(--text-title--font-stretch);
+}
+.bo-markdown :is(.bo-md-h3, .bo-md-h4, .bo-md-h5, .bo-md-h6) {
+  margin: var(--space-5) 0 var(--space-2);
+  font-family: var(--text-subheading--font-family);
+  font-size: var(--text-subheading);
+  line-height: var(--text-subheading--line-height);
+  font-weight: var(--text-subheading--font-weight);
+}
+.bo-markdown :is(.bo-md-h5, .bo-md-h6) {
+  color: var(--color-text-secondary);
+}
+
+.bo-markdown strong {
+  font-weight: 600;
+}
+.bo-markdown del {
+  color: var(--color-text-secondary);
+}
+
+.bo-markdown a {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-signal);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  border-radius: var(--radius-xs);
+}
+.bo-markdown a:hover {
+  text-decoration-thickness: 2.5px;
+}
+.bo-markdown a:focus-visible,
+.bo-markdown .bo-md-table:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+/* Header cells sit on the darker well: the deeper signal keeps the ring ≥ 3:1 there (WCAG 1.4.11). */
+.bo-markdown th a:focus-visible {
+  outline-color: var(--color-signal-text);
+}
+
+.bo-markdown :is(ul, ol) {
+  padding-left: var(--space-6);
+}
+.bo-markdown ul {
+  list-style: disc;
+}
+.bo-markdown ol {
+  list-style: decimal;
+}
+.bo-markdown li + li,
+.bo-markdown li > :is(ul, ol) {
+  margin-top: var(--space-1);
+}
+.bo-markdown li > :is(ul, ol) {
+  margin-bottom: 0;
+}
+.bo-markdown li::marker {
+  color: var(--color-text-secondary);
+}
+.bo-markdown ul.contains-task-list {
+  list-style: none;
+  padding-left: var(--space-1);
+}
+.bo-markdown .task-list-item {
+  display: block;
+}
+
+/* Read-only task box: drawn like the design system's controls, never a form control. */
+.bo-md-check {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: var(--space-2);
+  vertical-align: -3px;
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 0 0 1.5px var(--color-border-control);
+}
+.bo-md-check.is-checked {
+  background: var(--color-text);
+  box-shadow:
+    inset 0 0 0 1.5px var(--color-text),
+    inset 0 0 0 4px var(--color-surface);
+}
+
+.bo-markdown blockquote {
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  border-left: 3px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+}
+
+.bo-markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--color-well);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+.bo-markdown pre {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-well);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  overflow-x: auto;
+  overflow-wrap: normal;
+}
+.bo-markdown pre code {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font-size: var(--text-body-sm);
+  line-height: var(--text-body-sm--line-height);
+}
+
+.bo-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--color-divider);
+}
+
+.bo-md-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+.bo-markdown table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: var(--text-body-sm);
+  line-height: var(--text-body-sm--line-height);
+  overflow-wrap: normal;
+}
+.bo-markdown :is(th, td) {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-divider);
+  text-align: left;
+  vertical-align: top;
+}
+.bo-markdown th {
+  font-weight: 600;
+  background: var(--color-well);
+}
+.bo-markdown tr:last-child td {
+  border-bottom: 0;
+}
+
+.bo-markdown section.footnotes {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  font-size: var(--text-body-sm);
+  color: var(--color-text-secondary);
+}
+.bo-markdown sup {
+  line-height: 0;
+}

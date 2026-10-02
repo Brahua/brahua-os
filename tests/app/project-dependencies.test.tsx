@@ -14,7 +14,7 @@ import {
   isBlocking,
   type DependencyProject,
 } from "@/modules/projects/dependency-input";
-import type { ProjectAreaSummary, ProjectSummary } from "@/modules/projects/project-input";
+import type { ProjectAreaSummary, ProjectDetail } from "@/modules/projects/project-input";
 
 vi.mock("@/modules/projects/actions", () => ({
   addDependency: vi.fn(),
@@ -31,7 +31,7 @@ const HOME: ProjectAreaSummary = {
 
 const NOW = new Date("2026-10-01T15:00:00.000Z");
 
-const PROJECT: ProjectSummary = {
+const PROJECT: ProjectDetail = {
   id: "00000000-0000-4000-8000-000000000001",
   name: "Mudanza",
   objective: null,
@@ -41,6 +41,7 @@ const PROJECT: ProjectSummary = {
   dueDate: null,
   completedAt: null,
   area: HOME,
+  notes: null,
 };
 
 const dep = (n: number, name: string, status: DependencyProject["status"] = "active") => ({

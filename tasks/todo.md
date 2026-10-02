@@ -44,6 +44,7 @@
   - **Qué:** `src/lib/markdown/` con `react-markdown` + `remark-gfm` + `rehype-sanitize` (reutilizable); notas con "Escribir" / "Vista previa", guardado explícito y aviso de cambios sin guardar; enlaces `http(s)` con etiqueta: agregar, editar, reordenar, quitar.
   - **Aceptación:** criterio 6 de la spec; pruebas de saneado (`<script>`, `javascript:`, HTML crudo).
   - **Tamaño:** M
+  - **Estado:** implementado en `feat/projects-p5-notes-links` (PR abierto, sin merge). Cómo funciona y decisiones: `docs/HANDOFF.md`, "Notas y enlaces (P5)".
 
 ## Fase 3 — Contratos
 
