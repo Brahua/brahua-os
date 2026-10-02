@@ -1,6 +1,28 @@
-# Tareas
+# Tareas: habits
 
-> Siguiente módulo: `habits` (spec en preparación, `SPEC-habits.md`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Plan: [`tasks/plan.md`](plan.md) · Spec: [`SPEC-habits.md`](../SPEC-habits.md)
+> Cada tarea termina con lint, typecheck, unitarias, integración y build en verde, E2E nativa de lo tocado, un PR con los 3 checks verdes y el deploy con smoke test. Commits en inglés (`feat(habits): …`).
+> Tareas anteriores en [`archive/`](archive/).
+
+## Fase 1 — Base
+
+- [ ] **H1: Datos, crear y registrar con un toque** — tablas `habits`, `habit_logs`, `habit_pauses` (con `kind`, `CHECK`, índices, locks en el espacio 4000, `visibleHabit`) y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja slots para H2 y H3.
+
+## Fase 2 — Reglas *(H2 y H3 en paralelo)*
+
+- [ ] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar.
+- [ ] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída).
+
+## Fase 3 — Rachas e historial
+
+- [ ] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha y mejor racha en el pad; pausas; registro y corrección hasta 7 días atrás; hitos de racha.
+- [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados".
+- [ ] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño.
+
+### Checkpoint final
+- [ ] Recorrido completo en producción (agente con el Chrome del owner) y el iPhone (owner).
+- [ ] Se cumplen los criterios de éxito de `SPEC-habits.md`.
+- [ ] Revisión con el owner antes del siguiente módulo.
 
 ## Backlog técnico
 
