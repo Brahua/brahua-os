@@ -60,12 +60,23 @@ describe("todayCount", () => {
 describe("the optimistic list", () => {
   const [a, b, c] = [habit(), habit(), habit()];
 
-  test("a tap patches the day; unmarking keeps that it has logs", () => {
-    expect(donePatch(a, true)).toEqual({ quantity: 1, hasLogs: true });
-    expect(donePatch({ ...a, hasLogs: true }, false)).toEqual({ quantity: 0, hasLogs: true });
-    expect(donePatch(a, false)).toEqual({ quantity: 0, hasLogs: false });
+  test("a tap patches the day; marked or unmarked, it has a log row now (like the server)", () => {
+    expect(donePatch(true)).toEqual({ quantity: 1, hasLogs: true });
+    expect(donePatch(false)).toEqual({ quantity: 0, hasLogs: true });
     const list = applyHabitListChange([a, b], { type: "update", id: b.id, patch: { quantity: 1 } });
     expect(list.map((item) => item.quantity)).toEqual([0, 1]);
+    // An unknown id changes nothing.
+    expect(applyHabitListChange([a], { type: "update", id: "x", patch: { quantity: 1 } })).toEqual([
+      a,
+    ]);
+  });
+
+  test("restore with a negative index goes first", () => {
+    expect(applyHabitListChange([a, c], { type: "restore", habit: b, index: -3 })).toEqual([
+      b,
+      a,
+      c,
+    ]);
   });
 
   test("remove, and restore at its old place (or in place when it is back already)", () => {

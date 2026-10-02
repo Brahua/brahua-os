@@ -13,6 +13,8 @@ import {
   type RadioGridOption,
 } from "@/modules/core/components/radio-grid";
 import { createHabit } from "../actions";
+import { frequencySummary } from "../frequency-input";
+import { measureSummary } from "../measure-input";
 import {
   CREATE_HABIT_FIELDS,
   createHabitInputSchema,
@@ -37,12 +39,11 @@ function firstErrors(fieldErrors: FieldErrors | undefined): Errors {
 }
 
 /**
- * The live summary under the form ("Cada día · Sí o no"). H1: every habit is a daily yes/no.
- * H2 slot (Frecuencia) and H3 slot (Medición): build it from the draft ("3 veces por semana ·
- * 8 vasos").
+ * The live summary under the form ("Cada día · Sí o no"): each half comes from the file its task
+ * owns (H2 frequency-input.ts, H3 measure-input.ts), built from the draft.
  */
-function ruleSummary(): string {
-  return HABITS_COPY.summaryDailyCheck;
+function ruleSummary(draft: object): string {
+  return `${frequencySummary(draft)} · ${measureSummary(draft)}`;
 }
 
 export type HabitFormSheetProps = {
@@ -204,7 +205,14 @@ export function HabitFormSheet({
         </>
       }
     >
-      <form id={formId} noValidate onSubmit={submit} className="flex flex-col gap-6">
+      <form
+        id={formId}
+        noValidate
+        onSubmit={submit}
+        className="flex flex-col gap-6"
+        // E2E `afterSaveSettled` waits for this while the create is in flight.
+        data-saving={pending ? "" : undefined}
+      >
         <TextField
           ref={nameInput}
           label={HABITS_COPY.nameLabel}
@@ -256,7 +264,7 @@ export function HabitFormSheet({
 
         <p className="bo-text-body-sm text-text-secondary">
           <span className="bo-text-label">{HABITS_COPY.summaryLabel}: </span>
-          <span id={summaryId}>{ruleSummary()}</span>
+          <span id={summaryId}>{ruleSummary({ name, lifeAreaId })}</span>
         </p>
 
         {formError ? (

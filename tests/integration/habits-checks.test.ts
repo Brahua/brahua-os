@@ -36,7 +36,9 @@ async function violation(run: () => Promise<unknown>) {
 const habit = (values: Record<string, unknown>) => () =>
   testDb.insert(habits).values({ ...BASE, ...values } as typeof habits.$inferInsert);
 const log = (values: Partial<typeof habitLogs.$inferInsert>) => () =>
-  testDb.insert(habitLogs).values({ habitId, day: "2026-10-02", quantity: 1, target: 1, ...values });
+  testDb
+    .insert(habitLogs)
+    .values({ habitId, day: "2026-10-02", quantity: 1, target: 1, ...values });
 const pause = (values: Partial<typeof habitPauses.$inferInsert>) => () =>
   testDb
     .insert(habitPauses)
@@ -71,9 +73,9 @@ describe("habits CHECKs", () => {
     expect(await violation(habit({ cue: "a".repeat(61) }))).toEqual(
       check("habits_cue_length_check"),
     );
-    expect(
-      await violation(habit({ measure: "quantity", goal: 8, unit: "a".repeat(21) })),
-    ).toEqual(check("habits_unit_length_check"));
+    expect(await violation(habit({ measure: "quantity", goal: 8, unit: "a".repeat(21) }))).toEqual(
+      check("habits_unit_length_check"),
+    );
     expect(await violation(habit({ measure: "quantity", goal: 8, unit: "" }))).toEqual(
       check("habits_unit_length_check"),
     );
@@ -114,7 +116,9 @@ describe("habits CHECKs", () => {
     expect(await violation(habit({ measure: "quantity", goal: 8, unit: "min", step: 0 }))).toEqual(
       rule,
     );
-    expect(await violation(habit({ measure: "quantity", goal: 8, unit: "min", step: 8 }))).toBeNull();
+    expect(
+      await violation(habit({ measure: "quantity", goal: 8, unit: "min", step: 8 })),
+    ).toBeNull();
   });
 
   test("each frequency with exactly its own field", async () => {
@@ -192,13 +196,13 @@ describe("habit_logs", () => {
   });
 
   test("a log needs its habit, and a habit with logs can't be removed (restrict)", async () => {
-    expect(
-      await violation(log({ habitId: "00000000-0000-4000-8000-000000000000" })),
-    ).toMatchObject({ code: "23503" });
-    await log({})();
-    expect(await violation(() => testDb.delete(habits).where(eq(habits.id, habitId)))).toMatchObject(
-      { code: "23001" },
+    expect(await violation(log({ habitId: "00000000-0000-4000-8000-000000000000" }))).toMatchObject(
+      { code: "23503" },
     );
+    await log({})();
+    expect(
+      await violation(() => testDb.delete(habits).where(eq(habits.id, habitId))),
+    ).toMatchObject({ code: "23001" });
     // Positive control: a habit without logs or pauses can be removed (only raw SQL does).
     const [other] = await testDb.insert(habits).values(BASE).returning();
     expect(await violation(() => testDb.delete(habits).where(eq(habits.id, other.id)))).toBeNull();
@@ -224,6 +228,16 @@ describe("habit_pauses", () => {
     expect(await violation(pause({ reason: "a".repeat(61) }))).toEqual(
       check("habit_pauses_reason_length_check"),
     );
+  });
+
+  test("a pause needs its habit, and a habit with pauses can't be removed (restrict)", async () => {
+    expect(
+      await violation(pause({ habitId: "00000000-0000-4000-8000-000000000000" })),
+    ).toMatchObject({ code: "23503" });
+    await pause({})();
+    expect(
+      await violation(() => testDb.delete(habits).where(eq(habits.id, habitId))),
+    ).toMatchObject({ code: "23001" });
   });
 
   test("the indexes of the spec exist (partial, as written)", async () => {

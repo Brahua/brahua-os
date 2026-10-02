@@ -20,6 +20,8 @@ import { alias, type AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { habitLogs, habits } from "./db/schema";
+import { frequencyColumns } from "./frequency-input";
+import { measureColumns } from "./measure-input";
 import type { CreateHabitInput, DeletedHabit, HabitItem, SetHabitDoneInput } from "./habit-input";
 import { isLoggableDay } from "./schedule";
 
@@ -92,9 +94,10 @@ const ROW = {
   },
   quantity: sql<number>`coalesce(${dayLog.quantity}, 0)`.mapWith(Number),
   target: sql<number>`coalesce(${dayLog.target}, ${habits.goal})`.mapWith(Number),
+  // Any log row, unmarked ones (0) included: once a day was logged, deleting asks first. The
+  // optimistic view says the same after a tap (`donePatch`), so both agree.
   hasLogs: sql<boolean>`exists (
-    select 1 from habit_logs any_log
-    where any_log.habit_id = ${habits.id} and any_log.quantity > 0
+    select 1 from habit_logs any_log where any_log.habit_id = ${habits.id}
   )`.mapWith(Boolean),
 };
 
@@ -126,11 +129,7 @@ export async function selectHabitItemById(
 
 /** Why a write was refused. */
 export type HabitFailure =
-  | "notFound"
-  | "archived"
-  | "areaUnavailable"
-  | "dayOutOfWindow"
-  | "measureMismatch";
+  "notFound" | "archived" | "areaUnavailable" | "dayOutOfWindow" | "measureMismatch";
 
 /**
  * Creates a habit at the end of the manual order, starting `today`. H1: a daily yes/no habit to
@@ -162,10 +161,9 @@ export async function insertHabit(
       .values({
         name: input.name,
         lifeAreaId: input.lifeAreaId,
-        // H2 and H3 slots: the frequency, kind and measure from the input.
-        kind: "build",
-        measure: "check",
-        frequency: "daily",
+        // H2 (frequency-input.ts) and H3 (measure-input.ts) own these.
+        ...frequencyColumns(input),
+        ...measureColumns(input),
         startDate: today,
         sortOrder: next,
       })

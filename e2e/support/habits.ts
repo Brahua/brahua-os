@@ -18,7 +18,7 @@ export const test = base.extend<{ habitsLock: void }>({
   habitsLock: [
     // Playwright requires the object pattern for the (unused) fixtures argument.
     async ({}, provide) => {
-      const client = new Client({ connectionString: process.env.TEST_DATABASE_URL });
+      const client = new Client({ connectionString: testDatabaseUrl() });
       await client.connect();
       await client.query("select pg_advisory_lock(hashtext('e2e_habits'))");
       await clearHabits();
@@ -60,7 +60,11 @@ type NewHabit = {
   sortOrder?: number;
 };
 
-/** A daily yes/no habit straight in the database (started a week ago). Returns its id. */
+/**
+ * A daily yes/no habit straight in the database (started a week ago). Returns its id. "Today" is
+ * Lima's by this process's clock; the server computes its own, so a run that crosses Lima's
+ * midnight (05:00 UTC) can see a `done` habit as not done. Rerun it.
+ */
 export function insertHabit(habit: NewHabit): Promise<string> {
   return withDb(async (db) => {
     let lifeAreaId: string | null = null;
@@ -102,6 +106,17 @@ export function readHabit(id: string) {
       .from(habitLogs)
       .where(and(eq(habitLogs.habitId, id), eq(habitLogs.day, limaDay(0))));
     return { ...row, today: today?.quantity ?? null };
+  });
+}
+
+/** A seeded area's id, by slug. */
+export function areaIdOf(slug: string): Promise<string> {
+  return withDb(async (db) => {
+    const [area] = await db
+      .select({ id: lifeAreas.id })
+      .from(lifeAreas)
+      .where(eq(lifeAreas.slug, slug));
+    return area.id;
   });
 }
 

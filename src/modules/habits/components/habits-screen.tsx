@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, use, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { createContext, use, useCallback, useEffect, useMemo, useRef } from "react";
+import { ownerDateKey } from "@/lib/time";
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
 import { useAnnouncer, useRequiredScreenServices } from "@/modules/core/components/screen-services";
@@ -27,7 +29,52 @@ export type HabitsScreenValue = {
   toaster: Toaster;
   /** Says something politely to screen readers. */
   announce: (message: string) => void;
+  /**
+   * Whether Lima's day is still `today`. If it changed (the page was left open past midnight,
+   * e.g. the installed app resumed in the morning), it reloads the page's data and says so, and
+   * returns false: the caller must not log the day before by mistake.
+   */
+  isCurrentDay: () => boolean;
 };
+
+/** How often an open screen checks whether Lima's day changed (also on becoming visible). */
+const DAY_CHECK_MS = 60_000;
+
+/**
+ * Keeps `today` current: when Lima's day changes while the screen is open, the page is read
+ * again (`router.refresh()`), checked every minute and whenever the page becomes visible.
+ */
+function useDayRollover(today: string, announce: (message: string) => void) {
+  const router = useRouter();
+  const refreshed = useRef<string | null>(null);
+
+  const isCurrentDay = useCallback(() => {
+    const now = ownerDateKey(new Date());
+    if (now === today) return true;
+    if (refreshed.current !== now) {
+      refreshed.current = now;
+      announce(HABITS_COPY.newDay);
+      router.refresh();
+    }
+    return false;
+  }, [today, announce, router]);
+
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState === "visible") isCurrentDay();
+    };
+    const timer = window.setInterval(check, DAY_CHECK_MS);
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("pageshow", check);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("pageshow", check);
+    };
+  }, [isCurrentDay]);
+
+  return isCurrentDay;
+}
 
 const HabitsScreenContext = createContext<HabitsScreenValue | null>(null);
 
@@ -52,10 +99,11 @@ export function HabitsScreen({ today, areas, children }: HabitsScreenProps) {
   const toaster = useToaster();
   const enqueue = useSaveQueue();
   const [announcement, announce] = useAnnouncer();
+  const isCurrentDay = useDayRollover(today, announce);
 
   const value = useMemo<HabitsScreenValue>(
-    () => ({ today, areas, enqueue, toaster, announce }),
-    [today, areas, enqueue, toaster, announce],
+    () => ({ today, areas, enqueue, toaster, announce, isCurrentDay }),
+    [today, areas, enqueue, toaster, announce, isCurrentDay],
   );
 
   return (
@@ -86,9 +134,10 @@ type HabitsScreenWithinProps = {
  */
 export function HabitsScreenWithin({ today, areas, children }: HabitsScreenWithinProps) {
   const { enqueue, toaster, announce } = useRequiredScreenServices();
+  const isCurrentDay = useDayRollover(today, announce);
   const value = useMemo<HabitsScreenValue>(
-    () => ({ today, areas, enqueue, toaster, announce }),
-    [today, areas, enqueue, toaster, announce],
+    () => ({ today, areas, enqueue, toaster, announce, isCurrentDay }),
+    [today, areas, enqueue, toaster, announce, isCurrentDay],
   );
   return <HabitsScreenContext value={value}>{children}</HabitsScreenContext>;
 }

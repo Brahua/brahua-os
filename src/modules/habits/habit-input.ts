@@ -4,6 +4,8 @@
 import { z } from "zod";
 import type { AreaColor, AreaIconName } from "@/design-system/areas";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
+import { frequencyInputShape } from "./frequency-input";
+import { measureInputShape } from "./measure-input";
 import {
   HABIT_NAME_MAX_LENGTH,
   type HabitFrequency,
@@ -55,7 +57,7 @@ export type HabitItem = {
   quantity: number;
   /** The goal in force that day: the log's own, or the habit's goal without a log. */
   target: number;
-  /** Whether any day was ever logged (deleting it asks for confirmation then). */
+  /** Whether any day was ever logged, even unmarked again (deleting it asks first then). */
   hasLogs: boolean;
 };
 
@@ -67,6 +69,8 @@ export const normalizeHabitName = normalizeName;
 
 const name = z
   .string({ error: HABIT_ERRORS.nameRequired })
+  // A cheap cap before normalizing: an absurdly long string is refused without the work.
+  .max(HABIT_NAME_MAX_LENGTH * 4, HABIT_ERRORS.nameTooLong)
   .transform(normalizeHabitName)
   .pipe(
     z
@@ -90,14 +94,14 @@ const day = z.iso.date({ error: HABIT_ERRORS.dayInvalid });
 
 /**
  * Creating a habit. H1: a daily yes/no habit to keep, with a name and optionally an area. H2 adds
- * the frequency and H3 the kind and the measure here, as optional fields with these defaults.
+ * the frequency (frequency-input.ts) and H3 the kind and the measure (measure-input.ts), each in
+ * its own file, as optional fields with H1's defaults.
  */
 export const createHabitInputSchema = z.object({
   name,
   lifeAreaId,
-  // H2 slot (Frecuencia): frequency, weeklyTarget, weekdays.
-
-  // H3 slot (Tipo y Medición): kind, measure, goal, unit, step.
+  ...frequencyInputShape,
+  ...measureInputShape,
 });
 
 export type CreateHabitInput = z.output<typeof createHabitInputSchema>;

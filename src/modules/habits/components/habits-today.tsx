@@ -25,6 +25,9 @@ const preloadOptions = () => void loadOptions();
 
 type Opening = { habit: HabitItem; key: number };
 
+/** How long focus may still go to a pad that hasn't appeared yet (a created habit). */
+const PENDING_FOCUS_MS = 5_000;
+
 type HabitsTodayProps = {
   /** The active habits with today's log, in their manual order. */
   habits: HabitItem[];
@@ -39,29 +42,43 @@ type HabitsTodayProps = {
  * or a network failure rolls back with a notice.
  */
 export function HabitsToday({ habits, headingId }: HabitsTodayProps) {
-  const { today, areas, enqueue, toaster, announce } = useHabitsScreen();
+  const { today, areas, enqueue, toaster, announce, isCurrentDay } = useHabitsScreen();
   const { push } = toaster;
   const [view, apply] = useOptimistic(habits, applyHabitListChange);
   const [saving, startSaving] = useTransition();
   const due = dueOn(view, today);
   const count = todayCount(view, today);
+  const listHeadingId = `${headingId}-today`;
 
-  // ── Focus that has to wait for a commit (a pad that appears or leaves) ──
-  const pendingFocus = useRef<string | null>(null);
+  // ── Focus that has to wait for a commit (a created habit's pad, before its revalidation) ──
+  // Expires: if the pad never shows up (a failed revalidation), a later render must not take
+  // focus away from wherever the person went meanwhile.
+  const pendingFocus = useRef<{ selector: string; until: number } | null>(null);
   useEffect(() => {
-    const selector = pendingFocus.current;
-    if (!selector) return;
-    const element = document.querySelector<HTMLElement>(selector);
-    if (!element) return; // Not on screen yet (a created habit before the revalidation lands).
+    const pending = pendingFocus.current;
+    if (!pending) return;
+    if (Date.now() > pending.until) {
+      pendingFocus.current = null;
+      return;
+    }
+    const element = document.querySelector<HTMLElement>(pending.selector);
+    if (!element) return;
     pendingFocus.current = null;
     element.focus();
   });
 
-  /** Focus `selector` now if it is there, else as soon as it shows up. */
+  /**
+   * Focus `selector` now if it is there; otherwise the heading for now (never <body>) and
+   * `selector` as soon as it shows up (within a few seconds).
+   */
   function focusWhenReady(selector: string) {
     const element = document.querySelector<HTMLElement>(selector);
-    if (element) element.focus();
-    else pendingFocus.current = selector;
+    if (element) {
+      element.focus();
+      return;
+    }
+    document.getElementById(headingId)?.focus();
+    pendingFocus.current = { selector, until: Date.now() + PENDING_FOCUS_MS };
   }
 
   /** What to focus once `id` leaves: its neighbor's pad, or the page's heading. */
@@ -90,8 +107,15 @@ export function HabitsToday({ habits, headingId }: HabitsTodayProps) {
    * undo itself, which is only announced.
    */
   function logDay(habit: HabitItem, done: boolean, undoable: boolean) {
+    // The page was read for another Lima day (left open past midnight): reload it instead of
+    // logging the day before by mistake (isCurrentDay refreshes and says so).
+    if (!isCurrentDay()) return;
+    const change = { type: "update", id: habit.id, patch: donePatch(done) } as const;
+    // The count as it will be after this tap ("2 de 3 hoy"), said in the notice too.
+    const after = todayCount(applyHabitListChange(view, change), today);
+    const progress = HABITS_COPY.todayCount(after.done, after.total);
     startSaving(async () => {
-      apply({ type: "update", id: habit.id, patch: donePatch(habit, done) });
+      apply(change);
       const queued = await enqueue(`habit-day:${habit.id}:${today}`, () =>
         setHabitDone({ id: habit.id, day: today, done }),
       );
@@ -105,7 +129,9 @@ export function HabitsToday({ habits, headingId }: HabitsTodayProps) {
       if (undoable) {
         push({
           title: done ? HABITS_COPY.doneTitle : HABITS_COPY.undoneTitle,
-          text: done ? HABITS_COPY.done(habit.name) : HABITS_COPY.undone(habit.name),
+          text: done
+            ? HABITS_COPY.done(habit.name, progress)
+            : HABITS_COPY.undone(habit.name, progress),
           action: { label: HABITS_COPY.undo, run: () => logDay(habit, !done, false) },
         });
       } else {
@@ -229,7 +255,8 @@ export function HabitsToday({ habits, headingId }: HabitsTodayProps) {
         </Key>
       </header>
 
-      {due.length === 0 ? (
+      {/* No habits at all. (With habits but none due today, H2 says "Nada toca hoy" below.) */}
+      {view.length === 0 ? (
         <div className="bo-card max-w-160 items-start">
           <Icon icon={Repeat} size="xl" className="text-text-secondary" />
           <h2 className="bo-text-title">{HABITS_COPY.emptyTitle}</h2>
@@ -246,30 +273,43 @@ export function HabitsToday({ habits, headingId }: HabitsTodayProps) {
           </Key>
         </div>
       ) : (
-        <ul
-          aria-label={HABITS_COPY.padsLabel}
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
-        >
-          {due.map((habit) => (
-            <li key={habit.id} className="relative min-w-0" data-habit-cell={habit.id}>
-              <HabitPad habit={habit} onToggle={toggle} reserveCorner />
-              <div className="absolute top-2 right-2">
-                {/* No tooltip: it would repeat the habit's (possibly long) name over the next
+        <section aria-labelledby={listHeadingId} className="flex flex-col gap-3">
+          {/* A heading of its own (read by screen readers), so H2 and H4's sections ("No tocan
+              hoy", "En pausa") sit next to it at the same level. */}
+          <h2 id={listHeadingId} className="sr-only">
+            {HABITS_COPY.padsLabel}
+          </h2>
+
+          {/* H2 slot ("Nada toca hoy" when there are habits but none is due today). */}
+
+          {due.length > 0 ? (
+            <ul
+              aria-labelledby={listHeadingId}
+              className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+            >
+              {due.map((habit) => (
+                <li key={habit.id} className="relative min-w-0" data-habit-cell={habit.id}>
+                  <HabitPad habit={habit} onToggle={toggle} reserveCorner />
+                  {/* 4 px from the corner: a tap that misses the key by a little hits it, not the pad. */}
+                  <div className="absolute top-1 right-1">
+                    {/* No tooltip: it would repeat the habit's (possibly long) name over the next
                     column and push the page sideways at 320 px; the name is the key's label. */}
-                <IconKey
-                  icon={Ellipsis}
-                  label={HABITS_COPY.options(habit.name)}
-                  tooltip={false}
-                  aria-haspopup="dialog"
-                  onPointerEnter={preloadOptions}
-                  onFocus={preloadOptions}
-                  onTouchStart={preloadOptions}
-                  onClick={(event) => openOptions(habit, event.currentTarget)}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+                    <IconKey
+                      icon={Ellipsis}
+                      label={HABITS_COPY.options(habit.name)}
+                      tooltip={false}
+                      aria-haspopup="dialog"
+                      onPointerEnter={preloadOptions}
+                      onFocus={preloadOptions}
+                      onTouchStart={preloadOptions}
+                      onClick={(event) => openOptions(habit, event.currentTarget)}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       )}
 
       {/* H2 slot ("No tocan hoy (N)", plegado: días fijos de otros días; se registran igual). */}

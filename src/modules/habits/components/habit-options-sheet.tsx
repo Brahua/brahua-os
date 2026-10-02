@@ -82,25 +82,21 @@ export function HabitOptionsSheet({
         {/* H4 slot (Pausar, Reanudar). */}
 
         {confirming ? (
-          <div
-            role="group"
-            aria-labelledby={`${ids}-confirm-title`}
-            aria-describedby={confirmTextId}
-            className="flex flex-col gap-3"
-          >
-            <h3
-              id={`${ids}-confirm-title`}
-              ref={confirmTitle}
-              tabIndex={-1}
-              className="bo-text-body-strong outline-none"
-            >
+          // No role="group" named by the heading: with focus on the heading it was read twice.
+          <div className="flex flex-col gap-3">
+            <h3 ref={confirmTitle} tabIndex={-1} className="bo-text-body-strong outline-none">
               {HABITS_COPY.confirmTitle(habit.name)}
             </h3>
             <p id={confirmTextId} className="bo-text-body-sm text-text-secondary">
               {HABITS_COPY.confirmText}
             </p>
             <div className="flex flex-wrap gap-2">
-              <Key variant="signal" icon={Trash2} onClick={() => onDelete(habit)}>
+              <Key
+                variant="signal"
+                icon={Trash2}
+                aria-describedby={confirmTextId}
+                onClick={() => onDelete(habit)}
+              >
                 {HABITS_COPY.confirmDelete}
               </Key>
               <Key variant="ghost" onClick={keep}>

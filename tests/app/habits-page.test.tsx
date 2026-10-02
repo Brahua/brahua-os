@@ -3,18 +3,24 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import HabitsPage, { metadata } from "@/app/(app)/habits/page";
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
 import { listLifeAreas } from "@/modules/core/queries";
 import { createHabit, deleteHabit, restoreHabit } from "@/modules/habits/actions";
-import { HabitsScreen } from "@/modules/habits/components/habits-screen";
+import { ScreenServicesContext } from "@/modules/core/components/screen-services";
+import { HabitsScreen, HabitsScreenWithin } from "@/modules/habits/components/habits-screen";
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import { HABIT_ERRORS, type HabitAreaSummary, type HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
 import { listActiveHabits } from "@/modules/habits/queries";
 
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => router,
+}));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/habits/queries", () => ({ listActiveHabits: vi.fn() }));
@@ -26,6 +32,8 @@ vi.mock("@/modules/habits/actions", () => ({
 vi.mock("@/modules/habits/log-actions", () => ({ setHabitDone: vi.fn() }));
 
 const TODAY = "2026-10-02";
+/** 10:00 in Lima on TODAY. Only Date is faked (timers stay real for userEvent). */
+const NOW = new Date("2026-10-02T15:00:00.000Z");
 
 const HEALTH: HabitAreaSummary = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -116,6 +124,9 @@ function Harness() {
 
 let desktop = false;
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+  router.refresh.mockReset();
   desktop = false;
   window.matchMedia = vi.fn((query: string) => ({
     matches: desktop,
@@ -141,7 +152,7 @@ beforeEach(() => {
       const change = (item: HabitItem): HabitItem => ({
         ...item,
         quantity: done ? 1 : 0,
-        hasLogs: item.hasLogs || done,
+        hasLogs: true,
       });
       return serverCall(
         (habits) => habits.map((item) => (item.id === id ? change(item) : item)),
@@ -167,7 +178,12 @@ beforeEach(() => {
       const { id } = input as { id: string };
       const back = deleted.get(id)!;
       return serverCall(
-        (habits) => HABITS.filter((item) => item.id === id || habits.includes(item)),
+        // Back in its place (the server keeps its sort order), the others as they are now.
+        (habits) => {
+          const ids = new Set([...habits.map((item) => item.id), id]);
+          const current = new Map([...habits, back].map((item) => [item.id, item]));
+          return HABITS.filter((item) => ids.has(item.id)).map((item) => current.get(item.id)!);
+        },
         () => back,
       );
     });
@@ -176,6 +192,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await server.answerAll();
+  vi.useRealTimers();
 });
 
 /** A pad by its exact name (a string name matches the whole accessible name). */
@@ -213,7 +230,9 @@ describe("/habits", () => {
   test("empty: an explanation and a key to create the first one; no count", async () => {
     vi.mocked(listActiveHabits).mockResolvedValue([]);
     render(await HabitsPage());
-    expect(screen.getByRole("heading", { level: 2, name: "Todavía no tienes hábitos" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Todavía no tienes hábitos" }),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Crear un hábito" })).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Hábitos de hoy" })).not.toBeInTheDocument();
     expect(count()).toBeUndefined();
@@ -233,7 +252,9 @@ describe("one tap", () => {
 
     await server.answer();
     expect(pad("Meditar")).toHaveAttribute("aria-pressed", "true");
-    expect(within(notices()).getByText("«Meditar» quedó hecho hoy.")).toBeInTheDocument();
+    expect(
+      within(notices()).getByText("«Meditar» quedó hecho hoy. 2 de 3 hoy."),
+    ).toBeInTheDocument();
 
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
     expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false");
@@ -252,11 +273,13 @@ describe("one tap", () => {
     expect(pad("Leer")).toHaveAttribute("aria-pressed", "false");
     expect(setHabitDone).toHaveBeenCalledWith({ id: LEER.id, day: TODAY, done: false });
     await server.answer();
-    expect(within(notices()).getByText("«Leer» quedó sin marcar hoy.")).toBeInTheDocument();
+    expect(
+      within(notices()).getByText("«Leer» quedó sin marcar hoy. 0 de 3 hoy."),
+    ).toBeInTheDocument();
     expect(count()).toBe("0 de 3 hoy");
   });
 
-  test("two quick taps: only the last state is sent after the one in flight", async () => {
+  test("three quick taps: only the last state is sent after the one in flight; one notice", async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(pad("Tomar agua"));
@@ -269,6 +292,76 @@ describe("one tap", () => {
     expect(setHabitDone).toHaveBeenCalledTimes(2);
     expect(setHabitDone).toHaveBeenLastCalledWith({ id: AGUA.id, day: TODAY, done: true });
     expect(pad("Tomar agua")).toHaveAttribute("aria-pressed", "true");
+    // Only the last one speaks (the one in flight was superseded).
+    expect(within(notices()).getAllByText(/«Tomar agua» quedó/)).toHaveLength(1);
+  });
+
+  test("the pad: HECHO (decorative) when done, the area as its description", async () => {
+    render(<Harness />);
+    const status = (name: string) => pad(name).querySelector(".bo-key__sub");
+    expect(status("Leer")).toHaveTextContent("HECHO");
+    expect(status("Leer")).toHaveAttribute("aria-hidden", "true");
+    expect(status("Meditar")).toHaveTextContent("");
+    expect(pad("Meditar")).toHaveAccessibleDescription("Área: Salud");
+    expect(pad("Leer")).not.toHaveAttribute("aria-describedby");
+  });
+
+  test("a refused Deshacer leaves the pad as the tap left it, with a notice", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(pad("Meditar"));
+    await server.answer();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false");
+    await server.answer(fail(HABIT_ERRORS.archived));
+    expect(pad("Meditar")).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(notices()).getByText(`No se pudo deshacer. ${HABIT_ERRORS.archived}`),
+    ).toBeInTheDocument();
+  });
+
+  test("past Lima's midnight on an open page, a tap reloads instead of logging yesterday", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    // 00:30 in Lima on the 3rd; the page was read on the 2nd.
+    vi.setSystemTime(new Date("2026-10-03T05:30:00.000Z"));
+    await user.click(pad("Meditar"));
+    expect(setHabitDone).not.toHaveBeenCalled();
+    expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(announcer()).toHaveTextContent("Empezó un nuevo día: actualizando tus hábitos."),
+    );
+    // A second tap doesn't refresh again for the same day.
+    await user.click(pad("Meditar"));
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("becoming visible on a new day refreshes the page; the same day doesn't", async () => {
+    const visible = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    onTestFinished(() => visible.mockRestore());
+    render(<Harness />);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(router.refresh).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date("2026-10-03T05:00:00.000Z"));
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("23:30 in Lima is still the same day: the page logs it, not UTC's next one", async () => {
+    vi.setSystemTime(new Date("2026-10-03T04:30:00.000Z"));
+    const user = userEvent.setup();
+    render(await HabitsPage());
+    expect(vi.mocked(listActiveHabits).mock.calls[0][0]).toEqual(
+      new Date("2026-10-03T04:30:00.000Z"),
+    );
+    await user.click(pad("Meditar"));
+    expect(setHabitDone).toHaveBeenCalledWith({ id: MEDITAR.id, day: "2026-10-02", done: true });
+    await server.answer();
   });
 
   test("a refusal rolls back with a notice that says why", async () => {
@@ -336,6 +429,51 @@ describe("delete", () => {
     expect(deleteHabit).toHaveBeenCalledWith({ id: LEER.id });
     expect(padNames()).toEqual(["Meditar", "Tomar agua"]);
     await server.answer();
+  });
+
+  test("a habit tapped just now has logs: deleting it asks first", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(pad("Meditar"));
+    await server.answer();
+    const dialog = await openOptions(user, "Meditar");
+    await user.click(within(dialog).getByRole("button", { name: "Eliminar hábito" }));
+    expect(within(dialog).getByRole("heading", { name: "¿Eliminar «Meditar»?" })).toHaveFocus();
+    expect(deleteHabit).not.toHaveBeenCalled();
+  });
+
+  test("Esc closes the options and focus goes back to their key", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await openOptions(user, "Leer");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Opciones de «Leer»" })).toHaveFocus();
+  });
+
+  test("a delete lost to the network brings the pad back with a notice", async () => {
+    vi.mocked(deleteHabit).mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    render(<Harness />);
+    const dialog = await openOptions(user, "Meditar");
+    await user.click(within(dialog).getByRole("button", { name: "Eliminar hábito" }));
+    await waitFor(() => expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]));
+    expect(within(notices()).getByText(/No se pudo eliminar\. Revisa tu conexión/)).toBeVisible();
+  });
+
+  test("a refused restore takes the pad out again, with a notice", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const dialog = await openOptions(user, "Meditar");
+    await user.click(within(dialog).getByRole("button", { name: "Eliminar hábito" }));
+    await server.answer();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]);
+    await server.answer(fail(HABIT_ERRORS.notFound));
+    expect(padNames()).toEqual(["Leer", "Tomar agua"]);
+    expect(
+      within(notices()).getByText(`No se pudo deshacer. ${HABIT_ERRORS.notFound}`),
+    ).toBeInTheDocument();
   });
 
   test("the last pad leaving sends focus to the heading; the empty state shows", async () => {
@@ -446,5 +584,114 @@ describe("create", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(key).toHaveFocus();
     expect(createHabit).not.toHaveBeenCalled();
+  });
+
+  test("while it creates: no second submit, and Esc or Cancelar don't close it", async () => {
+    let answer: () => void = () => {};
+    const created = habit({ name: "Estirar" });
+    vi.mocked(createHabit).mockImplementation(
+      () => new Promise((resolve) => (answer = () => resolve(ok(created)))),
+    );
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Nuevo hábito" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
+    const name = within(dialog).getByRole("textbox", { name: "Nombre" });
+    await user.type(name, "Estirar{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Creando…" }));
+    await user.type(name, "{Enter}");
+    expect(createHabit).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Escape}");
+    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("dialog", { name: "Nuevo hábito" })).toBeVisible();
+    // E2E waits for this marker before measuring.
+    expect(dialog.querySelector("form")).toHaveAttribute("data-saving");
+    await act(async () => answer());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  test("a create lost to the network: the general error, the sheet stays open", async () => {
+    vi.mocked(createHabit).mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Nuevo hábito" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Estirar{Enter}");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "No se pudo guardar. Revisa tu conexión",
+    );
+    expect(screen.getByRole("dialog", { name: "Nuevo hábito" })).toBeVisible();
+  });
+
+  test("from the empty state: the key leaves, so focus waits on the heading for the new pad", async () => {
+    server.habits = [];
+    const created = habit({ name: "Primero" });
+    let answer: () => void = () => {};
+    vi.mocked(createHabit).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve(ok(created));
+        }),
+    );
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Crear un hábito" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Primero{Enter}");
+    // The server answers before its revalidation reaches the page.
+    await act(async () => answer());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus(),
+    );
+    // The revalidation lands: focus moves to the new pad.
+    act(() => server.render([created]));
+    await waitFor(() => expect(pad("Primero")).toHaveFocus());
+  });
+});
+
+describe("the context", () => {
+  test("useHabitsScreen outside a habits screen is an error", () => {
+    const silence = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => silence.mockRestore());
+    expect(() => render(<HabitsToday habits={[]} headingId="x" />)).toThrow(
+      "useHabitsScreen must be used inside HabitsScreen",
+    );
+  });
+
+  test("HabitsScreenWithin uses the host screen's queue, notices and announcer (H6)", async () => {
+    const push = vi.fn();
+    const announce = vi.fn();
+    const services = {
+      enqueue: (async (_key: string | null, call: () => Promise<unknown>) => ({
+        kind: "done",
+        value: await call(),
+        superseded: false,
+      })) as never,
+      toaster: {
+        state: { visible: null, queue: [], serial: 0 },
+        push,
+        replace: vi.fn(),
+        dismiss: vi.fn(),
+      },
+      announce,
+    };
+    const user = userEvent.setup();
+    render(
+      <ScreenServicesContext value={services}>
+        <HabitsScreenWithin today={TODAY} areas={AREAS}>
+          <HabitsToday habits={[MEDITAR]} headingId="x" />
+        </HabitsScreenWithin>
+      </ScreenServicesContext>,
+    );
+    await user.click(pad("Meditar"));
+    await server.answer();
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "«Meditar» quedó hecho hoy. 1 de 1 hoy." }),
+      ),
+    );
+    // No viewport of its own: the host's.
+    expect(screen.queryByRole("region", { name: "Avisos" })).not.toBeInTheDocument();
   });
 });

@@ -30,7 +30,9 @@ export default async function HabitsPage() {
 
   return (
     <HabitsScreen today={ownerDateKey(now)} areas={areas}>
-      <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
+      {/* Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
+          notice, and the last row of pads must stay reachable under it at full scroll. */}
+      <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
         <HabitsToday habits={habits} headingId={HEADING_ID} />
       </div>
     </HabitsScreen>

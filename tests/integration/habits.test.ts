@@ -3,7 +3,7 @@
 // `visibleHabit`, the advisory locks and authorization.
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
@@ -142,8 +142,9 @@ describe("create", () => {
     await deleteHabit({ id: first.id });
     await testDb.update(habits).set({ archivedAt: new Date() }).where(eq(habits.id, second.id));
     const third = await create({ name: "Tres" });
-    expect([await row(first.id), await row(second.id), await row(third.id)].map((r) => r.sortOrder))
-      .toEqual([0, 1, 2]);
+    expect(
+      [await row(first.id), await row(second.id), await row(third.id)].map((r) => r.sortOrder),
+    ).toEqual([0, 1, 2]);
     // Restored, the first one is back in its place: first.
     await restoreHabit({ id: first.id });
     expect((await listActiveHabits(new Date())).map((item) => item.name)).toEqual(["Uno", "Tres"]);
@@ -157,7 +158,7 @@ describe("create", () => {
     const orders = (await testDb.select({ sortOrder: habits.sortOrder }).from(habits)).map(
       (r) => r.sortOrder,
     );
-    expect([...orders].sort()).toEqual([0, 1, 2, 3, 4]);
+    expect([...orders].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
   });
 });
 
@@ -166,7 +167,10 @@ describe("log a yes/no day (setHabitDone)", () => {
     const habit = await create({ name: "Meditar" });
     const day = today();
     const marked = await setHabitDone({ id: habit.id, day, done: true });
-    expect(marked).toMatchObject({ ok: true, data: { id: habit.id, quantity: 1, target: 1, hasLogs: true } });
+    expect(marked).toMatchObject({
+      ok: true,
+      data: { id: habit.id, quantity: 1, target: 1, hasLogs: true },
+    });
     expect(revalidatePath).toHaveBeenLastCalledWith("/habits", "layout");
     expect(await setHabitDone({ id: habit.id, day, done: true })).toMatchObject({
       ok: true,
@@ -176,12 +180,13 @@ describe("log a yes/no day (setHabitDone)", () => {
 
     expect(await setHabitDone({ id: habit.id, day, done: false })).toMatchObject({
       ok: true,
-      data: { quantity: 0, hasLogs: false },
+      // Unmarked, but the day was logged: it still "has logs" (deleting it asks first).
+      data: { quantity: 0, hasLogs: true },
     });
     expect(await setHabitDone({ id: habit.id, day, done: false })).toMatchObject({ ok: true });
     // Rows are never deleted: unmarked is quantity 0.
     expect(await logs(habit.id)).toEqual([{ day, quantity: 0, target: 1 }]);
-    expect((await listActiveHabits(new Date()))[0]).toMatchObject({ quantity: 0, hasLogs: false });
+    expect((await listActiveHabits(new Date()))[0]).toMatchObject({ quantity: 0, hasLogs: true });
   });
 
   test("two taps at once: one row, marked (idempotent under concurrency)", async () => {
@@ -203,9 +208,14 @@ describe("log a yes/no day (setHabitDone)", () => {
       setHabitDone({ id: habit.id, day, done: true }),
       setHabitDone({ id: habit.id, day, done: false }),
     ]);
-    expect(results.every((result) => result.ok)).toBe(true);
+    // Each call reports its own write (the upsert returns the state it left).
+    expect(results).toMatchObject([
+      { ok: true, data: { quantity: 1 } },
+      { ok: true, data: { quantity: 0 } },
+    ]);
     const stored = await logs(habit.id);
     expect(stored).toHaveLength(1);
+    // The last to commit wins: one of the two states, never a sum or a second row.
     expect([0, 1]).toContain(stored[0].quantity);
   });
 
@@ -217,7 +227,9 @@ describe("log a yes/no day (setHabitDone)", () => {
       .set({ startDate: addDays(today(), -30) })
       .where(eq(habits.id, habit.id));
     const outside = { ok: false, error: HABIT_ERRORS.dayOutOfWindow };
-    expect(await setHabitDone({ id: habit.id, day: addDays(today(), -7), done: true })).toMatchObject({
+    expect(
+      await setHabitDone({ id: habit.id, day: addDays(today(), -7), done: true }),
+    ).toMatchObject({
       ok: true,
       data: { quantity: 1 },
     });
@@ -265,6 +277,32 @@ describe("log a yes/no day (setHabitDone)", () => {
   });
 });
 
+describe("Lima's day, not UTC's", () => {
+  // 23:30 in Lima on Oct 2 is already Oct 3 in UTC. Only Date is faked; set before the session.
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-03T04:30:00.000Z"));
+    request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("at 23:30 in Lima a habit starts and logs on the 2nd; the 3rd is the future", async () => {
+    const habit = await create({ name: "Leer" });
+    expect(habit.startDate).toBe("2026-10-02");
+    expect(await setHabitDone({ id: habit.id, day: "2026-10-03", done: true })).toEqual({
+      ok: false,
+      error: HABIT_ERRORS.dayOutOfWindow,
+    });
+    expect(await setHabitDone({ id: habit.id, day: "2026-10-02", done: true })).toMatchObject({
+      ok: true,
+    });
+    expect((await listActiveHabits(new Date()))[0]).toMatchObject({ id: habit.id, quantity: 1 });
+  });
+});
+
 describe("soft delete and undo", () => {
   test("deleted: out of every read with its logs, kept in the table; restored with them", async () => {
     const habit = await create({ name: "Meditar" });
@@ -282,13 +320,22 @@ describe("soft delete and undo", () => {
     // Its logs stay in the table, but reads through `ofVisibleHabit` don't see them.
     expect(await testDb.$count(habitLogs)).toBe(1);
     const visibleLogs = () =>
-      testDb.$count(habitLogs, and(eq(habitLogs.habitId, habit.id), ofVisibleHabit(habitLogs.habitId)));
+      testDb.$count(
+        habitLogs,
+        and(eq(habitLogs.habitId, habit.id), ofVisibleHabit(habitLogs.habitId)),
+      );
     expect(await visibleLogs()).toBe(0);
     // Twice: not found (nothing left to delete).
-    expect(await deleteHabit({ id: habit.id })).toEqual({ ok: false, error: HABIT_ERRORS.notFound });
+    expect(await deleteHabit({ id: habit.id })).toEqual({
+      ok: false,
+      error: HABIT_ERRORS.notFound,
+    });
 
     const restored = await restoreHabit({ id: habit.id });
-    expect(restored).toMatchObject({ ok: true, data: { id: habit.id, quantity: 1, hasLogs: true } });
+    expect(restored).toMatchObject({
+      ok: true,
+      data: { id: habit.id, quantity: 1, hasLogs: true },
+    });
     expect(await visibleLogs()).toBe(1);
     expect((await listActiveHabits(new Date())).map((item) => item.id)).toEqual([
       habit.id,
@@ -296,7 +343,10 @@ describe("soft delete and undo", () => {
     ]);
     // Restoring twice is not an error; a missing habit is.
     expect(await restoreHabit({ id: habit.id })).toMatchObject({ ok: true });
-    expect(await restoreHabit({ id: MISSING })).toEqual({ ok: false, error: HABIT_ERRORS.notFound });
+    expect(await restoreHabit({ id: MISSING })).toEqual({
+      ok: false,
+      error: HABIT_ERRORS.notFound,
+    });
   });
 });
 
@@ -323,6 +373,72 @@ describe("locks", () => {
       holder.release();
     }
     expect((await row(habit.id)).deletedAt).not.toBeNull();
+  });
+
+  test("create and restore wait for the order lock too", async () => {
+    const deleted = await create({ name: "Borrado" });
+    await deleteHabit({ id: deleted.id });
+    const holder = await testDb.$client.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("select pg_advisory_xact_lock($1, hashtext($2))", [
+        HABITS_ADVISORY_SPACE,
+        HABITS_ORDER_KEY,
+      ]);
+      const creating = createHabit({ name: "Nuevo" });
+      const restoring = restoreHabit({ id: deleted.id });
+      await waitForLockWaiters(HABITS_ORDER_KEY, 2);
+      expect(await testDb.$count(habits)).toBe(1);
+      expect((await row(deleted.id)).deletedAt).not.toBeNull();
+      await holder.query("commit");
+      expect(await creating).toMatchObject({ ok: true });
+      expect(await restoring).toMatchObject({ ok: true });
+    } finally {
+      holder.release();
+    }
+    expect(await testDb.$count(habits)).toBe(2);
+  });
+
+  test("delete waits for the habit's own lock; creating another habit doesn't", async () => {
+    const habit = await create({ name: "Meditar" });
+    const holder = await testDb.$client.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("select pg_advisory_xact_lock($1, hashtext($2))", [
+        HABITS_ADVISORY_SPACE,
+        habit.id,
+      ]);
+      // Positive control: the order lock is free, so a create goes through.
+      expect(await createHabit({ name: "Otro" })).toMatchObject({ ok: true });
+      const pending = deleteHabit({ id: habit.id });
+      await waitForLockWaiters(habit.id, 1);
+      expect((await row(habit.id)).deletedAt).toBeNull();
+      await holder.query("commit");
+      expect(await pending).toMatchObject({ ok: true });
+    } finally {
+      holder.release();
+    }
+    expect((await row(habit.id)).deletedAt).not.toBeNull();
+  });
+
+  test("an area archived while a create checks it: the create waits (FOR SHARE) and is refused", async () => {
+    const health = await areaId("health");
+    const holder = await testDb.$client.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("update core_life_areas set archived_at = now() where id = $1", [health]);
+      const pending = createHabit({ name: "Caminar", lifeAreaId: health });
+      await waitForBlockedBackends(1);
+      await holder.query("commit");
+      expect(await pending).toEqual({
+        ok: false,
+        error: INVALID_FIELDS_MESSAGE,
+        fieldErrors: { lifeAreaId: [HABIT_ERRORS.areaUnavailable] },
+      });
+    } finally {
+      holder.release();
+    }
+    expect(await testDb.$count(habits)).toBe(0);
   });
 
   test("a delete waits for a log that read the habit (FOR SHARE), then wins", async () => {

@@ -275,11 +275,15 @@ describe("pnpm db:export", () => {
       .returning();
     await testDb.insert(habitLogs).values([
       { habitId: meditar.id, day: "2026-09-30", quantity: 1, target: 1 },
+      { habitId: meditar.id, day: "2026-09-28", quantity: 1, target: 1 },
       { habitId: borrado.id, day: "2026-09-29", quantity: 0, target: 1 },
     ]);
-    await testDb
-      .insert(habitPauses)
-      .values({ habitId: meditar.id, startDate: "2026-10-10", endDate: "2026-10-20", reason: "Viaje" });
+    await testDb.insert(habitPauses).values({
+      habitId: meditar.id,
+      startDate: "2026-10-10",
+      endDate: "2026-10-20",
+      reason: "Viaje",
+    });
 
     const data = JSON.parse(JSON.stringify(await buildExport(testDb, NOW))) as DataExport;
 
@@ -301,10 +305,21 @@ describe("pnpm db:export", () => {
       sort_order: 0,
     });
     // Every log, the deleted habit's too (sorted by habit, then day).
-    expect(data.tables.habit_logs.rowCount).toBe(2);
+    expect(data.tables.habit_logs.rowCount).toBe(3);
+    // One habit's days in order.
+    expect(
+      data.tables.habit_logs.rows
+        .filter((row) => row.habit_id === meditar.id)
+        .map((row) => row.day),
+    ).toEqual(["2026-09-28", "2026-09-30"]);
     expect(data.tables.habit_logs.rows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ habit_id: meditar.id, day: "2026-09-30", quantity: 1, target: 1 }),
+        expect.objectContaining({
+          habit_id: meditar.id,
+          day: "2026-09-30",
+          quantity: 1,
+          target: 1,
+        }),
         expect.objectContaining({ habit_id: borrado.id, day: "2026-09-29", quantity: 0 }),
       ]),
     );

@@ -1,8 +1,9 @@
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, TestInfo } from "@playwright/test";
+import { test as unlocked, type Page, type TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import {
+  areaIdOf,
   expect,
   habitsCount,
   insertHabit,
@@ -40,27 +41,30 @@ async function axeViolations(page: Page) {
 const unique = (prefix: string, testInfo: TestInfo) =>
   `${prefix} ${testInfo.project.name} ${Math.random().toString(36).slice(2, 6)}`;
 
-test("navigation: Hábitos after the capture key on the phone, shortcut 4 on the desktop", async ({
-  page,
-}, testInfo) => {
-  await page.goto("/");
-  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
-  if (isDesktop(testInfo)) {
-    await page.keyboard.press("4");
-  } else {
-    await page.locator(".bo-bottomnav--fixed").getByRole("link", { name: "Hábitos" }).click();
-  }
-  await expect(page).toHaveURL("/habits");
-  await expect(page).toHaveTitle("Hábitos · brahua-os");
-  await expect(page.getByRole("link", { name: "Hábitos" }).filter({ visible: true })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-});
+// Doesn't look at the grid: no habits lock needed.
+unlocked(
+  "navigation: Hábitos after the capture key on the phone, shortcut 4 on the desktop",
+  async ({ page }, testInfo) => {
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+    if (isDesktop(testInfo)) {
+      await page.keyboard.press("4");
+    } else {
+      await page.locator(".bo-bottomnav--fixed").getByRole("link", { name: "Hábitos" }).click();
+    }
+    await expect(page).toHaveURL("/habits");
+    await expect(page).toHaveTitle("Hábitos · brahua-os");
+    await expect(
+      page.getByRole("link", { name: "Hábitos" }).filter({ visible: true }),
+    ).toHaveAttribute("aria-current", "page");
+  },
+);
 
 test("empty: an explanation and a key to create the first habit", async ({ page }) => {
   await openHabits(page);
-  await expect(page.getByRole("heading", { level: 2, name: "Todavía no tienes hábitos" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Todavía no tienes hábitos" }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Crear un hábito" })).toBeVisible();
   await expect(habitsCount(page)).toHaveCount(0);
 });
@@ -84,7 +88,10 @@ test("create a habit with an area: its pad is focused, last, and counted", async
   await expect(habitsCount(page)).toHaveText("0 de 2 hoy");
   // New habits go last.
   await expect(pads(page).locator("[data-habit-pad]").last()).toHaveAccessibleName(name);
-  expect(await readHabitByName(name)).toMatchObject({ deletedAt: null, areaId: expect.any(String) });
+  expect(await readHabitByName(name)).toMatchObject({
+    deletedAt: null,
+    areaId: await areaIdOf("health"),
+  });
 });
 
 test("one tap marks today in under 2 s; Deshacer (⌘Z on the desktop) unmarks it", async ({
@@ -96,14 +103,22 @@ test("one tap marks today in under 2 s; Deshacer (⌘Z on the desktop) unmarks i
   await openHabits(page);
   await expect(habitsCount(page)).toHaveText("0 de 2 hoy");
 
-  const started = Date.now();
-  await untilSaved(page, () => pad(page, name).click());
-  // Saved on the server within 2 s of the tap (SPEC-habits "Un toque").
-  expect(Date.now() - started).toBeLessThan(2_000);
+  // Saved on the server within 2 s of the tap (SPEC-habits "Un toque"): the action's own request,
+  // from when it was sent until its response ended (Playwright's click checks don't count).
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === "POST" &&
+        candidate.request().headers()["next-action"] !== undefined,
+    ),
+    pad(page, name).click(),
+  ]);
+  await response.finished();
+  expect(response.request().timing().responseEnd).toBeLessThan(2_000);
   await expect(pad(page, name)).toHaveAttribute("aria-pressed", "true");
   await expect(habitsCount(page)).toHaveText("1 de 2 hoy");
   await expect(notices(page).getByText(`«${name}» quedó hecho hoy.`)).toBeVisible();
-  expect((await readHabit(id)).today).toBe(1);
+  await expect.poll(async () => (await readHabit(id)).today).toBe(1);
 
   if (isDesktop(testInfo)) {
     await untilSaved(page, () => page.keyboard.press("ControlOrMeta+z"));
@@ -113,7 +128,7 @@ test("one tap marks today in under 2 s; Deshacer (⌘Z on the desktop) unmarks i
   await expect(pad(page, name)).toHaveAttribute("aria-pressed", "false");
   await expect(habitsCount(page)).toHaveText("0 de 2 hoy");
   // Unmarked keeps its row with 0 (never deleted).
-  expect((await readHabit(id)).today).toBe(0);
+  await expect.poll(async () => (await readHabit(id)).today).toBe(0);
 
   // A done pad unmarks with a tap too; it survives a reload.
   await untilSaved(page, () => pad(page, name).click());
@@ -129,7 +144,9 @@ test("delete asks first when it has logs; Deshacer brings it back with them", as
   const next = unique("Agua", testInfo);
   await insertHabit({ name: next, sortOrder: 5_000 });
   await openHabits(page);
-  await pads(page).getByRole("button", { name: `Opciones de «${name}»` }).click();
+  await pads(page)
+    .getByRole("button", { name: `Opciones de «${name}»` })
+    .click();
   const sheet = page.getByRole("dialog", { name });
   await sheet.getByRole("button", { name: "Eliminar hábito" }).click();
   await expect(sheet.getByRole("heading", { name: `¿Eliminar «${name}»?` })).toBeFocused();
@@ -139,11 +156,11 @@ test("delete asks first when it has logs; Deshacer brings it back with them", as
   // Focus goes to the neighbor's pad, never to <body>.
   await expect(pad(page, next)).toBeFocused();
   await expect(notices(page).getByText(`«${name}» se eliminó.`)).toBeVisible();
-  expect((await readHabit(id)).deletedAt).not.toBeNull();
+  await expect.poll(async () => (await readHabit(id)).deletedAt).not.toBeNull();
 
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
   await expect(pad(page, name)).toHaveAttribute("aria-pressed", "true");
-  expect(await readHabit(id)).toMatchObject({ deletedAt: null, today: 1 });
+  await expect.poll(async () => readHabit(id)).toMatchObject({ deletedAt: null, today: 1 });
   await page.reload();
   await expect(pad(page, name)).toBeVisible();
 });

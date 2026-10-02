@@ -26,9 +26,12 @@ export function applyHabitListChange(list: HabitItem[], change: HabitListChange)
   }
 }
 
-/** The patch of a yes/no day marked (`done`) or unmarked, as the server will store it. */
-export function donePatch(habit: HabitItem, done: boolean): Partial<HabitItem> {
-  return { quantity: done ? 1 : 0, hasLogs: habit.hasLogs || done };
+/**
+ * The patch of a yes/no day marked (`done`) or unmarked, as the server will store it: either way
+ * the day has a log row now (unmarked is 0), so it "has logs".
+ */
+export function donePatch(done: boolean): Partial<HabitItem> {
+  return { quantity: done ? 1 : 0, hasLogs: true };
 }
 
 /** The habit to focus when `id` leaves the list: the next one, else the previous, else none. */

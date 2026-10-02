@@ -35,6 +35,11 @@ describe("createHabitInputSchema", () => {
       HABIT_ERRORS.nameRequired,
     ]);
     expect(createHabitInputSchema.safeParse({ name: "a".repeat(80) }).success).toBe(true);
+    // The limit applies after normalizing: surrounding spaces don't count.
+    expect(createHabitInputSchema.parse({ name: `   ${"a".repeat(80)}   ` }).name).toHaveLength(80);
+    expect(issues(createHabitInputSchema.safeParse({ name: 5 }))).toEqual([
+      HABIT_ERRORS.nameRequired,
+    ]);
     expect(issues(createHabitInputSchema.safeParse({ name: "a".repeat(81) }))).toEqual([
       HABIT_ERRORS.nameTooLong,
     ]);
@@ -44,6 +49,11 @@ describe("createHabitInputSchema", () => {
     expect(issues(createHabitInputSchema.safeParse({ name: "Le​er" }))).toEqual([
       HABIT_ERRORS.nameInvisible,
     ]);
+    // An absurdly long string is refused before normalizing (a cheap cap: 4 × the limit).
+    expect(issues(createHabitInputSchema.safeParse({ name: "a".repeat(321) }))).toEqual([
+      HABIT_ERRORS.nameTooLong,
+    ]);
+    expect(createHabitInputSchema.parse({ name: ` ${"  ".repeat(100)}Leer ` }).name).toBe("Leer");
     // Emoji sequences keep their joiners.
     expect(createHabitInputSchema.parse({ name: "Familia 👨‍👩‍👧" }).name).toBe("Familia 👨‍👩‍👧");
   });
@@ -68,8 +78,9 @@ describe("setHabitDoneInputSchema", () => {
   });
 
   test("an impossible day, a time, a toggle without a state or a bad id are refused", () => {
-    expect(issues(setHabitDoneInputSchema.safeParse({ id: ID, day: "2026-02-30", done: true })))
-      .toEqual([HABIT_ERRORS.dayInvalid]);
+    expect(
+      issues(setHabitDoneInputSchema.safeParse({ id: ID, day: "2026-02-30", done: true })),
+    ).toEqual([HABIT_ERRORS.dayInvalid]);
     expect(
       setHabitDoneInputSchema.safeParse({ id: ID, day: "2026-10-02T10:00:00Z", done: true })
         .success,
@@ -81,5 +92,6 @@ describe("setHabitDoneInputSchema", () => {
     expect(issues(habitIdInputSchema.safeParse({ id: "1; drop table habits" }))).toEqual([
       HABIT_ERRORS.notFound,
     ]);
+    expect(issues(habitIdInputSchema.safeParse({}))).toEqual([HABIT_ERRORS.notFound]);
   });
 });

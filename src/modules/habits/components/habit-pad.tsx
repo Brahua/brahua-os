@@ -1,6 +1,7 @@
 "use client";
 
-import { Key, Led } from "@/design-system";
+import { useId } from "react";
+import { AREA_ICONS, Icon, Key, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import type { HabitItem } from "../habit-input";
 import { isDayDone } from "../habit-status";
@@ -36,24 +37,40 @@ type HabitPadProps = {
 export function HabitPad({ habit, onToggle, reserveCorner = false, className }: HabitPadProps) {
   const done = isDayDone(habit);
   const status = padStatus(habit);
+  const areaId = useId();
+  const { area } = habit;
   return (
-    <Key
-      toggle
-      pressed={done}
-      onPressedChange={(next) => onToggle(habit, next)}
-      className={cn("bo-key--pad w-full", className)}
-      data-habit-pad={habit.id}
-    >
-      <span className={cn("flex min-h-6 items-center gap-2", reserveCorner && "pr-12")}>
-        <Led area={habit.area?.color} on={done} />
-        <span className="bo-key__sub truncate" aria-hidden>
-          {status}
+    <>
+      <Key
+        toggle
+        pressed={done}
+        onPressedChange={(next) => onToggle(habit, next)}
+        className={cn("bo-key--pad w-full", className)}
+        // The area as a description (its color and icon are decorative on the pad).
+        aria-describedby={area ? areaId : undefined}
+        data-habit-pad={habit.id}
+      >
+        {/* With a control over the corner, the row is as tall as it, so the name starts below. */}
+        <span
+          className={cn("flex items-center gap-2", reserveCorner ? "min-h-10 pr-12" : "min-h-6")}
+        >
+          <Led area={area?.color} on={done} />
+          {/* Not only color (WCAG 1.4.1): the area's icon too. */}
+          {area ? <Icon icon={AREA_ICONS[area.icon]} size="sm" aria-hidden /> : null}
+          <span className="bo-key__sub truncate" aria-hidden>
+            {status}
+          </span>
         </span>
-      </span>
 
-      {/* H3 slot (Cantidad): "3/8 vasos" and a short SegmentBar. */}
+        {/* H3 slot (Cantidad): "3/8 vasos" and a short SegmentBar. */}
 
-      <span className="line-clamp-3 break-words">{habit.name}</span>
-    </Key>
+        <span className="line-clamp-3 break-words">{habit.name}</span>
+      </Key>
+      {area ? (
+        <span id={areaId} hidden>
+          {HABITS_COPY.padArea(area.name)}
+        </span>
+      ) : null}
+    </>
   );
 }

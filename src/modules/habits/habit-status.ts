@@ -1,5 +1,6 @@
 // A habit's state on a day, as "Hoy" shows it (SPEC-habits "Rachas y cumplimiento"). Pure and
-// client-safe: the pad, the live count and the optimistic view all use it.
+// client-safe: the pad, the live count and the optimistic view all use it. H4's `streak.ts`
+// builds the streaks on `isDayDone` (one definition of a done day), not a copy of it.
 import type { HabitItem } from "./habit-input";
 import { isScheduledOn } from "./schedule";
 
