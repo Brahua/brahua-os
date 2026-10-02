@@ -134,6 +134,21 @@ export async function selectMilestoneCounts(
 }
 
 /**
+ * Done and total live milestones of one project (zeros without any). "Cerrar proyecto" counts
+ * the open ones for its text; it never blocks closing.
+ */
+export async function selectProjectMilestoneCounts(
+  db: Database,
+  projectId: string,
+): Promise<MilestoneCounts> {
+  const [row] = await db
+    .select({ total: count(), done: count(projectMilestones.doneAt) })
+    .from(projectMilestones)
+    .where(and(eq(projectMilestones.projectId, projectId), live));
+  return { done: row?.done ?? 0, total: row?.total ?? 0 };
+}
+
+/**
  * Adds a milestone at the end. `"tooMany"` at the limit (live milestones only); `"idTaken"` when
  * the id already exists (in this or another project, deleted or not: never overwritten).
  */

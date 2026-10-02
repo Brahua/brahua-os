@@ -17,6 +17,7 @@ import { getProject, getProjectDependencies } from "@/modules/projects/queries";
 import { CREATED_PARAM } from "@/modules/projects/routes";
 import { ProjectProgress } from "./_components/milestone-progress";
 import { ProjectBlockedBy } from "./_components/project-blocked-by";
+import { ProjectCloseSection } from "./_components/project-close-section";
 import { ProjectDeleteSection } from "./_components/project-delete-section";
 import { ProjectDependenciesSection } from "./_components/project-dependencies-section";
 import { ProjectDetailProvider } from "./_components/project-detail-context";
@@ -106,6 +107,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <ProjectNotesSection
             rendered={project.notes ? <Markdown headingOffset={2}>{project.notes}</Markdown> : null}
           />
+          <ProjectCloseSection counts={countMilestones(milestones)} contributed={contributed} />
           <ProjectDeleteSection />
         </div>
         {justCreated ? (

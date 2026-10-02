@@ -5,14 +5,17 @@ import { formatOwnerDay } from "@/lib/time";
 import { afterSaveSettled } from "./support/saves";
 import { fontsLoaded } from "./support/fonts";
 import {
+  closeFromDetail,
   CREATE_AREA,
   DETAIL_FIXTURE,
+  expectNoOverflow,
   groupList,
   historyToggle,
   insertProject,
   limaDay,
   notices,
   openProject,
+  openProjects,
   uniqueName,
   untilSaved,
 } from "./support/projects";
@@ -34,6 +37,9 @@ const heading = (page: Page) => page.getByRole("heading", { level: 1 });
 const statusGroup = (page: Page) => page.getByRole("radiogroup", { name: "Estado" });
 const priorityGroup = (page: Page) => page.getByRole("radiogroup", { name: "Prioridad" });
 const save = (page: Page) => page.getByRole("button", { name: "Guardar" });
+
+/** The seeded area with the longest name ("Aprendizaje y Desarrollo profesional"). */
+const LONG_AREA = { slug: "learning" };
 
 test("edit every field in place; each survives a reload", async ({ page }, testInfo) => {
   const name = uniqueName("Taller", testInfo);
@@ -94,34 +100,128 @@ test("edit every field in place; each survives a reload", async ({ page }, testI
   await expect(page).toHaveTitle(`${renamed} · brahua-os`);
 });
 
-test("Terminado records the day it ended (in the card too) and going back clears it", async ({
+test("Marcar como terminado warns about open milestones, then the card is in Historial; Reabrir brings it back", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Repisa", testInfo);
-  const id = await insertProject({ name, due: 2 });
+  // In the area with the longest name: the done card that overflowed at 390 px (Checkpoint final).
+  const id = await insertProject({
+    name,
+    due: 2,
+    milestones: [true, false, false],
+    areaSlug: LONG_AREA.slug,
+  });
   await openProject(page, id);
   await expect(page.getByText("Vence en 2 días")).toBeVisible();
+  // Terminado and Cancelado are no longer in the picker.
+  await expect(statusGroup(page).getByRole("radio")).toHaveText([
+    "Idea",
+    "Activo",
+    "Pausado",
+    "Mantenimiento",
+  ]);
+
+  await page.getByRole("button", { name: "Marcar como terminado" }).click();
+  const confirm = page.getByRole("group", { name: `¿Marcar «${name}» como terminado?` });
+  await expect(confirm.getByRole("button", { name: "Volver" })).toBeFocused();
+  await expect(confirm).toContainText("Quedan 2 hitos abiertos. ¿Terminar igual?");
+  await untilSaved(page, () => confirm.getByRole("button", { name: "Sí, terminar" }).click());
 
   const finished = `Terminado el ${formatOwnerDay(new Date())}`;
-  await untilSaved(page, () => statusGroup(page).getByRole("radio", { name: "Terminado" }).click());
+  await expect(page.getByRole("button", { name: "Reabrir" })).toBeFocused();
   await expect(page.getByText(finished)).toBeVisible();
+  await expect(page.locator("[data-detail-announcer]")).toHaveText(
+    `«${name}» se marcó como terminado. Quedaron 2 hitos abiertos.`,
+  );
   await expect(page.getByText("Vence en 2 días")).toBeHidden();
+  await expect(statusGroup(page)).toHaveCount(0);
 
-  // In the list it moved to Historial → Terminado, with its date.
-  await page.goto(`/projects?area=${CREATE_AREA.slug}`);
+  // In the list it moved to Historial → Terminado, with its date, and fits the screen.
+  await openProjects(page, `?area=${LONG_AREA.slug}`);
   await historyToggle(page).click();
   const card = groupList(page, "Terminado").locator("article", {
     has: page.getByRole("link", { name }),
   });
   await expect(card).toContainText(`Terminado el ${formatOwnerDay(new Date(), "short")}`);
+  await expect(card).toContainText("1 de 3 hitos");
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expectNoOverflow(page, card);
+  }
 
   await openProject(page, id);
-  await untilSaved(page, () => statusGroup(page).getByRole("radio", { name: "Activo" }).click());
+  await page.getByRole("button", { name: "Reabrir" }).click();
+  const reopen = page.getByRole("group", { name: `¿Reabrir «${name}»?` });
+  await expect(reopen.getByRole("button", { name: "Volver" })).toBeFocused();
+  expect(await axeViolations(page)).toEqual([]);
+  await untilSaved(page, () => reopen.getByRole("button", { name: "Sí, reabrir" }).click());
+  await expect(page.getByRole("button", { name: "Marcar como terminado" })).toBeFocused();
+  await expect(statusGroup(page).getByRole("radio", { name: "Activo" })).toBeChecked();
   await expect(page.getByText(/^Terminado el /)).toBeHidden();
   await expect(page.getByText("Vence en 2 días")).toBeVisible();
   await page.reload();
   await expect(statusGroup(page).getByRole("radio", { name: "Activo" })).toBeChecked();
   await expect(page.getByText(/^Terminado el /)).toBeHidden();
+});
+
+test("Cancelar proyecto: a simple confirm step, Historial → Cancelado, and back", async ({
+  page,
+}, testInfo) => {
+  const name = uniqueName("Banca", testInfo);
+  const id = await insertProject({ name, due: 0, milestones: [false] });
+  await openProject(page, id);
+  await page.getByRole("button", { name: "Cancelar proyecto" }).click();
+  const confirm = page.getByRole("group", { name: `¿Cancelar «${name}»?` });
+  // Positive control for the warning's absence: the step is there.
+  await expect(confirm).toBeVisible();
+  await expect(confirm.locator("[data-open-work-warning]")).toHaveCount(0);
+  // Esc goes back without closing anything.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Cancelar proyecto" })).toBeFocused();
+
+  await closeFromDetail(page, "Cancelar proyecto");
+  await expect(page.locator("[data-closed-state]")).toHaveText("Se canceló.");
+  await expect(page.getByText("Vence hoy")).toBeHidden();
+  expect(await axeViolations(page)).toEqual([]);
+
+  await openProjects(page, `?area=${CREATE_AREA.slug}`);
+  await historyToggle(page).click();
+  await expect(groupList(page, "Cancelado").getByRole("link", { name, exact: true })).toBeVisible();
+
+  await openProject(page, id);
+  await page.getByRole("button", { name: "Reabrir" }).click();
+  await untilSaved(page, () => page.getByRole("button", { name: "Sí, reabrir" }).click());
+  await expect(page.getByText("Vence hoy")).toBeVisible();
+});
+
+test("the priority options carry their LED: Alta orange like the card, the others neutral", async ({
+  page,
+}, testInfo) => {
+  const id = await insertProject({ name: uniqueName("Lámpara", testInfo) });
+  await openProject(page, id);
+  for (const [name, priority] of [
+    ["Baja", "low"],
+    ["Media", "medium"],
+    ["Alta", "high"],
+  ] as const) {
+    const led = priorityGroup(page)
+      .getByRole("radio", { name, exact: true })
+      .locator(`[data-priority-led="${priority}"]`);
+    await expect(led).toBeVisible();
+    await expect(led).toHaveAttribute("aria-hidden", "true");
+  }
+  await expect(priorityGroup(page).locator('[data-priority-led="high"]')).toHaveClass(
+    /bo-led--signal/,
+  );
+  // Baja is a hollow ring; Media a filled one.
+  await expect(priorityGroup(page).locator('[data-priority-led="low"]')).toHaveCSS(
+    "background-color",
+    "rgba(0, 0, 0, 0)",
+  );
+  await expect(priorityGroup(page).locator('[data-priority-led="medium"]')).not.toHaveCSS(
+    "background-color",
+    "rgba(0, 0, 0, 0)",
+  );
 });
 
 test("the due notice shows only in Idea, Activo and Pausado; Mantenimiento hides the end", async ({
@@ -137,7 +237,6 @@ test("the due notice shows only in Idea, Activo and Pausado; Mantenimiento hides
     ["Idea", true],
     ["Mantenimiento", false],
     ["Pausado", true],
-    ["Cancelado", false],
     ["Activo", true],
   ] as const) {
     await untilSaved(page, () => statusGroup(page).getByRole("radio", { name: state }).click());
@@ -244,5 +343,14 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Eliminar proyecto" })).toBeFocused();
+
+    // "Cerrar proyecto": the done step with its warning (3 of 5 milestones open), not confirmed.
+    await page.getByRole("button", { name: "Marcar como terminado" }).click();
+    await expect(page.locator("[data-open-work-warning]")).toHaveText(
+      "Quedan 3 hitos abiertos. ¿Terminar igual?",
+    );
+    expect(await axeViolations(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Marcar como terminado" })).toBeFocused();
   });
 }

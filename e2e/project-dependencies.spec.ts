@@ -6,7 +6,9 @@ import { DEPENDENCY_ERRORS } from "@/modules/projects/dependency-input";
 import { testDatabaseUrl } from "../tests/integration/helpers";
 import { animationsSettled } from "./support/animations";
 import {
+  closeFromDetail,
   CREATE_AREA,
+  expectNoOverflow,
   groupList,
   insertProject,
   isDesktop,
@@ -45,7 +47,6 @@ const headerLine = (page: Page) => page.locator("main header [data-blocked-by]")
 const addKey = (page: Page) => page.getByRole("button", { name: "Agregar bloqueador" });
 const picker = (page: Page) => page.getByRole("dialog", { name: "Agregar bloqueador" });
 const search = (page: Page) => picker(page).getByRole("searchbox", { name: "Buscar proyecto" });
-const statusGroup = (page: Page) => page.getByRole("radiogroup", { name: "Estado" });
 
 /** The card of `name` in the list of "Hobbies", where the tests' projects live. */
 async function cardOf(page: Page, name: string) {
@@ -95,10 +96,17 @@ test("a blocker shows Bloqueado on the card and the detail, and clears once it i
   await expect(card.getByRole("link", { name })).toHaveAccessibleDescription(
     `Bloqueado por ${blockerName}`,
   );
+  // The blocked variant fits narrow phones too (Checkpoint final).
+  const viewport = page.viewportSize()!;
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expectNoOverflow(page, card);
+  }
+  await page.setViewportSize(viewport);
 
   // The blocker ends: nothing is blocked any more.
   await openProject(page, blockerId);
-  await untilSaved(page, () => statusGroup(page).getByRole("radio", { name: "Terminado" }).click());
+  await closeFromDetail(page, "Marcar como terminado");
 
   await openProject(page, id);
   await expect(headerLine(page)).toHaveCount(0);

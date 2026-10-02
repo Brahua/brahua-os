@@ -53,6 +53,15 @@ export function usePublishMilestoneCounts(projectId: string, { done, total }: Mi
 }
 
 /**
+ * The milestone counts as shown: the milestones section's live ones once it has published them,
+ * else `counts` (what the server sent). The meter and "Cerrar proyecto" read them.
+ */
+export function useMilestoneCounts(projectId: string, counts: MilestoneCounts): MilestoneCounts {
+  const live = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  return live?.projectId === projectId ? live : counts;
+}
+
+/**
  * The project's progress under its dates (the P3 slot of `ProjectPlanSection`): done / total
  * milestones. Nothing without milestones or in Mantenimiento (the state as shown, so changing
  * it hides or shows the meter at once). `counts` is what the server sent; the milestones
@@ -67,8 +76,7 @@ export function ProjectProgress({
   contributed?: ProgressCounts;
 }) {
   const { project } = useProjectDetail();
-  const live = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
-  const shown = live?.projectId === project.id ? live : counts;
+  const shown = useMilestoneCounts(project.id, counts);
   const progress = milestoneProgress(combineProgressCounts(shown, contributed), project.status);
   if (!progress) return null;
   return (
