@@ -164,6 +164,11 @@ describe("list", () => {
     ]);
     // High priority first, whatever the dates.
     expect(cardsIn("Activo")).toEqual(["Mudanza", "Curso AWS"]);
+    // One column of minmax(0, 1fr) (two from md): a card never grows past the screen.
+    expect(screen.getByRole("list", { name: "Proyectos: Activo" })).toHaveClass(
+      "grid-cols-1",
+      "md:grid-cols-2",
+    );
   });
 
   test("Historial is folded with its count, and opens to Terminado and Cancelado", async () => {
@@ -498,6 +503,32 @@ describe("ProjectCard", () => {
   test("no finish date on any other state", () => {
     render(<ProjectCard project={project({ status: "canceled" })} due={null} />);
     expect(screen.queryByText(/Terminado el/)).not.toBeInTheDocument();
+  });
+
+  // Checkpoint final: a done card overflowed the screen at 390 px (the real widths are measured
+  // in e2e/projects.spec.ts; jsdom has no layout). These are the classes that prevent it.
+  test("its header and progress wrap instead of overflowing", () => {
+    const { container } = render(
+      <ProjectCard
+        project={project({
+          status: "done",
+          completedAt: new Date("2026-10-01T15:00:00.000Z"),
+          area: area(WORK),
+        })}
+        due={null}
+        progress={{ done: 3, total: 3, ratio: 1 }}
+      />,
+    );
+    const card = container.querySelector("article")!;
+    expect(card).toHaveClass("min-w-0");
+    const header = card.firstElementChild!;
+    expect(header).toHaveClass("flex", "flex-wrap", "min-w-0");
+    expect(header.querySelector(".bo-area-tag")).toHaveClass("min-w-0", "max-w-full");
+    const finished = screen.getByText("Terminado el 1 oct. 2026");
+    expect(finished).toHaveClass("min-w-0");
+    expect(finished).not.toHaveClass("shrink-0");
+    const counts = screen.getByText("3 de 3 hitos").parentElement!;
+    expect(counts).toHaveClass("flex-wrap", "min-w-0");
   });
 });
 

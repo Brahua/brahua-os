@@ -1,6 +1,6 @@
 // Shared helpers and fixtures for the projects specs.
 import { eq } from "drizzle-orm";
-import { expect, type Page, type TestInfo } from "@playwright/test";
+import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { createDb, type Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
@@ -171,6 +171,10 @@ type NewProject = {
   priority?: ProjectPriority;
   /** Days from Lima's today. */
   due?: number;
+  /** Its milestones' done flags, in order (none by default). */
+  milestones?: readonly boolean[];
+  /** The area's slug (CREATE_AREA by default). */
+  areaSlug?: string;
 };
 
 /**
@@ -187,11 +191,16 @@ export async function insertProject(project: NewProject): Promise<string> {
         name: project.name,
         status,
         priority: project.priority ?? "medium",
-        lifeAreaId: await areaIdOf(db, CREATE_AREA.slug),
+        lifeAreaId: await areaIdOf(db, project.areaSlug ?? CREATE_AREA.slug),
         dueDate: project.due === undefined ? null : limaDay(project.due),
         completedAt: status === "done" ? new Date() : null,
       })
       .returning({ id: projects.id });
+    await seedMilestones(
+      db,
+      row.id,
+      project.milestones?.map((done, i) => ({ title: `Hito ${i + 1}`, done })),
+    );
     return row.id;
   } finally {
     await db.$client.end();
@@ -221,6 +230,38 @@ export async function untilSaved(page: Page, action: () => Promise<unknown>) {
 }
 
 export const notices = (page: Page) => page.getByRole("region", { name: "Avisos" });
+
+/**
+ * The element (a card) fits its own box and the screen, and the page doesn't scroll sideways
+ * (Checkpoint final: a done card overflowed at 390 px).
+ */
+export async function expectNoOverflow(page: Page, element: Locator) {
+  const sizes = await element.evaluate((node) => ({
+    scrollWidth: node.scrollWidth,
+    clientWidth: node.clientWidth,
+    right: node.getBoundingClientRect().right,
+    viewport: document.documentElement.clientWidth,
+    pageWidth: document.documentElement.scrollWidth,
+  }));
+  const width = page.viewportSize()?.width;
+  expect(sizes.scrollWidth, `card at ${width} px`).toBeLessThanOrEqual(sizes.clientWidth);
+  expect(sizes.right, `card at ${width} px`).toBeLessThanOrEqual(sizes.viewport);
+  expect(sizes.pageWidth, `page at ${width} px`).toBeLessThanOrEqual(sizes.viewport);
+}
+
+/**
+ * "Cerrar proyecto" on a project's page: opens the step of `key` ("Marcar como terminado" or
+ * "Cancelar proyecto"), confirms it and waits until the page shows the closed state.
+ */
+export async function closeFromDetail(
+  page: Page,
+  key: "Marcar como terminado" | "Cancelar proyecto",
+) {
+  await page.getByRole("button", { name: key }).click();
+  const confirm = key === "Marcar como terminado" ? "Sí, terminar" : "Sí, cancelar proyecto";
+  await untilSaved(page, () => page.getByRole("button", { name: confirm }).click());
+  await expect(page.getByRole("button", { name: "Reabrir" })).toBeFocused();
+}
 
 export const isDesktop = (testInfo: TestInfo) => testInfo.project.name === "desktop";
 

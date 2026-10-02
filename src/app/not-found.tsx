@@ -53,7 +53,7 @@ export default async function NotFound() {
     );
   }
   return (
-    <main className="flex flex-1 flex-col">
+    <main className="bo-safe-area flex flex-1 flex-col">
       <NotFoundScreen signedIn={false} />
     </main>
   );

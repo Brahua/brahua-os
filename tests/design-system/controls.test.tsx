@@ -140,6 +140,37 @@ describe("Sheet", () => {
     await user.click(screen.getByRole("button", { name: "Cerrar" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  test("a description is body text under the title, with room, and describes the dialog", () => {
+    const text =
+      "Elige el proyecto que debe terminar antes. No aparecen los que crearían un ciclo.";
+    render(
+      <Sheet open onOpenChange={() => {}} title="Agregar bloqueador" description={text}>
+        <p>…</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Agregar bloqueador" });
+    expect(dialog).toHaveAccessibleDescription(text);
+    const description = screen.getByText(text);
+    // Sentence case in the secondary color, not the uppercase mono label.
+    expect(description).toHaveClass("bo-text-body-sm", "text-text-secondary");
+    expect(description).not.toHaveClass("bo-text-label");
+    expect(description.parentElement).toHaveClass("gap-2");
+    expect(dialog.querySelector(".bo-sheet__header")).toHaveClass("bo-sheet__header--described");
+  });
+
+  test("a subtitle stays a short label", () => {
+    render(
+      <Sheet open onOpenChange={() => {}} title="Certificación AWS" subtitle="Aprendizaje · meta">
+        <p>…</p>
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription("Aprendizaje · meta");
+    expect(screen.getByText("Aprendizaje · meta")).toHaveClass("bo-text-label");
+    expect(document.querySelector(".bo-sheet__header")).not.toHaveClass(
+      "bo-sheet__header--described",
+    );
+  });
 });
 
 describe("ListRow", () => {

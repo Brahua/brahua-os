@@ -58,14 +58,16 @@ export function ProjectCard({
     <article
       data-project-card={project.id}
       // bo-project-card (extensions.css): hover and the link's focus ring on the whole card.
-      className={cn("bo-card bo-project-card h-full", className)}
+      className={cn("bo-card bo-project-card h-full min-w-0", className)}
     >
-      <div className="flex items-start justify-between gap-x-3 gap-y-1 max-[359px]:flex-col">
+      {/* Wraps instead of overflowing: when the area and the date don't fit side by side, the date
+          goes to the next line; a long area name truncates and a long date wraps (min-w-0). */}
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <AreaTag
           area={project.area.color}
           icon={project.area.icon}
           label={project.area.name}
-          className="min-w-0 [&>span:last-child]:truncate"
+          className="max-w-full min-w-0 [&>span:last-child]:truncate"
           title={project.area.name}
         />
         {due ? (
@@ -74,7 +76,7 @@ export function ProjectCard({
             dateTime={project.dueDate ?? undefined}
             data-due={due.kind}
             className={cn(
-              "bo-text-label shrink-0",
+              "bo-text-label min-w-0",
               urgent ? "text-signal-text" : "text-text-secondary",
             )}
           >
@@ -84,7 +86,7 @@ export function ProjectCard({
           // Done projects have no due notice: the day they were finished (Historial).
           <time
             dateTime={completedAt.toISOString()}
-            className="bo-text-label shrink-0 text-text-secondary"
+            className="bo-text-label min-w-0 text-text-secondary"
           >
             {PROJECTS_COPY.completedOn(formatOwnerDay(completedAt, "short"))}
           </time>

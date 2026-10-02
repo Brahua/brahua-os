@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { SectionLabel, SegmentedControl, type SegmentOption } from "@/design-system";
+import { Led, SectionLabel, SegmentedControl, type SegmentOption } from "@/design-system";
+import { cn } from "@/lib/cn";
 import { RadioGrid, type RadioGridOption } from "@/modules/core/components/radio-grid";
 import { changeProjectPriority, changeProjectStatus } from "@/modules/projects/actions";
+import { isClosed, OPEN_STATUSES } from "@/modules/projects/project-close";
 import {
   PROJECT_PRIORITIES,
-  PROJECT_STATUSES,
   type ProjectPriority,
   type ProjectStatus,
 } from "@/modules/projects/project-constants";
 import {
+  CLOSE_COPY,
   PROJECT_PRIORITY_LABELS,
   PROJECT_STATUS_LABELS,
   PROJECTS_COPY,
@@ -18,27 +20,50 @@ import {
 import { useProjectDetail, useSaveProjectField } from "./project-detail-context";
 
 /**
- * How long the arrow keys must rest before the state they landed on is saved. Browsing from
- * Activo to Cancelado passes Terminado, which would stamp (and then clear) `completed_at`.
+ * How long the arrow keys must rest before the state they landed on is saved: browsing from Idea
+ * to Mantenimiento shouldn't save (and revalidate) every state on the way.
  */
 export const STATUS_SETTLE_MS = 500;
 
-const STATUS_OPTIONS: RadioGridOption<ProjectStatus>[] = PROJECT_STATUSES.map((status) => ({
+// Only the open states: Terminado and Cancelado are "Cerrar proyecto" (a confirmed action).
+const STATUS_OPTIONS: RadioGridOption<ProjectStatus>[] = OPEN_STATUSES.map((status) => ({
   value: status,
   label: PROJECT_STATUS_LABELS[status],
   children: <span className="bo-option-key__label">{PROJECT_STATUS_LABELS[status]}</span>,
 }));
 
+/**
+ * The priority's LED, on every option so color is never the only cue (the label stays): Alta in
+ * the signal orange (like the card's), Media a neutral LED, Baja a hollow, muted ring. On the
+ * selected (inverted) key the neutral ones invert with it; extensions.css `.bo-priority-led`.
+ */
+export function PriorityLed({ priority }: { priority: ProjectPriority }) {
+  return (
+    <Led
+      signal={priority === "high"}
+      size="sm"
+      data-priority-led={priority}
+      className={cn("bo-priority-led", `bo-priority-led--${priority}`)}
+    />
+  );
+}
+
 const PRIORITY_OPTIONS: SegmentOption<ProjectPriority>[] = PROJECT_PRIORITIES.map((priority) => ({
   value: priority,
-  label: PROJECT_PRIORITY_LABELS[priority],
+  label: (
+    <>
+      <PriorityLed priority={priority} />
+      {PROJECT_PRIORITY_LABELS[priority]}
+    </>
+  ),
 }));
 
 /**
- * State and priority (optimistic; a refusal rolls back with a notice). The six states are a radio
- * group of keys: one tab stop, arrows move and pick. A click or tap saves at once; with the
+ * State and priority (optimistic; a refusal rolls back with a notice). The four open states are a
+ * radio group of keys: one tab stop, arrows move and pick. A click or tap saves at once; with the
  * arrows the pick shows at once but is saved once they rest (STATUS_SETTLE_MS), when focus
- * leaves the group, or when the page goes away.
+ * leaves the group, or when the page goes away. Terminado and Cancelado are "Cerrar proyecto"
+ * (ProjectCloseSection); a closed project shows its state here as text.
  */
 export function ProjectStateSection() {
   const { project } = useProjectDetail();
@@ -47,6 +72,7 @@ export function ProjectStateSection() {
   const headingId = `${ids}-heading`;
   const statusLabelId = `${ids}-status`;
   const statusHelpId = `${ids}-status-help`;
+  const closed = isClosed(project.status);
 
   // The state the arrow keys are on, not saved yet (null: nothing pending).
   const [browsing, setBrowsing] = useState<ProjectStatus | null>(null);
@@ -113,18 +139,27 @@ export function ProjectStateSection() {
           <span id={statusLabelId} className="bo-field__label">
             {PROJECTS_COPY.statusLabel}
           </span>
-          <RadioGrid
-            options={STATUS_OPTIONS}
-            value={browsing ?? project.status}
-            onValueChange={changeStatus}
-            labelledBy={statusLabelId}
-            describedBy={statusHelpId}
-            className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3"
-            itemClassName="bo-option-key min-w-0"
-          />
-          <span id={statusHelpId} className="bo-field__help">
-            {PROJECTS_COPY.statusHelp}
-          </span>
+          {closed ? (
+            // Closed: no picker (none of its options would be on); "Reabrir" is further down.
+            <p className="bo-text-body-sm" data-closed-status>
+              {CLOSE_COPY.closedStatus(PROJECT_STATUS_LABELS[project.status])}
+            </p>
+          ) : (
+            <>
+              <RadioGrid
+                options={STATUS_OPTIONS}
+                value={browsing ?? project.status}
+                onValueChange={changeStatus}
+                labelledBy={statusLabelId}
+                describedBy={statusHelpId}
+                className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4"
+                itemClassName="bo-option-key min-w-0"
+              />
+              <span id={statusHelpId} className="bo-field__help">
+                {PROJECTS_COPY.statusHelp}
+              </span>
+            </>
+          )}
         </div>
         <div className="bo-field">
           <span className="bo-field__label" aria-hidden>

@@ -112,11 +112,16 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
 .bo-date-field .bo-field__control { display: block; min-width: 0; width: 100%; max-width: 100%;
   -webkit-appearance: none; appearance: none; text-align: start; line-height: 50px; }
 .bo-date-field .bo-field__control::-webkit-date-and-time-value { text-align: start; margin: 0; }
-/* Installed app (standalone, viewport-fit=cover): content scrolls under the iOS status bar unless
-   something paints behind it. The shell draws this strip in the page color. */
+/* Installed app on iOS (black-translucent status bar + viewport-fit=cover, root layout): the page
+   draws under the status bar, whose clock is always white. The root layout paints this strip
+   behind it, always dark (--gray-925: the dark background and the manifest's theme_color), so the
+   clock stays legible in the light theme too. 0 px tall wherever there is no top inset. */
 .bo-status-bar-backdrop { position: fixed; inset-inline: 0; top: 0; height: env(safe-area-inset-top); z-index: 30;
-  background: var(--color-bg); pointer-events: none; }
+  background: var(--gray-925); pointer-events: none; }
 html { scroll-padding-top: env(safe-area-inset-top); }
+/* Pages outside the shell (login, the root error and the signed-out 404): their <main> keeps clear
+   of the notch, the status bar and the home indicator, like the shell's <main>. */
+.bo-safe-area { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 /* Options of a radio grid that carry a name (the area picker): left-aligned, up to two lines. */
 .bo-key.bo-option-key { justify-content: flex-start; text-align: left; min-height: 52px; padding: 6px 12px; gap: 8px; }
 .bo-option-key__label { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; overflow-wrap: anywhere; }
@@ -131,3 +136,16 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 .bo-milestone-title { color: var(--color-text); cursor: pointer; transition: background-color var(--duration-hover) var(--ease-standard); }
 .bo-milestone-title:hover { background: var(--color-surface-hover); }
 .bo-milestone-title:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+
+/*
+ * Projects (Checkpoint final): the priority's LED on each option of the detail's segmented
+ * control. Alta is the signal LED (as on the card); Media the neutral LED (it inverts with the
+ * selected key); Baja a hollow ring in the same tone, so the three differ in shape too. The
+ * labels stay: color is never the only cue.
+ */
+.bo-priority-led--low { background: transparent; border: 1.5px solid var(--led, var(--color-text-secondary)); }
+@media (forced-colors: active) {
+  /* System colors would replace the backgrounds: draw them in the button's text color. */
+  .bo-priority-led { forced-color-adjust: none; background: ButtonText; }
+  .bo-priority-led--low { background: transparent; border-color: ButtonText; }
+}

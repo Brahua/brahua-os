@@ -4,6 +4,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { ProjectCloseSection } from "@/app/(app)/projects/[id]/_components/project-close-section";
 import { ProjectDeleteSection } from "@/app/(app)/projects/[id]/_components/project-delete-section";
 import { ProjectDetailProvider } from "@/app/(app)/projects/[id]/_components/project-detail-context";
 import { ProjectHeader } from "@/app/(app)/projects/[id]/_components/project-header";
@@ -31,7 +32,11 @@ import {
   type ProjectAreaSummary,
   type ProjectDetail,
 } from "@/modules/projects/project-input";
+import { closeProject, reopenProject } from "@/modules/projects/close-actions";
+import type { MilestoneCounts } from "@/modules/projects/milestone-input";
+import type { OpenWork } from "@/modules/projects/project-close";
 import { completedAtAfter } from "@/modules/projects/project-status";
+import type { ProgressCounts } from "@/modules/projects/progress-source";
 import { getProject } from "@/modules/projects/queries";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
@@ -68,6 +73,11 @@ vi.mock("@/modules/projects/actions", () => ({
   deleteProject: vi.fn(),
   addDependency: vi.fn(),
   removeDependency: vi.fn(),
+}));
+// Checkpoint final: "Cerrar proyecto".
+vi.mock("@/modules/projects/close-actions", () => ({
+  closeProject: vi.fn(),
+  reopenProject: vi.fn(),
 }));
 
 const HOME: ProjectAreaSummary = {
@@ -116,6 +126,8 @@ const PROJECT: ProjectDetail = {
  */
 const server = {
   project: PROJECT,
+  /** What closeProject's own count says was left open. */
+  open: { milestones: 0, tasks: 0 } as OpenWork,
   render: (() => {}) as (project: ProjectDetail) => void,
   pending: [] as { answer: (result?: ActionResult<unknown>) => void }[],
   async answer(result?: ActionResult<unknown>) {
@@ -128,9 +140,10 @@ const server = {
   },
 };
 
-function serverCall(
+function serverCall<T = ProjectDetail>(
   apply: (project: ProjectDetail) => ProjectDetail,
-): Promise<ActionResult<ProjectDetail>> {
+  value: (project: ProjectDetail) => T = (project) => project as T,
+): Promise<ActionResult<T>> {
   return new Promise((resolve) => {
     server.pending.push({
       answer: (result) => {
@@ -138,11 +151,17 @@ function serverCall(
           server.project = apply(server.project);
           server.render(server.project);
         }
-        resolve((result ?? ok(server.project)) as ActionResult<ProjectDetail>);
+        resolve((result ?? ok(value(server.project))) as ActionResult<T>);
       },
     });
   });
 }
+
+/** The page's milestones and what the progress sources count, for "Cerrar proyecto". */
+const work = {
+  counts: { done: 0, total: 0 } as MilestoneCounts,
+  contributed: undefined as ProgressCounts | undefined,
+};
 
 function Detail({ initial, areas }: { initial: ProjectDetail; areas: ProjectAreaSummary[] }) {
   const [project, setProject] = useState(initial);
@@ -154,6 +173,7 @@ function Detail({ initial, areas }: { initial: ProjectDetail; areas: ProjectArea
       <ProjectHeader headingId="project-title" areas={areas} />
       <ProjectStateSection />
       <ProjectPlanSection />
+      <ProjectCloseSection counts={work.counts} contributed={work.contributed} />
       <ProjectDeleteSection />
     </ProjectDetailProvider>
   );
@@ -175,7 +195,24 @@ beforeEach(() => {
     removeEventListener: vi.fn(),
   })) as unknown as typeof window.matchMedia;
   server.pending = [];
+  server.open = { milestones: 0, tasks: 0 };
+  work.counts = { done: 0, total: 0 };
+  work.contributed = undefined;
   router.replace.mockReset();
+  vi.mocked(closeProject)
+    .mockReset()
+    .mockImplementation((input) => {
+      const status = (input as Input).status as "done" | "canceled";
+      return serverCall(
+        (p) => ({ ...p, status, completedAt: completedAtAfter(status, p.completedAt, NOW) }),
+        (project) => ({ project, open: server.open }),
+      );
+    });
+  vi.mocked(reopenProject)
+    .mockReset()
+    .mockImplementation(() =>
+      serverCall((p) => ({ ...p, status: "active" as const, completedAt: null })),
+    );
   vi.mocked(renameProject)
     .mockReset()
     .mockImplementation((input) =>
@@ -259,6 +296,7 @@ describe("page", () => {
       "Bloqueado por",
       "Enlaces",
       "Notas",
+      "Cerrar proyecto",
     ]);
     expect(screen.getByText("Hogar")).toBeInTheDocument();
     expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked();
@@ -377,7 +415,7 @@ describe("name", () => {
 });
 
 describe("status", () => {
-  test("all six states; Terminado shows at once with its date and hides the due notice", async () => {
+  test("the four open states; Terminado and Cancelado are “Cerrar proyecto”", async () => {
     const user = renderDetail();
     const radios = within(statusGroup()).getAllByRole("radio");
     expect(radios.map((radio) => radio.textContent)).toEqual([
@@ -385,45 +423,41 @@ describe("status", () => {
       "Activo",
       "Pausado",
       "Mantenimiento",
-      "Terminado",
-      "Cancelado",
     ]);
     expect(screen.getByText("Vence en 3 días")).toBeInTheDocument();
 
-    await user.click(within(statusGroup()).getByRole("radio", { name: "Terminado" }));
-    expect(within(statusGroup()).getByRole("radio", { name: "Terminado" })).toBeChecked();
-    expect(screen.getByText(/^Terminado el /)).toBeInTheDocument();
-    expect(screen.queryByText("Vence en 3 días")).not.toBeInTheDocument();
-    expect(changeProjectStatus).toHaveBeenCalledWith({ id: PROJECT.id, status: "done" });
-
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Pausado" }));
+    expect(within(statusGroup()).getByRole("radio", { name: "Pausado" })).toBeChecked();
+    expect(changeProjectStatus).toHaveBeenCalledWith({ id: PROJECT.id, status: "paused" });
     await server.answer();
-    // The server's date (NOW), in Lima.
-    expect(screen.getByText("Terminado el 1 de octubre de 2026")).toBeInTheDocument();
+    expect(server.project).toMatchObject({ status: "paused", completedAt: null });
+  });
 
-    // Back to Activo: no finish date, the due notice is back.
-    await user.click(within(statusGroup()).getByRole("radio", { name: "Activo" }));
-    expect(screen.queryByText(/^Terminado el /)).not.toBeInTheDocument();
-    expect(screen.getByText("Vence en 3 días")).toBeInTheDocument();
-    await server.answer();
-    expect(server.project.completedAt).toBeNull();
+  test("a closed project shows its state as text instead of the picker", () => {
+    renderDetail({ status: "canceled" });
+    expect(screen.queryByRole("radiogroup", { name: "Estado" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-closed-status]")).toHaveTextContent(
+      "Cancelado. Para cambiar el estado, reábrelo en «Cerrar proyecto», más abajo.",
+    );
+    // The priority can still change.
+    expect(priorityGroup()).toBeInTheDocument();
   });
 
   test("arrows show each state at once but save only where they rest", async () => {
-    const user = renderDetail({ status: "active" });
-    within(statusGroup()).getByRole("radio", { name: "Activo" }).focus();
-    // Activo → Pausado → Mantenimiento → Terminado → Cancelado, passing Terminado.
-    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
-    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
-    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toHaveFocus();
+    const user = renderDetail({ status: "idea" });
+    within(statusGroup()).getByRole("radio", { name: "Idea" }).focus();
+    // Idea → Activo → Pausado → Mantenimiento.
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
+    expect(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" })).toBeChecked();
+    expect(within(statusGroup()).getByRole("radio", { name: "Mantenimiento" })).toHaveFocus();
     expect(changeProjectStatus).not.toHaveBeenCalled();
 
     await waitFor(() => expect(changeProjectStatus).toHaveBeenCalledTimes(1), {
       timeout: STATUS_SETTLE_MS * 3,
     });
-    expect(changeProjectStatus).toHaveBeenCalledWith({ id: PROJECT.id, status: "canceled" });
-    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    expect(changeProjectStatus).toHaveBeenCalledWith({ id: PROJECT.id, status: "maintenance" });
     await server.answer();
-    expect(server.project).toMatchObject({ status: "canceled", completedAt: null });
+    expect(server.project).toMatchObject({ status: "maintenance", completedAt: null });
   });
 
   test("Tab away from a resting pick saves it right away", async () => {
@@ -459,13 +493,13 @@ describe("status", () => {
   test("the save in flight fails while a newer one waits: no notice, the newer one wins", async () => {
     const user = renderDetail({ status: "active" });
     await user.click(within(statusGroup()).getByRole("radio", { name: "Pausado" }));
-    await user.click(within(statusGroup()).getByRole("radio", { name: "Cancelado" }));
+    await user.click(within(statusGroup()).getByRole("radio", { name: "Idea" }));
     await server.answer(fail(UNEXPECTED_ERROR_MESSAGE));
-    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    expect(within(statusGroup()).getByRole("radio", { name: "Idea" })).toBeChecked();
     await waitFor(() => expect(changeProjectStatus).toHaveBeenCalledTimes(2));
     await server.answer();
-    expect(server.project.status).toBe("canceled");
-    expect(within(statusGroup()).getByRole("radio", { name: "Cancelado" })).toBeChecked();
+    expect(server.project.status).toBe("idea");
+    expect(within(statusGroup()).getByRole("radio", { name: "Idea" })).toBeChecked();
     expect(notices()).not.toHaveTextContent("Sin guardar");
   });
 
@@ -488,8 +522,6 @@ describe("status", () => {
       ["Idea", true],
       ["Pausado", true],
       ["Mantenimiento", false],
-      ["Cancelado", false],
-      ["Terminado", false],
     ] as const) {
       await user.click(within(statusGroup()).getByRole("radio", { name: state }));
       if (visible) expect(screen.getByText("Vence hoy")).toBeInTheDocument();
@@ -500,6 +532,154 @@ describe("status", () => {
       }
       await server.answerAll();
     }
+  });
+
+  test.each(["done", "canceled"] as const)("no due notice once %s", (status) => {
+    renderDetail({
+      status,
+      dueDate: "2026-10-01",
+      completedAt: status === "done" ? NOW : null,
+    });
+    expect(screen.queryByText("Vence hoy")).not.toBeInTheDocument();
+  });
+});
+
+describe("close", () => {
+  const markDone = () => screen.getByRole("button", { name: "Marcar como terminado" });
+  const step = (name: string | RegExp) => screen.getByRole("group", { name });
+
+  test("Marcar como terminado: a confirm step that warns about open milestones, then Historial", async () => {
+    work.counts = { done: 1, total: 3 };
+    server.open = { milestones: 2, tasks: 0 };
+    const user = renderDetail();
+    await user.click(markDone());
+    const confirm = step("¿Marcar «Mudanza» como terminado?");
+    expect(within(confirm).getByRole("button", { name: "Volver" })).toHaveFocus();
+    expect(confirm).toHaveAccessibleDescription(
+      "Quedan 2 hitos abiertos. ¿Terminar igual? Sale de la vista principal y queda en el Historial con la fecha de hoy.",
+    );
+
+    await user.click(within(confirm).getByRole("button", { name: "Sí, terminar" }));
+    expect(closeProject).toHaveBeenCalledWith({ id: PROJECT.id, status: "done" });
+    // Waiting for the server: aria-disabled (never disabled), and said.
+    const busyKey = within(confirm).getByRole("button", { name: "Terminando…" });
+    expect(busyKey).toHaveAttribute("aria-disabled", "true");
+    expect(busyKey).toBeEnabled();
+    expect(within(confirm).getByRole("button", { name: "Volver" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(within(confirm).getByRole("status")).toHaveTextContent("Terminando…");
+    // Clicking again while it waits sends nothing more.
+    await user.click(busyKey);
+    expect(closeProject).toHaveBeenCalledTimes(1);
+
+    await server.answer();
+    expect(server.project).toMatchObject({ status: "done", completedAt: NOW });
+    expect(document.querySelector("[data-closed-state]")).toHaveTextContent(
+      "Se terminó el 1 de octubre de 2026.",
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reabrir" })).toHaveFocus());
+    await waitFor(() =>
+      expect(announcer()).toHaveTextContent(
+        "«Mudanza» se marcó como terminado. Quedaron 2 hitos abiertos.",
+      ),
+    );
+    expect(screen.getByText("Terminado el 1 de octubre de 2026")).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Estado" })).not.toBeInTheDocument();
+  });
+
+  test("the warning counts the live milestones and the progress sources' open units", async () => {
+    work.counts = { done: 2, total: 3 };
+    work.contributed = { done: 1, total: 4 };
+    const user = renderDetail();
+    await user.click(markDone());
+    expect(document.querySelector("[data-open-work-warning]")).toHaveTextContent(
+      "Quedan 1 hito abierto y 3 tareas abiertas. ¿Terminar igual?",
+    );
+  });
+
+  test("one open milestone: singular", async () => {
+    work.counts = { done: 2, total: 3 };
+    const user = renderDetail();
+    await user.click(markDone());
+    expect(document.querySelector("[data-open-work-warning]")).toHaveTextContent(
+      "Queda 1 hito abierto. ¿Terminar igual?",
+    );
+  });
+
+  test("nothing open: no warning", async () => {
+    work.counts = { done: 3, total: 3 };
+    const user = renderDetail();
+    await user.click(markDone());
+    expect(step(/como terminado/)).toBeInTheDocument();
+    expect(document.querySelector("[data-open-work-warning]")).toBeNull();
+  });
+
+  test("Esc or Volver go back with focus on the key that opened the step", async () => {
+    const user = renderDetail();
+    await user.click(markDone());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: /como terminado/ })).not.toBeInTheDocument();
+    expect(markDone()).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Cancelar proyecto" }));
+    await user.click(screen.getByRole("button", { name: "Volver" }));
+    expect(screen.getByRole("button", { name: "Cancelar proyecto" })).toHaveFocus();
+    expect(closeProject).not.toHaveBeenCalled();
+  });
+
+  test("Cancelar proyecto: a simple confirm step, then Cancelado without a date", async () => {
+    work.counts = { done: 0, total: 2 };
+    const user = renderDetail();
+    await user.click(screen.getByRole("button", { name: "Cancelar proyecto" }));
+    const confirm = step("¿Cancelar «Mudanza»?");
+    // Open milestones don't matter when canceling.
+    expect(document.querySelector("[data-open-work-warning]")).toBeNull();
+    await user.click(within(confirm).getByRole("button", { name: "Sí, cancelar proyecto" }));
+    expect(closeProject).toHaveBeenCalledWith({ id: PROJECT.id, status: "canceled" });
+    await server.answer();
+    expect(server.project).toMatchObject({ status: "canceled", completedAt: null });
+    expect(document.querySelector("[data-closed-state]")).toHaveTextContent("Se canceló.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reabrir" })).toHaveFocus());
+    await waitFor(() => expect(announcer()).toHaveTextContent("«Mudanza» se canceló."));
+  });
+
+  test("Reabrir: back to Activo with a confirm step; the finish date goes", async () => {
+    const user = renderDetail({ status: "done", completedAt: NOW });
+    expect(screen.queryByRole("button", { name: "Marcar como terminado" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Reabrir" }));
+    const confirm = step("¿Reabrir «Mudanza»?");
+    expect(confirm).toHaveAccessibleDescription(/se borra la fecha de término/);
+    expect(within(confirm).getByRole("button", { name: "Volver" })).toHaveFocus();
+    await user.click(within(confirm).getByRole("button", { name: "Sí, reabrir" }));
+    expect(reopenProject).toHaveBeenCalledWith({ id: PROJECT.id });
+    await server.answer();
+    expect(server.project).toMatchObject({ status: "active", completedAt: null });
+    await waitFor(() => expect(markDone()).toHaveFocus());
+    await waitFor(() => expect(announcer()).toHaveTextContent("«Mudanza» se reabrió como Activo."));
+    expect(within(statusGroup()).getByRole("radio", { name: "Activo" })).toBeChecked();
+    expect(screen.queryByText(/^Terminado el /)).not.toBeInTheDocument();
+  });
+
+  test("a failure shows in the confirm step and nothing changes", async () => {
+    const user = renderDetail();
+    await user.click(markDone());
+    await user.click(screen.getByRole("button", { name: "Sí, terminar" }));
+    await server.answer(fail(PROJECT_ERRORS.notFound));
+    expect(await screen.findByRole("alert")).toHaveTextContent(PROJECT_ERRORS.notFound);
+    expect(step(/como terminado/)).toBeInTheDocument();
+    expect(server.project.status).toBe("active");
+  });
+
+  test("a network failure says so in the confirm step", async () => {
+    vi.mocked(closeProject).mockRejectedValueOnce(new Error("offline"));
+    const user = renderDetail();
+    await user.click(screen.getByRole("button", { name: "Cancelar proyecto" }));
+    await user.click(screen.getByRole("button", { name: "Sí, cancelar proyecto" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
+    );
   });
 });
 
@@ -512,6 +692,27 @@ describe("priority", () => {
     // The same value again sends nothing.
     await user.click(within(priorityGroup()).getByRole("radio", { name: "Baja" }));
     expect(changeProjectPriority).toHaveBeenCalledTimes(1);
+  });
+
+  test("each option has its LED (hidden from screen readers; the label names it)", () => {
+    renderDetail();
+    for (const [name, priority] of [
+      ["Baja", "low"],
+      ["Media", "medium"],
+      ["Alta", "high"],
+    ] as const) {
+      const option = within(priorityGroup()).getByRole("radio", { name });
+      const led = option.querySelector(`[data-priority-led="${priority}"]`);
+      expect(led).toHaveAttribute("aria-hidden", "true");
+      expect(led).toHaveClass(`bo-priority-led--${priority}`);
+    }
+    // Alta is the signal LED, like the card's.
+    expect(priorityGroup().querySelector('[data-priority-led="high"]')).toHaveClass(
+      "bo-led--signal",
+    );
+    expect(priorityGroup().querySelector('[data-priority-led="medium"]')).not.toHaveClass(
+      "bo-led--signal",
+    );
   });
 });
 

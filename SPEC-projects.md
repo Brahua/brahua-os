@@ -34,7 +34,7 @@ Fuera de este módulo: tareas, bandeja de entrada y próxima acción (`tasks`); 
 | Tema | Decisión | Por qué |
 |---|---|---|
 | Estados | `idea` · `active` · `paused` · `maintenance` · `done` · `canceled`. En la UI: Idea, Activo, Pausado, Mantenimiento, Terminado, Cancelado. | Decisión del owner (5 recomendados + Mantenimiento). Backlog y Planning de Notion caben en Idea. |
-| Transiciones | Libres entre cualquier estado. Pasar a `done` guarda `completed_at`; salir de `done` lo borra. | Un solo usuario: no hace falta un flujo rígido. |
+| Transiciones | Libres entre los 4 estados abiertos (Idea, Activo, Pausado, Mantenimiento) desde el selector. **Terminar y cancelar son una acción aparte y confirmada** ("Cerrar proyecto"): "Marcar como terminado" avisa si quedan hitos abiertos (y, con `tasks`, tareas abiertas, por el contrato de avance), pero nunca lo impide; "Cancelar proyecto" pide una confirmación simple. Un proyecto terminado o cancelado se **reabre** con "Reabrir" (con confirmación) y vuelve a **Activo**. Pasar a `done` guarda `completed_at` (terminar otra vez conserva la fecha); salir de `done` lo borra. | Un solo usuario: no hace falta un flujo rígido. Checkpoint final (owner, 2026-10-01): terminar sin querer era fácil al recorrer el selector, y conviene ver lo que queda abierto antes. Se reabre siempre en Activo: guardar el estado anterior pediría una columna nueva, y reabrir significa volver a trabajar en él; cualquier otro estado queda a un toque. |
 | Área de vida | Obligatoria. Solo se ofrecen áreas activas; un proyecto conserva su área si luego se archiva. | Todo se clasifica por área (PARA). Mismo criterio que `SPEC-core` para áreas archivadas. |
 | Prioridad | `low` · `medium` · `high` (Baja, Media, Alta). Por defecto `medium`. | Decisión del owner. Ordena la lista y alimentará `today`. |
 | Fechas | `start_date` y `due_date` opcionales, tipo `date` (sin hora), en hora de Lima. `due_date` ≥ `start_date`. | Igual que en Notion; el día importa, la hora no. |
@@ -142,13 +142,14 @@ Diseño con el design system; como referencia visual, el patrón `components/pat
 **Crear (Sheet):** nombre, área (obligatorios) y estado (Idea por defecto). Guardar lleva al detalle. Objetivo: crear en menos de 10 segundos desde el celular.
 
 **Detalle (`/projects/[id]`):**
-- Cabecera: nombre, área, estado y prioridad editables en el lugar (selectores accesibles), y "Bloqueado por …" si aplica.
+- Cabecera: nombre, área, estado y prioridad editables en el lugar (selectores accesibles), y "Bloqueado por …" si aplica. El selector de estado ofrece solo Idea, Activo, Pausado y Mantenimiento; en un proyecto terminado o cancelado se reemplaza por el estado en texto. Cada opción de prioridad lleva su LED (Alta naranja como en la tarjeta, Media neutro, Baja un aro apagado), además del nombre.
 - Objetivo, fechas (con el vencimiento), avance.
 - **Hitos:** lista con checkbox, agregar en línea (Enter agrega otro), editar título y fecha, reordenar arrastrando o con "Subir" y "Bajar" (reutiliza el patrón de áreas, C6), eliminar con "Deshacer".
 - **Dependencias:** agregar "Bloqueado por" con un buscador de proyectos (excluye el propio, los eliminados y los que crearían un ciclo); quitar.
 - **Enlaces:** agregar, editar, reordenar y quitar.
 - **Notas:** Markdown con pestañas "Escribir" / "Vista previa", guardado explícito ("Guardar") y aviso si sales con cambios sin guardar. Fuera de edición se muestran renderizadas.
-- Acciones: cambiar estado, Eliminar (con "Deshacer").
+- **Cerrar proyecto** (antes de Eliminar): "Marcar como terminado" y "Cancelar proyecto", cada uno con una confirmación en la página (como Eliminar; el foco entra a la confirmación y vuelve). La de terminar avisa lo que queda abierto ("Quedan 2 hitos abiertos. ¿Terminar igual?"). Ya cerrado, muestra el estado, la fecha de término (si terminó) y "Reabrir" (con confirmación; vuelve a Activo). El resultado se anuncia ("«X» se marcó como terminado. Quedaron 2 hitos abiertos.").
+- Acciones: cambiar estado, cerrar o reabrir, Eliminar (con "Deshacer").
 
 Todas las acciones con UI optimista donde el cambio es inmediato (checkbox de hito, estado, prioridad), y avisos con la cola de `@/lib/toast`.
 

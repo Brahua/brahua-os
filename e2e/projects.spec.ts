@@ -7,6 +7,7 @@ import {
   areaGroup,
   cardNames,
   CREATE_AREA,
+  expectNoOverflow,
   FIXTURE_AREA,
   filterSheet,
   filterTrigger,
@@ -171,6 +172,21 @@ test("Historial is folded and opens to Terminado and Cancelado", async ({ page }
 
   await toggle.click();
   await expect(groupList(page, "Terminado")).toBeHidden();
+});
+
+test("no card is wider than the screen at 320 and 390 px (every variant, Historial open)", async ({
+  page,
+}) => {
+  await openProjects(page, FIXTURE_FILTER);
+  await historyToggle(page).click();
+  // Due today and soon, high priority, progress, Mantenimiento, Idea, Terminado with its date and
+  // Cancelado (the blocked badge is checked in project-dependencies.spec.ts).
+  const cards = page.locator("main article[data-project-card]");
+  await expect(cards).toHaveCount(7);
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const card of await cards.all()) await expectNoOverflow(page, card);
+  }
 });
 
 test("create a project on the phone in a few taps and land on its page", async ({

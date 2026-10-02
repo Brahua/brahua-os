@@ -48,11 +48,15 @@ export function ProgressMeter({
   return (
     <div
       id={id}
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex min-w-0 flex-col gap-2", className)}
       data-progress={`${done}/${total}`}
       aria-hidden={decorative || undefined}
     >
-      <div className="flex items-baseline justify-between gap-3" aria-hidden>
+      {/* Wraps on narrow cards ("100 %" and "12 de 12 hitos" never push past the edge). */}
+      <div
+        className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1"
+        aria-hidden
+      >
         <StatNumber value={ratio} kind="percent" size={variant === "detail" ? "md" : "sm"} />
         <span className="bo-text-label text-text-secondary">
           {MILESTONES_COPY.progressCount(done, total)}

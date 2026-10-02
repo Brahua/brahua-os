@@ -12,6 +12,7 @@ import {
   type ProjectPriority,
   type ProjectStatus,
 } from "./project-constants";
+import { CLOSED_STATUSES, OPEN_STATUSES } from "./project-close";
 
 export {
   PROJECT_NAME_MAX_LENGTH,
@@ -39,15 +40,10 @@ export const PROJECT_ERRORS = {
 } as const;
 
 /**
- * States a new project can start in. Terminado and Cancelado are left out: a project is created
- * to be worked on, and finishing or canceling it happens from its detail.
+ * States a new project can start in (the open ones). Terminado and Cancelado are left out: a
+ * project is created to be worked on, and finishing or canceling it happens from its detail.
  */
-export const CREATE_PROJECT_STATUSES = [
-  "idea",
-  "active",
-  "paused",
-  "maintenance",
-] as const satisfies readonly ProjectStatus[];
+export const CREATE_PROJECT_STATUSES = OPEN_STATUSES;
 
 /** The life area as a project shows it (the area may be archived since). */
 export type ProjectAreaSummary = {
@@ -175,3 +171,11 @@ export const updateProjectDatesInputSchema = z
   );
 
 export type UpdateProjectDatesInput = z.output<typeof updateProjectDatesInputSchema>;
+
+// ── Cerrar proyecto (Checkpoint final) ──────────────────────────────────────────────────────
+
+/** Terminado or Cancelado, confirmed on the page ("Reabrir" takes `projectIdInputSchema`). */
+export const closeProjectInputSchema = z.object({
+  id,
+  status: z.enum(CLOSED_STATUSES, { error: PROJECT_ERRORS.status }),
+});

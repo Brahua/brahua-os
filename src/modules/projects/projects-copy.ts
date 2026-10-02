@@ -4,6 +4,7 @@ import {
   type ProjectPriority,
   type ProjectStatus,
 } from "./project-constants";
+import type { OpenWork } from "./project-close";
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   idea: "Idea",
@@ -166,7 +167,7 @@ export const DEPENDENCIES_COPY = {
   remove: (name: string) => `Quitar «${name}»`,
   // Sheet
   sheetTitle: "Agregar bloqueador",
-  sheetSubtitle:
+  sheetDescription:
     "Elige el proyecto que debe terminar antes. No aparecen los que crearían un ciclo, aunque la cadena pase por un proyecto eliminado (podría volver con «Deshacer»).",
   searchLabel: "Buscar proyecto",
   results: "Proyectos",
@@ -183,4 +184,62 @@ export const DEPENDENCIES_COPY = {
   restored: (name: string) => `«${name}» vuelve a bloquear este proyecto.`,
   notRemoved: (name: string) => `No se pudo quitar «${name}»; volvió a como estaba.`,
   notRestored: (name: string) => `No se pudo volver a agregar «${name}».`,
+} as const;
+
+/** "N hitos abiertos y M tareas abiertas" (singular or plural each), or null with nothing open. */
+function openWorkList({ milestones, tasks }: OpenWork): { list: string; many: boolean } | null {
+  const parts: string[] = [];
+  if (milestones > 0) {
+    parts.push(milestones === 1 ? "1 hito abierto" : `${milestones} hitos abiertos`);
+  }
+  if (tasks > 0) parts.push(tasks === 1 ? "1 tarea abierta" : `${tasks} tareas abiertas`);
+  if (parts.length === 0) return null;
+  return { list: parts.join(" y "), many: parts.length > 1 || milestones + tasks > 1 };
+}
+
+/** "Cerrar proyecto" (Checkpoint final): mark as done or cancel, with a confirm step; reopen. */
+export const CLOSE_COPY = {
+  section: "Cerrar proyecto",
+  help: "Terminado y Cancelado salen de la vista principal y quedan en el Historial. Puedes reabrirlo cuando quieras.",
+  markDone: "Marcar como terminado",
+  cancelProject: "Cancelar proyecto",
+  /** Dismisses a confirm step ("Cancelar" next to "Cancelar proyecto" would be ambiguous). */
+  back: "Volver",
+  doneTitle: (name: string) => `¿Marcar «${name}» como terminado?`,
+  doneText: "Sale de la vista principal y queda en el Historial con la fecha de hoy.",
+  /** The warning of the done confirm step, or null when nothing is open. */
+  openWorkWarning: (open: OpenWork): string | null => {
+    const work = openWorkList(open);
+    if (!work) return null;
+    return `${work.many ? "Quedan" : "Queda"} ${work.list}. ¿Terminar igual?`;
+  },
+  doneConfirm: "Sí, terminar",
+  finishing: "Terminando…",
+  cancelTitle: (name: string) => `¿Cancelar «${name}»?`,
+  cancelText:
+    "Sale de la vista principal y queda en el Historial. Sus hitos, notas y enlaces se conservan.",
+  cancelConfirm: "Sí, cancelar proyecto",
+  canceling: "Cancelando…",
+  /** The block of a closed project. */
+  doneState: (day: string) => `Se terminó el ${day}.`,
+  canceledState: "Se canceló.",
+  closedHelp: "Está en el Historial. Al reabrirlo vuelve a Activo y a la vista principal.",
+  reopen: "Reabrir",
+  reopenTitle: (name: string) => `¿Reabrir «${name}»?`,
+  reopenText: "Vuelve a Activo y a la vista principal. Luego puedes cambiarle el estado.",
+  reopenDoneText:
+    "Vuelve a Activo y a la vista principal, y se borra la fecha de término. Luego puedes cambiarle el estado.",
+  reopenConfirm: "Sí, reabrir",
+  reopening: "Reabriendo…",
+  /** Announced once it is done: the server's own count of what was left open, if anything. */
+  done: (name: string, open: OpenWork) => {
+    const work = openWorkList(open);
+    const left = work ? ` ${work.many ? "Quedaron" : "Quedó"} ${work.list}.` : "";
+    return `«${name}» se marcó como terminado.${left}`;
+  },
+  canceled: (name: string) => `«${name}» se canceló.`,
+  reopened: (name: string) => `«${name}» se reabrió como Activo.`,
+  /** The state picker of a closed project gives way to this line. */
+  closedStatus: (state: string) =>
+    `${state}. Para cambiar el estado, reábrelo en «Cerrar proyecto», más abajo.`,
 } as const;

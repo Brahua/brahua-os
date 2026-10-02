@@ -12,6 +12,7 @@ import {
   type ActiveBlocker,
   type ProjectDependencies,
 } from "./dependency-input";
+import { CLOSED_STATUSES, REOPEN_STATUS } from "./project-close";
 import type { ProjectPriority, ProjectStatus } from "./project-constants";
 import type {
   CreateProjectInput,
@@ -197,6 +198,27 @@ export function setProjectStatus(db: Database, id: string, status: ProjectStatus
   return updateProject(db, id, {
     status,
     completedAt: status === "done" ? sql`coalesce(${projects.completedAt}, now())` : null,
+  });
+}
+
+/**
+ * "Reabrir": a Terminado or Cancelado project goes back to `REOPEN_STATUS` (Activo) and loses its
+ * `completed_at`. One that is open already (reopened in another tab, say) is left as it is, so
+ * reopening twice never overwrites a state picked since. Null when it doesn't exist or is deleted.
+ */
+export async function reopenProjectById(db: Database, id: string): Promise<ProjectSummary | null> {
+  return db.transaction(async (tx) => {
+    await tx
+      .update(projects)
+      .set({ status: REOPEN_STATUS, completedAt: null })
+      .where(
+        and(
+          eq(projects.id, id),
+          isNull(projects.deletedAt),
+          inArray(projects.status, [...CLOSED_STATUSES]),
+        ),
+      );
+    return selectProjectById(tx, id);
   });
 }
 

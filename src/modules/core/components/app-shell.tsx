@@ -13,6 +13,9 @@ import {
  * The signed-in shell: sidebar from 1024 px, fixed bottom bar below. Pages render inside `<main>`
  * and lay out their own content width (up to `--content-max`).
  *
+ * `<main>` pads itself with the safe-area insets; the root layout sets viewport-fit=cover and
+ * paints the strip behind the iOS status bar.
+ *
  * Server Component that reads the navigation cookies. It never checks the session: callers do
  * (the `(app)` layout with `requireOwner()`, the root 404 with `getOwnerSession()`).
  */
@@ -24,8 +27,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SessionRefresher />
-      {/* Paints behind the iOS status bar in the installed app so content never scrolls under it. */}
-      <div aria-hidden="true" className="bo-status-bar-backdrop" />
       <a
         href="#content"
         className="sr-only z-50 rounded-md bg-key px-4 py-3 text-text shadow-key focus:not-sr-only focus:fixed focus:top-[max(1rem,env(safe-area-inset-top))] focus:left-[max(1rem,env(safe-area-inset-left))]"

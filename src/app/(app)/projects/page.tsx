@@ -175,9 +175,14 @@ function StatusGroup({
         count={projects.length}
         aria-label={PROJECTS_COPY.groupName(label, projects.length)}
       />
-      <ul aria-label={PROJECTS_COPY.groupList(label)} className="grid gap-3 md:grid-cols-2">
+      {/* grid-cols-1 (minmax(0, 1fr)), not the implicit auto column: a card never grows wider than
+          the screen to fit a long label (Checkpoint final: the Historial overflowed at 390 px). */}
+      <ul
+        aria-label={PROJECTS_COPY.groupList(label)}
+        className="grid grid-cols-1 gap-3 md:grid-cols-2"
+      >
         {projects.map((project) => (
-          <li key={project.id} className="flex flex-col">
+          <li key={project.id} className="flex min-w-0 flex-col">
             <ProjectCard
               project={project}
               due={dueState(project.dueDate, project.status, now)}
