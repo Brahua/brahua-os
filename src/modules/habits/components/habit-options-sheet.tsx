@@ -1,12 +1,14 @@
 "use client";
 
-import { Archive, Pencil, Trash2 } from "lucide-react";
+import { Archive, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Key, Sheet } from "@/design-system";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import type { HabitItem } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
+import { MEASURE_COPY } from "../measure-copy";
 import { ORGANIZE_COPY } from "../organize-copy";
+import { preloadAdjust } from "./use-quantity-log";
 
 export type HabitOptionsSheetProps = {
   open: boolean;
@@ -21,6 +23,8 @@ export type HabitOptionsSheetProps = {
   onEdit?: (habit: HabitItem) => void;
   /** H2: archive it (the screen closes the sheet, removes the pad and offers "Deshacer"). */
   onArchive?: (habit: HabitItem) => void;
+  /** H3: open "Ajustar el día" (the screen closes this sheet first). Quantity habits only. */
+  onAdjust?: (habit: HabitItem) => void;
 };
 
 /**
@@ -37,6 +41,7 @@ export function HabitOptionsSheet({
   onDelete,
   onEdit,
   onArchive,
+  onAdjust,
 }: HabitOptionsSheetProps) {
   const isDesktop = useIsDesktop();
   const [confirming, setConfirming] = useState(false);
@@ -69,6 +74,7 @@ export function HabitOptionsSheet({
 
   const helpId = `${ids}-delete-help`;
   const archiveHelpId = `${ids}-archive-help`;
+  const adjustHelpId = `${ids}-adjust-help`;
   const confirmTextId = `${ids}-confirm-text`;
 
   return (
@@ -115,7 +121,26 @@ export function HabitOptionsSheet({
           </div>
         ) : null}
 
-        {/* H3 slot (Ajustar el día). */}
+        {/* H3 (Ajustar el día): today's exact quantity, for a quantity habit. */}
+        {onAdjust && habit.kind === "build" && habit.measure === "quantity" ? (
+          <div className="flex flex-col items-start gap-2">
+            <Key
+              variant="ghost"
+              icon={SlidersHorizontal}
+              aria-haspopup="dialog"
+              aria-describedby={adjustHelpId}
+              onPointerEnter={preloadAdjust}
+              onFocus={preloadAdjust}
+              onTouchStart={preloadAdjust}
+              onClick={() => onAdjust(habit)}
+            >
+              {MEASURE_COPY.adjustDay}
+            </Key>
+            <p id={adjustHelpId} className="bo-text-body-sm text-text-secondary">
+              {MEASURE_COPY.adjustHelp}
+            </p>
+          </div>
+        ) : null}
 
         {/* H4 slot (Pausar, Reanudar). */}
 

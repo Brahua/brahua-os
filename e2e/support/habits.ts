@@ -64,6 +64,10 @@ type NewHabit = {
   weekdays?: number[];
   /** H2: archived. */
   archived?: boolean;
+  /** H3: a habit to avoid (`done` is then "a relapse today"). */
+  kind?: "build" | "avoid";
+  /** H3: a quantity habit ("8 vasos": goal, unit, step) and today's quantity. */
+  quantity?: { goal: number; unit: string; step?: number; today?: number };
 };
 
 /**
@@ -82,12 +86,21 @@ export function insertHabit(habit: NewHabit): Promise<string> {
         .where(eq(lifeAreas.slug, habit.area));
       lifeAreaId = area.id;
     }
+    const { quantity } = habit;
     const [row] = await db
       .insert(habits)
       .values({
         name: habit.name,
         lifeAreaId,
-        measure: "check",
+        kind: habit.kind ?? "build",
+        ...(quantity
+          ? {
+              measure: "quantity",
+              goal: quantity.goal,
+              unit: quantity.unit,
+              step: quantity.step ?? 1,
+            }
+          : { measure: "check" }),
         frequency: habit.weeklyTarget ? "weekly_count" : habit.weekdays ? "weekdays" : "daily",
         weeklyTarget: habit.weeklyTarget ?? null,
         weekdays: habit.weekdays ?? null,
@@ -96,9 +109,15 @@ export function insertHabit(habit: NewHabit): Promise<string> {
         sortOrder: habit.sortOrder ?? 1_000 + Math.floor(Math.random() * 1_000),
       })
       .returning({ id: habits.id });
+    const target = quantity?.goal ?? 1;
+    if (quantity?.today) {
+      await db
+        .insert(habitLogs)
+        .values({ habitId: row.id, day: limaDay(0), quantity: quantity.today, target });
+    }
     const days = [habit.done ? limaDay(0) : null, habit.loggedBefore ? limaDay(-1) : null];
     for (const day of days) {
-      if (day) await db.insert(habitLogs).values({ habitId: row.id, day, quantity: 1, target: 1 });
+      if (day) await db.insert(habitLogs).values({ habitId: row.id, day, quantity: 1, target });
     }
     return row.id;
   });

@@ -231,13 +231,16 @@ describe("edit (updateHabit)", () => {
         id: habit.id,
         name: "Agua",
         frequency: "daily",
+        // The kind and measure never change in an edit (H3 edits only a quantity's goal, unit
+        // and step, tested in habits-measure.test.ts).
         measure: "check",
-        goal: 1,
+        kind: "avoid",
         sortOrder: 99,
         startDate: "2020-01-01",
       }),
     ).toMatchObject({ ok: true, data: { measure: "quantity", goal: 8, quantity: 3, target: 8 } });
     expect(await row(habit.id)).toMatchObject({
+      kind: before.kind,
       measure: before.measure,
       goal: before.goal,
       unit: before.unit,

@@ -10,7 +10,12 @@ import {
   frequencyUpdateShape,
   refineFrequency,
 } from "./frequency-input";
-import { measureInputShape } from "./measure-input";
+import {
+  measureInputShape,
+  measureUpdateShape,
+  refineMeasure,
+  refineMeasureUpdate,
+} from "./measure-input";
 import {
   HABIT_NAME_MAX_LENGTH,
   type HabitFrequency,
@@ -115,14 +120,17 @@ export const createHabitInputSchema = z
     ...measureInputShape,
   })
   // H2: each frequency with exactly its own field (frequency-input.ts).
-  .superRefine(refineFrequency);
+  .superRefine(refineFrequency)
+  // H3's rules across fields (quantity needs goal and unit; "a evitar ⇒ sí/no diario", which
+  // reads the frequency).
+  .superRefine(refineMeasure);
 
 export type CreateHabitInput = z.output<typeof createHabitInputSchema>;
 
 /**
  * Editing a habit (H2): its name, area and frequency (the frequency can always change; the
- * streak is read again with the new rule). The measure is H3's (it doesn't change once the habit
- * has logs), so it is not here: an edit never touches it.
+ * streak is read again with the new rule). The kind and measure never change in an edit (H3,
+ * conservative: archive and create another); a quantity's goal, unit and step do.
  */
 export const updateHabitInputSchema = z
   .object({
@@ -130,15 +138,23 @@ export const updateHabitInputSchema = z
     name,
     lifeAreaId,
     ...frequencyUpdateShape,
+    // H3: a quantity's goal, unit and step (the goal counts from today on).
+    ...measureUpdateShape,
   })
-  .superRefine(refineFrequency);
+  .superRefine(refineFrequency)
+  .superRefine(refineMeasureUpdate);
 
 export type UpdateHabitInput = z.output<typeof updateHabitInputSchema>;
 
 /** Field names of the create and edit form, in order (focus goes to the first invalid one). */
 export const CREATE_HABIT_FIELDS = [
   "name",
-  // H3: the kind and measure fields go here (the form's order).
+  // H3: kind and measure, in the form's order.
+  "kind",
+  "measure",
+  "goal",
+  "step",
+  "unit",
   ...FREQUENCY_FIELDS,
   "lifeAreaId",
 ] as const;

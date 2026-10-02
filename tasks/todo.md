@@ -10,8 +10,8 @@
 
 ## Fase 2 — Reglas *(H2 y H3 en paralelo)*
 
-- [ ] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar. *(En PR, rama `feat/habits-h2-frequencies`; ver HANDOFF → "Cómo funciona habits" → "H2".)*
-- [ ] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída).
+- [x] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar. *(PR #63 integrado; ver HANDOFF → "Cómo funciona habits" → "H2".)*
+- [ ] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída). *(En PR, rama `feat/habits-h3-measures`; ver HANDOFF → "Cómo funciona habits" → "H3".)*
 
 ## Fase 3 — Rachas e historial
 

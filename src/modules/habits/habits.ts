@@ -7,13 +7,14 @@
 //   are active or their order: create, reorder (H2), archive and unarchive (H2), delete and
 //   restore. Keeps `sort_order` consistent, like `LIFE_AREAS_LOCK`.
 // - `(4000, hashtext(<habit id>))` (`lockHabit`): one habit's pauses (no overlaps, H4), goal
-//   changes with today's `target` (H3), delete and restore.
+//   changes with the `target` of today on (H3, quantity.ts), delete and restore.
 // Rule: advisory locks are always the first locks of the transaction, never taken after a row
 // lock; with both, the order lock first, then the habit's. Only then the rows: the habit FOR
 // UPDATE (or FOR SHARE to log a day), the area FOR SHARE.
 //
 // Logging a day takes no advisory lock: it is one atomic upsert on (habit_id, day) after reading
-// the habit FOR SHARE (a delete or an archive at the same time waits, or makes it wait).
+// the habit FOR SHARE (a delete, an archive or a goal change at the same time waits, or makes it
+// wait). That holds for a quantity's delta and exact amount too (quantity.ts).
 import "server-only";
 import { and, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { alias, type AnyPgColumn } from "drizzle-orm/pg-core";
@@ -147,7 +148,15 @@ export async function selectHabitItemById(
 
 /** Why a write was refused. */
 export type HabitFailure =
-  "notFound" | "archived" | "areaUnavailable" | "dayOutOfWindow" | "measureMismatch";
+  | "notFound"
+  | "archived"
+  | "areaUnavailable"
+  | "dayOutOfWindow"
+  | "measureMismatch"
+  /** H3: a quantity write (a tap's delta, an exact amount, a goal) on a yes/no habit. */
+  | "notQuantity"
+  /** H3: an edit that makes a habit to avoid other than daily. */
+  | "avoidDaily";
 
 /**
  * Creates a habit at the end of the manual order, starting `today`. H1: a daily yes/no habit to
@@ -214,7 +223,7 @@ export async function setHabitDoneById(
       .for("share");
     if (!habit) return "notFound";
     if (habit.archivedAt !== null) return "archived";
-    // H3 slot: quantity habits log through `logHabit` (a delta), not a yes/no.
+    // Quantity habits log through `logHabit` (a delta) or `setHabitQuantity` (quantity.ts).
     if (habit.measure !== "check") return "measureMismatch";
     if (!isLoggableDay(input.day, today, habit.startDate)) return "dayOutOfWindow";
     const quantity = input.done ? 1 : 0;
