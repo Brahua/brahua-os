@@ -20,11 +20,11 @@ export const ORGANIZE_COPY = {
   // Edit
   edit: "Editar",
   editHabit: "Editar hábito",
-  editHelp: "Nombre, frecuencia y área.",
   save: "Guardar cambios",
   saving: "Guardando…",
   savingStatus: "Guardando cambios…",
   updated: (name: string) => `Cambios guardados en «${name}».`,
+  nowNotDue: "Está en «No tocan hoy».",
   archivedArea: (name: string) => `${name} (archivada)`,
 
   // Archive and reactivate
@@ -48,7 +48,6 @@ export const ORGANIZE_COPY = {
 
   // Order
   order: "Ordenar",
-  orderDone: "Listo",
   orderTitle: "Ordenar hábitos",
   orderHelp:
     "Arrastra el asa o usa Subir y Bajar. El orden es el de «Hoy»; incluye los hábitos que no tocan hoy.",

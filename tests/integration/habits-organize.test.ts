@@ -520,12 +520,14 @@ describe("manual order (reorderHabits)", () => {
       reorderHabits({ ids: [a.id, b.id] }),
       createHabit({ name: "D" }),
     ]);
-    // A reorder that lost the race to a create sees a stale list: refused, nothing written.
-    for (const result of results) {
-      expect(result.ok || (!result.ok && result.error === ORGANIZE_ERRORS.staleOrder)).toBe(true);
+    // Both creates go through; a reorder that lost the race to a create sees a stale list and
+    // is refused without writing.
+    expect(results[1].ok && results[3].ok).toBe(true);
+    for (const result of [results[0], results[2]]) {
+      if (!result.ok) expect(result.error).toBe(ORGANIZE_ERRORS.staleOrder);
     }
-    const sortOrders = (await orders()).map(([, order]) => order);
-    expect(new Set(sortOrders).size).toBe(4);
+    const sortOrders = (await orders()).map(([, order]) => Number(order));
+    expect([...sortOrders].sort((x, y) => x - y)).toEqual([0, 1, 2, 3]);
   });
 });
 

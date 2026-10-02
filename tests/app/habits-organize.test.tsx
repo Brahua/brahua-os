@@ -274,9 +274,11 @@ describe("what is due today", () => {
     await user.click(pad("Inglés"));
     expect(setHabitDone).toHaveBeenCalledWith({ id: INGLES.id, day: TODAY, done: true });
     expect(pad("Inglés")).toHaveAttribute("aria-pressed", "true");
-    // Not due: the count doesn't change.
+    // Not due: the count doesn't change (before and after the server answers).
     expect(count()).toBe("0 de 2 hoy");
     await server.answer();
+    expect(count()).toBe("0 de 2 hoy");
+    expect(pad("Inglés")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("habits, but none due today: 'Nada toca hoy' (not the empty state)", () => {
@@ -305,9 +307,25 @@ describe("what is due today", () => {
     await user.click(pad("Gimnasio"));
     expect(week()).toHaveTextContent("2 de 3 esta semana");
     await server.answer();
+    // The week is said too: the pad's line is only in its description.
     expect(
-      within(notices()).getByText("«Gimnasio» quedó hecho hoy. 1 de 2 hoy."),
+      within(notices()).getByText("«Gimnasio» quedó hecho hoy. 1 de 2 hoy. 2 de 3 esta semana."),
     ).toBeInTheDocument();
+  });
+
+  test("a refused weekly tap rolls the week back", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const week = () => pad("Gimnasio").querySelector("[data-habit-week]");
+    await user.click(pad("Gimnasio"));
+    expect(week()).toHaveTextContent("2 de 3 esta semana");
+    await server.answer(fail(HABIT_ERRORS.notFound));
+    expect(
+      await within(notices()).findByText(`No se pudo registrar. ${HABIT_ERRORS.notFound}`),
+    ).toBeInTheDocument();
+    // The notice can render before useOptimistic rolls back.
+    await waitFor(() => expect(week()).toHaveTextContent("1 de 3 esta semana"));
+    await waitFor(() => expect(count()).toBe("0 de 2 hoy"));
   });
 
   test("a weekly habit whose week is met counts as done today, even untapped", () => {
@@ -543,7 +561,9 @@ describe("archive and reactivate", () => {
     ).toBeInTheDocument();
     // The notice can render before useOptimistic rolls back.
     await waitFor(() => expect(padNames()).toEqual(["Meditar", "Gimnasio"]));
-    expect(screen.queryByRole("button", { name: /Archivados/ })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Archivados/ })).not.toBeInTheDocument(),
+    );
   });
 
   test("Reactivar: back at the end of 'Hoy' (focus to the next archived one); Deshacer archives it again", async () => {
@@ -580,6 +600,20 @@ describe("archive and reactivate", () => {
     await server.answer();
   });
 
+  test("reactivating the last archived one, not due today: 'No tocan hoy' opens for its pad", async () => {
+    const FRANCES = habit({ name: "Francés", frequency: "weekdays", weekdays: [2] });
+    const user = userEvent.setup();
+    renderPage({ habits: [MEDITAR], archived: [FRANCES] });
+    await user.click(screen.getByRole("button", { name: /Archivados/ }));
+    await user.click(screen.getByRole("button", { name: "Reactivar «Francés»" }));
+    expect(screen.getByRole("button", { name: /No tocan hoy/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await waitFor(() => expect(pad("Francés")).toHaveFocus());
+    await server.answer();
+  });
+
   test("a refused reactivate takes it back to 'Archivados' with a notice", async () => {
     const LEER = habit({ name: "Leer" });
     const user = userEvent.setup();
@@ -591,7 +625,9 @@ describe("archive and reactivate", () => {
       await within(notices()).findByText(`No se pudo reactivar. ${HABIT_ERRORS.notFound}`),
     ).toBeInTheDocument();
     await waitFor(() => expect(padNames()).toEqual(["Meditar"]));
-    expect(screen.getByRole("button", { name: /Archivados/ })).toHaveTextContent("1");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Archivados/ })).toHaveTextContent("1"),
+    );
   });
 });
 
@@ -668,6 +704,8 @@ describe("manual order", () => {
     await user.click(within(list).getByRole("button", { name: "Bajar «Gimnasio»" }));
     expect(reorderHabits).not.toHaveBeenCalled();
     await user.click(within(list).getByRole("button", { name: "Subir «Gimnasio»" }));
+    // Positive control for the end: the move's notice is there before the refusal.
+    expect(within(notices()).getByText(/«Gimnasio» pasó al lugar 2 de 3\./)).toBeInTheDocument();
     await server.answer(fail(ORGANIZE_ERRORS.staleOrder));
     expect(
       await within(notices()).findByText(
@@ -683,6 +721,26 @@ describe("manual order", () => {
     );
     // The burst's notice with Deshacer went with it.
     expect(within(notices()).queryByText(/pasó al lugar/)).not.toBeInTheDocument();
+  });
+
+  test("down to one habit while ordering: the mode ends, focus to the heading, never back by itself", async () => {
+    const user = userEvent.setup();
+    renderPage({ habits: [MEDITAR, GYM] });
+    await startOrdering(user);
+    expect(screen.getByRole("button", { name: "Ordenar" })).toHaveFocus();
+    // Deleted in another tab: the revalidation brings one habit.
+    act(() => server.render({ habits: [MEDITAR], archived: [] }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus(),
+    );
+    expect(screen.queryByRole("list", { name: "Orden de tus hábitos" })).not.toBeInTheDocument();
+    expect(padNames()).toEqual(["Meditar"]);
+    act(() => server.render({ habits: [MEDITAR, GYM], archived: [] }));
+    expect(screen.getByRole("button", { name: "Ordenar" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(padNames()).toEqual(["Meditar", "Gimnasio"]);
   });
 
   test("with a single habit there is nothing to order", () => {

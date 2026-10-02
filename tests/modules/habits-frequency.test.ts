@@ -12,7 +12,12 @@ import {
 } from "@/modules/habits/habit-input";
 import { applyHabitListChange } from "@/modules/habits/habit-list-optimistic";
 import { countsAsDone, dueOn, todayCount } from "@/modules/habits/habit-status";
-import { isScheduledOn, type HabitSchedule } from "@/modules/habits/schedule";
+import {
+  isoWeekday,
+  isScheduledOn,
+  weekStart,
+  type HabitSchedule,
+} from "@/modules/habits/schedule";
 import { isWeekMet, weekProgress, weekQuota } from "@/modules/habits/week-progress";
 
 const ID = "00000000-0000-4000-8000-000000000001";
@@ -218,6 +223,37 @@ describe("isScheduledOn", () => {
     }
   });
 
+  test("Sunday 23:59 in Lima is still Sunday and last week (UTC is already Monday)", () => {
+    const sundayOnly: HabitSchedule = { ...base, frequency: "weekdays", weekdays: [7] };
+    const mondayOnly: HabitSchedule = { ...base, frequency: "weekdays", weekdays: [1] };
+    const late = ownerDateKey(new Date("2026-10-05T04:59:59Z"));
+    expect(late).toBe("2026-10-04");
+    expect(isoWeekday(late)).toBe(7);
+    expect(weekStart(late)).toBe("2026-09-28");
+    expect([isScheduledOn(sundayOnly, late), isScheduledOn(mondayOnly, late)]).toEqual([
+      true,
+      false,
+    ]);
+    const monday = ownerDateKey(new Date("2026-10-05T05:00:00Z"));
+    expect(monday).toBe("2026-10-05");
+    expect(isoWeekday(monday)).toBe(1);
+    expect(weekStart(monday)).toBe("2026-10-05");
+    expect([isScheduledOn(sundayOnly, monday), isScheduledOn(mondayOnly, monday)]).toEqual([
+      false,
+      true,
+    ]);
+    // Weeks across a month and a year.
+    expect(weekStart("2026-11-01")).toBe("2026-10-26");
+    expect(weekStart("2027-01-03")).toBe("2026-12-28");
+  });
+
+  test("daily is always due; fixed days without days never are", () => {
+    expect(isScheduledOn({ ...base, frequency: "daily" }, "2026-10-04")).toBe(true);
+    expect(isScheduledOn({ ...base, frequency: "weekdays", weekdays: null }, "2026-10-05")).toBe(
+      false,
+    );
+  });
+
   test("never before the start date, whatever the frequency", () => {
     expect(isScheduledOn({ ...mwf, startDate: "2026-10-06" }, "2026-10-05")).toBe(false);
     expect(isScheduledOn({ ...weekly, startDate: "2026-10-06" }, "2026-10-05")).toBe(false);
@@ -259,6 +295,9 @@ describe("the week of a weekly habit", () => {
     expect(weekQuota(3, 3)).toBe(2); // ceil(9 / 7)
     expect(weekQuota(1, 1)).toBe(1);
     expect(weekQuota(3, 0)).toBe(0);
+    // Clamped to the week.
+    expect(weekQuota(3, 10)).toBe(3);
+    expect(weekQuota(3, -2)).toBe(0);
   });
 
   test("done = days before today + today when done; null for other frequencies", () => {

@@ -20,9 +20,9 @@ export type HabitsScreenValue = {
   /**
    * The screen's one save queue (src/lib/use-save-queue.ts): calls run in order, and a call whose
    * turn comes after a newer one with the same key is skipped. Keys in use: `habit-day:<id>:<day>`
-   * (logging a day) and `habit-delete:<id>`. Each part uses its own (H2 `habit-order`,
-   * `habit-archive:<id>`; H3 `habit-qty:<id>:<day>`; H4 `habit-pause:<id>`…) and keeps its own
-   * useOptimistic; call it inside startTransition.
+   * (logging a day), `habit-delete:<id>` and H2's `habit-archive:<id>` (H2's reorders use no key:
+   * every step is sent). Each part uses its own (H3 `habit-qty:<id>:<day>`; H4
+   * `habit-pause:<id>`…) and keeps its own useOptimistic; call it inside startTransition.
    */
   enqueue: Enqueue;
   /** The screen's notice queue (one viewport per screen): "Deshacer" and "Sin guardar". */

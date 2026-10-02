@@ -101,6 +101,8 @@ export function FrequencyField({ id, draft, onDraftChange, errors, ref }: Freque
           onValueChange={(frequency) => change({ frequency })}
           label={FREQUENCY_COPY.label}
           aria-labelledby={labelId}
+          aria-describedby={errors.frequency ? `${id}-error` : undefined}
+          aria-invalid={errors.frequency ? true : undefined}
           data-frequency=""
         />
         {errors.frequency ? <FieldError id={`${id}-error`} message={errors.frequency} /> : null}
@@ -120,6 +122,7 @@ export function FrequencyField({ id, draft, onDraftChange, errors, ref }: Freque
             label={FREQUENCY_COPY.weeklyTargetLabel}
             aria-labelledby={timesLabelId}
             aria-describedby={errors.weeklyTarget ? `${timesHelpId} ${timesErrorId}` : timesHelpId}
+            aria-invalid={errors.weeklyTarget ? true : undefined}
             data-weekly-target=""
           />
           <span id={timesHelpId} className="bo-field__help">
@@ -145,6 +148,10 @@ export function FrequencyField({ id, draft, onDraftChange, errors, ref }: Freque
                 pressed={draft.weekdays.includes(day)}
                 className="min-w-0 px-0"
                 aria-label={WEEKDAY_NAMES[day]}
+                // The error on each day too: focus lands on a day, and a fieldset's own
+                // description isn't read by every screen reader (VoiceOver on iOS).
+                aria-describedby={errors.weekdays ? daysErrorId : undefined}
+                aria-invalid={errors.weekdays ? true : undefined}
                 data-weekday={day}
                 onPressedChange={(pressed) =>
                   change({

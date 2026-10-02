@@ -8,6 +8,7 @@ import { useId, useState } from "react";
 import { AREA_ICONS, Icon, Key, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import type { HabitItem } from "../habit-input";
+import { HABITS_COPY } from "../habits-copy";
 import { ORGANIZE_COPY } from "../organize-copy";
 
 type FoldedSectionProps = {
@@ -44,6 +45,8 @@ export function FoldedSection({
         >
           <span className="flex items-center gap-3">
             <span className="bo-section-label__title">{title}</span>
+            {/* A space, so the name never reads "No tocan hoy3". */}
+            <span className="sr-only"> </span>
             <span className="bo-section-label__count">{count}</span>
           </span>
           <Icon icon={ChevronDown} size="sm" className={cn(expanded && "rotate-180")} />
@@ -96,6 +99,9 @@ export function ArchivedHabits({
               <span className="line-clamp-2 break-words" title={habit.name}>
                 {habit.name}
               </span>
+              {habit.area ? (
+                <span className="sr-only">{HABITS_COPY.padArea(habit.area.name)}</span>
+              ) : null}
             </span>
             <Key
               variant="ghost"

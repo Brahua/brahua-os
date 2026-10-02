@@ -10,7 +10,7 @@ export const FREQUENCY_ERRORS = {
   frequency: "Elige con qué frecuencia lo haces.",
   weeklyTarget: `Elige cuántas veces por semana: de 1 a ${HABIT_WEEKLY_TARGET_MAX}.`,
   weekdaysNone: "Elige al menos un día.",
-  weekdaysAll: "Los 7 días es «Diaria»: elígela arriba.",
+  weekdaysAll: "Todos los días es «Diaria»: elígela en Frecuencia.",
   weekdaysInvalid: `Elige de 1 a ${HABIT_WEEKDAYS_MAX} días de la semana.`,
 } as const;
 
@@ -58,7 +58,7 @@ export const FREQUENCY_COPY = {
   weeklyTargetLabel: "Veces por semana",
   weeklyTargetHelp: "Cualquier día de la semana cuenta.",
   weekdaysLabel: "Días",
-  weekdaysHelp: "Solo esos días aparece en «Hoy»; los demás no cuentan.",
+  weekdaysHelp: "Aparece en «Hoy» solo esos días; los demás no cuentan.",
 
   // The summary ("Cada día · Sí o no")
   daily: "Cada día",

@@ -181,9 +181,6 @@ export const habitsCount = (page: Page) => page.locator("[data-habits-count]");
 /** H2: the folded "No tocan hoy (N)" section's toggle, and its pads. */
 export const notDueToggle = (page: Page) => page.getByRole("button", { name: /^No tocan hoy/ });
 export const notDuePads = (page: Page) => page.locator('[data-habits-grid="not-due"]');
-/** A pad by name anywhere on "Hoy" (also under "No tocan hoy"). */
-export const anyPad = (page: Page, name: string) =>
-  page.locator("[data-habit-pad]").filter({ has: page.getByText(name, { exact: true }) });
 
 /** Opens /habits and waits until it is hydrated (keys and clicks reach React). */
 export async function openHabits(page: Page) {

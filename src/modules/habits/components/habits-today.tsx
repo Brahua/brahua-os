@@ -17,6 +17,8 @@ import { setHabitDone } from "../log-actions";
 import { archiveHabit, reorderHabits, unarchiveHabit } from "../organize-actions";
 import { ORGANIZE_COPY } from "../organize-copy";
 import { isScheduledOn } from "../schedule";
+import { FREQUENCY_COPY } from "../frequency-copy";
+import { weekProgress } from "../week-progress";
 import { HabitOrderContext, PlainHabitOrder, type HabitOrderListProps } from "./habit-order-rows";
 import { HabitPad, habitPadSelector } from "./habit-pad";
 import { ArchivedHabits, FoldedSection, reactivateSelector } from "./habit-sections";
@@ -81,8 +83,23 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   const listHeadingId = `${headingId}-today`;
   const [notDueOpen, setNotDueOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
-  // Ordering needs two habits; with fewer (one deleted meanwhile) the mode ends by itself.
-  const isOrdering = ordering && view.length > 1;
+  // Ordering needs two habits. Down to one while ordering (deleted in another tab), the mode
+  // ends (adjusted during render, so it never comes back by itself) and focus, which was on the
+  // "Ordenar" key that just left, goes to the heading (never <body>).
+  const fewerThanTwo = view.length < 2;
+  if (ordering && fewerThanTwo) setOrdering(false);
+  const isOrdering = ordering && !fewerThanTwo;
+  const wasOrdering = useRef(false);
+  useEffect(() => {
+    if (isOrdering) {
+      wasOrdering.current = true;
+      return;
+    }
+    if (!wasOrdering.current) return;
+    wasOrdering.current = false;
+    const lost = document.activeElement === document.body || document.activeElement === null;
+    if (fewerThanTwo && lost) document.getElementById(headingId)?.focus();
+  }, [isOrdering, fewerThanTwo, headingId]);
 
   // The lists as last rendered, for undo actions that run from an older notice.
   const latest = useRef(view);
@@ -157,7 +174,12 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     const change = { type: "update", id: habit.id, patch: donePatch(done) } as const;
     // The count as it will be after this tap ("2 de 3 hoy"), said in the notice too.
     const after = todayCount(applyHabitListChange(view, change), today);
-    const progress = HABITS_COPY.todayCount(after.done, after.total);
+    // A weekly habit says its week too ("2 de 3 hoy. 2 de 3 esta semana"): its pad's line is
+    // only in its description, which isn't read again after the tap.
+    const week = weekProgress(habit, done);
+    const progress = week
+      ? `${HABITS_COPY.todayCount(after.done, after.total)}. ${FREQUENCY_COPY.weekProgress(week.done, week.quota)}`
+      : HABITS_COPY.todayCount(after.done, after.total);
     startSaving(async () => {
       apply(change);
       const queued = await enqueue(`habit-day:${habit.id}:${today}`, () =>
@@ -292,6 +314,8 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   function reactivateFromList(habit: HabitItem) {
     const index = archivedView.findIndex((item) => item.id === habit.id);
     const neighbor = archivedView[index + 1] ?? archivedView[index - 1];
+    // The last one, not due today: "No tocan hoy" opens so its pad can take focus.
+    if (!neighbor && gridOf(habit) === "not-due") setNotDueOpen(true);
     reactivate(habit, null);
     focusWhenReady(neighbor ? reactivateSelector(neighbor.id) : padIn(gridOf(habit), habit.id));
   }
@@ -321,12 +345,15 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
       text: ORGANIZE_COPY.moved(habit.name, ORGANIZE_COPY.position(to, next.length)),
       action: { label: HABITS_COPY.undo, run: () => restoreOrder(burst.before) },
     });
-    saveOrder(next, () => {
-      // Only if this was the burst's last move: a later one may still be on its way, or saved,
-      // and its "Deshacer" must stay.
-      if (step !== burst.moves) return;
-      toaster.dismiss(burst.noticeId);
-      if (reorderBurst.current === burst) reorderBurst.current = null;
+    saveOrder(next, {
+      failure: ORGANIZE_COPY.orderFailed,
+      onFailure: () => {
+        // Only if this was the burst's last move: a later one may still be on its way, or
+        // saved, and its "Deshacer" must stay.
+        if (step !== burst.moves) return;
+        toaster.dismiss(burst.noticeId);
+        if (reorderBurst.current === burst) reorderBurst.current = null;
+      },
     });
   }
 
@@ -335,12 +362,22 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     // The order from before the moves, over today's habits: one created or reactivated since
     // goes last, one archived or deleted since is left out (the list sent is the active set).
     const ids = applyOrder(latest.current, before).map((habit) => habit.id);
-    saveOrder(ids, undefined, () =>
-      push({ title: ORGANIZE_COPY.undoneTitle, text: ORGANIZE_COPY.orderRestored }),
-    );
+    saveOrder(ids, {
+      failure: HABITS_COPY.notUndone,
+      onSuccess: () =>
+        push({ title: ORGANIZE_COPY.undoneTitle, text: ORGANIZE_COPY.orderRestored }),
+    });
   }
 
-  function saveOrder(ids: string[], onFailure?: () => void, onSuccess?: () => void) {
+  /** Applies an order at once and saves it; on failure it rolls back and says `failure` and why. */
+  function saveOrder(
+    ids: string[],
+    {
+      failure,
+      onFailure,
+      onSuccess,
+    }: { failure: string; onFailure?: () => void; onSuccess?: () => void },
+  ) {
     startSaving(async () => {
       apply({ type: "reorder", ids });
       // No key: every step is sent (each one matters for its undo).
@@ -351,10 +388,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
         return;
       }
       onFailure?.();
-      notSaved(
-        onSuccess ? HABITS_COPY.notUndone : ORGANIZE_COPY.orderFailed,
-        failureReason(result),
-      );
+      notSaved(failure, failureReason(result));
     });
   }
 
@@ -391,7 +425,9 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     const grid = gridOf(habit);
     if (grid === "not-due") setNotDueOpen(true);
     focusWhenReady(padIn(grid, habit.id));
-    announce(formHabit ? ORGANIZE_COPY.updated(habit.name) : HABITS_COPY.created(habit.name));
+    const message = formHabit ? ORGANIZE_COPY.updated(habit.name) : HABITS_COPY.created(habit.name);
+    // Its pad moved to the folded section (or was born there): say where it is.
+    announce(grid === "not-due" ? `${message} ${ORGANIZE_COPY.nowNotDue}` : message);
   }
 
   // ── Options (edit, archive, delete; H3–H4 add theirs) ──
@@ -441,10 +477,11 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   }
 
   /** A grid of pads, each with its options key on the corner. */
-  function padGrid(list: HabitItem[], grid: Grid, labelId: string) {
+  function padGrid(list: HabitItem[], grid: Grid, label: { id?: string; text?: string }) {
     return (
       <ul
-        aria-labelledby={labelId}
+        aria-labelledby={label.id}
+        aria-label={label.text}
         className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
         data-habits-grid={grid}
       >
@@ -472,8 +509,6 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     );
   }
 
-  const notDueLabelId = `${headingId}-not-due`;
-
   return (
     <div className="flex flex-col gap-6" data-saving={saving ? "" : undefined}>
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -490,12 +525,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
         </div>
         <div className="flex flex-wrap gap-2">
           {view.length > 1 ? (
-            <Key
-              icon={ArrowUpDown}
-              toggle
-              pressed={isOrdering}
-              onPressedChange={setOrdering}
-            >
+            <Key icon={ArrowUpDown} toggle pressed={isOrdering} onPressedChange={setOrdering}>
               {ORGANIZE_COPY.order}
             </Key>
           ) : null}
@@ -560,7 +590,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
               </div>
             ) : null}
 
-            {due.length > 0 ? padGrid(due, "due", listHeadingId) : null}
+            {due.length > 0 ? padGrid(due, "due", { id: listHeadingId }) : null}
           </section>
 
           {/* H2: "No tocan hoy (N)", folded: fixed days of other days, logged the same way. */}
@@ -572,10 +602,10 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
               onExpandedChange={setNotDueOpen}
               name="not-due"
             >
-              <p id={notDueLabelId} className="bo-text-body-sm max-w-160 text-text-secondary">
+              <p className="bo-text-body-sm max-w-160 text-text-secondary">
                 {ORGANIZE_COPY.notDueHelp}
               </p>
-              {padGrid(notDue, "not-due", notDueLabelId)}
+              {padGrid(notDue, "not-due", { text: ORGANIZE_COPY.notDueList })}
             </FoldedSection>
           ) : null}
         </>

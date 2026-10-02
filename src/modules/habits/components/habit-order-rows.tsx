@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef } from "r
 import { AREA_ICONS, Icon, IconKey, Led, keyClasses } from "@/design-system";
 import { cn } from "@/lib/cn";
 import type { HabitItem } from "../habit-input";
+import { HABITS_COPY } from "../habits-copy";
 import { ORGANIZE_COPY } from "../organize-copy";
 
 export type HabitOrderListProps = {
@@ -170,6 +171,7 @@ export function HabitOrderRow({
         <span className="line-clamp-2 break-words" title={habit.name}>
           {habit.name}
         </span>
+        {area ? <span className="sr-only">{HABITS_COPY.padArea(area.name)}</span> : null}
       </span>
       <MoveKey habit={habit} button="up" disabled={first} onMoveBy={onMoveBy} />
       <MoveKey habit={habit} button="down" disabled={last} onMoveBy={onMoveBy} />

@@ -109,6 +109,8 @@ test("create on fixed days of another day: 'Nada toca hoy' and 'No tocan hoy' op
   // It can be logged today anyway; the count stays out of it.
   await untilSaved(page, () => anyPad(page, name).click());
   await expect(anyPad(page, name)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Nada toca hoy")).toBeVisible();
+  await expect(habitsCount(page)).toHaveCount(0);
   await page.reload();
   await expect(notDueToggle(page)).toHaveAttribute("aria-expanded", "false");
   await notDueToggle(page).click();
@@ -248,6 +250,7 @@ test("reorder with Subir/Bajar and a keyboard drag; it is the order of 'Hoy'", a
     const before = await dragStatus(page).textContent();
     await page.keyboard.press("ArrowUp");
     await expect(dragStatus(page)).not.toHaveText(before ?? "");
+    await settle(page);
   }
   await untilSaved(page, () => page.keyboard.press("Space"));
   await expect(orderRows(page)).toHaveText([c, b, a]);
@@ -276,11 +279,11 @@ test("at 320 px the form's frequency and the order list don't scroll sideways", 
   await page.getByRole("button", { name: "Ordenar", exact: true }).click();
   await page.getByRole("button", { name: "Nuevo hábito" }).click();
   const sheet = page.getByRole("dialog", { name: "Nuevo hábito" });
-  await sheet.getByRole("radio", { name: "Días fijos" }).click();
   const body = sheet.locator("form");
   for (const radio of ["Días fijos", "Por semana"]) {
     await sheet.getByRole("radio", { name: radio }).click();
     expect(await body.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    expect(await width()).toBeLessThanOrEqual(320);
   }
 });
 
@@ -298,6 +301,7 @@ for (const theme of THEMES) {
       sortOrder: 2,
     });
     await insertHabit({ name: "Ajedrez", archived: true, sortOrder: 3 });
+    await insertHabit({ name: "Estirar", sortOrder: 4 });
     await openHabits(page);
     await setTheme(page, theme);
     await notDueToggle(page).click();
@@ -314,6 +318,17 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(form).toBeHidden();
+
+    // The archive notice with "Deshacer".
+    await pads(page).getByRole("button", { name: "Opciones de «Estirar»" }).click();
+    await untilSaved(page, () =>
+      page
+        .getByRole("dialog", { name: "Estirar" })
+        .getByRole("button", { name: "Archivar" })
+        .click(),
+    );
+    await expect(notices(page).getByRole("button", { name: "Deshacer" })).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
 
     await pads(page).getByRole("button", { name: "Opciones de «Meditar»" }).click();
     const options = page.getByRole("dialog", { name: "Meditar" });
