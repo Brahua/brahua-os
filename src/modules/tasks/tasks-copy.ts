@@ -76,11 +76,7 @@ export const TASKS_COPY = {
     "Todo está clasificado. Para anotar algo nuevo, usa la tecla naranja de captura.",
   /** Only with the shortcuts on, and only where they act (≥ 1024 px). */
   emptyInboxShortcut: " También puedes pulsar C.",
-  comingSoonHidden: " (próximamente)",
   viewTitle: (view: string) => `${view} · Tareas · brahua-os`,
-  comingSoonTitle: (view: string) => `${view}: próximamente`,
-  comingSoonText:
-    "Esta vista llega en la siguiente entrega. Mientras tanto, lo que clasificas sale de la bandeja y queda guardado.",
   complete: (title: string) => `Hecha: ${title}`,
   completedTitle: "Tarea hecha",
   completed: (title: string) => `«${title}» está hecha.`,

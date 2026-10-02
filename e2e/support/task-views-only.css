@@ -1,0 +1,5 @@
+/* Screenshots of the views of /tasks: only the rows of the fixture project (VIEWS_FIXTURE in
+   task-views.ts). Other tests add tasks due today to the shared database. */
+[data-task-row]:not([data-task-row^="7a5c0000-0000-4000-8000-0000000002"]) {
+  display: none !important;
+}

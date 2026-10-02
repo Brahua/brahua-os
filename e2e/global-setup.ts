@@ -11,6 +11,7 @@ import { migrateDatabase, resetDatabase, testDatabaseUrl } from "../tests/integr
 import { E2E_OWNER } from "./support/owner";
 import { seedNotesLinksFixture } from "./support/project-notes-links";
 import { seedProjects } from "./support/projects";
+import { seedTaskViewsFixture } from "./support/task-views";
 
 export default async function globalSetup() {
   const teardown = await autoStartTestDatabase();
@@ -22,6 +23,7 @@ export default async function globalSetup() {
     await seed(db);
     await seedProjects(db);
     await seedNotesLinksFixture(db); // P5: the notes and links screenshots.
+    await seedTaskViewsFixture(db); // T2 of tasks: the views screenshots.
   } finally {
     await db.$client.end();
   }

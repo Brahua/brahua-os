@@ -7,7 +7,7 @@ import { TASK_VIEW_LABELS, TASKS_COPY } from "@/modules/tasks/tasks-copy";
  * The views of /tasks as links (`?vista=`), with the current one marked (`aria-current="page"`)
  * and drawn like the selected key of a segmented control. Links, not tabs: each view is its own
  * URL (back, reload and sharing work). They wrap on narrow screens instead of scrolling, so none
- * is ever hidden off screen.
+ * is ever hidden off screen. A view link drops the filters of "Todas".
  */
 export function TaskViewTabs({ current }: { current: TaskView }) {
   return (
@@ -20,13 +20,6 @@ export function TaskViewTabs({ current }: { current: TaskView }) {
             prefetch={false}
             className={cn("bo-segmented__item", view === current && "is-on")}
             aria-current={view === current ? "page" : undefined}
-            // T2 builds the other views: their names say so before following the link (an
-            // sr-only span would be read run together with the label in some engines).
-            aria-label={
-              view === "bandeja"
-                ? undefined
-                : `${TASK_VIEW_LABELS[view]}${TASKS_COPY.comingSoonHidden}`
-            }
           >
             {TASK_VIEW_LABELS[view]}
           </Link>

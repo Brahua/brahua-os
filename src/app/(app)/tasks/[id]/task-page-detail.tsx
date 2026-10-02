@@ -7,16 +7,23 @@ import {
   TaskDetailProvider,
   useTaskDetail,
 } from "@/modules/tasks/components/detail/task-detail-context";
+import { TaskNotesSeed } from "@/modules/tasks/components/detail/task-notes-section";
 import { DELETED_PARAM, TASKS_PATH } from "@/modules/tasks/routes";
 import type { TaskItem } from "@/modules/tasks/task-input";
 
-type TaskPageDetailProps = { task: TaskItem; headingId: string };
+type TaskPageDetailProps = {
+  task: TaskItem;
+  headingId: string;
+  /** The task's notes, and the same rendered on the server (T2). */
+  notes: string | null;
+  renderedNotes: React.ReactNode;
+};
 
 /**
  * The detail on the task's page (the phone's detail, SPEC-tasks). Deleting goes back to the list,
  * which offers "Deshacer" (`?deleted=<id>`); `replace`, so going back never lands on a 404.
  */
-export function TaskPageDetail({ task, headingId }: TaskPageDetailProps) {
+export function TaskPageDetail({ task, headingId, notes, renderedNotes }: TaskPageDetailProps) {
   const router = useRouter();
   const onDeleted = useCallback(
     (deleted: TaskItem) => {
@@ -26,8 +33,10 @@ export function TaskPageDetail({ task, headingId }: TaskPageDetailProps) {
   );
   return (
     <TaskDetailProvider task={task} host="page" onDeleted={onDeleted}>
-      <PageHeading id={headingId} />
-      <TaskDetail />
+      <TaskNotesSeed notes={notes} rendered={renderedNotes}>
+        <PageHeading id={headingId} />
+        <TaskDetail />
+      </TaskNotesSeed>
     </TaskDetailProvider>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { Inbox } from "lucide-react";
-import { Icon } from "@/design-system";
 import { TaskList } from "@/modules/tasks/components/task-list";
 import { isInInbox, type TaskItem } from "@/modules/tasks/task-input";
 import { TASKS_COPY } from "@/modules/tasks/tasks-copy";
+import { ViewEmpty, ViewHeading } from "./view-parts";
 
 /** A task stays in the inbox while it is pending and has neither an area nor a project. */
 const inInbox = (task: TaskItem) => task.doneAt === null && isInInbox(task);
@@ -26,18 +26,24 @@ export function InboxView({ tasks, shortcuts, headingId }: InboxViewProps) {
       belongs={inInbox}
       classify
       fallbackFocusId={headingId}
+      header={(count) => (
+        <ViewHeading
+          id={headingId}
+          title={TASKS_COPY.inboxTitle}
+          count={count}
+          help={TASKS_COPY.inboxHelp}
+        />
+      )}
       empty={
-        <div className="bo-card max-w-160 items-start" data-inbox-empty="">
-          <Icon icon={Inbox} size="xl" className="text-text-secondary" />
-          <h3 className="bo-text-title">{TASKS_COPY.emptyInboxTitle}</h3>
-          <p className="bo-text-body-sm text-text-secondary">
+        <ViewEmpty icon={Inbox} title={TASKS_COPY.emptyInboxTitle} view="bandeja">
+          <p className="bo-text-body-sm text-text-secondary" data-inbox-empty="">
             {TASKS_COPY.emptyInboxText}
             {/* `C` only acts from 1024 px: hidden (also for screen readers) below that. */}
             {shortcuts ? (
               <span className="hidden lg:inline">{TASKS_COPY.emptyInboxShortcut}</span>
             ) : null}
           </p>
-        </div>
+        </ViewEmpty>
       }
     />
   );

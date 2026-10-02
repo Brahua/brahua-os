@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import {
@@ -20,8 +20,10 @@ import {
 } from "../placement";
 import type { DeletedTask, TaskItem, TaskPlacement } from "../task-input";
 import { applyTaskListChange, neighborOf } from "../task-list-optimistic";
+import { groupRuns, type TaskGroup } from "../task-views";
 import { TASK_FIELD_NAMES, TASKS_COPY } from "../tasks-copy";
-import { TaskRow, taskFocusSelector } from "./task-row";
+import { VIEWS_COPY } from "../views-copy";
+import { TaskRow, taskFocusSelector, type TaskFocusControl } from "./task-row";
 import { failureReason, useTasksScreen } from "./tasks-screen";
 
 // The sheets' code loads on their first opening.
@@ -42,6 +44,18 @@ type TaskListProps = {
   fallbackFocusId: string;
   /** Shown when the list is empty. */
   empty: React.ReactNode;
+  /**
+   * Drawn above the list with the number of tasks it shows right now (optimistic: a completed
+   * row leaves the count at once). The view's heading, with its count.
+   */
+  header?: (count: number) => React.ReactNode;
+  /**
+   * Groups consecutive rows under a heading (h3) each, in the list's order ("Próximas": by
+   * day). Without it, one flat list.
+   */
+  groupOf?: (task: TaskItem) => TaskGroup;
+  /** Every row gets a visible "Deshacer" that reopens it ("Hechas"). */
+  reopenable?: boolean;
 };
 
 type Opening = { task: TaskItem; key: number };
@@ -62,7 +76,11 @@ export function TaskList({
   classify = false,
   fallbackFocusId,
   empty,
+  header,
+  groupOf,
+  reopenable = false,
 }: TaskListProps) {
+  const groupIds = useId();
   const { now, targets, enqueue, toaster, announce } = useTasksScreen();
   const { push } = toaster;
   const isDesktop = useIsDesktop();
@@ -90,14 +108,17 @@ export function TaskList({
     );
   }
 
-  /** Moves focus to the neighbor after the commit, if focus was in the leaving row (or nowhere). */
-  function focusAfterLeaving(id: string) {
+  /**
+   * Moves focus to the neighbor after the commit, if focus was in the leaving row (or nowhere):
+   * to the same kind of control that was used (its checkbox, or its "Deshacer" in "Hechas").
+   */
+  function focusAfterLeaving(id: string, control: TaskFocusControl = "check") {
     const active = document.activeElement;
     const inRow = active?.closest(`[data-task-row="${CSS.escape(id)}"]`);
     if (!inRow && active && active !== document.body) return;
     const neighbor = neighborOf(view, id);
     pendingFocus.current = neighbor
-      ? taskFocusSelector(neighbor.id, "check")
+      ? taskFocusSelector(neighbor.id, control)
       : `#${CSS.escape(fallbackFocusId)}`;
   }
 
@@ -113,9 +134,24 @@ export function TaskList({
   }
 
   // ── Complete and undo ──
+
+  /**
+   * The ONE place this list completes and reopens a task on the server (T3 hook point: the
+   * recurrence changes what completing and reopening do, and replaces only these two). Every
+   * path goes through them: the checkbox, "Deshacer" of a completion, "Deshacer" in "Hechas" and
+   * the notice that undoes it.
+   */
+  function runComplete(task: TaskItem) {
+    return enqueue(`task-done:${task.id}`, () => completeTask({ id: task.id }));
+  }
+
+  function runReopen(task: TaskItem) {
+    return enqueue(`task-done:${task.id}`, () => reopenTask({ id: task.id }));
+  }
+
   function toggle(task: TaskItem, done: boolean) {
     if (!done) {
-      reopen(task, view.findIndex((item) => item.id === task.id));
+      reopenFromRow(task, "check");
       return;
     }
     const index = view.findIndex((item) => item.id === task.id);
@@ -128,7 +164,7 @@ export function TaskList({
           ? { type: "remove", id: task.id }
           : { type: "update", id: task.id, patch: { doneAt: completed.doneAt } },
       );
-      const queued = await enqueue(`task-done:${task.id}`, () => completeTask({ id: task.id }));
+      const queued = await runComplete(task);
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
       if (result.ok) {
@@ -143,10 +179,54 @@ export function TaskList({
     });
   }
 
+  /**
+   * Unchecking a done row (or its "Deshacer" in "Hechas"): pending again. Where pending tasks
+   * don't belong ("Hechas"), the row leaves, with a notice whose "Deshacer" completes it again.
+   */
+  function reopenFromRow(task: TaskItem, control: TaskFocusControl) {
+    const index = view.findIndex((item) => item.id === task.id);
+    const reopened: TaskItem = { ...task, doneAt: null };
+    if (belongs(reopened)) {
+      reopen(task, index);
+      return;
+    }
+    focusAfterLeaving(task.id, control);
+    startSaving(async () => {
+      apply({ type: "remove", id: task.id });
+      const queued = await runReopen(task);
+      if (queued.kind === "skipped" || queued.superseded) return;
+      const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
+      if (result.ok) {
+        push({
+          title: VIEWS_COPY.reopenedTitle,
+          text: TASKS_COPY.reopened(task.title),
+          action: { label: TASKS_COPY.undo, run: () => completeAgain(task, index) },
+        });
+        return;
+      }
+      notSaved(TASKS_COPY.notCompleted, failureReason(result));
+    });
+  }
+
+  /** "Deshacer" of a reopen from "Hechas": done again, back in its place. */
+  function completeAgain(task: TaskItem, index: number) {
+    startSaving(async () => {
+      apply({ type: "restore", task, index });
+      const queued = await runComplete(task);
+      if (queued.kind === "skipped" || queued.superseded) return;
+      const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
+      if (result.ok) announce(VIEWS_COPY.completedAgain(task.title));
+      else notSaved(TASKS_COPY.notUndone, failureReason(result));
+    });
+  }
+
   function reopen(task: TaskItem, index: number) {
     startSaving(async () => {
-      apply({ type: "restore", task: { ...task, doneAt: null }, index });
-      const queued = await enqueue(`task-done:${task.id}`, () => reopenTask({ id: task.id }));
+      const reopened: TaskItem = { ...task, doneAt: null };
+      // "Deshacer" of a completion: back in its place, unless pending tasks don't belong here.
+      if (belongs(reopened)) apply({ type: "restore", task: reopened, index });
+      else apply({ type: "remove", id: task.id });
+      const queued = await runReopen(task);
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
       if (result.ok) announce(TASKS_COPY.reopened(task.title));
@@ -286,28 +366,49 @@ export function TaskList({
     notifyDeleted(task, index === -1 ? 0 : index);
   }
 
+  const rows = (items: TaskItem[]) =>
+    items.map((task) => (
+      <li
+        key={task.id}
+        data-task-row={task.id}
+        className="flex min-w-0 items-start gap-1 bg-surface pr-2"
+      >
+        <TaskRow
+          task={task}
+          now={now}
+          onToggle={toggle}
+          onOpen={openDetail}
+          onClassify={classify ? openClassify : undefined}
+          onReopen={reopenable ? (item) => reopenFromRow(item, "reopen") : undefined}
+        />
+      </li>
+    ));
+
   return (
-    <div className="flex flex-col" data-saving={saving ? "" : undefined}>
-      {view.length > 0 ? (
-        <ul aria-label={label} className="bo-list">
-          {view.map((task) => (
-            <li
-              key={task.id}
-              data-task-row={task.id}
-              className="flex min-w-0 items-start gap-1 bg-surface pr-2"
-            >
-              <TaskRow
-                task={task}
-                now={now}
-                onToggle={toggle}
-                onOpen={openDetail}
-                onClassify={classify ? openClassify : undefined}
-              />
-            </li>
-          ))}
-        </ul>
-      ) : (
+    <div className="flex flex-col gap-3" data-saving={saving ? "" : undefined}>
+      {header?.(view.length)}
+      {view.length === 0 ? (
         empty
+      ) : groupOf ? (
+        <div className="flex flex-col gap-5" aria-label={label} role="group">
+          {groupRuns(view, groupOf).map(({ group, tasks: items }) => {
+            const headingId = `${groupIds}-${group.key}`;
+            return (
+              <section key={group.key} aria-labelledby={headingId} className="flex flex-col gap-2">
+                <h3 id={headingId} className="bo-text-body-strong" data-task-group={group.key}>
+                  {group.label}
+                </h3>
+                <ul aria-labelledby={headingId} className="bo-list">
+                  {rows(items)}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <ul aria-label={label} className="bo-list">
+          {rows(view)}
+        </ul>
       )}
 
       {classifying ? (

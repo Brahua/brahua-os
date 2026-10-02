@@ -1,23 +1,33 @@
-import { Construction } from "lucide-react";
 import type { Metadata } from "next";
-import { Icon, SectionLabel } from "@/design-system";
 import { cookies } from "next/headers";
 import { requireOwner } from "@/lib/auth";
 import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
 import { getDeletedTask, getTaskTargets, listInboxTasks } from "@/modules/tasks/queries";
-import { DELETED_PARAM, parseTaskView, VIEW_PARAM } from "@/modules/tasks/routes";
+import { DELETED_PARAM, parseTaskView, VIEW_PARAM, type TaskView } from "@/modules/tasks/routes";
+import { parseFilterParams, resolveFilters } from "@/modules/tasks/task-filters";
+import type { TaskItem, TaskTargets } from "@/modules/tasks/task-input";
+import { matchesFilters } from "@/modules/tasks/task-views";
 import { TASK_VIEW_LABELS, TASKS_COPY } from "@/modules/tasks/tasks-copy";
+import {
+  listDoneTasks,
+  listPendingTasks,
+  listTodayTasks,
+  listUpcomingTasks,
+} from "@/modules/tasks/view-queries";
+import { AllView } from "./_components/all-view";
+import { DoneView, TodayView, UpcomingView } from "./_components/date-views";
 import { InboxView } from "./_components/inbox-view";
 import { TasksNotices } from "./_components/tasks-notices";
 import { TaskViewTabs } from "./_components/task-view-tabs";
 
-
 const HEADING_ID = "tasks-title";
 const VIEW_HEADING_ID = "tasks-view-title";
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 type TasksPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<SearchParams>;
 };
 
 /** Each view has its own title ("Hoy · Tareas · brahua-os"): a view switch is announced. */
@@ -27,25 +37,24 @@ export async function generateMetadata({ searchParams }: TasksPageProps): Promis
 }
 
 /**
- * Tareas (SPEC-tasks "Pantallas"): the views as links (`?vista=`). T1 builds the inbox; Hoy,
- * Próximas, Todas and Hechas show what they will be ("Próximamente") until T2 fills them in
- * here (each view replaces its placeholder, nothing else changes).
+ * Tareas (SPEC-tasks "Pantallas"): the views as links (`?vista=`): Bandeja (T1), Hoy, Próximas,
+ * Todas (filters in the URL) and Hechas (T2). Each view reads its own tasks in one query.
  */
 export default async function TasksPage({ searchParams }: TasksPageProps) {
   await requireOwner();
   const search = await searchParams;
   const view = parseTaskView(search[VIEW_PARAM]);
   const deletedId = search[DELETED_PARAM];
-  const [inbox, targets, deleted, cookieStore] = await Promise.all([
-    view === "bandeja" ? listInboxTasks() : Promise.resolve([]),
+  // One instant for every row: the views and the due labels all count from the same Lima day.
+  const now = new Date();
+  const [tasks, targets, deleted, cookieStore] = await Promise.all([
+    listViewTasks(view, now),
     getTaskTargets(),
     // Just deleted from its page: the undo notice needs its title (only while it is deleted).
     typeof deletedId === "string" ? getDeletedTask(deletedId) : Promise.resolve(null),
     cookies(),
   ]);
   const shortcuts = areShortcutsEnabled(cookieStore.get(SHORTCUTS_COOKIE)?.value);
-  // One instant for every row: the due labels all count from the same Lima day.
-  const now = new Date();
 
   return (
     <TasksScreen now={now} targets={targets}>
@@ -60,32 +69,67 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
         <TaskViewTabs current={view} />
 
         <section aria-labelledby={VIEW_HEADING_ID} className="flex max-w-180 flex-col gap-3">
-          <SectionLabel
-            id={VIEW_HEADING_ID}
-            as="h2"
-            tabIndex={-1}
-            title={TASK_VIEW_LABELS[view]}
-            className="outline-none"
+          <ViewContent
+            view={view}
+            tasks={tasks}
+            targets={targets}
+            search={search}
+            shortcuts={shortcuts}
           />
-          {view === "bandeja" ? (
-            <>
-              <p className="bo-text-body-sm text-text-secondary">{TASKS_COPY.inboxHelp}</p>
-              <InboxView tasks={inbox} shortcuts={shortcuts} headingId={VIEW_HEADING_ID} />
-            </>
-          ) : (
-            // ── T2 slot: the views Hoy, Próximas, Todas and Hechas replace this placeholder. ──
-            <div className="bo-card max-w-160 items-start" data-view-coming-soon={view}>
-              <Icon icon={Construction} size="xl" className="text-text-secondary" />
-              <h3 className="bo-text-title">
-                {TASKS_COPY.comingSoonTitle(TASK_VIEW_LABELS[view])}
-              </h3>
-              <p className="bo-text-body-sm text-text-secondary">{TASKS_COPY.comingSoonText}</p>
-            </div>
-          )}
         </section>
 
         <TasksNotices headingId={HEADING_ID} deleted={deleted} />
       </div>
     </TasksScreen>
   );
+}
+
+/** The tasks of a view, in its order (one query each). */
+function listViewTasks(view: TaskView, now: Date): Promise<TaskItem[]> {
+  switch (view) {
+    case "bandeja":
+      return listInboxTasks();
+    case "hoy":
+      return listTodayTasks(now);
+    case "proximas":
+      return listUpcomingTasks(now);
+    case "todas":
+      return listPendingTasks();
+    case "hechas":
+      return listDoneTasks(now);
+  }
+}
+
+type ViewContentProps = {
+  view: TaskView;
+  tasks: TaskItem[];
+  targets: TaskTargets;
+  search: SearchParams;
+  shortcuts: boolean;
+};
+
+function ViewContent({ view, tasks, targets, search, shortcuts }: ViewContentProps) {
+  switch (view) {
+    case "bandeja":
+      return <InboxView tasks={tasks} shortcuts={shortcuts} headingId={VIEW_HEADING_ID} />;
+    case "hoy":
+      return <TodayView tasks={tasks} headingId={VIEW_HEADING_ID} />;
+    case "proximas":
+      return <UpcomingView tasks={tasks} headingId={VIEW_HEADING_ID} />;
+    case "hechas":
+      return <DoneView tasks={tasks} headingId={VIEW_HEADING_ID} />;
+    case "todas": {
+      const { filters, choices } = resolveFilters(parseFilterParams(search), targets, tasks);
+      const area = choices.areas.find((item) => item.id === filters.areaId);
+      return (
+        <AllView
+          tasks={tasks.filter((task) => matchesFilters(task, filters))}
+          filters={filters}
+          choices={choices}
+          params={{ area: area?.slug ?? null, project: filters.projectId }}
+          headingId={VIEW_HEADING_ID}
+        />
+      );
+    }
+  }
 }
