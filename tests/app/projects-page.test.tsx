@@ -26,6 +26,10 @@ vi.mock("next/navigation", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// The contributions of other modules (T5: tasks) read the database; these page tests run
+// without them (their integration tests run against the database).
+vi.mock("@/lib/progress-sources", () => ({ ensureProgressSources: vi.fn() }));
+vi.mock("@/lib/project-extensions", () => ({ ensureProjectExtensions: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/projects/queries", () => ({
   listProjects: vi.fn(),
@@ -527,7 +531,7 @@ describe("ProjectCard", () => {
     const finished = screen.getByText("Terminado el 1 oct. 2026");
     expect(finished).toHaveClass("min-w-0");
     expect(finished).not.toHaveClass("shrink-0");
-    const counts = screen.getByText("3 de 3 hitos").parentElement!;
+    const counts = screen.getByText("3 de 3").parentElement!;
     expect(counts).toHaveClass("flex-wrap", "min-w-0");
   });
 });

@@ -26,12 +26,12 @@ import {
   updateTask,
   type PlacementFailure,
 } from "./tasks";
-import { TASKS_PATH, taskPath } from "./routes";
+import { revalidateProjectScreens, revalidateTaskScreens } from "./revalidate";
+import { TASKS_PATH } from "./routes";
 
-/** The list and the task's page both show what changed. */
+/** The list, the task's page and (T5) the project screens all show what changed. */
 function revalidateTask(id: string) {
-  revalidatePath(TASKS_PATH);
-  revalidatePath(taskPath(id));
+  revalidateTaskScreens(id);
 }
 
 /** The field a refused placement belongs to, with its message. */
@@ -53,6 +53,7 @@ const create = ownerAction(
     const task = await insertTask(getDb(), data);
     // Revalidate either way: a refusal means the page's areas or projects were out of date.
     revalidatePath(TASKS_PATH);
+    revalidateProjectScreens();
     return typeof task === "string" ? refused<TaskItem>(task) : ok(task);
   },
   { name: "createTask" },
@@ -124,6 +125,7 @@ const remove = ownerAction(
     // Only the list: revalidating the task's page now would swap it for its 404 before the
     // client leaves it.
     revalidatePath(TASKS_PATH);
+    revalidateProjectScreens();
     return deleted ? ok(deleted) : fail(TASK_ERRORS.notFound);
   },
   { name: "deleteTask" },

@@ -8,16 +8,12 @@
 // side-effect-only `import "…"`: package.json declares every JS module free of side effects
 // ("sideEffects": ["*.css"]), so the bundler drops imports whose exports nobody uses (it happened
 // to the quick capture in T1 of `tasks`: the registration never reached the production build).
-//
-// When `tasks` exports its source (T5), add it to SOURCES:
-//
-//   import { tasksProgressSource } from "@/modules/tasks/progress-source";
-//   const SOURCES: readonly ProgressSource[] = [tasksProgressSource];
 import "server-only";
 import { registerProgressSource, type ProgressSource } from "@/modules/projects/contracts";
+import { tasksProgressSource } from "@/modules/tasks/progress-source";
 
-/** Every module's progress source. None yet. */
-const SOURCES: readonly ProgressSource[] = [];
+/** Every module's progress source: `tasks` (T5) counts each project's tasks. */
+export const SOURCES: readonly ProgressSource[] = [tasksProgressSource];
 
 let registered = false;
 

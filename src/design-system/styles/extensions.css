@@ -186,3 +186,7 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 .bo-tag-listbox { margin: 0; padding: 0; list-style: none; }
 .bo-tag-listbox[hidden] { display: none; }
 .bo-tag-listbox .bo-row { cursor: pointer; }
+/* Tasks (T5): "Siguiente tarea" on a project's card (the Claude Design pattern `ProjectCard`): a
+   sunken well with the check that completes it, above the name link's overlay (relative z-10 on
+   the element). Not a synced component: no PENDING UPSTREAM. */
+.bo-next-action { display: flex; align-items: center; gap: 4px; min-width: 0; border-radius: var(--radius-lg); background: var(--color-well); box-shadow: inset 0 0 0 1px var(--color-divider); }

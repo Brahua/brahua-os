@@ -38,6 +38,8 @@ type TaskRowProps = {
   onClassify?: (task: TaskItem, trigger: HTMLElement) => void;
   /** "Hechas": a visible "Deshacer" that makes the task pending again. Absent elsewhere. */
   onReopen?: (task: TaskItem) => void;
+  /** Leaves out the area and project (T5: on the project's own page). */
+  hidePlacement?: boolean;
 };
 
 /**
@@ -45,12 +47,21 @@ type TaskRowProps = {
  * and compact metadata: area or project, the due label ("Vence hoy", "Retrasada hace 2 días")
  * and "Alta" with its LED. The `<li>` is the caller's.
  */
-export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: TaskRowProps) {
+export function TaskRow({
+  task,
+  now,
+  onToggle,
+  onOpen,
+  onClassify,
+  onReopen,
+  hidePlacement = false,
+}: TaskRowProps) {
   const metaId = useId();
   const due = taskDueState(task.dueDate, task.doneAt, now);
   const done = task.doneAt !== null;
   const where = task.project ? task.project.name : null;
-  const areaLabel = task.area ? (where ? `${task.area.name} · ${where}` : task.area.name) : null;
+  const shownArea = hidePlacement ? null : task.area;
+  const areaLabel = shownArea ? (where ? `${shownArea.name} · ${where}` : shownArea.name) : null;
   // What the title's description says, in words. The visible metadata is aria-hidden: its flex
   // items would be read run together ("Vence hoyPrioridad alta"). T3 and T4 add their parts here.
   const doneText = task.doneAt ? doneLabel(task.doneAt, now) : null;
@@ -101,10 +112,10 @@ export function TaskRow({ task, now, onToggle, onOpen, onClassify, onReopen }: T
             className="bo-text-body-sm flex flex-wrap items-center gap-x-3 gap-y-1"
           >
             {doneText ? <span className="text-text-secondary">{doneText}</span> : null}
-            {task.area ? (
+            {shownArea ? (
               <AreaTag
-                area={task.area.color}
-                icon={task.area.icon}
+                area={shownArea.color}
+                icon={shownArea.icon}
                 label={areaLabel ?? undefined}
                 className="min-w-0 max-w-full truncate"
               />

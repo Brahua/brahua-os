@@ -3,6 +3,7 @@
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
+import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import { ToastViewport } from "@/modules/core/components/toast-viewport";
 import type { TaskTargets } from "../task-input";
 import { TASKS_COPY } from "../tasks-copy";
@@ -75,6 +76,26 @@ export function TasksScreen({ now, targets, children }: TasksScreenProps) {
       />
     </TasksScreenContext>
   );
+}
+
+type TasksScreenWithinProps = {
+  now: Date;
+  targets: TaskTargets;
+  children: React.ReactNode;
+};
+
+/**
+ * A tasks part on another module's screen (T5: the "Tareas" section of a project's page): the
+ * same context as `TasksScreen`, but with the host screen's save queue, notices and announcer
+ * (`ScreenServicesContext` from `core`), so the screen keeps one notice viewport.
+ */
+export function TasksScreenWithin({ now, targets, children }: TasksScreenWithinProps) {
+  const { enqueue, toaster, announce } = useRequiredScreenServices();
+  const value = useMemo<TasksScreenValue>(
+    () => ({ now, targets, enqueue, toaster, announce }),
+    [now, targets, enqueue, toaster, announce],
+  );
+  return <TasksScreenContext value={value}>{children}</TasksScreenContext>;
 }
 
 /** The server's message for a failed result: a field's own when it gives one, else the general. */

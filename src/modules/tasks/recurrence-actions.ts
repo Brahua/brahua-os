@@ -3,14 +3,13 @@
 // Server Actions of recurrence (T3). Their own file so T2 and T4 never touch the same lines
 // (HANDOFF "Revisión 1"). Each one goes through ownerAction(): owner first, Zod, ActionResult.
 import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
 import { tasks } from "./db/schema";
 import { recurrenceColumns, type SpawnInbox, type SpawnUndo } from "./recurrence-db";
 import { setTaskRecurrenceInputSchema } from "./recurrence-input";
-import { TASKS_PATH, taskPath } from "./routes";
+import { revalidateTaskScreens } from "./revalidate";
 import { TASK_ERRORS, taskIdInputSchema, type TaskItem } from "./task-input";
 import {
   completeTaskById,
@@ -20,9 +19,9 @@ import {
   visibleTask,
 } from "./tasks";
 
+/** The list, the task's page and (T5) the project screens: its section, progress and card. */
 function revalidateTask(id: string) {
-  revalidatePath(TASKS_PATH);
-  revalidatePath(taskPath(id));
+  revalidateTaskScreens(id);
 }
 
 const setRecurrence = ownerAction(

@@ -2,12 +2,11 @@
 
 // Server Actions of the tags of tasks (T4). Like actions.ts: each one goes through ownerAction()
 // (owner check, then Zod, then an ActionResult); reachable by any POST, so input is `unknown`.
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
-import { TASKS_PATH, taskPath } from "./routes";
+import { revalidateTaskScreens } from "./revalidate";
 import { TASK_ERRORS, type TaskItem } from "./task-input";
 import { setTaskTagsInputSchema } from "./task-tags";
 import { replaceTaskTags, selectTagNames } from "./tags";
@@ -18,8 +17,8 @@ const setTags = ownerAction(
   async ({ id, tags }) => {
     const db = getDb();
     const found = await replaceTaskTags(db, id, tags);
-    revalidatePath(TASKS_PATH);
-    revalidatePath(taskPath(id));
+    // T5: the tags show on the rows of the project's "Tareas" section too.
+    revalidateTaskScreens(id);
     const task = found ? await selectTaskById(db, id) : null;
     return task ? ok(task) : fail(TASK_ERRORS.notFound);
   },

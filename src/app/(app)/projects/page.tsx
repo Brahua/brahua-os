@@ -5,9 +5,17 @@ import { Icon, SectionLabel } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 // P6: the progress sources of other modules (tasks), registered before progress is computed.
 import { ensureProgressSources } from "@/lib/progress-sources";
+// T5: the next action of each project (tasks), registered before reading them.
+import { ensureProjectExtensions } from "@/lib/project-extensions";
+import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
 import { listLifeAreas } from "@/modules/core/queries";
 import { ProjectCard } from "@/modules/projects/components/project-card";
-import { contributedProgress } from "@/modules/projects/contracts";
+import {
+  contributedProgress,
+  projectNextActions,
+  type ProjectNextAction,
+} from "@/modules/projects/contracts";
+import { NextActionKey } from "@/modules/projects/components/next-action-key";
 import type { MilestoneCounts } from "@/modules/projects/milestone-input";
 import { listMilestoneCounts } from "@/modules/projects/milestone-queries";
 import { dueState, milestoneProgress } from "@/modules/projects/progress";
@@ -64,7 +72,13 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
   const { groups, history, historyCount } = groupProjects(visible);
   // P6: what other modules (tasks) add to the milestones' progress; no source registered → no work.
   ensureProgressSources();
-  const contributed = await contributedProgress(visible.map((project) => project.id));
+  // T5: each project's next action (tasks), one read for every visible project.
+  ensureProjectExtensions();
+  const visibleIds = visible.map((project) => project.id);
+  const [contributed, nextActions] = await Promise.all([
+    contributedProgress(visibleIds),
+    projectNextActions(visibleIds),
+  ]);
   // One instant for every card: the due notices all count from the same Lima day.
   const now = new Date();
   const defaultAreaId = selected && !selected.archived ? selected.id : null;
@@ -79,64 +93,69 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
       : { title: PROJECTS_COPY.emptyTitle, text: PROJECTS_COPY.emptyText };
 
   return (
-    <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        {/* tabIndex -1: focus lands here after deleting a project (ProjectsNotices). */}
-        <h1 id={HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
-          {PROJECTS_COPY.title}
-        </h1>
-        <NewProject areas={areas} defaultAreaId={defaultAreaId} />
-      </header>
+    // One notice queue for the screen: the delete notice and the cards' "Siguiente tarea".
+    <ScreenServicesProvider label={PROJECTS_COPY.noticesLabel} actionHint={PROJECTS_COPY.undoHint}>
+      <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-8 px-4 py-8 pb-28 md:px-6 lg:py-12 lg:pb-28">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          {/* tabIndex -1: focus lands here after deleting a project (ProjectsNotices). */}
+          <h1 id={HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
+            {PROJECTS_COPY.title}
+          </h1>
+          <NewProject areas={areas} defaultAreaId={defaultAreaId} />
+        </header>
 
-      {options.length > 0 ? (
-        <AreaFilter options={options} selectedId={selected?.id ?? null} />
-      ) : null}
+        {options.length > 0 ? (
+          <AreaFilter options={options} selectedId={selected?.id ?? null} />
+        ) : null}
 
-      {groups.length > 0 ? (
-        groups.map((group) => (
-          <StatusGroup
-            key={group.status}
-            status={group.status}
-            projects={group.projects}
-            now={now}
-            blockers={blockers}
-            milestones={milestones}
-            contributed={contributed}
-          />
-        ))
-      ) : (
-        <div className="bo-card max-w-160 items-start">
-          <Icon icon={FolderKanban} size="xl" className="text-text-secondary" />
-          <h2 className="bo-text-title">{empty.title}</h2>
-          <p className="bo-text-body-sm text-text-secondary">{empty.text}</p>
-          {selected ? (
-            <Link
-              href="/projects"
-              className="bo-text-body-sm inline-flex min-h-11 items-center rounded-md underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-            >
-              {PROJECTS_COPY.showAll}
-            </Link>
-          ) : null}
-        </div>
-      )}
+        {groups.length > 0 ? (
+          groups.map((group) => (
+            <StatusGroup
+              key={group.status}
+              status={group.status}
+              projects={group.projects}
+              now={now}
+              blockers={blockers}
+              milestones={milestones}
+              contributed={contributed}
+              nextActions={nextActions}
+            />
+          ))
+        ) : (
+          <div className="bo-card max-w-160 items-start">
+            <Icon icon={FolderKanban} size="xl" className="text-text-secondary" />
+            <h2 className="bo-text-title">{empty.title}</h2>
+            <p className="bo-text-body-sm text-text-secondary">{empty.text}</p>
+            {selected ? (
+              <Link
+                href="/projects"
+                className="bo-text-body-sm inline-flex min-h-11 items-center rounded-md underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                {PROJECTS_COPY.showAll}
+              </Link>
+            ) : null}
+          </div>
+        )}
 
-      <ProjectHistory count={historyCount}>
-        {history.map((group) => (
-          <StatusGroup
-            key={group.status}
-            status={group.status}
-            projects={group.projects}
-            now={now}
-            blockers={blockers}
-            milestones={milestones}
-            contributed={contributed}
-            level={3}
-          />
-        ))}
-      </ProjectHistory>
+        <ProjectHistory count={historyCount}>
+          {history.map((group) => (
+            <StatusGroup
+              key={group.status}
+              status={group.status}
+              projects={group.projects}
+              now={now}
+              blockers={blockers}
+              milestones={milestones}
+              contributed={contributed}
+              nextActions={nextActions}
+              level={3}
+            />
+          ))}
+        </ProjectHistory>
 
-      <ProjectsNotices headingId={HEADING_ID} deleted={deleted} />
-    </div>
+        <ProjectsNotices headingId={HEADING_ID} deleted={deleted} />
+      </div>
+    </ScreenServicesProvider>
   );
 }
 
@@ -150,6 +169,8 @@ type StatusGroupProps = {
   milestones: Record<string, MilestoneCounts>;
   /** Done and total contributed by other modules (P6 progress sources), by project id. */
   contributed: ReadonlyMap<string, ProgressCounts>;
+  /** Each project's next action (T5, from the next-action source), by project id. */
+  nextActions: ReadonlyMap<string, ProjectNextAction>;
   /** h2 in the main view; h3 inside "Historial". */
   level?: 2 | 3;
 };
@@ -162,6 +183,7 @@ function StatusGroup({
   blockers,
   milestones,
   contributed,
+  nextActions,
   level = 2,
 }: StatusGroupProps) {
   // Statuses are unique on the page (main groups and history ones never repeat).
@@ -193,10 +215,27 @@ function StatusGroup({
               )}
               headingLevel={level === 2 ? 3 : 4}
               blockedBy={blockers[project.id]?.map((blocker) => blocker.name)}
+              nextAction={nextActionOf(project, nextActions.get(project.id))}
             />
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+/** The card's "Siguiente tarea" (T5): the key with its check, from the source's calls. */
+function nextActionOf(project: ProjectSummary, next: ProjectNextAction | undefined) {
+  if (!next) return null;
+  return {
+    title: next.title,
+    key: (
+      <NextActionKey
+        projectName={project.name}
+        action={{ id: next.id, title: next.title }}
+        complete={next.complete}
+        undoComplete={next.undoComplete}
+      />
+    ),
+  };
 }

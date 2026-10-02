@@ -4,6 +4,7 @@ import { formatOwnerDay } from "@/lib/time";
 import { TASKS_COPY } from "../../tasks-copy";
 import { useTaskDetail } from "./task-detail-context";
 import { TaskDeleteSection } from "./task-delete-section";
+import { TaskNextActionSection } from "./task-next-action-section";
 import { TaskNotesSection } from "./task-notes-section";
 import { TaskPlanSection } from "./task-plan-section";
 import { TaskPrioritySection } from "./task-priority-section";
@@ -37,7 +38,7 @@ export function TaskDetail() {
       ) : null}
       <TaskTitleSection />
       <TaskPlanSection />
-      {/* ── T5 slot (Próxima acción): <TaskNextActionSection /> ── */}
+      <TaskNextActionSection />
 
       <TaskPrioritySection />
 

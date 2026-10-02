@@ -2,8 +2,7 @@
 
 import { startTransition, useEffect, useRef } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
-import { useToaster } from "@/lib/toast/use-toaster";
-import { ToastViewport } from "@/modules/core/components/toast-viewport";
+import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import { restoreProject } from "@/modules/projects/actions";
 import type { DeletedProject, ProjectSummary } from "@/modules/projects/project-input";
 import { PROJECTS_COPY } from "@/modules/projects/projects-copy";
@@ -20,8 +19,10 @@ type ProjectsNoticesProps = {
 };
 
 /**
- * The list's notices. Always on the page, so the queue survives the list re-rendering (the
- * filter, or the revalidation after "Deshacer").
+ * The list's delete notice, in the list's notice queue (`ScreenServicesProvider` around the page:
+ * the cards' "Siguiente tarea" uses the same one, so the screen keeps one viewport). Always on
+ * the page, so the queue survives the list re-rendering (the filter, or the revalidation after
+ * "Deshacer").
  *
  * After deleting a project its page sends here with `?deleted=<id>`: focus goes to the heading
  * (the delete key is gone), the parameter leaves the URL so a reload doesn't repeat it, and
@@ -29,7 +30,7 @@ type ProjectsNoticesProps = {
  * ⌘Z / Ctrl+Z). "Deshacer" restores it and the list brings it back.
  */
 export function ProjectsNotices({ headingId, deleted }: ProjectsNoticesProps) {
-  const toaster = useToaster();
+  const { toaster } = useRequiredScreenServices();
   const { push } = toaster;
   const shown = useRef<string | null>(null);
 
@@ -81,11 +82,5 @@ export function ProjectsNotices({ headingId, deleted }: ProjectsNoticesProps) {
     return () => window.clearTimeout(timer);
   }, [deleted, headingId, push]);
 
-  return (
-    <ToastViewport
-      toaster={toaster}
-      label={PROJECTS_COPY.noticesLabel}
-      actionHint={PROJECTS_COPY.undoHint}
-    />
-  );
+  return null;
 }
