@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, use, useCallback, useMemo, useState } from "react";
+import { createContext, use, useMemo } from "react";
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
-import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
+import { useAnnouncer, useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import { ToastViewport } from "@/modules/core/components/toast-viewport";
 import type { TaskTargets } from "../task-input";
 import { TASKS_COPY } from "../tasks-copy";
@@ -50,13 +50,7 @@ type TasksScreenProps = {
 export function TasksScreen({ now, targets, children }: TasksScreenProps) {
   const toaster = useToaster();
   const enqueue = useSaveQueue();
-  const [announcement, setAnnouncement] = useState("");
-
-  const announce = useCallback((message: string) => {
-    // Cleared first, so the same message twice is read twice.
-    setAnnouncement("");
-    window.setTimeout(() => setAnnouncement(message), 50);
-  }, []);
+  const [announcement, announce] = useAnnouncer();
 
   const value = useMemo<TasksScreenValue>(
     () => ({ now, targets, enqueue, toaster, announce }),
