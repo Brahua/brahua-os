@@ -1,11 +1,11 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-01.
+> Última actualización: 2026-10-02.
 
 ## Cómo retomar
 
-1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-projects.md`).
+1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-tasks.md`).
 2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
@@ -37,15 +37,17 @@
   - Retrospectiva de `core` (2026-10-01): reglas nuevas en `CLAUDE.md`, sección "Lessons from `core`".
   - LCP de `/login` (PR `perf/login-lcp`): ver "Rendimiento de `/login` (LCP)".
   - Checkpoint final: criterios de éxito cumplidos o diferidos por el owner (2026-10-01): el LCP se acepta por ahora y su medición con datos reales queda en "Backlog técnico" de `tasks/todo.md`; Android es N/A (el owner usa iPhone).
-- **projects:** en curso. `SPEC-projects.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas P1–P6 en `tasks/todo.md`.
+- **projects:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final). Plan y tareas archivados en `tasks/archive/projects-*.md`.
   - ✅ P1 (datos, lista y crear): PR #33 integrado. Ver "Cómo funciona projects".
   - P2 (detalle y edición): ✅ PR #36 integrado. Ver "Cómo funciona projects" → "Detalle y edición (P2)", con los puntos de inserción de P3–P5.
   - ✅ P3 (hitos y avance): PR #40 integrado. Ver "Cómo funciona projects" → "Hitos y avance (P3)".
-  - **Siguiente:** Checkpoint final de `projects` con el owner (recorrido completo en celular y escritorio); luego la spec de `tasks`.
   - Ajustes del recorrido del owner: PR `fix/projects-checkpoint` (sin merge). Ver "Cómo funciona projects" → "Ajustes del Checkpoint final". **Pendiente del owner:** verificar la barra de estado en el iPhone.
   - P4 (dependencias): ✅ PR #38 integrado. Ver "Cómo funciona projects" → "Dependencias (P4)".
   - P6 (contratos con otros módulos): ✅ PR #42 integrado. Ver "Cómo funciona projects" → "Contratos (P6)".
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
+
+- **tasks:** en curso. `SPEC-tasks.md` aprobada (2026-10-01); plan en `tasks/plan.md` y tareas T1–T6 en `tasks/todo.md`.
+  - **Siguiente:** sincronizar con Claude Design (Sheet con descripción y el tema claro) y luego T1 (datos, captura rápida y bandeja).
 
 ## C2a: pasos del usuario (en orden)
 

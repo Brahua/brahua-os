@@ -1,36 +1,37 @@
-# Plan de implementación: projects
+# Plan de implementación: tasks
 
-> Spec: [`SPEC-projects.md`](../SPEC-projects.md) (APROBADO v1, 2026-10-01) · Tareas: [`todo.md`](todo.md)
-> Planes anteriores en [`archive/`](archive/) (`design-system`, `core`).
+> Spec: [`SPEC-tasks.md`](../SPEC-tasks.md) (APROBADO v1, 2026-10-01) · Tareas: [`todo.md`](todo.md)
+> Planes anteriores en [`archive/`](archive/) (`design-system`, `core`, `projects`).
 
 ## Enfoque
 
-Rebanadas verticales: cada tarea deja algo usable en producción (datos + acción + pantalla + pruebas). El flujo es el de `core`: implementador en un worktree → PR → revisores en paralelo (código, seguridad si toca datos o acciones, accesibilidad si toca UI) → correcciones → CI verde → merge → deploy y smoke test. E2E nativa por spec mientras se itera; capturas con `update-screenshots.yml`.
+El de `projects`: rebanadas verticales (datos + acción + pantalla + pruebas), implementador en worktree → PR → revisores → CI verde (verificado antes de cada merge) → deploy y smoke test. Tareas en paralelo solo con **puntos de extensión definidos de antemano**, puertos propios (`TEST_DB_PORT`, `E2E_PORT`) y un orden de merge acordado.
 
 ## Orden y dependencias
 
 ```
-P1 datos + lista + crear ─┬─> P2 detalle y edición ─┬─> P3 hitos y avance
-                          │                         ├─> P4 dependencias
-                          │                         └─> P5 notas Markdown y enlaces
-                          └─────────────────────────────> P6 contratos (tasks, today, export)
+T1 datos + captura + bandeja ─┬─> T2 vistas y detalle ─┬─> T5 tareas en proyectos (próxima acción, avance)
+                              ├─> T3 recurrencia        │
+                              └─> T4 etiquetas ─────────┘
+                                                        └─> T6 contrato con today + navegación definitiva
 ```
 
-- **P1** es la base: esquema completo (las 4 tablas y sus `CHECK` en una sola migración aditiva), manifiesto disponible, lista agrupada con filtro por área y crear en un Sheet.
-- **P2** construye el detalle (`/projects/[id]`) y la edición en el lugar; P3, P4 y P5 agregan secciones a esa página. Se pueden hacer **P3, P4 y P5 en paralelo** después de P2 (tocan secciones y archivos distintos; el detalle se compone de componentes por sección para evitar conflictos).
-- **P6** es chico y puede ir en cualquier momento después de P1; se hace al final para no cambiar el contrato dos veces.
+- **T1** es la base: el esquema completo (las 3 tablas, `CHECK` e índices en una migración aditiva), el manifiesto provisional (Tareas, atajo 3), la **captura rápida global** (activa la tecla naranja) y la bandeja con completar/deshacer.
+- **T2, T3 y T4 en paralelo** después de T1: T1 deja el detalle de la tarea armado por secciones (como P2) y la fila con sus puntos de inserción (ícono de recurrencia, etiquetas).
+- **T5** necesita T2 (detalle) y conecta con `projects` por contratos (fuente de avance, fuente de próxima acción) sin que `projects` importe `tasks`.
+- **T6** al final: contrato `getTasksTodaySummary` y la navegación definitiva cuando el owner la itere en Claude Design.
 
 ## Riesgos
 
 | Riesgo | Mitigación |
 |---|---|
-| Conflictos al trabajar P3–P5 en paralelo sobre el detalle | P2 deja el detalle armado con una sección por componente y los puntos de inserción listos. |
-| XSS por Markdown | `react-markdown` sin `rehype-raw`, con `rehype-sanitize`; pruebas con `<script>`, `javascript:` e imágenes con `onerror`. |
-| Ciclos en dependencias con escrituras concurrentes | Comprobación recursiva dentro de una transacción con un lock por proyecto. |
-| Fechas en hora de Lima (vencimiento) | Helpers puros en `progress.ts` con `src/lib/time.ts`, probados alrededor de la medianoche de Lima. |
-| Reordenar hitos (arrastrar) es la parte más frágil (lo vimos en C6) | Reutilizar el patrón de C6 (`sortable-areas`, cola de guardado, foco) en vez de reescribirlo; extraer lo común si hace falta. |
+| Captura global montada desde el shell de `core` sin que `core` importe `tasks` | Punto de extensión registrado (como los manifiestos y las fuentes de avance), definido en T1. |
+| Fechas de recurrencia (fin de mes, días de semana, medianoche de Lima) | Funciones puras con pruebas exhaustivas antes de la UI (T3). |
+| Doble toque al completar una recurrente (duplicados) | Completar es idempotente por `done_at` y la siguiente se crea en la misma transacción. |
+| Próxima acción única con escrituras concurrentes | Índice único parcial + lock del proyecto como primer lock (convención de `projects`). |
+| Pruebas E2E inestables tras revalidar (título ausente) | `afterSaveSettled()` antes de axe (lección de `projects`). |
 
 ## Checkpoints
 
-- **Checkpoint P1:** el owner crea proyectos desde el celular y ve la lista agrupada.
-- **Checkpoint final:** recorrido completo (crear, detalle, hitos, dependencias, notas, eliminar y deshacer) en celular y escritorio; criterios de éxito de la spec.
+- **Checkpoint T1:** el owner captura desde el celular en < 10 s y completa desde la bandeja.
+- **Checkpoint final:** recorrido completo (capturar, clasificar, vistas, recurrente, etiquetas, tareas de un proyecto y próxima acción) en celular y escritorio.
