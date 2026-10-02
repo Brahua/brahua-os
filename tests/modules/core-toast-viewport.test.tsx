@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { TOAST_DURATION } from "@/lib/toast/queue";
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
@@ -11,15 +11,33 @@ function expose(value: Toaster) {
   toaster = value;
 }
 
-function Harness() {
+type EarlyKey = { text: string; init: KeyboardEventInit };
+
+function Harness({ earlyKey }: { earlyKey?: EarlyKey }) {
   const current = useToaster();
   useLayoutEffect(() => expose(current));
   return (
     <>
       <button type="button">Antes</button>
       <ToastViewport toaster={current} label="Avisos" actionHint="Pista." />
+      {earlyKey ? <KeyOnceShown {...earlyKey} /> : null}
     </>
   );
+}
+
+/**
+ * Presses a key in the same commit that puts `text` on screen: after the DOM is updated but
+ * before React runs passive effects (useEffect). In a browser a real key press can land there,
+ * since passive effects run in a later task.
+ */
+function KeyOnceShown({ text, init }: EarlyKey) {
+  const sent = useRef(false);
+  useLayoutEffect(() => {
+    if (sent.current || !document.body.textContent?.includes(text)) return;
+    sent.current = true;
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init }));
+  });
+  return null;
 }
 
 const region = () => screen.getByRole("region", { name: "Avisos" });
@@ -123,6 +141,19 @@ describe("ToastViewport", () => {
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(live()).toBeEmptyDOMElement();
     input.remove();
+  });
+
+  test("Esc works as soon as the notice is on screen, before passive effects run", () => {
+    render(<Harness earlyKey={{ text: "Pronto", init: { key: "Escape" } }} />);
+    push("Pronto", () => {});
+    expect(live()).toBeEmptyDOMElement();
+  });
+
+  test("⌘Z works as soon as the notice is on screen, before passive effects run", () => {
+    const run = vi.fn();
+    render(<Harness earlyKey={{ text: "Pronto", init: { key: "z", metaKey: true } }} />);
+    push("Pronto", run);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   test("⌘Z does nothing while a drag is active", () => {
