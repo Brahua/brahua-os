@@ -90,6 +90,10 @@ async function setTheme(page: Page, theme: Theme) {
 }
 
 async function expectNoAxeViolations(page: Page) {
+  // Right after a Server Action's revalidation (registering the passkey) Next can swap the tree
+  // with the <title> briefly missing; axe then reports `document-title` (seen in CI, as in
+  // e2e/support/saves.ts).
+  await expect(page).toHaveTitle(/brahua-os/);
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 }
