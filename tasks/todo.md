@@ -6,16 +6,18 @@
 
 ## Fase 1 — Base
 
-- [ ] **D1: Tablero con hábitos** — módulo `src/modules/today/` (manifiesto "Hoy" desde `core`, regla de límites: nadie importa `today`); portada `/` con cabecera, sección Hábitos ("X de N", pads con registro y "Deshacer" vía `getHabitsDueToday` y los servicios del anfitrión) y día vacío; `TodayBoard` con slots para Tareas, Proyectos y Día completo.
+- [x] **D1: Tablero con hábitos** — módulo `src/modules/today/` (manifiesto "Hoy" desde `core`, regla de límites: nadie importa `today`); portada `/` con cabecera, sección Hábitos ("X de N", pads con registro y "Deshacer" vía `getHabitsDueToday` y los servicios del anfitrión) y día vacío; `TodayBoard` con slots para Tareas, Proyectos y Día completo.
   - Verificar: unitarias de secciones ocultas y día vacío; E2E registrar y deshacer desde `/` (celular y escritorio), axe en ambos temas, 320 px.
+  - Integrado en PR #71. Ver "Cómo funciona today" → "D1" en `docs/HANDOFF.md`.
 
 ## Fase 2 — Secciones *(D2 y D3 en paralelo)*
 
-- [ ] **D2: Tareas** — sección con `getTasksTodaySummary`, 3 visibles y "Ver N más"/"Ver menos", casilla para completar (con `completeTaskWithNext` y el aviso de la siguiente), foco restaurado al salir la fila, enlace a la tarea; `tasks` revalida `/`.
+- [x] **D2: Tareas** — sección con `getTasksTodaySummary`, 3 visibles y "Ver N más"/"Ver menos", casilla para completar (con `completeTaskWithNext` y el aviso de la siguiente), foco restaurado al salir la fila, enlace a la tarea; `tasks` revalida `/`.
   - Verificar: unitarias del tope y del foco; E2E completar y deshacer, recurrente, plegado.
-  - Hecho en `feat/today-d2-tasks` (PR sin merge). Ver "Cómo funciona today" → "D2" en `docs/HANDOFF.md`.
-- [ ] **D3: Proyectos** — sección de solo lectura con `getProjectsTodaySummary` (LED, vencimiento, "Bloqueado por …", enlace); `projects` revalida `/`.
+  - Integrado en PR #72. Ver "Cómo funciona today" → "D2" en `docs/HANDOFF.md`.
+- [x] **D3: Proyectos** — sección de solo lectura con `getProjectsTodaySummary` (LED, vencimiento, "Bloqueado por …", enlace); `projects` revalida `/`.
   - Verificar: unitarias de las filas; E2E con un proyecto que vence y uno bloqueado.
+  - Integrado en PR #73. Ver "Cómo funciona today" → "D3" en `docs/HANDOFF.md`.
 
 ## Fase 3 — Cierre
 
