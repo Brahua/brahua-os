@@ -88,10 +88,7 @@ const moduleBoundaries = [
   {
     files: ["src/modules/projects/**/*.{ts,tsx}"],
     rules: {
-      "no-restricted-imports": [
-        "error",
-        { patterns: [TASKS_IMPORT, HABITS_IMPORT, TODAY_IMPORT] },
-      ],
+      "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT, HABITS_IMPORT, TODAY_IMPORT] }],
     },
   },
   {

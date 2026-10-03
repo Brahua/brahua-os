@@ -2,7 +2,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { expectScreenshot } from "./support/screenshots";
+import { test as habitsLocked } from "./support/habits";
 import { HOME_HEADING } from "./support/owner";
+
+/**
+ * For the tests that measure "/" (width, axe): the board shows every habit due today, so they
+ * hold the habits lock (and start with no habits), like the habits and today specs that add them.
+ */
+const homeLocked = habitsLocked;
 
 const THEMES = ["dark", "light"] as const;
 
@@ -161,20 +168,25 @@ test("the content and focused elements stay clear of the bottom bar", async ({
   expect(scrollPadding).toBeGreaterThanOrEqual(barHeight);
 });
 
-test("at 320 px the bottom bar doesn't overflow; labels truncate", async ({ page }, testInfo) => {
-  test.skip(isDesktop(testInfo), "Phone widths only");
-  await page.setViewportSize({ width: 320, height: 640 });
-  await page.goto("/");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+homeLocked(
+  "at 320 px the bottom bar doesn't overflow; labels truncate",
+  async ({ page }, testInfo) => {
+    test.skip(isDesktop(testInfo), "Phone widths only");
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto("/");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      320,
+    );
 
-  await page.goto("/design");
-  // The /design demo has the full design (Proyectos, Hábitos, Más).
-  const demo = page.getByRole("navigation", { name: "Ejemplo de barra inferior" });
-  await demo.scrollIntoViewIfNeeded();
-  const overflow = await demo.evaluate((el) => el.scrollWidth - el.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
-  await expect(demo.getByRole("link", { name: "Proyectos" })).toBeVisible();
-});
+    await page.goto("/design");
+    // The /design demo has the full design (Proyectos, Hábitos, Más).
+    const demo = page.getByRole("navigation", { name: "Ejemplo de barra inferior" });
+    await demo.scrollIntoViewIfNeeded();
+    const overflow = await demo.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    await expect(demo.getByRole("link", { name: "Proyectos" })).toBeVisible();
+  },
+);
 
 test("Más opens its sections and returns focus to itself on close", async ({ page }) => {
   await page.goto("/design");
@@ -190,25 +202,26 @@ test("Más opens its sections and returns focus to itself on close", async ({ pa
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshot`, async ({
-    page,
-  }, testInfo) => {
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/");
-    await setTheme(page, theme);
+  homeLocked(
+    `${theme} theme: no accessibility violations and the reference screenshot`,
+    async ({ page }, testInfo) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/");
+      await setTheme(page, theme);
 
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations).toEqual([]);
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations).toEqual([]);
 
-    const desktop = isDesktop(testInfo);
-    await expectScreenshot(desktop ? sidebar(page) : bottomNav(page), `navigation-${theme}.png`);
-    if (desktop) {
-      await shortcutsReady(page);
-      await page.keyboard.press("[");
-      await expect(sidebar(page)).toHaveClass(/is-collapsed/);
-      await expectScreenshot(sidebar(page), `navigation-collapsed-${theme}.png`);
-    }
-  });
+      const desktop = isDesktop(testInfo);
+      await expectScreenshot(desktop ? sidebar(page) : bottomNav(page), `navigation-${theme}.png`);
+      if (desktop) {
+        await shortcutsReady(page);
+        await page.keyboard.press("[");
+        await expect(sidebar(page)).toHaveClass(/is-collapsed/);
+        await expectScreenshot(sidebar(page), `navigation-collapsed-${theme}.png`);
+      }
+    },
+  );
 }
 
 test("a tooltip stays open while hovered and Esc dismisses it (WCAG 1.4.13)", async ({

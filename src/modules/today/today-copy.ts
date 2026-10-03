@@ -5,6 +5,8 @@ export const TODAY_COPY = {
   pageTitle: "Hoy · brahua-os",
   noticesLabel: "Avisos",
   undoHint: "Para deshacer, pulsa Ctrl+Z o ⌘Z, o usa el botón Deshacer del aviso.",
+  /** Announced when Lima's day changes with the board open (the page is read again). */
+  newDay: "Empezó un nuevo día: actualizando Hoy.",
 
   // ── Hábitos (D1) ──
   habitsTitle: "Hábitos",

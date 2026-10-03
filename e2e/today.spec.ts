@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { expect, insertHabit, limaWeekday, readHabit, test } from "./support/habits";
-import { isDesktop, notices, untilSaved } from "./support/projects";
+import { expectNoOverflow, isDesktop, notices, untilSaved } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
 
@@ -21,11 +21,12 @@ async function setTheme(page: Page, theme: (typeof THEMES)[number]) {
   await fontsLoaded(page);
 }
 
-/** Opens "/" and waits until it is hydrated (taps reach React). */
+/** Opens "/" and waits until it is hydrated (taps reach React) and laid out (fonts in). */
 async function openToday(page: Page) {
   await page.goto("/");
   await expect(page).toHaveTitle("Hoy · brahua-os");
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+  await fontsLoaded(page);
 }
 
 async function axeViolations(page: Page) {
@@ -103,6 +104,8 @@ test("a quantity adds its step; Ajustar sets the exact amount, with Deshacer", a
   await expect(status).toHaveText("8/8 VASOS");
   await expect(count(page)).toHaveText("1 de 1 cumplidos");
   await expect.poll(async () => (await readHabit(id)).today).toBe(8);
+  // The adjust's own notice (not the tap's, which it replaces): its "Deshacer" goes back to 5.
+  await expect(notices(page).getByText(`«${name}» quedó en 8 de 8 vasos hoy.`)).toBeVisible();
 
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
   await expect(status).toHaveText("5/8 VASOS");
@@ -148,11 +151,64 @@ test("at 320 px the board doesn't scroll sideways", async ({ page }, testInfo) =
   await openToday(page);
   await expect(pads(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  for (const item of await pads(page).locator("li").all()) {
+    await expectNoOverflow(page, item);
+  }
   // Two columns on the phone.
-  const [first, second] = await pads(page).locator("li").evaluateAll((items) =>
-    items.slice(0, 2).map((item) => item.getBoundingClientRect().top),
-  );
+  const [first, second] = await pads(page)
+    .locator("li")
+    .evaluateAll((items) => items.slice(0, 2).map((item) => item.getBoundingClientRect().top));
   expect(first).toBe(second);
+});
+
+test("on the phone the last pad stays above the notice and the bottom bar", async ({
+  page,
+}, testInfo) => {
+  test.skip(isDesktop(testInfo), "The bottom bar is only shown on phones");
+  for (let index = 0; index < 8; index += 1) {
+    await insertHabit({ name: `Hábito ${index + 1}`, sortOrder: index });
+  }
+  await openToday(page);
+  await untilSaved(page, () => pad(page, "Hábito 1").click());
+  const toast = notices(page).getByRole("status").locator(":scope > *").first();
+  await expect(toast).toBeVisible();
+  await afterSaveSettled(page);
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await afterSaveSettled(page);
+  const last = (await pad(page, "Hábito 8").boundingBox())!;
+  const notice = (await toast.boundingBox())!;
+  const bar = (await page.locator(".bo-bottomnav--fixed").boundingBox())!;
+  expect(last.y + last.height).toBeLessThanOrEqual(notice.y);
+  expect(last.y + last.height).toBeLessThanOrEqual(bar.y);
+});
+
+test("a habit logged on /habits is logged on Hoy when going back by the navigation", async ({
+  page,
+}) => {
+  await insertHabit({ name: "Meditar" });
+  await openToday(page);
+  await expect(count(page)).toHaveText("0 de 1 cumplidos");
+
+  await page
+    .getByRole("navigation", { name: "Principal" })
+    .getByRole("link", { name: "Hábitos" })
+    .click();
+  await expect(page).toHaveURL("/habits");
+  const habitsPad = page
+    .getByRole("list", { name: "Hábitos de hoy" })
+    .getByRole("button", { name: "Meditar", exact: true });
+  await untilSaved(page, () => habitsPad.click());
+  await expect(habitsPad).toHaveAttribute("aria-pressed", "true");
+
+  // Client navigation (no reload): the revalidated "/" must not show the old pad.
+  await page
+    .getByRole("navigation", { name: "Principal" })
+    .getByRole("link", { name: "Hoy" })
+    .click();
+  await expect(page).toHaveURL("/");
+  await expect(pad(page, "Meditar")).toHaveAttribute("aria-pressed", "true");
+  await expect(count(page)).toHaveText("1 de 1 cumplidos");
 });
 
 test("reduced motion: a tapped pad neither moves nor sinks", async ({ page }) => {

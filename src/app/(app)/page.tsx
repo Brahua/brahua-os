@@ -3,6 +3,7 @@ import { requireOwner } from "@/lib/auth";
 import { formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import { TodayBoard } from "@/modules/today/components/today-board";
+import { TODAY_HEADING_ID } from "@/modules/today/today-board";
 import { TODAY_COPY } from "@/modules/today/today-copy";
 
 export const metadata: Metadata = { title: TODAY_COPY.pageTitle };
@@ -31,7 +32,10 @@ export default async function Home() {
         <p className="bo-text-label text-text-secondary">
           <time dateTime={ownerDateKey(now)}>{formatLongDate(now)}</time>
         </p>
-        <h1 className="bo-text-display">{greetingFor(now)}</h1>
+        {/* tabIndex -1: focus lands here when a whole section leaves (TodaySlot). */}
+        <h1 id={TODAY_HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
+          {greetingFor(now)}
+        </h1>
       </header>
       <TodayBoard today={ownerDateKey(now)} habits={habits} />
     </div>

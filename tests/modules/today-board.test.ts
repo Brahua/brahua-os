@@ -49,11 +49,7 @@ describe("todaySections", () => {
       { habits: 0, tasks: 0, projects: 0 },
       { habits: false, tasks: false, projects: false, empty: true },
     ],
-    [
-      "only habits",
-      { habits: 3 },
-      { habits: true, tasks: false, projects: false, empty: false },
-    ],
+    ["only habits", { habits: 3 }, { habits: true, tasks: false, projects: false, empty: false }],
     [
       "only tasks (D2): habits hidden, not empty",
       { habits: 0, tasks: 2 },
@@ -63,6 +59,11 @@ describe("todaySections", () => {
       "only projects (D3): not empty",
       { habits: 0, tasks: 0, projects: 1 },
       { habits: false, tasks: false, projects: true, empty: false },
+    ],
+    [
+      "only Día completo (D4, e.g. every task done and gone): not the empty day too",
+      { habits: 0, tasks: 0, projects: 0, dayComplete: true },
+      { habits: false, tasks: false, projects: false, empty: false },
     ],
     [
       "everything",

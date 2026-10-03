@@ -81,14 +81,22 @@ const pads = () => screen.getByRole("list", { name: "Hábitos de hoy" });
 const pad = (name: string) => within(pads()).getByRole("button", { name });
 const count = () => document.querySelector("[data-today-habits-count]");
 const notices = () => screen.getByRole("region", { name: "Avisos" });
-const padNames = () =>
-  [...pads().querySelectorAll("[data-habit-pad]")].map((element) =>
-    element.querySelector(".line-clamp-3")?.textContent?.trim(),
-  );
+/** The pads' habits, in the order shown (each cell names its habit by id). */
+const padOrder = () =>
+  within(pads())
+    .getAllByRole("listitem")
+    .map((item) => item.getAttribute("data-habit-cell"));
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
+  // The sheets ask for reduced motion.
+  window.matchMedia = vi.fn((query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })) as unknown as typeof window.matchMedia;
   pending.length = 0;
   const wait = () =>
     new Promise<ActionResult<HabitItem>>((resolve) => {
@@ -149,6 +157,24 @@ describe("sections and the empty day", () => {
     expect(order).toEqual(["day-complete", "habits", "tasks", "projects"]);
   });
 
+  test("Día completo with nothing left in the sections is never next to the empty day", () => {
+    render(
+      <TodayBoard
+        today={TODAY}
+        habits={[]}
+        dayComplete={<p data-slot="day-complete">Día completo</p>}
+        tasks={{ count: 0, content: <section data-slot="tasks">Tareas</section> }}
+      />,
+    );
+    const board = document.querySelector("[data-today-board]")!;
+    expect([...board.children].map((child) => child.getAttribute("data-slot"))).toEqual([
+      "day-complete",
+    ]);
+    expect(
+      screen.queryByRole("region", { name: "Nada programado para hoy" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("a slot with 0 items is left out; one with items keeps the day from being empty", () => {
     const { rerender } = render(
       <TodayBoard
@@ -174,6 +200,44 @@ describe("sections and the empty day", () => {
   });
 });
 
+describe("a new Lima day with the board open", () => {
+  const YESTERDAY = "2026-10-01";
+  const becomeVisible = () => act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+  test("the empty day is read again once, and it is said", async () => {
+    const { container } = render(<TodayBoard today={YESTERDAY} habits={[]} />);
+    await becomeVisible();
+    await becomeVisible();
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(container.querySelector("[data-screen-announcer]")).toHaveTextContent(
+        "Empezó un nuevo día: actualizando Hoy.",
+      ),
+    );
+  });
+
+  test("with habits: one refresh (the board's, not habits' too) and no log of the day before", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<TodayBoard today={YESTERDAY} habits={[MEDITAR]} />);
+    await becomeVisible();
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    await user.click(pad("Meditar"));
+    expect(setHabitDone).not.toHaveBeenCalled();
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(container.querySelector("[data-screen-announcer]")).toHaveTextContent(
+        "Empezó un nuevo día: actualizando Hoy.",
+      ),
+    );
+  });
+
+  test("on the same day nothing is refreshed (positive control above)", async () => {
+    render(<TodayBoard today={TODAY} habits={[MEDITAR]} />);
+    await becomeVisible();
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+});
+
 describe("Hábitos", () => {
   test("“X de N” counts with habits' rule (an avoid without a relapse is done)", () => {
     render(<TodayBoard today={TODAY} habits={[MEDITAR, LEER, AGUA, FUMAR]} />);
@@ -185,13 +249,13 @@ describe("Hábitos", () => {
   test("a tap logs today, the count follows, the pads don't move; Deshacer in the one viewport", async () => {
     const user = userEvent.setup();
     const { container } = render(<TodayBoard today={TODAY} habits={[MEDITAR, LEER, AGUA]} />);
-    const before = padNames();
+    expect(padOrder()).toEqual([MEDITAR.id, LEER.id, AGUA.id]);
 
     await user.click(pad("Meditar"));
     // Optimistic at once, and still in its place (manual order).
     expect(pad("Meditar")).toHaveAttribute("aria-pressed", "true");
     expect(count()).toHaveTextContent("2 de 3");
-    expect(padNames()).toEqual(before);
+    expect(padOrder()).toEqual([MEDITAR.id, LEER.id, AGUA.id]);
     expect(setHabitDone).toHaveBeenCalledWith({ id: MEDITAR.id, day: TODAY, done: true });
     await answer(ok({ ...MEDITAR, quantity: 1 }));
 
@@ -238,6 +302,38 @@ describe("Hábitos", () => {
     expect(count()).toHaveTextContent("0 de 1");
     expect(setHabitDone).toHaveBeenCalledWith({ id: FUMAR.id, day: TODAY, done: true });
     await answer(ok({ ...FUMAR, quantity: 1 }));
+  });
+
+  test("Ctrl+Z after a tap undoes it, like the notice's Deshacer", async () => {
+    const user = userEvent.setup();
+    render(<TodayBoard today={TODAY} habits={[MEDITAR]} />);
+    await user.click(pad("Meditar"));
+    await answer(ok({ ...MEDITAR, quantity: 1 }));
+    expect(await within(notices()).findByText(/«Meditar» quedó hecho hoy/)).toBeInTheDocument();
+
+    await user.keyboard("{Control>}z{/Control}");
+    await waitFor(() =>
+      expect(setHabitDone).toHaveBeenLastCalledWith({ id: MEDITAR.id, day: TODAY, done: false }),
+    );
+    await answer(ok(MEDITAR));
+    await waitFor(() => expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false"));
+  });
+
+  test("closing Ajustar after its pad left puts focus on the Hábitos heading", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<TodayBoard today={TODAY} habits={[AGUA, MEDITAR]} />);
+    await user.click(within(pads()).getByRole("button", { name: "Ajustar «Agua»" }));
+    const sheet = await screen.findByRole("dialog", { name: "Ajustar «Agua»" });
+    expect(sheet).toBeInTheDocument();
+    // Agua leaves the board meanwhile (archived from another tab): its key is gone.
+    rerender(<TodayBoard today={TODAY} habits={[MEDITAR]} />);
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Ajustar «Agua»" })).not.toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 2, name: "Hábitos" })).toHaveFocus(),
+    );
   });
 
   test("a refusal rolls the pad back and says so in the board's viewport", async () => {
