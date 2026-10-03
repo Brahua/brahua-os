@@ -1,5 +1,6 @@
 // The module boundaries of eslint.config.mjs: `core`, `projects` and `tasks` never import
-// `habits` (SPEC-habits "Límites entre módulos"); `habits` may import `core`.
+// `habits` (SPEC-habits "Límites entre módulos"); `habits` may import `core`. No module imports
+// `today` (SPEC-today "Contratos").
 import { ESLint } from "eslint";
 import path from "node:path";
 import { expect, test, vi } from "vitest";
@@ -44,6 +45,33 @@ test("habits itself, the app's pages and the composition roots may import it", a
   expect(await restricted(IMPORT_HABITS, "src/lib/modules.ts")).toEqual([]);
   // H6: the home page (where `today` will live) may read the contract.
   expect(await restricted(IMPORT_HABITS_CONTRACT, "src/app/(app)/page.tsx")).toEqual([]);
+});
+
+// SPEC-today: `today` is a leaf. No module imports it (not even its manifest or the barrel).
+const IMPORT_TODAY = `import { todayModule } from "@/modules/today/module";
+export const manifest = todayModule;
+`;
+const IMPORT_TODAY_BARREL = `import * as today from "@/modules/today";
+export const all = today;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+])("%s cannot import today", async (file) => {
+  const messages = await restricted(IMPORT_TODAY, file);
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`today` es una hoja");
+  expect(await restricted(IMPORT_TODAY_BARREL, file)).toHaveLength(1);
+});
+
+test("today itself, the home page and the registry may import it; today may read habits", async () => {
+  expect(await restricted(IMPORT_TODAY, "src/modules/today/today-board.ts")).toEqual([]);
+  expect(await restricted(IMPORT_TODAY, "src/app/(app)/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_TODAY, "src/lib/modules.ts")).toEqual([]);
+  expect(await restricted(IMPORT_HABITS_CONTRACT, "src/modules/today/today-board.ts")).toEqual([]);
 });
 
 test("habits may import core (the other direction)", async () => {

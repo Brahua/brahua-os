@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { createContext, use, useCallback, useEffect, useMemo, useRef } from "react";
-import { ownerDateKey } from "@/lib/time";
+import { createContext, use, useMemo } from "react";
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
 import { useAnnouncer, useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import { ToastViewport } from "@/modules/core/components/toast-viewport";
+import { useDayRollover } from "@/modules/core/components/use-day-rollover";
 import type { HabitAreaSummary } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
 
@@ -37,45 +36,6 @@ export type HabitsScreenValue = {
   isCurrentDay: () => boolean;
 };
 
-/** How often an open screen checks whether Lima's day changed (also on becoming visible). */
-const DAY_CHECK_MS = 60_000;
-
-/**
- * Keeps `today` current: when Lima's day changes while the screen is open, the page is read
- * again (`router.refresh()`), checked every minute and whenever the page becomes visible.
- */
-function useDayRollover(today: string, announce: (message: string) => void) {
-  const router = useRouter();
-  const refreshed = useRef<string | null>(null);
-
-  const isCurrentDay = useCallback(() => {
-    const now = ownerDateKey(new Date());
-    if (now === today) return true;
-    if (refreshed.current !== now) {
-      refreshed.current = now;
-      announce(HABITS_COPY.newDay);
-      router.refresh();
-    }
-    return false;
-  }, [today, announce, router]);
-
-  useEffect(() => {
-    const check = () => {
-      if (document.visibilityState === "visible") isCurrentDay();
-    };
-    const timer = window.setInterval(check, DAY_CHECK_MS);
-    document.addEventListener("visibilitychange", check);
-    window.addEventListener("pageshow", check);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", check);
-      window.removeEventListener("pageshow", check);
-    };
-  }, [isCurrentDay]);
-
-  return isCurrentDay;
-}
-
 const HabitsScreenContext = createContext<HabitsScreenValue | null>(null);
 
 /** The screen's day, areas, save queue, notices and announcer. */
@@ -99,7 +59,7 @@ export function HabitsScreen({ today, areas, children }: HabitsScreenProps) {
   const toaster = useToaster();
   const enqueue = useSaveQueue();
   const [announcement, announce] = useAnnouncer();
-  const isCurrentDay = useDayRollover(today, announce);
+  const isCurrentDay = useDayRollover(today, announce, HABITS_COPY.newDay);
 
   const value = useMemo<HabitsScreenValue>(
     () => ({ today, areas, enqueue, toaster, announce, isCurrentDay }),
@@ -130,11 +90,23 @@ type HabitsScreenWithinProps = {
 /**
  * Habits parts on another module's screen (H6: `today`'s board): the same context as
  * `HabitsScreen`, but with the host screen's save queue, notices and announcer
- * (`ScreenServicesContext` from `core`), so the screen keeps one notice viewport.
+ * (`ScreenServicesContext` from `core`), so the screen keeps one notice viewport. A host that
+ * watches the day (`ScreenServicesProvider` with `day`) gives its `isCurrentDay`: habits doesn't
+ * watch it again (one refresh, one announcement). Otherwise habits watches it itself.
  */
 export function HabitsScreenWithin({ today, areas, children }: HabitsScreenWithinProps) {
-  const { enqueue, toaster, announce } = useRequiredScreenServices();
-  const isCurrentDay = useDayRollover(today, announce);
+  const {
+    enqueue,
+    toaster,
+    announce,
+    isCurrentDay: hostIsCurrentDay,
+  } = useRequiredScreenServices();
+  const ownIsCurrentDay = useDayRollover(
+    hostIsCurrentDay ? null : today,
+    announce,
+    HABITS_COPY.newDay,
+  );
+  const isCurrentDay = hostIsCurrentDay ?? ownIsCurrentDay;
   const value = useMemo<HabitsScreenValue>(
     () => ({ today, areas, enqueue, toaster, announce, isCurrentDay }),
     [today, areas, enqueue, toaster, announce, isCurrentDay],

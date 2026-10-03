@@ -4,6 +4,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useRef, useState }
 import { useToaster, type Toaster } from "@/lib/toast/use-toaster";
 import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
 import { ToastViewport } from "./toast-viewport";
+import { useDayRollover } from "./use-day-rollover";
 
 // What a screen shares with every part on it, whatever module the part comes from: one save
 // queue, one notice viewport and one polite announcer per screen (CLAUDE.md: notices never pile
@@ -18,6 +19,13 @@ export type ScreenServices = {
   toaster: Toaster;
   /** Says something politely to screen readers. */
   announce: (message: string) => void;
+  /**
+   * Only on a screen read for one Lima day (the provider got `day`): whether that day is still
+   * today. If it changed, the screen is read again once (`useDayRollover`) and this says false,
+   * so a part must not log the day before. Parts on such a screen (e.g. habits' pads on the
+   * `today` board) use it instead of watching the day themselves: one refresh, one announcement.
+   */
+  isCurrentDay?: () => boolean;
 };
 
 export const ScreenServicesContext = createContext<ScreenServices | null>(null);
@@ -53,6 +61,12 @@ type ScreenServicesProviderProps = {
   label: string;
   /** Read after a notice with an action: how to undo without hunting. */
   actionHint: string;
+  /**
+   * The Lima day (YYYY-MM-DD) the screen was read for, on screens that show "today": the
+   * provider then watches the day (`useDayRollover`), reads the screen again once when it
+   * changes (announcing `changedMessage`) and offers `isCurrentDay` to its parts.
+   */
+  day?: { today: string; changedMessage: string };
   children: React.ReactNode;
 };
 
@@ -63,14 +77,17 @@ type ScreenServicesProviderProps = {
 export function ScreenServicesProvider({
   label,
   actionHint,
+  day,
   children,
 }: ScreenServicesProviderProps) {
   const toaster = useToaster();
   const enqueue = useSaveQueue();
   const [announcement, announce] = useAnnouncer();
+  const watchesDay = day !== undefined;
+  const isCurrentDay = useDayRollover(day?.today ?? null, announce, day?.changedMessage ?? "");
   const value = useMemo<ScreenServices>(
-    () => ({ enqueue, toaster, announce }),
-    [enqueue, toaster, announce],
+    () => ({ enqueue, toaster, announce, ...(watchesDay ? { isCurrentDay } : {}) }),
+    [enqueue, toaster, announce, watchesDay, isCurrentDay],
   );
   return (
     <ScreenServicesContext value={value}>
