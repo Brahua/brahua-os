@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Icon, keyClasses, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import type { ProjectTodayItem } from "@/modules/projects/contracts";
+import { isUrgentDue } from "@/modules/projects/progress";
 import { DEPENDENCIES_COPY } from "@/modules/projects/projects-copy";
 import { PROJECTS_PATH, projectPath } from "@/modules/projects/routes";
 import { TODAY_COPY } from "../today-copy";
@@ -47,10 +48,10 @@ export function TodayProjects({ projects }: { projects: readonly ProjectTodayIte
  * `dueState`) and "Bloqueado por X, Y". "Vence hoy" and overdue take the signal color, as on the
  * projects list (`ProjectCard`); never red.
  */
-export function TodayProjectRow({ project }: { project: ProjectTodayItem }) {
+function TodayProjectRow({ project }: { project: ProjectTodayItem }) {
   const { area, due, blockedBy } = project;
   const blocked = blockedBy.length > 0;
-  const urgent = due?.kind === "today" || due?.kind === "overdue";
+  const urgent = isUrgentDue(due);
   const blockedText = blocked ? DEPENDENCIES_COPY.blockedBy(blockedBy.map((b) => b.name)) : null;
   // The visible metadata is aria-hidden (its flex items would be read run together); the link
   // says it in words through this description.

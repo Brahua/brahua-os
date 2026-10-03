@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { daysUntil, dueState } from "@/modules/projects/progress";
+import { daysUntil, dueState, isUrgentDue } from "@/modules/projects/progress";
 import { PROJECT_STATUSES } from "@/modules/projects/project-constants";
 
 // Lima is UTC-5 all year (no daylight saving): Lima midnight is 05:00 UTC.
@@ -89,4 +89,12 @@ describe("dueState", () => {
       expect(dueState("2026-10-09", "active", LATE_OCT_1)).toBeNull();
     });
   });
+});
+
+test("isUrgentDue: due today and overdue call for attention, due soon and none do not", () => {
+  const now = LIMA_MIDNIGHT_OCT_1;
+  expect(isUrgentDue(dueState("2026-10-01", "active", now))).toBe(true);
+  expect(isUrgentDue(dueState("2026-09-28", "paused", now))).toBe(true);
+  expect(isUrgentDue(dueState("2026-10-04", "active", now))).toBe(false);
+  expect(isUrgentDue(null)).toBe(false);
 });

@@ -1,25 +1,21 @@
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
-import { inArray } from "drizzle-orm";
-import { createDb } from "@/lib/db";
-import { projectDependencies, projects } from "@/modules/projects/db/schema";
-import { testDatabaseUrl } from "../tests/integration/helpers";
 import { fontsLoaded } from "./support/fonts";
-import { expectNoOverflow, insertProject, isDesktop, uniqueName } from "./support/projects";
+import { CREATE_AREA, expectNoOverflow, isDesktop, uniqueName } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
-import { boardTest as test } from "./support/today-tasks";
+import { boardTest as test, insertTodayProject } from "./support/today-tasks";
 
 // D3 of `today` (SPEC-today "Proyectos"): the projects due within a week and the blocked ones,
 // last on "/", read only, each row a link to its project.
 //
 // The fixture projects ("Planes y Viajes", global-setup) are due today, in 3 days and 2 days ago,
-// so "/" always has this section in the E2E database. Tests here add their own projects (in
-// "Hobbies", with unique names) and soft-delete them at the end, so "/" doesn't keep growing for
-// the specs running in parallel; the screenshot only shows the fixture rows. Every test is a
-// `boardTest` (e2e/support/today-tasks.ts), like the other tests that look at "/": the habits and
-// tasks locks, with the tasks due today parked, so the page above the section stays short.
+// so "/" always has this section in the E2E database. Every test is a `boardTest`
+// (e2e/support/today-tasks.ts), like the other tests that look at "/": the habits and tasks
+// locks, with the tasks due today parked. Its projects come from `insertTodayProject` (in
+// "Hobbies", with unique names), soft-deleted when the test ends; the screenshot only shows the
+// fixture rows.
 
 const THEMES = ["dark", "light"] as const;
 const FIXTURE_ROWS_CSS = path.join(__dirname, "support/today-projects-only.css");
@@ -48,35 +44,9 @@ async function setTheme(page: Page, theme: (typeof THEMES)[number]) {
   await fontsLoaded(page);
 }
 
-async function withDb<T>(run: (db: ReturnType<typeof createDb>) => Promise<T>): Promise<T> {
-  const db = createDb(testDatabaseUrl());
-  try {
-    return await run(db);
-  } finally {
-    await db.$client.end();
-  }
-}
-
-/** `projectId` waits for `blockedById` (P4), straight in the database. */
-function block(projectId: string, blockedById: string) {
-  return withDb((db) => db.insert(projectDependencies).values({ projectId, blockedById }));
-}
-
-/** The test's projects out of every view (soft-deleted, like the app does). */
-const created: string[] = [];
-test.afterEach(async () => {
-  if (created.length === 0) return;
-  const ids = created.splice(0);
-  await withDb((db) =>
-    db.update(projects).set({ deletedAt: new Date() }).where(inArray(projects.id, ids)),
-  );
-});
-
-async function project(values: Parameters<typeof insertProject>[0]) {
-  const id = await insertProject(values);
-  created.push(id);
-  return id;
-}
+/** A project of the test in "Hobbies" (soft-deleted when it ends). */
+const project = (name: string, options?: Parameters<typeof insertTodayProject>[2]) =>
+  insertTodayProject(name, CREATE_AREA.slug, options);
 
 test("a project due in 3 days and a blocked one show on Hoy, each a link", async ({
   page,
@@ -85,13 +55,11 @@ test("a project due in 3 days and a blocked one show on Hoy, each a link", async
   const blocker = uniqueName("Ahorrar", testInfo);
   const other = uniqueName("Elegir el local", testInfo);
   const blocked = uniqueName("Boda", testInfo);
-  const dueId = await project({ name: due, due: 3 });
+  const dueId = await project(due, { due: 3 });
   // Neither blocker is due nor blocked: they don't show up themselves.
-  const blockerId = await project({ name: blocker });
-  const otherId = await project({ name: other, due: 30 });
-  const blockedId = await project({ name: blocked });
-  await block(blockedId, blockerId);
-  await block(blockedId, otherId);
+  const blockerId = await project(blocker);
+  const otherId = await project(other, { due: 30 });
+  const blockedId = await project(blocked, { blockedBy: [blockerId, otherId] });
   await openToday(page);
 
   // Last on the board.
@@ -131,8 +99,7 @@ test("at 320 px the section doesn't scroll sideways", async ({ page }, testInfo)
   // Names are up to 80 characters (uniqueName adds ~14); one word longer than the screen.
   const long = uniqueName("Un nombre largo que no cabe: Electroencefalografistas", testInfo);
   const blocker = uniqueName("Otro proyecto con un nombre bastante largo", testInfo);
-  const longId = await project({ name: long, due: -4 });
-  await block(longId, await project({ name: blocker }));
+  await project(long, { due: -4, blockedBy: [await project(blocker)] });
   await page.setViewportSize({ width: 320, height: 640 });
   await openToday(page);
   await expect(row(page, long)).toContainText("Vencido hace 4 días");
@@ -148,10 +115,7 @@ for (const theme of THEMES) {
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     const blocked = uniqueName("Bloqueado", testInfo);
-    await block(
-      await project({ name: blocked }),
-      await project({ name: uniqueName("A", testInfo) }),
-    );
+    await project(blocked, { blockedBy: [await project(uniqueName("A", testInfo))] });
     await openToday(page);
     await setTheme(page, theme);
     await expect(row(page, blocked)).toBeVisible();

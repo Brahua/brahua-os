@@ -50,6 +50,10 @@ export function dueState(
   return null;
 }
 
+/** Due today and overdue are the ones that call for attention (the signal color). */
+export const isUrgentDue = (due: DueState | null) =>
+  due !== null && (due.kind === "today" || due.kind === "overdue");
+
 // ── Progress (P3) ────────────────────────────────────────────────────────────────────────────
 
 /** A project's progress: done of total milestones, and that as a fraction (0–1). */

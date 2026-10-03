@@ -1,16 +1,13 @@
 // What a change to a project revalidates (server only). Shared by the actions of `projects`.
 import "server-only";
 import { revalidatePath } from "next/cache";
+import { HOME_PATH } from "@/lib/routes";
 import { PROJECTS_PATH, projectPath } from "./routes";
 
 /**
- * The home page ("Hoy"): `today` shows the projects due within a week and the blocked ones
- * there (SPEC-today "Revalidación"), so a change to a project's state, dates, priority, area,
- * name or blockers must not leave it stale.
+ * The list, the project's page and the home page, where `today` shows the projects due within a
+ * week and the blocked ones (state, dates, priority, area, name or blockers change it).
  */
-const HOME_PATH = "/";
-
-/** The list, the project's page and the home page. */
 export function revalidateProjectScreens(id: string) {
   revalidatePath(PROJECTS_PATH);
   revalidatePath(projectPath(id));

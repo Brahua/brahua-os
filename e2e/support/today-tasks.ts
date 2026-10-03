@@ -21,7 +21,8 @@ import { test as base, test } from "@playwright/test";
 import { Client } from "pg";
 import { createDb } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
-import { projects } from "@/modules/projects/db/schema";
+import { projectDependencies, projects } from "@/modules/projects/db/schema";
+import type { ProjectStatus } from "@/modules/projects/project-constants";
 import { tasks } from "@/modules/tasks/db/schema";
 import type { TaskPriority } from "@/modules/tasks/task-constants";
 import type { TaskRecurrence } from "@/modules/tasks/task-input";
@@ -196,11 +197,24 @@ export async function insertTodayTask(task: NewTodayTask): Promise<string> {
   }
 }
 
+type TodayProjectOptions = {
+  /** Idea, Activo (default), Pausado…: only some of them show a due notice. */
+  status?: ProjectStatus;
+  /** Days from Lima's today (negative: overdue); none by default. */
+  due?: number;
+  /** Ids of the projects that block it (P4's dependencies). */
+  blockedBy?: readonly string[];
+};
+
 /**
- * An active project of the calling (board) test in a seeded area, soft-deleted when the test ends
- * (its name may be fixed, for a screenshot). Returns its id.
+ * A project of the calling (board) test in a seeded area (active by default), soft-deleted when
+ * the test ends (its name may be fixed, for a screenshot). Returns its id.
  */
-export async function insertTodayProject(name: string, areaSlug: string): Promise<string> {
+export async function insertTodayProject(
+  name: string,
+  areaSlug: string,
+  options: TodayProjectOptions = {},
+): Promise<string> {
   const db = createDb(testDatabaseUrl());
   try {
     const [area] = await db
@@ -209,9 +223,19 @@ export async function insertTodayProject(name: string, areaSlug: string): Promis
       .where(eq(lifeAreas.slug, areaSlug));
     const [project] = await db
       .insert(projects)
-      .values({ name, status: "active", lifeAreaId: area.id })
+      .values({
+        name,
+        status: options.status ?? "active",
+        lifeAreaId: area.id,
+        dueDate: options.due === undefined ? null : limaDay(options.due),
+      })
       .returning({ id: projects.id });
     boardProjects.push(project.id);
+    if (options.blockedBy && options.blockedBy.length > 0) {
+      await db
+        .insert(projectDependencies)
+        .values(options.blockedBy.map((blockedById) => ({ projectId: project.id, blockedById })));
+    }
     return project.id;
   } finally {
     await db.$client.end();
