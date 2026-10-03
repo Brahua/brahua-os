@@ -42,7 +42,7 @@ Fuera de este módulo: avisos y horarios (`reminders`), revisión semanal (`week
 | Navegación | `today` toma `/`: el manifiesto "Hoy" pasa de `core` (`homeModule`) a `src/modules/today/module.ts` con el mismo id de navegación, atajo 1 y posición. La navegación definitiva (Hoy, Tareas, Hábitos) sigue esperando el diseño en Claude Design. | Sin cambio visible; el módulo dueño declara su ruta. |
 | Hora y día | Todo con el día de Lima (`ownerDateKey`, `America/Lima`); el saludo y la fecha se calculan en el servidor, como la portada provisional. | Como los demás módulos. |
 | Lecturas | La página hace las lecturas de los contratos **en paralelo** (`Promise.all`): número fijo de consultas (≤ 7: 3 de hábitos, 1 de tareas, 1 de completadas hoy, 2 de proyectos), sin N+1. | Rendimiento de la portada. |
-| Copy | Nunca "fallaste", "atrasado" en rojo ni contadores de deuda. Las retrasadas usan el texto de `tasks` ("Retrasada hace N días") con el color neutro que ya usa la vista Hoy de Tareas. | `docs/principios-ux.md`, "Lo que no haremos". |
+| Copy | Nunca "fallaste", "atrasado" en rojo ni contadores de deuda. Las retrasadas y las de hoy usan el texto de `tasks` ("Retrasada hace N días", "Vence hoy") con el mismo color de señal que la vista Hoy de Tareas (naranja con LED), nunca rojo. | `docs/principios-ux.md`, "Lo que no haremos". |
 
 ## Pantalla
 

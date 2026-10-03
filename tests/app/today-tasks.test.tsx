@@ -2,7 +2,7 @@
 // behind "Ver N más", one tap completes with tasks' rule (the recurrence's notice), "Deshacer"
 // and ⌘Z, the rollback of a refusal, and where focus goes when a row leaves. Against a fake
 // server, inside the real board (its one notice viewport).
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
@@ -328,5 +328,90 @@ describe("Deshacer", () => {
     await answer(fail("Revisa tu conexión e inténtalo de nuevo."));
     expect(await within(notices()).findByText(/No se pudo deshacer/)).toBeInTheDocument();
     await waitFor(() => expect(titles()).toEqual([tasks[1].title]));
+  });
+
+  test("the last task, after the server's read came back empty: Deshacer puts it back at once", async () => {
+    const user = userEvent.setup();
+    const one = task({ title: "Pagar luz" });
+    const { rerender } = render(<Board tasks={[one]} />);
+    await user.click(check("Pagar luz"));
+    await answer(completed());
+    // The action revalidated "/": nothing left for today (count 0), the empty day shows.
+    rerender(<Board tasks={[]} />);
+    expect(screen.queryByRole("region", { name: "Tareas" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Nada programado para hoy" })).toBeInTheDocument();
+
+    await user.click(await within(notices()).findByRole("button", { name: "Deshacer" }));
+    // Before the reopen answers: the section is back with the row, saving.
+    expect(reopenTaskWithSpawn).toHaveBeenCalledWith({ id: one.id });
+    expect(check("Pagar luz")).toHaveAttribute("aria-disabled", "true");
+    expect(pending).toHaveLength(1);
+
+    await answer(ok({ task: {} as TaskItem, spawn: null }));
+    rerender(<Board tasks={[one]} />);
+    await waitFor(() => expect(check("Pagar luz")).not.toHaveAttribute("aria-disabled"));
+  });
+
+  test("⌘Z (Meta) undoes it too", async () => {
+    const user = userEvent.setup();
+    const tasks = [task(), task()];
+    const { rerender } = render(<Board tasks={tasks} />);
+    await user.click(check(tasks[0].title));
+    await answer(completed());
+    rerender(<Board tasks={[tasks[1]]} />);
+    expect(
+      await within(notices()).findByText(`«${tasks[0].title}» está hecha.`),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Meta>}z{/Meta}");
+    await waitFor(() => expect(reopenTaskWithSpawn).toHaveBeenCalledWith({ id: tasks[0].id }));
+    expect(titles()).toEqual(tasks.map((item) => item.title));
+    await answer(ok({ task: {} as TaskItem, spawn: null }));
+  });
+
+  test("two completed in a row: Deshacer of the first puts back only the first", async () => {
+    const user = userEvent.setup();
+    const [a, b, c] = [task(), task(), task()];
+    const { rerender } = render(<Board tasks={[a, b, c]} />);
+    await user.click(check(a.title));
+    await answer(completed());
+    rerender(<Board tasks={[b, c]} />);
+    expect(await within(notices()).findByText(`«${a.title}» está hecha.`)).toBeInTheDocument();
+    // The second one, still saving, when the first's Deshacer is used.
+    await user.click(check(b.title));
+    expect(titles()).toEqual([c.title]);
+
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    // Only the first comes back, in its place; the second stays out.
+    expect(titles()).toEqual([a.title, c.title]);
+    await answer(completed()); // b's completion (queued first)
+    await waitFor(() => expect(reopenTaskWithSpawn).toHaveBeenCalledWith({ id: a.id }));
+    expect(reopenTaskWithSpawn).toHaveBeenCalledTimes(1);
+    await answer(ok({ task: {} as TaskItem, spawn: null }));
+    rerender(<Board tasks={[a, c]} />);
+    await waitFor(() => expect(titles()).toEqual([a.title, c.title]));
+  });
+});
+
+describe("focus when it was nowhere", () => {
+  test("a tap that left focus on <body> (Safari) still moves it to the next row", async () => {
+    const tasks = [task(), task()];
+    render(<Board tasks={tasks} />);
+    expect(document.activeElement).toBe(document.body);
+    // A click without focusing the checkbox, as Safari does.
+    fireEvent.click(check(tasks[0].title));
+    await waitFor(() => expect(check(tasks[1].title)).toHaveFocus());
+    await answer(completed());
+  });
+
+  test("focus elsewhere on the page stays there (positive control)", async () => {
+    const tasks = [task(), task()];
+    render(<Board tasks={tasks} />);
+    const more = within(section()).getByRole("link", { name: "Ver tareas" });
+    more.focus();
+    fireEvent.click(check(tasks[0].title));
+    await waitFor(() => expect(titles()).toEqual([tasks[1].title]));
+    expect(more).toHaveFocus();
+    await answer(completed());
   });
 });

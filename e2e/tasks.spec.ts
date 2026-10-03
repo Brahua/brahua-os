@@ -3,7 +3,6 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
 import { animationsSettled } from "./support/animations";
 import { fontsLoaded } from "./support/fonts";
-import { test as habitsLocked } from "./support/habits";
 import { isDesktop, notices, untilSaved } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
@@ -235,29 +234,25 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  // On "/" behind the sheet is today's board, which shows every habit due today (and shows
-  // through the sheet's edges): with the habits lock "/" has no habits, and the board (tasks,
-  // projects) is hidden under the sheet (today-board-hidden.css).
-  habitsLocked(
-    `${theme} theme: the quick capture sheet (reference screenshot)`,
-    async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: "reduce" });
-      await openReady(page, "/");
-      await setTheme(page, theme);
-      await page.getByRole("button", { name: "Capturar" }).filter({ visible: true }).click();
-      await expect(captureTitle(page)).toBeFocused();
-      // The areas loaded (the closed picker shows "Bandeja" either way).
-      await expect(
-        captureSheet(page).getByRole("combobox", { name: "Área o proyecto" }).getByRole("option", {
-          name: "Salud",
-        }),
-      ).toBeAttached();
-      await animationsSettled(page);
-      await expectScreenshot(captureSheet(page), `quick-capture-${theme}.png`, {
-        stylePath: TODAY_BOARD_HIDDEN_CSS,
-      });
-    },
-  );
+  // On "/" behind the sheet is today's board, which shows every habit, task and project due
+  // today, whoever created them: it is hidden for the screenshot (today-board-hidden.css).
+  test(`${theme} theme: the quick capture sheet (reference screenshot)`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openReady(page, "/");
+    await setTheme(page, theme);
+    await page.getByRole("button", { name: "Capturar" }).filter({ visible: true }).click();
+    await expect(captureTitle(page)).toBeFocused();
+    // The areas loaded (the closed picker shows "Bandeja" either way).
+    await expect(
+      captureSheet(page).getByRole("combobox", { name: "Área o proyecto" }).getByRole("option", {
+        name: "Salud",
+      }),
+    ).toBeAttached();
+    await animationsSettled(page);
+    await expectScreenshot(captureSheet(page), `quick-capture-${theme}.png`, {
+      stylePath: TODAY_BOARD_HIDDEN_CSS,
+    });
+  });
 }
 
 test("unknown or deleted task pages are a 404 inside the shell", async ({ page }) => {

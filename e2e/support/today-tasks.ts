@@ -3,19 +3,21 @@
 // and one due today) and the tasks other specs leave behind. So:
 //
 // - Tests that look at the tasks of "/" (the today specs, the ones in home.spec that measure "/")
-//   use `boardTest`: it holds the habits lock and the tasks lock, and parks every pending task due
+//   use `boardTest`: it holds the habits lock and the tasks lock (exclusive), and parks every pending task due
 //   today or before (soft-deleted for the test, back at the end, even after a failure). Each
 //   starts with no habits and no tasks on the board (other sections, e.g. projects, may show).
 //   Screenshots over "/" that don't need the board hide it instead (today-board-hidden.css).
 // - Tests elsewhere that rely on their own (or the fixture's) tasks due today or before, which a
 //   board test would park under them, use `tasksTest` with `@today-tasks` in their title (a
-//   Playwright tag): they only hold the tasks lock while they run.
+//   Playwright tag): they only hold the tasks lock (shared: they run together) while they run.
+//   The insert helpers enforce it (`requireTodayTasksTag`): an untagged test that leaves a pending
+//   task due today or before fails at once.
 //
 // Lock order: a board test takes the habits lock first, then the tasks lock (the fixture depends
 // on `habitsLock`); a tagged test only takes the tasks lock. No test waits for the habits lock
 // while holding the tasks one, so they never deadlock.
 import { eq } from "drizzle-orm";
-import { test as base } from "@playwright/test";
+import { test as base, test } from "@playwright/test";
 import { Client } from "pg";
 import { createDb } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
@@ -33,19 +35,50 @@ import { limaDay } from "./projects";
  */
 export const TODAY_TASKS = "@today-tasks";
 
-const LOCK = "select pg_advisory_lock(hashtext('e2e_today_tasks'))";
+const LOCK_KEY = "hashtext('e2e_today_tasks')";
 
-/** The tasks lock, on a connection of its own (ending it releases the lock). */
-async function lockTodayTasks(): Promise<Client> {
+/**
+ * The tasks lock, on a connection of its own (ending it releases the lock): exclusive for a board
+ * test, shared for tagged tests (they never touch each other's tasks, so they run together).
+ */
+async function lockTodayTasks(mode: "exclusive" | "shared"): Promise<Client> {
   const client = new Client({ connectionString: testDatabaseUrl() });
   await client.connect();
-  await client.query(LOCK);
+  try {
+    const lock = mode === "shared" ? "pg_advisory_lock_shared" : "pg_advisory_lock";
+    await client.query(`select ${lock}(${LOCK_KEY})`);
+  } catch (error) {
+    await client.end();
+    throw error;
+  }
   return client;
 }
 
 /**
+ * The `deleted_at` that marks a task a board test parked (a date no real delete has). Every board
+ * test first restores what carries it, so a run killed mid-test (no teardown) leaves nothing
+ * parked for good.
+ */
+const PARKED_AT = "2000-01-01T00:00:00Z";
+
+/**
+ * Throws when the calling test leaves a pending task due today or before without the
+ * `@today-tasks` tag: a board test running meanwhile would park it under the test. For the
+ * insert helpers of the tasks specs (`insertTodayTask`, the board's own, is exempt).
+ */
+export function requireTodayTasksTag(task: { due?: number; done?: boolean }) {
+  if (task.due === undefined || task.due > 0 || task.done) return;
+  const info = test.info();
+  if (!info.tags.includes(TODAY_TASKS)) {
+    throw new Error(
+      `"${info.title}" leaves a pending task due today or before: add ${TODAY_TASKS} to its title (e2e/support/today-tasks.ts).`,
+    );
+  }
+}
+
+/**
  * `test` for specs whose tests create (or read the fixture's) tasks due today or before: a test
- * tagged `TODAY_TASKS` holds the tasks lock, so no board test parks its tasks meanwhile.
+ * tagged `TODAY_TASKS` holds the tasks lock (shared), so no board test parks its tasks meanwhile.
  */
 export const tasksTest = base.extend<{ todayTasksLock: void }>({
   todayTasksLock: [
@@ -55,7 +88,7 @@ export const tasksTest = base.extend<{ todayTasksLock: void }>({
         await provide();
         return;
       }
-      const client = await lockTodayTasks();
+      const client = await lockTodayTasks("shared");
       try {
         await provide();
       } finally {
@@ -67,30 +100,42 @@ export const tasksTest = base.extend<{ todayTasksLock: void }>({
   ],
 });
 
+/** Projects a board test made (`insertTodayProject`): soft-deleted when the test ends. */
+const boardProjects: string[] = [];
+
 /**
  * `test` for the tests that look at "/": the habits lock and an empty board (no habits, see
- * `habits.ts`), and the tasks lock with every pending task due today or before parked. Raw SQL
- * (not Drizzle): parking must not touch `updated_at` (T3 keeps an edited next occurrence).
+ * `habits.ts`), and the tasks lock (exclusive) with every pending task due today or before parked
+ * (`deleted_at` = `PARKED_AT`, back at the end, even after a failure). Raw SQL (not Drizzle):
+ * parking must not touch `updated_at` (T3 keeps an edited next occurrence).
  */
 export const boardTest = habitsTest.extend<{ boardTasks: void }>({
   boardTasks: [
     async ({ habitsLock }, provide) => {
       // The habits lock first (see the lock order above).
       void habitsLock;
-      const client = await lockTodayTasks();
+      const client = await lockTodayTasks("exclusive");
+      const unpark = () =>
+        client.query("update tasks set deleted_at = null where deleted_at = $1", [PARKED_AT]);
       try {
-        const parked = await client.query<{ id: string }>(
-          `update tasks set deleted_at = now()
-           where deleted_at is null and done_at is null and due_date <= $1
-           returning id`,
-          [limaDay(0)],
+        // A run that died mid-test left its parked tasks: back first.
+        await unpark();
+        await client.query(
+          `update tasks set deleted_at = $1
+           where deleted_at is null and done_at is null and due_date <= $2`,
+          [PARKED_AT, limaDay(0)],
         );
         try {
           await provide();
         } finally {
-          await client.query("update tasks set deleted_at = null where id = any($1::uuid[])", [
-            parked.rows.map((row) => row.id),
-          ]);
+          const projectIds = boardProjects.splice(0);
+          if (projectIds.length > 0) {
+            await client.query(
+              "update projects set deleted_at = now() where id = any($1::uuid[])",
+              [projectIds],
+            );
+          }
+          await unpark();
         }
       } finally {
         await client.end();
@@ -151,7 +196,10 @@ export async function insertTodayTask(task: NewTodayTask): Promise<string> {
   }
 }
 
-/** An active project of the calling test in a seeded area. Returns its id. */
+/**
+ * An active project of the calling (board) test in a seeded area, soft-deleted when the test ends
+ * (its name may be fixed, for a screenshot). Returns its id.
+ */
 export async function insertTodayProject(name: string, areaSlug: string): Promise<string> {
   const db = createDb(testDatabaseUrl());
   try {
@@ -163,6 +211,7 @@ export async function insertTodayProject(name: string, areaSlug: string): Promis
       .insert(projects)
       .values({ name, status: "active", lifeAreaId: area.id })
       .returning({ id: projects.id });
+    boardProjects.push(project.id);
     return project.id;
   } finally {
     await db.$client.end();

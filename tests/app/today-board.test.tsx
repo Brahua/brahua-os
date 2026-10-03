@@ -167,15 +167,17 @@ describe("sections and the empty day", () => {
       />,
     );
     const board = document.querySelector("[data-today-board]")!;
+    // The slot stays mounted at 0 (its section hides itself without rows: TodaySlot).
     expect([...board.children].map((child) => child.getAttribute("data-slot"))).toEqual([
       "day-complete",
+      "tasks",
     ]);
     expect(
       screen.queryByRole("region", { name: "Nada programado para hoy" }),
     ).not.toBeInTheDocument();
   });
 
-  test("a slot with 0 items is left out; one with items keeps the day from being empty", () => {
+  test("a slot with 0 items counts toward the empty day but stays mounted; one with items keeps the day from being empty", () => {
     const { rerender } = render(
       <TodayBoard
         today={TODAY}
@@ -183,7 +185,9 @@ describe("sections and the empty day", () => {
         tasks={{ count: 0, content: <section data-slot="tasks">Tareas</section> }}
       />,
     );
-    expect(document.querySelector('[data-slot="tasks"]')).toBeNull();
+    // Mounted (a client section keeps its state, e.g. to undo its last row); it renders nothing
+    // itself without rows. The day is empty by the count.
+    expect(document.querySelector('[data-slot="tasks"]')).not.toBeNull();
     expect(screen.getByRole("region", { name: "Nada programado para hoy" })).toBeInTheDocument();
 
     rerender(

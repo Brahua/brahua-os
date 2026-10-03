@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { deleteTask, editTask } from "../actions";
@@ -24,6 +24,8 @@ import {
   reopenTaskWithSpawn,
   restoreTaskWithSpawn,
 } from "../recurrence-actions";
+import { taskCompletion } from "../task-completion";
+import { settled } from "../task-failure";
 import { TaskRow, taskFocusSelector, type TaskFocusControl } from "./task-row";
 import { failureReason, useTasksScreen } from "./tasks-screen";
 
@@ -101,6 +103,11 @@ export function TaskList({
   const isDesktop = useIsDesktop();
   const [view, apply] = useOptimistic(tasks, applyTaskListChange);
   const [saving, startSaving] = useTransition();
+  // Completing and undoing with the notices of every task list (also `today`'s, D2).
+  const completion = useMemo(
+    () => taskCompletion({ enqueue, toaster, announce }),
+    [enqueue, toaster, announce],
+  );
 
   // ── Focus when a row leaves ──
   const pendingFocus = useRef<string | null>(null);
@@ -151,10 +158,9 @@ export function TaskList({
   // ── Complete and undo ──
 
   /**
-   * The ONE place this list completes and reopens a task on the server (T3 hook point: the
-   * recurrence changes what completing and reopening do, and replaces only these two). Every
-   * path goes through them: the checkbox, "Deshacer" of a completion, "Deshacer" in "Hechas" and
-   * the notice that undoes it.
+   * Completing and reopening outside `taskCompletion` (which the checkbox and "Deshacer" of a
+   * completion use): "Hechas" and the notice that undoes it. Every path goes through
+   * `completeTaskWithNext` / `reopenTaskWithSpawn` (T3) with the same queue key.
    */
   function runComplete(task: TaskItem) {
     // T3: the completion's next occurrence (a recurring task) comes back with it.
@@ -181,18 +187,7 @@ export function TaskList({
           ? { type: "remove", id: task.id }
           : { type: "update", id: task.id, patch: { doneAt: completed.doneAt } },
       );
-      const queued = await runComplete(task);
-      if (queued.kind === "skipped" || queued.superseded) return;
-      const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
-      if (result.ok) {
-        push({
-          title: TASKS_COPY.completedTitle,
-          text: completedNotice(task, result.data.next, result.data.nextInbox),
-          action: { label: TASKS_COPY.undo, run: () => reopen(task, index) },
-        });
-        return;
-      }
-      notSaved(TASKS_COPY.notCompleted, failureReason(result));
+      await completion.complete(task, () => reopen(task, index));
     });
   }
 
@@ -210,9 +205,8 @@ export function TaskList({
     focusAfterLeaving(task.id, control);
     startSaving(async () => {
       apply({ type: "remove", id: task.id });
-      const queued = await runReopen(task);
-      if (queued.kind === "skipped" || queued.superseded) return;
-      const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
+      const result = settled(await runReopen(task));
+      if (result === "stale") return;
       if (result.ok) {
         push({
           title: VIEWS_COPY.reopenedTitle,
@@ -229,9 +223,8 @@ export function TaskList({
   function completeAgain(task: TaskItem, index: number) {
     startSaving(async () => {
       apply({ type: "restore", task, index });
-      const queued = await runComplete(task);
-      if (queued.kind === "skipped" || queued.superseded) return;
-      const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
+      const result = settled(await runComplete(task));
+      if (result === "stale") return;
       if (result.ok)
         announce(
           result.data.next
@@ -249,10 +242,13 @@ export function TaskList({
       if (belongs(reopened)) apply({ type: "restore", task: reopened, index });
       else apply({ type: "remove", id: task.id });
       const custom = undoCompletion?.(task);
-      const queued = custom ? await enqueue(`task-done:${task.id}`, custom) : await runReopen(task);
-      if (queued.kind === "skipped" || queued.superseded) return;
-      const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);
-      // T3: says whether the next occurrence went away with the undo or stayed (edited).
+      if (!custom) {
+        // T3: says whether the next occurrence went away with the undo or stayed (edited).
+        await completion.reopen(task);
+        return;
+      }
+      const result = settled(await enqueue(`task-done:${task.id}`, custom));
+      if (result === "stale") return;
       if (result.ok) announce(reopenedNotice(task, result.data.spawn));
       else notSaved(TASKS_COPY.notUndone, failureReason(result));
     });

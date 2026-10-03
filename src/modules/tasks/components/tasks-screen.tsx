@@ -92,8 +92,5 @@ export function TasksScreenWithin({ now, targets, children }: TasksScreenWithinP
   return <TasksScreenContext value={value}>{children}</TasksScreenContext>;
 }
 
-/** The server's message for a failed result: a field's own when it gives one, else the general. */
-export function failureReason(result: { ok: false; error: string; fieldErrors?: Record<string, string[]> }): string {
-  const own = Object.values(result.fieldErrors ?? {}).find((messages) => messages.length)?.[0];
-  return own ?? result.error;
-}
+/** Re-exported from the pure `task-failure.ts` (the screen's parts import it from here). */
+export { failureReason } from "../task-failure";

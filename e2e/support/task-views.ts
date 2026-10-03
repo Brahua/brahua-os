@@ -9,6 +9,7 @@ import { tasks } from "@/modules/tasks/db/schema";
 import type { TaskPriority } from "@/modules/tasks/task-constants";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 import { limaDay } from "./projects";
+import { requireTodayTasksTag } from "./today-tasks";
 
 /**
  * The project whose tasks the screenshots show (read only: no test edits them or adds tasks to
@@ -84,6 +85,7 @@ type NewViewTask = {
 
 /** A task of the calling test, straight in the database. Returns its id. */
 export async function insertViewTask(task: NewViewTask): Promise<string> {
+  requireTodayTasksTag({ due: task.due, done: task.doneHoursAgo !== undefined });
   const db = createDb(testDatabaseUrl());
   try {
     const area = task.areaSlug

@@ -40,7 +40,8 @@ async function axeViolations(page: Page) {
 
 const section = (page: Page) => page.getByRole("region", { name: "Tareas" });
 const list = (page: Page) => page.getByRole("list", { name: "Tareas de hoy" });
-const titles = (page: Page) => list(page).getByRole("link").allTextContents();
+/** The rows' titles (a retrying assertion: `toHaveText([...])`). */
+const titles = (page: Page) => list(page).getByRole("link");
 const check = (page: Page, title: string) =>
   section(page).getByRole("checkbox", { name: `Hecha: ${title}` });
 const count = (page: Page) => page.locator("[data-today-tasks-count]");
@@ -67,13 +68,13 @@ test("one tap (Space) completes it, the folded next one rises, and Deshacer brin
 
   await expect(empty(page)).toHaveCount(0);
   await expect(count(page)).toHaveText("4 para hoy");
-  expect(await titles(page)).toEqual([first.title, second.title, third.title]);
+  await expect(titles(page)).toHaveText([first.title, second.title, third.title]);
   await expect(section(page).getByRole("button", { name: "Ver 1 más" })).toBeVisible();
 
   // By keyboard: focus moves to the next row's checkbox when the row leaves.
   await check(page, first.title).focus();
   await untilSaved(page, () => page.keyboard.press("Space"));
-  expect(await titles(page)).toEqual([second.title, third.title, fourth.title]);
+  await expect(titles(page)).toHaveText([second.title, third.title, fourth.title]);
   await expect(section(page).getByRole("button", { name: /^Ver/ })).toHaveCount(0);
   await expect(count(page)).toHaveText("3 para hoy");
   await expect(check(page, second.title)).toBeFocused();
@@ -81,7 +82,7 @@ test("one tap (Space) completes it, the folded next one rises, and Deshacer brin
   await expect.poll(async () => (await readTask(first.id)).doneAt).not.toBeNull();
 
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
-  await expect.poll(() => titles(page)).toEqual([first.title, second.title, third.title]);
+  await expect(titles(page)).toHaveText([first.title, second.title, third.title]);
   await expect(section(page).getByRole("button", { name: "Ver 1 más" })).toBeVisible();
   await expect.poll(async () => (await readTask(first.id)).doneAt).toBeNull();
 
@@ -106,17 +107,17 @@ test("Ver N más shows the rest on the page; Ver menos folds it again", async ({
 }, testInfo) => {
   const tasks = await insertInOrder("Plegar", 5, testInfo);
   await openToday(page);
-  expect(await titles(page)).toHaveLength(3);
+  await expect(titles(page)).toHaveCount(3);
 
   const more = section(page).getByRole("button", { name: "Ver 2 más" });
   await expect(more).toHaveAttribute("aria-expanded", "false");
   await more.click();
-  expect(await titles(page)).toEqual(tasks.map((task) => task.title));
+  await expect(titles(page)).toHaveText(tasks.map((task) => task.title));
   const less = section(page).getByRole("button", { name: "Ver menos" });
   await expect(less).toBeFocused();
   await expect(less).toHaveAttribute("aria-expanded", "true");
   await less.click();
-  expect(await titles(page)).toHaveLength(3);
+  await expect(titles(page)).toHaveCount(3);
 
   // Not remembered: a new visit starts folded.
   await expect(section(page).getByRole("button", { name: "Ver 2 más" })).toBeVisible();
@@ -145,10 +146,26 @@ test("a recurring task: the notice says when the next one is due; Deshacer remov
   const [original, next] = await readTasksByTitle(title);
   expect(original.doneAt).not.toBeNull();
   expect(next).toMatchObject({ dueDate: limaDay(3), doneAt: null, spawnedFromId: original.id });
-  // The next one is due in 3 days: not on the board.
+  // The next one is due in 3 days: not on the board; the server's read of "/" has no tasks.
   await expect(section(page)).toHaveCount(0);
+  await afterSaveSettled(page);
 
-  await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
+  // Deshacer with the reopen held back: the row is back at once (the section stayed mounted),
+  // marked as saving, before the server answers.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/*", async (route) => {
+    if (route.request().method() === "POST") await held;
+    await route.continue();
+  });
+  await notices(page).getByRole("button", { name: "Deshacer" }).click();
+  await expect(check(page, title)).toBeVisible();
+  await expect(check(page, title)).toHaveAttribute("aria-disabled", "true");
+  await untilSaved(page, async () => release());
+  await page.unroute("**/*");
+  await expect(check(page, title)).not.toHaveAttribute("aria-disabled");
   await expect(page.locator("[data-screen-announcer]")).toHaveText(
     `«${title}» volvió a estar pendiente y se quitó la siguiente.`,
   );
@@ -188,7 +205,7 @@ test("a task completed in Tareas is gone from Hoy when going back by the navigat
 test("at 320 px the tasks don't scroll sideways", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const project = await insertTodayProject(
-    "Un proyecto con un nombre bastante largo para la fila",
+    unique("Un proyecto con un nombre bastante largo para la fila", testInfo),
     "learning",
   );
   await insertTodayTask({
@@ -206,6 +223,10 @@ test("at 320 px the tasks don't scroll sideways", async ({ page }, testInfo) => 
   for (const item of await list(page).getByRole("listitem").all()) {
     await expectNoOverflow(page, item);
   }
+  // The checkbox's label is the 44 px touch target (principle 14).
+  const target = (await list(page).locator("label").first().boundingBox())!;
+  expect(target.width).toBeGreaterThanOrEqual(44);
+  expect(target.height).toBeGreaterThanOrEqual(44);
 });
 
 /** The section's tasks for axe and the screenshot: fixed titles (the board shows only these). */

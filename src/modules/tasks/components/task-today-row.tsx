@@ -4,14 +4,16 @@ import { Flag } from "lucide-react";
 import Link from "next/link";
 import { useId } from "react";
 import { AreaTag, Icon, Led } from "@/design-system";
+import { cn } from "@/lib/cn";
 import { PROJECT_TASKS_COPY } from "../project-tasks-copy";
 import { taskPath } from "../routes";
+import { isUrgentDue } from "../task-due";
 import { TASKS_COPY } from "../tasks-copy";
 import type { TaskTodayItem } from "../today-summary";
+import { taskFocusSelector } from "./task-row";
 
-/** `data-task-focus` of a today row's checkbox: where focus goes when a neighbor row leaves. */
-export const taskTodayCheckSelector = (id: string) =>
-  `[data-task-focus="check:${CSS.escape(id)}"]`;
+/** A today row's checkbox (the lists' `data-task-focus`): where focus goes when a neighbor leaves. */
+export const taskTodayCheckSelector = (id: string) => taskFocusSelector(id, "check");
 
 type TaskTodayRowProps = {
   task: TaskTodayItem;
@@ -86,12 +88,15 @@ export function TaskTodayRow({ task, onComplete, busy = false }: TaskTodayRowPro
               className="min-w-0 max-w-full truncate"
             />
           ) : null}
-          {/* Overdue and due today are both `isUrgentDue`: the lists' orange with a LED. */}
+          {/* The lists' rule: overdue and due today are urgent (orange with a LED), never red. */}
           <span
-            className="inline-flex items-center gap-1.5 text-signal-text"
+            className={cn(
+              "inline-flex items-center gap-1.5",
+              isUrgentDue(task.due) ? "text-signal-text" : "text-text-secondary",
+            )}
             data-task-due={task.due.kind}
           >
-            <Led signal on size="sm" />
+            {isUrgentDue(task.due) ? <Led signal on size="sm" /> : null}
             {task.due.label}
           </span>
           {task.priority === "high" ? (

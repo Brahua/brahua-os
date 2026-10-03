@@ -35,7 +35,10 @@ export type TodaySections = {
 
 /**
  * A section without items is not shown; with none at all (and no "Día completo") the day is
- * empty (principle 13). "Día completo" and the empty day never show together.
+ * empty (principle 13). "Día completo" and the empty day never show together. The board uses
+ * `habits` and `empty`; the slots' sections (tasks, projects) stay mounted and hide themselves
+ * when they have no rows (`TodaySlot`), so `tasks` and `projects` here only say whether they have
+ * items according to the server's read.
  */
 export function todaySections(counts: TodayCounts): TodaySections {
   const habits = counts.habits > 0;
