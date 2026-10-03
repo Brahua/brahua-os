@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { PROJECTS_PATH } from "@/modules/projects/routes";
 import { TASKS_PATH, taskPath } from "./routes";
 
+/** The home page ("Hoy"): `today` shows the overdue and due-today tasks there (T6, D2). */
+const HOME_PATH = "/";
+
 /**
  * The project screens a task shows on (T5): its project's "Tareas" section and progress, and the
  * list's cards (progress and "Siguiente tarea"). Every page under /projects, because a change can
@@ -14,9 +17,19 @@ export function revalidateProjectScreens() {
   revalidatePath(PROJECTS_PATH, "layout");
 }
 
-/** The list, the task's page (unless `page: false`) and the project screens. */
-export function revalidateTaskScreens(id: string, { page = true }: { page?: boolean } = {}) {
+/**
+ * Every screen that lists tasks: /tasks, the project screens and the home page, where `today`
+ * shows the overdue and due-today ones (SPEC-today "Revalidación"). For changes without a task
+ * page to refresh (creating; deleting, whose page would turn into its 404 under the user).
+ */
+export function revalidateTaskLists() {
   revalidatePath(TASKS_PATH);
-  if (page) revalidatePath(taskPath(id));
   revalidateProjectScreens();
+  revalidatePath(HOME_PATH);
+}
+
+/** The task lists (`revalidateTaskLists`) and the task's page (unless `page: false`). */
+export function revalidateTaskScreens(id: string, { page = true }: { page?: boolean } = {}) {
+  revalidateTaskLists();
+  if (page) revalidatePath(taskPath(id));
 }

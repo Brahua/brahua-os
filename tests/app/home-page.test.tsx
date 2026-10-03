@@ -7,9 +7,15 @@ import { requireOwner } from "@/lib/auth";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
+import { getTasksTodaySummary, type TaskTodayItem } from "@/modules/tasks/contracts";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/habits/contracts", () => ({ getHabitsDueToday: vi.fn() }));
+vi.mock("@/modules/tasks/contracts", () => ({ getTasksTodaySummary: vi.fn() }));
+vi.mock("@/modules/tasks/recurrence-actions", () => ({
+  completeTaskWithNext: vi.fn(),
+  reopenTaskWithSpawn: vi.fn(),
+}));
 vi.mock("@/modules/habits/log-actions", () => ({
   setHabitDone: vi.fn(),
   logHabit: vi.fn(),
@@ -27,6 +33,8 @@ beforeEach(() => {
   vi.mocked(requireOwner).mockResolvedValue({ user: { id: "owner-id" } } as never);
   vi.mocked(getHabitsDueToday).mockReset();
   vi.mocked(getHabitsDueToday).mockResolvedValue([]);
+  vi.mocked(getTasksTodaySummary).mockReset();
+  vi.mocked(getTasksTodaySummary).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -58,6 +66,7 @@ test("home page does not render without the owner (requireOwner redirects)", asy
   await expect(Home()).rejects.toThrow("NEXT_REDIRECT");
   // Nothing is read before the owner is known.
   expect(getHabitsDueToday).not.toHaveBeenCalled();
+  expect(getTasksTodaySummary).not.toHaveBeenCalled();
 });
 
 test("greeting and date follow Lima, not UTC, around midnight", async () => {
@@ -104,4 +113,34 @@ test("a tap at 21:30 in Lima (02:30 UTC the next day) logs Lima's day", async ()
   await waitFor(() =>
     expect(setHabitDone).toHaveBeenCalledWith({ id: meditar.id, day: "2026-09-30", done: true }),
   );
+});
+
+test("home page reads today's tasks at the page's instant and shows them in “Tareas” (D2)", async () => {
+  const informe: TaskTodayItem = {
+    id: "00000000-0000-4000-8000-000000000002",
+    title: "Enviar informe",
+    priority: "medium",
+    dueDate: "2026-09-30",
+    due: { kind: "today", days: 0, label: "Vence hoy" },
+    area: null,
+    project: null,
+    isNextAction: false,
+  };
+  vi.mocked(getTasksTodaySummary).mockResolvedValue([informe]);
+  render(await Home());
+
+  expect(getTasksTodaySummary).toHaveBeenCalledTimes(1);
+  expect(getTasksTodaySummary).toHaveBeenCalledWith(new Date("2026-09-30T13:15:00Z"));
+  // Habits and tasks share one instant (one Lima day for the whole page).
+  expect(vi.mocked(getTasksTodaySummary).mock.calls[0][0]).toBe(
+    vi.mocked(getHabitsDueToday).mock.calls[0][0],
+  );
+  const tasks = screen.getByRole("region", { name: "Tareas" });
+  expect(screen.getByRole("link", { name: "Enviar informe" })).toHaveAttribute(
+    "href",
+    "/tasks/00000000-0000-4000-8000-000000000002",
+  );
+  expect(tasks).toBeInTheDocument();
+  // A task today: the day isn't empty.
+  expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
 });

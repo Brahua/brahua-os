@@ -1,15 +1,17 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
-import { expect, insertHabit, limaWeekday, readHabit, test } from "./support/habits";
+import { expect, insertHabit, limaWeekday, readHabit } from "./support/habits";
 import { expectNoOverflow, isDesktop, notices, untilSaved } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
+import { boardTest as test } from "./support/today-tasks";
 
 // D1 of `today` (SPEC-today): the board on "/" with today's habits, logged as in Hábitos → Hoy,
 // and the calm empty day. Every test holds the habits lock (e2e/support/habits.ts): the board
 // shows every habit due today, so these tests can't share them with the habits specs running in
-// parallel; each starts with no habits.
+// parallel; each starts with no habits. It also shows every task due today or before, so every
+// test is a `boardTest` (e2e/support/today-tasks.ts): the tasks lock, with those tasks parked.
 
 const THEMES = ["dark", "light"] as const;
 

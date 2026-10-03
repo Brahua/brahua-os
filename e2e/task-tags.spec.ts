@@ -1,9 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { isDesktop } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { readTagId, readTaskTags, tagTask, uniqueTag } from "./support/task-tags";
+import { tasksTest as test } from "./support/today-tasks";
 import {
   captureSheet,
   captureStatus,
@@ -170,7 +171,7 @@ test("detail: removing with a tap; an unused tag is no longer suggested", async 
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations (capture and detail with tags, list open)`, async ({
+  test(`${theme} theme: no accessibility violations (capture and detail with tags, list open) @today-tasks`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
