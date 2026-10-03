@@ -1,6 +1,30 @@
-# Tareas
+# Tareas: today
 
-> Siguiente módulo: **`today`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: today"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Plan: [`plan.md`](plan.md) · Spec: [`SPEC-today.md`](../SPEC-today.md)
+> Cada tarea termina con lint, typecheck, unitarias, integración y build en verde, E2E nativa de lo tocado, un PR con los 3 checks verdes y el deploy con smoke test. Commits en inglés (`feat(today): …`).
+> Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Fase 1 — Base
+
+- [ ] **D1: Tablero con hábitos** — módulo `src/modules/today/` (manifiesto "Hoy" desde `core`, regla de límites: nadie importa `today`); portada `/` con cabecera, sección Hábitos ("X de N", pads con registro y "Deshacer" vía `getHabitsDueToday` y los servicios del anfitrión) y día vacío; `TodayBoard` con slots para Tareas, Proyectos y Día completo.
+  - Verificar: unitarias de secciones ocultas y día vacío; E2E registrar y deshacer desde `/` (celular y escritorio), axe en ambos temas, 320 px.
+
+## Fase 2 — Secciones *(D2 y D3 en paralelo)*
+
+- [ ] **D2: Tareas** — sección con `getTasksTodaySummary`, 3 visibles y "Ver N más"/"Ver menos", casilla para completar (con `completeTaskWithNext` y el aviso de la siguiente), foco restaurado al salir la fila, enlace a la tarea; `tasks` revalida `/`.
+  - Verificar: unitarias del tope y del foco; E2E completar y deshacer, recurrente, plegado.
+- [ ] **D3: Proyectos** — sección de solo lectura con `getProjectsTodaySummary` (LED, vencimiento, "Bloqueado por …", enlace); `projects` revalida `/`.
+  - Verificar: unitarias de las filas; E2E con un proyecto que vence y uno bloqueado.
+
+## Fase 3 — Cierre
+
+- [ ] **D4: Día completo** — `getTasksDoneTodayCount(now)` en `tasks` (con integración, borde de medianoche de Lima); regla pura en `today-board.ts` (con actividad hoy); bloque con mensajes variados, fundido (nada con movimiento reducido) y anuncio único.
+  - Verificar: tablas de casos; E2E terminar lo último pendiente muestra el bloque; un día vacío no.
+
+### Checkpoint final
+- [ ] Recorrido completo en producción con el Chrome personal del owner (datos `[QA]` borrados después) y revisión en el iPhone.
+- [ ] Se cumplen los criterios de éxito de `SPEC-today.md`.
+- [ ] Revisión con el owner: cierre del módulo y decisiones autónomas.
 
 ## Backlog técnico
 

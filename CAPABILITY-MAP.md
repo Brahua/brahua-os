@@ -38,7 +38,7 @@ brahua-os es mi "segundo cerebro" personal: una sola app (web responsive + PWA) 
 | `habits` | Hábitos como entidades (a cumplir y a evitar), registro diario de un toque, sí/no o cantidad (también varias veces al día), frecuencias (diaria, X por semana, días fijos), rachas con pausas, cumplimiento semanal. Sin importación ([`SPEC-habits.md`](SPEC-habits.md)). | core |
 | `projects` | Proyectos con estado (idea / activo / pausado / terminado), área de vida, objetivo, fechas, notas y enlaces; progreso calculado a partir de sus tareas. | core |
 | `tasks` | Tareas sueltas o dentro de un proyecto, bandeja de entrada, prioridad, fecha límite, recurrencia, área de vida, importación de Tareas del Hogar. | core, projects |
-| `today` | Tablero diario: hábitos de hoy, tareas que vencen y lo que cada módulo exponga como "resumen de hoy". | core, habits, tasks |
+| `today` | Tablero diario: hábitos de hoy, tareas que vencen, proyectos que vencen o están bloqueados y lo que cada módulo exponga como "resumen de hoy". | core, habits, tasks, projects |
 | `reminders` | Motor genérico de avisos (push de la PWA y/o email) al que los módulos le programan recordatorios. Incluye un cron diario y el service worker de la PWA (diferido desde `core`). | core |
 | `finance` | Gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual, importación de Gastos. | core, reminders |
 | `goals` | Metas anuales y trimestrales y objetivo semanal, enlazadas a hábitos y proyectos, con revisión semanal guiada. | habits, projects |
