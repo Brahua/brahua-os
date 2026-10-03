@@ -10,6 +10,7 @@ import {
   frequencyUpdateShape,
   refineFrequency,
 } from "./frequency-input";
+import { DETAILS_FIELDS, detailsInputShape, detailsUpdateShape } from "./details-input";
 import {
   measureInputShape,
   measureUpdateShape,
@@ -98,6 +99,10 @@ export type HabitItem = {
   recentLogs: HabitDayLog[];
   /** H4: which of the 7 days before today were paused ("Registrar otro día" says so). */
   recentPaused: string[];
+  /** H5: the identity phrase ("Soy alguien que lee"), or null. */
+  identity: string | null;
+  /** H5: the cue ("Después del desayuno"), or null. */
+  cue: string | null;
 };
 
 /** A pause as the screens show it (H4). Days in Lima, both ends included. */
@@ -153,6 +158,8 @@ export const createHabitInputSchema = z
     lifeAreaId,
     ...frequencyInputShape,
     ...measureInputShape,
+    // H5: identity, cue and start date ("Más detalles"; details-input.ts).
+    ...detailsInputShape,
   })
   // H2: each frequency with exactly its own field (frequency-input.ts).
   .superRefine(refineFrequency)
@@ -175,6 +182,8 @@ export const updateHabitInputSchema = z
     ...frequencyUpdateShape,
     // H3: a quantity's goal, unit and step (the goal counts from today on).
     ...measureUpdateShape,
+    // H5: identity and cue (the start date never changes).
+    ...detailsUpdateShape,
   })
   .superRefine(refineFrequency)
   .superRefine(refineMeasureUpdate);
@@ -192,6 +201,8 @@ export const CREATE_HABIT_FIELDS = [
   "unit",
   ...FREQUENCY_FIELDS,
   "lifeAreaId",
+  // H5: "Más detalles" (identity, cue, start date), last in the form.
+  ...DETAILS_FIELDS,
 ] as const;
 export type CreateHabitField = (typeof CREATE_HABIT_FIELDS)[number];
 

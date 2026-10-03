@@ -4,7 +4,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
-import HabitsPage, { metadata } from "@/app/(app)/habits/page";
+import HabitsPage, { generateMetadata } from "@/app/(app)/habits/page";
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
 import { listLifeAreas } from "@/modules/core/queries";
@@ -26,6 +26,8 @@ vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/habits/queries", () => ({
   listActiveHabits: vi.fn(),
   listArchivedHabits: vi.fn(),
+  getDeletedHabit: vi.fn(),
+  getHabitsWeek: vi.fn(),
 }));
 vi.mock("@/modules/habits/actions", () => ({
   createHabit: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock("@/modules/habits/actions", () => ({
 vi.mock("@/modules/habits/log-actions", () => ({ setHabitDone: vi.fn() }));
 
 const TODAY = "2026-10-02";
+/** "Hoy" (no `?vista=`). */
+const PAGE_PROPS = { searchParams: Promise.resolve({}) };
 /** 10:00 in Lima on TODAY. Only Date is faked (timers stay real for userEvent). */
 const NOW = new Date("2026-10-02T15:00:00.000Z");
 
@@ -72,6 +76,8 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     pause: null,
     recentLogs: [],
     recentPaused: [],
+    identity: null,
+    cue: null,
     ...values,
   };
 }
@@ -220,11 +226,14 @@ const announcer = () => document.querySelector("[data-habits-announcer]");
 
 describe("/habits", () => {
   test("title, owner check, today's pads in their order and the live count", async () => {
-    expect(metadata.title).toBe("Hábitos · brahua-os");
-    render(await HabitsPage());
+    expect((await generateMetadata({ searchParams: Promise.resolve({}) })).title).toBe(
+      "Hábitos · brahua-os",
+    );
+    render(await HabitsPage(PAGE_PROPS));
     expect(requireOwner).toHaveBeenCalled();
     expect(listActiveHabits).toHaveBeenCalled();
-    expect(listArchivedHabits).toHaveBeenCalled();
+    // H5: "Archivados" is in "Semana" now: "Hoy" doesn't read it.
+    expect(listArchivedHabits).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toBeInTheDocument();
     expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]);
     // A toggle per habit: pressed is done today.
@@ -240,7 +249,7 @@ describe("/habits", () => {
 
   test("empty: an explanation and a key to create the first one; no count", async () => {
     vi.mocked(listActiveHabits).mockResolvedValue([]);
-    render(await HabitsPage());
+    render(await HabitsPage(PAGE_PROPS));
     expect(
       screen.getByRole("heading", { level: 2, name: "Todavía no tienes hábitos" }),
     ).toBeVisible();
@@ -367,7 +376,7 @@ describe("one tap", () => {
   test("23:30 in Lima is still the same day: the page logs it, not UTC's next one", async () => {
     vi.setSystemTime(new Date("2026-10-03T04:30:00.000Z"));
     const user = userEvent.setup();
-    render(await HabitsPage());
+    render(await HabitsPage(PAGE_PROPS));
     expect(vi.mocked(listActiveHabits).mock.calls[0][0]).toEqual(
       new Date("2026-10-03T04:30:00.000Z"),
     );

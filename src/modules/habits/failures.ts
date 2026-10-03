@@ -3,6 +3,7 @@ import "server-only";
 import { fail, INVALID_FIELDS_MESSAGE, type ActionResult } from "@/lib/action-result";
 import { HABIT_ERRORS } from "./habit-input";
 import { MEASURE_ERRORS } from "./measure-copy";
+import { DETAILS_ERRORS } from "./history-copy";
 import { PAUSE_ERRORS } from "./pause-copy";
 import type { HabitFailure } from "./habits";
 
@@ -36,5 +37,13 @@ export function refused<T>(failure: HabitFailure): ActionResult<T> {
     };
   }
   if (failure === "pauseNotFound") return fail(PAUSE_ERRORS.notFound);
+  // H5: a new habit's start date, on its field ("Más detalles").
+  if (failure === "startDateOutOfWindow") {
+    return {
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { startDate: [DETAILS_ERRORS.startDateOutOfWindow] },
+    };
+  }
   return fail(HABIT_ERRORS[failure]);
 }

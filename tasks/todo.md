@@ -15,8 +15,8 @@
 
 ## Fase 3 — Rachas e historial
 
-- [ ] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(En PR, rama `feat/habits-h4-streaks`; ver HANDOFF → "Cómo funciona habits" → "H4", con los puntos de extensión para H5.)*
-- [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados".
+- [x] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(PR #66 integrado; ver HANDOFF → "Cómo funciona habits" → "H4".)*
+- [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados"; "Más detalles" (identidad, momento, fecha de inicio). *(En PR, rama `feat/habits-h5-history`; ver HANDOFF → "Cómo funciona habits" → "H5", con lo que H6 puede reusar.)*
 - [ ] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño.
 
 ### Checkpoint final

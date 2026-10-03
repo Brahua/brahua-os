@@ -14,6 +14,7 @@ import {
   pad,
   pads,
   readHabit,
+  openWeek,
   readHabitByName,
   test,
 } from "./support/habits";
@@ -179,7 +180,7 @@ test("edit from the options: name and frequency; it moves to 'No tocan hoy'", as
   });
 });
 
-test("archive with Deshacer; reactivate from 'Archivados' at the end", async ({
+test("archive with Deshacer; reactivate from 'Archivados' (in 'Semana') at the end", async ({
   page,
 }, testInfo) => {
   const name = unique("Correr", testInfo);
@@ -210,16 +211,19 @@ test("archive with Deshacer; reactivate from 'Archivados' at the end", async ({
   await untilSaved(page, () =>
     page.getByRole("dialog", { name }).getByRole("button", { name: "Archivar" }).click(),
   );
-  await page.reload();
+  // H5: "Archivados" is in "Semana".
+  await expect(page.getByRole("button", { name: /^Archivados/ })).toHaveCount(0);
+  await openWeek(page);
   const archived = page.getByRole("button", { name: /^Archivados/ });
   await expect(archived).toHaveAttribute("aria-expanded", "false");
   await archived.click();
   await untilSaved(page, () => page.getByRole("button", { name: `Reactivar «${name}»` }).click());
-  await expect(pad(page, name)).toBeFocused();
-  await expect(pads(page).locator("[data-habit-pad]").last()).toHaveAccessibleName(name);
+  // The last one: focus to the page's heading; the habit is in the week again.
+  await expect(page.getByRole("heading", { level: 1, name: "Hábitos" })).toBeFocused();
   await expect(notices(page).getByText(`«${name}» volvió a tus hábitos.`)).toBeVisible();
   await expect(archived).toHaveCount(0);
-  await page.reload();
+  await expect(page.getByRole("link", { name, exact: true })).toBeVisible();
+  await openHabits(page);
   await expect(pads(page).locator("[data-habit-pad]").last()).toHaveAccessibleName(name);
 });
 
@@ -294,7 +298,7 @@ test("at 320 px the form's frequency and the order list don't scroll sideways", 
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations (sections, the frequency, order, archived)`, async ({
+  test(`${theme} theme: no accessibility violations (sections, the frequency, order)`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -306,12 +310,10 @@ for (const theme of THEMES) {
       weekdays: [limaWeekday(1)],
       sortOrder: 2,
     });
-    await insertHabit({ name: "Ajedrez", archived: true, sortOrder: 3 });
     await insertHabit({ name: "Estirar", sortOrder: 4 });
     await openHabits(page);
     await setTheme(page, theme);
     await notDueToggle(page).click();
-    await page.getByRole("button", { name: /^Archivados/ }).click();
     expect(await axeViolations(page)).toEqual([]);
 
     await page.getByRole("button", { name: "Nuevo hábito" }).click();
@@ -354,7 +356,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: "Hoy" with a weekly habit, "No tocan hoy" open and "Archivados" (reference screenshot)`, async ({
+  test(`${theme} theme: "Hoy" with a weekly habit and "No tocan hoy" open (reference screenshot)`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -370,7 +372,6 @@ for (const theme of THEMES) {
     // Every weekday but today's: never due, whatever day the run is.
     const others = [1, 2, 3, 4, 5, 6, 7].filter((day) => day !== limaWeekday(0)).slice(0, 6);
     await insertHabit({ name: "Inglés", area: "learning", weekdays: others, sortOrder: 3 });
-    await insertHabit({ name: "Ajedrez", area: "learning", archived: true, sortOrder: 4 });
     await openHabits(page);
     await setTheme(page, theme);
     await expect(habitsCount(page)).toHaveText("2 de 3 hoy");

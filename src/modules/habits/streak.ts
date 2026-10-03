@@ -251,9 +251,22 @@ export function weekCompliance(
     const week = weekStatus(habit, history, monday, today);
     return { done: week.done, expected: week.quota };
   }
+  return daysCompliance(habit, history, weekDays(monday), today);
+}
+
+/**
+ * Daily, fixed days and a habit to avoid over some days: the scheduled and available ones done,
+ * over the scheduled and available ones elapsed (today only once done; a clean today is done).
+ */
+function daysCompliance(
+  habit: StreakRules,
+  history: StreakHistory,
+  days: readonly string[],
+  today: string,
+): Compliance {
   let done = 0;
   let expected = 0;
-  for (const day of weekDays(monday)) {
+  for (const day of days) {
     if (day > today) break;
     if (!isScheduledOn(habit, day) || !isAvailableOn(habit, history.pauses, day)) continue;
     const isDone = isDoneOn(habit, history, day);
@@ -262,4 +275,46 @@ export function weekCompliance(
     if (isDone) done += 1;
   }
   return { done, expected };
+}
+
+/** H5: the days of a month (`YYYY-MM`), first to last. */
+export function monthDays(month: string): string[] {
+  const days: string[] = [];
+  for (let day = `${month}-01`; day.startsWith(month); day = addDays(day, 1)) days.push(day);
+  return days;
+}
+
+/**
+ * H5: a month's compliance (the habit page's stat), with the week's rules. Daily, fixed days and a
+ * habit to avoid: as `weekCompliance`, over the month's days elapsed. "X por semana": its done
+ * and available days up to today over the month's proportional quota, `ceil(X × available / 7)`
+ * of the whole month's available days (the month is judged whole, like the week).
+ */
+export function monthCompliance(
+  habit: StreakRules,
+  history: StreakHistory,
+  month: string,
+  today: string,
+): Compliance {
+  const days = monthDays(month);
+  if (streakUnit(habit) === "weeks") {
+    const available = days.filter((day) => isAvailableOn(habit, history.pauses, day));
+    const done = available.filter((day) => day <= today && isDoneOn(habit, history, day)).length;
+    return { done, expected: Math.ceil(((habit.weeklyTarget ?? 0) * available.length) / 7) };
+  }
+  return daysCompliance(habit, history, days, today);
+}
+
+/**
+ * H5: the days done since the start date ("Llevas 42 días hechos", principle 10): scheduled,
+ * available and done up to today (a logged paused or unscheduled day doesn't count). A habit to
+ * avoid counts its clean days, today included while clean.
+ */
+export function totalDone(habit: StreakRules, history: StreakHistory, today: string): number {
+  let total = 0;
+  for (let day = habit.startDate; day <= today; day = addDays(day, 1)) {
+    if (!isScheduledOn(habit, day) || !isAvailableOn(habit, history.pauses, day)) continue;
+    if (isDoneOn(habit, history, day)) total += 1;
+  }
+  return total;
 }

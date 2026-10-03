@@ -21,6 +21,7 @@ import { alias, type AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { habitLogs, habitPauses, habits } from "./db/schema";
+import { detailsColumns, startDateError } from "./details-input";
 import { frequencyColumns } from "./frequency-input";
 import { measureColumns } from "./measure-input";
 import type {
@@ -90,9 +91,13 @@ export function ofVisibleHabit(habitId: AnyPgColumn): SQL {
 
 const dayLog = alias(habitLogs, "day_log");
 
-const ROW = {
+/** The columns of a `HabitItem` (with the log of the day joined as `day_log`). */
+export const ROW = {
   id: habits.id,
   name: habits.name,
+  // H5: shown on the habit's page and edited in "Más detalles".
+  identity: habits.identity,
+  cue: habits.cue,
   kind: habits.kind,
   measure: habits.measure,
   goal: habits.goal,
@@ -133,8 +138,36 @@ export async function selectItems(
   where: SQL | undefined,
   today: string = day,
 ): Promise<HabitItem[]> {
+  return (await selectItemsWithHistory(db, day, where, today)).map(({ item }) => item);
+}
+
+/** Days from `from` to `to` (both included), YYYY-MM-DD. */
+export type DayRange = { from: string; to: string };
+
+/** A habit as `HabitItem` with the history it was built from (H5: its page). */
+export type LoadedHabit = {
+  item: HabitItem;
+  archived: boolean;
+  /** The logs read (see `selectStreakLogs`), oldest first. */
+  logs: HabitDayLog[];
+  /** Every pause that isn't removed, by start date (past ones too). */
+  pauses: HabitPauseSummary[];
+};
+
+/**
+ * `selectItems` with each habit's history as read (H5: the habit's page builds its calendar and
+ * stats from it). `range`: every log of those days too (a month of the calendar, with partial
+ * quantities). The same three queries.
+ */
+export async function selectItemsWithHistory(
+  db: Database | Tx,
+  day: string,
+  where: SQL | undefined,
+  today: string = day,
+  range?: DayRange,
+): Promise<LoadedHabit[]> {
   const rows = await db
-    .select(ROW)
+    .select({ ...ROW, archived: sql<boolean>`${habits.archivedAt} is not null`.mapWith(Boolean) })
     .from(habits)
     .leftJoin(lifeAreas, eq(lifeAreas.id, habits.lifeAreaId))
     .leftJoin(dayLog, and(eq(dayLog.habitId, habits.id), eq(dayLog.day, day)))
@@ -143,19 +176,27 @@ export async function selectItems(
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
   // One after the other: inside a transaction the queries share its single connection.
-  const logs = await selectStreakLogs(db, ids, today);
+  const logs = await selectStreakLogs(db, ids, today, range);
   const pauses = await selectPauses(db, ids);
-  return rows.map((row) => {
+  return rows.map(({ archived, ...row }) => {
+    const read = (logs.get(row.id) ?? []).map(({ day: logDay, quantity, target }) => ({
+      day: logDay,
+      quantity,
+      target,
+    }));
+    const habitPausesRead = (pauses.get(row.id) ?? []).map(
+      ({ id, startDate, endDate, reason }) => ({ id, startDate, endDate, reason }),
+    );
     const history = {
-      logs: new Map(
-        (logs.get(row.id) ?? []).map((log) => [
-          log.day,
-          { quantity: log.quantity, target: log.target },
-        ]),
-      ),
-      pauses: pauses.get(row.id) ?? [],
+      logs: new Map(read.map((log) => [log.day, { quantity: log.quantity, target: log.target }])),
+      pauses: habitPausesRead,
     };
-    return { ...row, ...historyFields(row, history, day, today) };
+    return {
+      item: { ...row, ...historyFields(row, history, day, today) },
+      archived,
+      logs: read,
+      pauses: habitPausesRead,
+    };
   });
 }
 
@@ -163,9 +204,10 @@ export async function selectItems(
  * The logs the streak rules need, by habit, oldest first (one query): from each habit's start
  * date to `today`, the marked days (done for a habit to keep: `quantity >= target`, its own
  * target; a relapse for a habit to avoid) and every log of the last 7 days ("Registrar otro
- * día" shows partial quantities too). Unmarked older rows can't change a streak.
+ * día" shows partial quantities too). Unmarked older rows can't change a streak. H5: `range`
+ * adds every log of those days (the calendar's month shows partial quantities).
  */
-async function selectStreakLogs(db: Database | Tx, ids: string[], today: string) {
+async function selectStreakLogs(db: Database | Tx, ids: string[], today: string, range?: DayRange) {
   const rows = await db
     .select({
       habitId: habitLogs.habitId,
@@ -185,6 +227,7 @@ async function selectStreakLogs(db: Database | Tx, ids: string[], today: string)
           gte(habitLogs.day, logWindowStart(today)),
           sql`(${habits.kind} = 'build' and ${habitLogs.quantity} >= ${habitLogs.target})`,
           sql`(${habits.kind} = 'avoid' and ${habitLogs.quantity} > 0)`,
+          range ? and(gte(habitLogs.day, range.from), lte(habitLogs.day, range.to)) : undefined,
         ),
       ),
     )
@@ -193,7 +236,7 @@ async function selectStreakLogs(db: Database | Tx, ids: string[], today: string)
 }
 
 /** The pauses of the habits (not deleted), by habit, by start date (one query). */
-async function selectPauses(db: Database | Tx, ids: string[]) {
+export async function selectPauses(db: Database | Tx, ids: string[]) {
   const rows = await db
     .select({
       habitId: habitPauses.habitId,
@@ -214,7 +257,7 @@ async function selectPauses(db: Database | Tx, ids: string[]) {
   return groupBy(rows, (row) => row.habitId);
 }
 
-function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+export function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>();
   for (const row of rows) {
     const list = groups.get(key(row));
@@ -299,18 +342,24 @@ export type HabitFailure =
   /** H4: a pause starting more than 7 days back or more than a year ahead. */
   | "pauseStartOutOfWindow"
   /** H4: a pause that doesn't exist (or was removed) for that habit. */
-  | "pauseNotFound";
+  | "pauseNotFound"
+  /** H5: a new habit's start date in the future or more than 7 days back. */
+  | "startDateOutOfWindow";
 
 /**
- * Creates a habit at the end of the manual order, starting `today`. H1: a daily yes/no habit to
- * keep. An area must be active (read FOR SHARE: an archive at the same time waits, so a habit
- * never lands in an area archived after the check). Returns the habit, or why it was refused.
+ * Creates a habit at the end of the manual order, starting `today` (H5: or on the start date
+ * given, up to 7 days back). An area must be active (read FOR SHARE: an archive at the same time
+ * waits, so a habit never lands in an area archived after the check). Returns the habit, or why
+ * it was refused.
  */
 export async function insertHabit(
   db: Database,
   input: CreateHabitInput,
   today: string,
 ): Promise<HabitItem | HabitFailure> {
+  if (input.startDate !== undefined && startDateError(input.startDate, today)) {
+    return "startDateOutOfWindow";
+  }
   return db.transaction(async (tx) => {
     await lockHabitsOrder(tx);
     if (input.lifeAreaId !== null) {
@@ -334,7 +383,8 @@ export async function insertHabit(
         // H2 (frequency-input.ts) and H3 (measure-input.ts) own these.
         ...frequencyColumns(input),
         ...measureColumns(input),
-        startDate: today,
+        // H5 (details-input.ts): identity, cue and the start date (today when not given).
+        ...detailsColumns(input, today),
         sortOrder: next,
       })
       .returning({ id: habits.id });

@@ -9,7 +9,10 @@ import { HABIT_QUANTITY_MAX } from "../habit-constants";
 import type { HabitItem } from "../habit-input";
 import { MEASURE_COPY } from "../measure-copy";
 import { formatDayName, formatWeekdayDay, PAUSE_COPY } from "../pause-copy";
+import { HISTORY_COPY } from "../history-copy";
 import { quantitySchema } from "../quantity-input";
+import { addDays } from "../schedule";
+import { useHabitsScreen } from "./habits-screen";
 
 /** The field's text as a number for the schema: blank is "missing", anything else as typed. */
 function parseQuantity(text: string): number | undefined {
@@ -30,6 +33,11 @@ export type AdjustDaySheetProps = {
    * first). Without it, the sheet is H3's "Ajustar el día" for today (quantity habits only).
    */
   days?: readonly OtherDay[];
+  /**
+   * H5: the day picked first (a calendar day of the habit's page); the first of `days` without
+   * it. `days` may then include today too.
+   */
+  initialDay?: string;
   /** Where focus goes when the sheet closes (the pad's options key). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
   onClosed?: () => void;
@@ -52,13 +60,19 @@ export function AdjustDaySheet({
   onOpenChange,
   habit,
   days,
+  initialDay,
   returnFocusRef,
   onClosed,
   onSave,
 }: AdjustDaySheetProps) {
   const isDesktop = useIsDesktop();
+  const { today } = useHabitsScreen();
   const other = days !== undefined;
-  const [picked, setPicked] = useState<OtherDay | null>(days?.[0] ?? null);
+  const [picked, setPicked] = useState<OtherDay | null>(
+    days?.find((option) => option.day === initialDay) ?? days?.[0] ?? null,
+  );
+  // H5: the habit's page offers today too ("Hoy" first).
+  const withToday = days?.some((option) => option.day === today) ?? false;
   const shown = picked ?? { quantity: habit.quantity, target: habit.target };
   const [text, setText] = useState(String(shown.quantity));
   const [error, setError] = useState<string | undefined>();
@@ -109,8 +123,14 @@ export function AdjustDaySheet({
 
   // Each key's name starts with what it shows (WCAG 2.5.3): "Ayer, jueves 1 de octubre",
   // "martes 29, …"; a paused day says so in words too (not only a mark).
-  const dayOptions: RadioGridOption<string>[] = (days ?? []).map((option, index) => {
-    const shown = index === 0 ? PAUSE_COPY.yesterday : formatWeekdayDay(option.day);
+  const yesterday = addDays(today, -1);
+  const dayOptions: RadioGridOption<string>[] = (days ?? []).map((option) => {
+    const shown =
+      option.day === today
+        ? HISTORY_COPY.todayKey
+        : option.day === yesterday
+          ? PAUSE_COPY.yesterday
+          : formatWeekdayDay(option.day);
     return {
       value: option.day,
       label: PAUSE_COPY.dayName(shown, formatDayName(option.day), option.paused),
@@ -186,7 +206,11 @@ export function AdjustDaySheet({
       variant={isDesktop ? "side" : "bottom"}
       title={other ? PAUSE_COPY.otherDayTitle(habit.name) : MEASURE_COPY.adjustTitle(habit.name)}
       description={
-        other ? PAUSE_COPY.otherDayDescription : MEASURE_COPY.quantityGoal(habit.target, unit)
+        other
+          ? withToday
+            ? HISTORY_COPY.dayDescription
+            : PAUSE_COPY.otherDayDescription
+          : MEASURE_COPY.quantityGoal(habit.target, unit)
       }
       returnFocusRef={returnFocusRef}
       onClosed={onClosed}

@@ -30,7 +30,7 @@ export const ORGANIZE_COPY = {
   // Archive and reactivate
   archive: "Archivar",
   archiveHelp:
-    "Lo terminaste o lo dejas por ahora: sale de «Hoy» y conserva todo. Lo reactivas desde «Archivados».",
+    "Lo terminaste o lo dejas por ahora: sale de «Hoy» y conserva todo. Lo reactivas desde «Archivados», en la vista Semana.",
   archivedNoticeTitle: "Archivado",
   archivedNotice: (name: string) => `«${name}» se archivó.`,
   notArchived: "No se pudo archivar.",

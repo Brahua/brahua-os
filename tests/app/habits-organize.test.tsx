@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { createHabit } from "@/modules/habits/actions";
 import { HabitsScreen } from "@/modules/habits/components/habits-screen";
+import { ArchivedHabitsSection } from "@/modules/habits/components/archived-habits-section";
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import { FREQUENCY_ERRORS } from "@/modules/habits/frequency-copy";
 import { HABIT_ERRORS, type HabitAreaSummary, type HabitItem } from "@/modules/habits/habit-input";
@@ -85,6 +86,8 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     pause: null,
     recentLogs: [],
     recentPaused: [],
+    identity: null,
+    cue: null,
     ...values,
   };
 }
@@ -146,7 +149,9 @@ function Harness() {
   }, []);
   return (
     <HabitsScreen today={TODAY} areas={AREAS}>
-      <HabitsToday habits={data.habits} archived={data.archived} headingId="habits-title" />
+      <HabitsToday habits={data.habits} headingId="habits-title" />
+      {/* H5: "Archivados" is in "Semana"; both read the same data here. */}
+      <ArchivedHabitsSection habits={data.archived} headingId="habits-title" />
     </HabitsScreen>
   );
 }
@@ -542,11 +547,12 @@ describe("archive and reactivate", () => {
     await user.click(within(options).getByRole("button", { name: "Archivar" }));
     expect(archiveHabit).toHaveBeenCalledWith({ id: MEDITAR.id });
     expect(padNames()).toEqual(["Gimnasio"]);
-    expect(screen.getByRole("button", { name: /Archivados/ })).toHaveTextContent("1");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(pad("Gimnasio")).toHaveFocus());
     await server.answer();
     expect(within(notices()).getByText("«Meditar» se archivó.")).toBeInTheDocument();
+    // H5: "Archivados" (in "Semana") has it once saved.
+    expect(screen.getByRole("button", { name: /Archivados/ })).toHaveTextContent("1");
 
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
     expect(unarchiveHabit).toHaveBeenCalledWith({ id: MEDITAR.id, position: "original" });
@@ -573,7 +579,7 @@ describe("archive and reactivate", () => {
     );
   });
 
-  test("Reactivar: back at the end of 'Hoy' (focus to the next archived one); Deshacer archives it again", async () => {
+  test("Reactivar (in 'Semana'): out of the list at once (focus to the next archived one), at the end of 'Hoy' once saved; Deshacer archives it again", async () => {
     const LEER = habit({ name: "Leer" });
     const OTRO = habit({ name: "Otro" });
     const user = userEvent.setup();
@@ -585,39 +591,32 @@ describe("archive and reactivate", () => {
     const list = screen.getByRole("list", { name: "Hábitos archivados" });
     await user.click(within(list).getByRole("button", { name: "Reactivar «Leer»" }));
     expect(unarchiveHabit).toHaveBeenCalledWith({ id: LEER.id, position: "end" });
-    expect(padNames()).toEqual(["Meditar", "Leer"]);
+    expect(
+      within(list).queryByRole("button", { name: "Reactivar «Leer»" }),
+    ).not.toBeInTheDocument();
     expect(within(list).getByRole("button", { name: "Reactivar «Otro»" })).toHaveFocus();
     await server.answer();
+    expect(padNames()).toEqual(["Meditar", "Leer"]);
     expect(within(notices()).getByText("«Leer» volvió a tus hábitos.")).toBeInTheDocument();
 
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
     expect(archiveHabit).toHaveBeenCalledWith({ id: LEER.id });
-    expect(padNames()).toEqual(["Meditar"]);
+    expect(within(list).getByRole("button", { name: "Reactivar «Leer»" })).toBeInTheDocument();
     await server.answer();
+    expect(padNames()).toEqual(["Meditar"]);
     await waitFor(() => expect(announcer()).toHaveTextContent("«Leer» volvió a Archivados."));
   });
 
-  test("reactivating the last archived one: focus goes to its pad", async () => {
+  test("reactivating the last archived one: the section leaves, focus goes to the heading", async () => {
     const LEER = habit({ name: "Leer" });
     const user = userEvent.setup();
     renderPage({ habits: [MEDITAR], archived: [LEER] });
     await user.click(screen.getByRole("button", { name: /Archivados/ }));
     await user.click(screen.getByRole("button", { name: "Reactivar «Leer»" }));
-    await waitFor(() => expect(pad("Leer")).toHaveFocus());
-    await server.answer();
-  });
-
-  test("reactivating the last archived one, not due today: 'No tocan hoy' opens for its pad", async () => {
-    const FRANCES = habit({ name: "Francés", frequency: "weekdays", weekdays: [2] });
-    const user = userEvent.setup();
-    renderPage({ habits: [MEDITAR], archived: [FRANCES] });
-    await user.click(screen.getByRole("button", { name: /Archivados/ }));
-    await user.click(screen.getByRole("button", { name: "Reactivar «Francés»" }));
-    expect(screen.getByRole("button", { name: /No tocan hoy/ })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    await waitFor(() => expect(pad("Francés")).toHaveFocus());
+    expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: /Archivados/ })).not.toBeInTheDocument();
+    // A second activation while it is on its way does nothing.
+    expect(unarchiveHabit).toHaveBeenCalledTimes(1);
     await server.answer();
   });
 
