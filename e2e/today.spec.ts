@@ -7,10 +7,10 @@ import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
 import { boardTest as test } from "./support/today-tasks";
 
-// D1 of `today` (SPEC-today): the board on "/" with today's habits, logged as in Hábitos → Hoy,
-// and the calm empty day. Every test holds the habits lock (e2e/support/habits.ts): the board
-// shows every habit due today, so these tests can't share them with the habits specs running in
-// parallel; each starts with no habits. It also shows every task due today or before, so every
+// D1 of `today` (SPEC-today): the board on "/" with today's habits, logged as in Hábitos → Hoy.
+// Every test holds the habits lock (e2e/support/habits.ts): the board shows every habit due
+// today, so these tests can't share them with the habits specs running in parallel; each starts
+// with no habits. It also shows every task due today or before, so every
 // test is a `boardTest` (e2e/support/today-tasks.ts): the tasks lock, with those tasks parked.
 
 const THEMES = ["dark", "light"] as const;
@@ -126,18 +126,18 @@ test("a habit to avoid: one tap logs a relapse, without guilt", async ({ page },
   await expect.poll(async () => (await readHabit(id)).today).toBe(1);
 });
 
-test("an empty day: a calm message with links, no Hábitos section", async ({ page }) => {
+// The empty day itself (its message and links) is covered by tests/app/today-board.test.tsx: in
+// the E2E database "/" is never empty, the fixture projects (e2e/support/projects.ts) are due
+// today and soon, so the Proyectos section (D3) is always there.
+test("a day without habits: no Hábitos section, and the projects keep it from being empty", async ({
+  page,
+}) => {
   await openToday(page);
-  await expect(empty(page)).toBeVisible();
   await expect(section(page)).toHaveCount(0);
-  await expect(empty(page).getByRole("link", { name: "Ir a Tareas" })).toHaveAttribute(
-    "href",
-    "/tasks",
-  );
-  await empty(page).getByRole("link", { name: "Ir a Hábitos" }).click();
-  await expect(page).toHaveURL("/habits");
+  await expect(page.getByRole("region", { name: "Proyectos" })).toBeVisible();
+  await expect(empty(page)).toHaveCount(0);
 
-  // Positive control: with a habit due today the section is back and the empty day is gone.
+  // Positive control: with a habit due today the section is back.
   await insertHabit({ name: "Estirar" });
   await openToday(page);
   await expect(section(page)).toBeVisible();
@@ -231,13 +231,13 @@ test("reduced motion: a tapped pad neither moves nor sinks", async ({ page }) =>
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations (empty day, habits, a tap, adjust)`, async ({
+  test(`${theme} theme: no accessibility violations (no habits, habits, a tap, adjust)`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openToday(page);
     await setTheme(page, theme);
-    await expect(empty(page)).toBeVisible();
+    await expect(section(page)).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
 
     await insertHabit({ name: "Meditar", area: "health", done: true, sortOrder: 0 });

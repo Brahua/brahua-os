@@ -34,4 +34,9 @@ export const TODAY_COPY = {
   emptyText: "Un día libre. Si quieres, puedes crear un hábito o anotar una tarea.",
   emptyHabits: "Ir a Hábitos",
   emptyTasks: "Ir a Tareas",
+
+  // ── Proyectos (D3) ──
+  projectsTitle: "Proyectos",
+  projectsList: "Proyectos que vencen pronto o están bloqueados",
+  seeProjects: "Ver proyectos",
 } as const;

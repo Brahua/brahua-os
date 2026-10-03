@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth";
 import { formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
+import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import { getTasksTodaySummary } from "@/modules/tasks/contracts";
 import { TodayBoard } from "@/modules/today/components/today-board";
+import { TodayProjects } from "@/modules/today/components/today-projects";
 import { TodayTasks } from "@/modules/today/components/today-tasks";
 import { TODAY_HEADING_ID } from "@/modules/today/today-board";
 import { TODAY_COPY } from "@/modules/today/today-copy";
@@ -22,8 +24,12 @@ export default async function Home() {
   const now = new Date();
 
   // One `Promise.all`, one entry per contract (SPEC-today "Lecturas"), each passed to its slot
-  // of `TodayBoard`. D3 adds `getProjectsTodaySummary(now)` and D4 `getTasksDoneTodayCount(now)`.
-  const [habits, tasks] = await Promise.all([getHabitsDueToday(now), getTasksTodaySummary(now)]);
+  // of `TodayBoard`. D4 adds `getTasksDoneTodayCount(now)`.
+  const [habits, tasks, projects] = await Promise.all([
+    getHabitsDueToday(now),
+    getTasksTodaySummary(now),
+    getProjectsTodaySummary(now),
+  ]);
 
   return (
     // Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
@@ -42,6 +48,7 @@ export default async function Home() {
         today={ownerDateKey(now)}
         habits={habits}
         tasks={{ count: tasks.length, content: <TodayTasks tasks={tasks} /> }}
+        projects={{ count: projects.length, content: <TodayProjects projects={projects} /> }}
       />
     </div>
   );

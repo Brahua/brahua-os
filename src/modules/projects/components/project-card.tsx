@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import { formatOwnerDay } from "@/lib/time";
 import { MILESTONES_COPY } from "../milestones-copy";
 import { NEXT_ACTION_COPY } from "../next-action-copy";
-import type { DueState, Progress } from "../progress";
+import { isUrgentDue, type DueState, type Progress } from "../progress";
 import type { ProjectSummary } from "../project-input";
 import { DEPENDENCIES_COPY, PROJECTS_COPY } from "../projects-copy";
 import { ProgressMeter } from "./progress-meter";
@@ -47,7 +47,7 @@ export function ProjectCard({
   className,
 }: ProjectCardProps) {
   const Heading = headingLevel === 3 ? "h3" : "h4";
-  const urgent = due?.kind === "today" || due?.kind === "overdue";
+  const urgent = isUrgentDue(due);
   const high = project.priority === "high";
   const completedAt = project.status === "done" ? project.completedAt : null;
   // Ids from the project's id: a project shows once per page.

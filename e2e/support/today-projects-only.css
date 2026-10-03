@@ -1,0 +1,5 @@
+/* Screenshots of the Proyectos section of "/": only the rows of the fixture projects (area "travel",
+   FIXTURE_PROJECTS in projects.ts). Other tests add projects due soon to the shared database. */
+[data-today-project]:not([data-area="travel"]) {
+  display: none !important;
+}

@@ -1,11 +1,9 @@
 // What a change to a task revalidates (server only). Shared by the actions of `tasks`.
 import "server-only";
 import { revalidatePath } from "next/cache";
+import { HOME_PATH } from "@/lib/routes";
 import { PROJECTS_PATH } from "@/modules/projects/routes";
 import { TASKS_PATH, taskPath } from "./routes";
-
-/** The home page ("Hoy"): `today` shows the overdue and due-today tasks there (T6, D2). */
-const HOME_PATH = "/";
 
 /**
  * The project screens a task shows on (T5): its project's "Tareas" section and progress, and the

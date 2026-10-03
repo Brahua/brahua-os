@@ -73,7 +73,7 @@ Los mismos de `SPEC-core`. Módulo en `src/modules/today/`: `module.ts` (manifie
 |---|---|
 | Unitarias | `today-board.ts` con tablas de casos (tope de 3, "Ver N más", día completo: todo hecho con actividad / todo hecho sin actividad / un hábito pendiente / una tarea pendiente / solo proyectos; día vacío); componentes (secciones ocultas sin elementos, plegado y foco al desplegar y al completar, anuncio único de "Día completo") |
 | Integración | `getTasksDoneTodayCount` (día de Lima en la medianoche, tareas eliminadas y de proyectos eliminados fuera, autorización); la página lee los contratos con un número fijo de consultas |
-| E2E | Registrar un hábito desde `/` y deshacer; completar una tarea y que suba la siguiente plegada; completar una recurrente (aviso de la siguiente); "Ver N más"; día completo al terminar lo último; día vacío; proyectos con enlace; axe en 0 en ambos temas y viewports (con `afterSaveSettled`); movimiento reducido; 320 px sin scroll horizontal; capturas con `expectScreenshot` |
+| E2E | Registrar un hábito desde `/` y deshacer; completar una tarea y que suba la siguiente plegada; completar una recurrente (aviso de la siguiente); "Ver N más"; día completo al terminar lo último; día vacío (unitarias; en E2E `/` siempre tiene proyectos fijos); proyectos con enlace; axe en 0 en ambos temas y viewports (con `afterSaveSettled`); movimiento reducido; 320 px sin scroll horizontal; capturas con `expectScreenshot` |
 
 ## Límites
 
