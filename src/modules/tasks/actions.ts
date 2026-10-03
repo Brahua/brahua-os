@@ -2,7 +2,6 @@
 
 // Server Actions of `tasks`. Each one goes through ownerAction(): owner check first, Zod, then an
 // ActionResult (SPEC-core "Estilo de código"). Reachable by any POST, so input is `unknown`.
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
@@ -26,10 +25,9 @@ import {
   updateTask,
   type PlacementFailure,
 } from "./tasks";
-import { revalidateProjectScreens, revalidateTaskScreens } from "./revalidate";
-import { TASKS_PATH } from "./routes";
+import { revalidateTaskLists, revalidateTaskScreens } from "./revalidate";
 
-/** The list, the task's page and (T5) the project screens all show what changed. */
+/** The list, the task's page, (T5) the project screens and (D2) the home page show what changed. */
 function revalidateTask(id: string) {
   revalidateTaskScreens(id);
 }
@@ -52,8 +50,7 @@ const create = ownerAction(
   async (data) => {
     const task = await insertTask(getDb(), data);
     // Revalidate either way: a refusal means the page's areas or projects were out of date.
-    revalidatePath(TASKS_PATH);
-    revalidateProjectScreens();
+    revalidateTaskLists();
     return typeof task === "string" ? refused<TaskItem>(task) : ok(task);
   },
   { name: "createTask" },
@@ -124,8 +121,7 @@ const remove = ownerAction(
     const deleted = await softDeleteTask(getDb(), id);
     // Only the list: revalidating the task's page now would swap it for its 404 before the
     // client leaves it.
-    revalidatePath(TASKS_PATH);
-    revalidateProjectScreens();
+    revalidateTaskLists();
     return deleted ? ok(deleted) : fail(TASK_ERRORS.notFound);
   },
   { name: "deleteTask" },

@@ -1,11 +1,12 @@
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { isDesktop, limaDay, notices, untilSaved } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
 import { openReady, uniqueTitle } from "./support/tasks";
+import { tasksTest as test } from "./support/today-tasks";
 import {
   insertProjectWithMilestones,
   insertViewTask,
@@ -20,7 +21,8 @@ import { upcomingDayLabel } from "@/modules/tasks/task-views";
 // T2 of `tasks`: the views Hoy, Próximas, Todas (filters in the URL) and Hechas, and the detail's
 // Notas and Hito. The database is shared by tests running in parallel: each test works on its
 // own tasks (unique titles) and only looks at those; the fixture project (VIEWS_FIXTURE) is read
-// only.
+// only. Tests whose tasks (or the fixture's) are due today or before are tagged @today-tasks:
+// a test of "/" parks those tasks while it runs (e2e/support/today-tasks.ts).
 
 const THEMES = ["dark", "light"] as const;
 const FIXTURE_ONLY_CSS = path.join(__dirname, "support/task-views-only.css");
@@ -38,7 +40,7 @@ async function axeViolations(page: Page) {
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
-test("Hoy: overdue and due today, the oldest first, then priority; not tomorrow or done", async ({
+test("Hoy: overdue and due today, the oldest first, then priority; not tomorrow or done @today-tasks", async ({
   page,
 }, testInfo) => {
   const late = uniqueTitle("pagar luz", testInfo);
@@ -75,7 +77,9 @@ test("Hoy: overdue and due today, the oldest first, then priority; not tomorrow 
   await expect(viewRow(page, todayMedium)).toBeVisible();
 });
 
-test("Próximas: the next 7 days without today, grouped by day", async ({ page }, testInfo) => {
+test("Próximas: the next 7 days without today, grouped by day @today-tasks", async ({
+  page,
+}, testInfo) => {
   const today = uniqueTitle("hoy no", testInfo);
   const tomorrow = uniqueTitle("comprar regalo", testInfo);
   const inThree = uniqueTitle("pagar tarjeta", testInfo);
@@ -96,7 +100,7 @@ test("Próximas: the next 7 days without today, grouped by day", async ({ page }
   await expect(viewRow(page, later)).toHaveCount(0);
 });
 
-test("Todas: filters by project and area live in the URL and survive a reload", async ({
+test("Todas: filters by project and area live in the URL and survive a reload @today-tasks", async ({
   page,
 }) => {
   await openReady(page, "/tasks?vista=todas");
@@ -170,7 +174,7 @@ async function openDetail(page: Page, title: string, desktop: boolean) {
   return page.locator("main");
 }
 
-test("Notas: write, preview and save Markdown; it is there after reopening", async ({
+test("Notas: write, preview and save Markdown; it is there after reopening @today-tasks", async ({
   page,
 }, testInfo) => {
   const desktop = isDesktop(testInfo);
@@ -201,7 +205,7 @@ test("Notas: write, preview and save Markdown; it is there after reopening", asy
   }
 });
 
-test("Notas: unsaved changes ask before leaving", async ({ page }, testInfo) => {
+test("Notas: unsaved changes ask before leaving @today-tasks", async ({ page }, testInfo) => {
   const desktop = isDesktop(testInfo);
   const title = uniqueTitle("borrador", testInfo);
   await insertViewTask({ title, due: 0 });
@@ -225,7 +229,7 @@ test("Notas: unsaved changes ask before leaving", async ({ page }, testInfo) => 
   else await expect(page).toHaveURL("/tasks");
 });
 
-test("Hito: only with a project; pick one of its milestones, then none", async ({
+test("Hito: only with a project; pick one of its milestones, then none @today-tasks", async ({
   page,
 }, testInfo) => {
   const desktop = isDesktop(testInfo);
@@ -257,7 +261,7 @@ test("Hito: only with a project; pick one of its milestones, then none", async (
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations in the views and the detail`, async ({
+  test(`${theme} theme: no accessibility violations in the views and the detail @today-tasks`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -298,7 +302,7 @@ for (const theme of THEMES) {
     await notes.getByRole("button", { name: "Cancelar" }).click();
   });
 
-  test(`${theme} theme: Hoy and Todas (reference screenshots)`, async ({ page }) => {
+  test(`${theme} theme: Hoy and Todas (reference screenshots) @today-tasks`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openReady(page, "/tasks?vista=hoy");
     await setTheme(page, theme);

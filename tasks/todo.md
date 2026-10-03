@@ -13,6 +13,7 @@
 
 - [ ] **D2: Tareas** — sección con `getTasksTodaySummary`, 3 visibles y "Ver N más"/"Ver menos", casilla para completar (con `completeTaskWithNext` y el aviso de la siguiente), foco restaurado al salir la fila, enlace a la tarea; `tasks` revalida `/`.
   - Verificar: unitarias del tope y del foco; E2E completar y deshacer, recurrente, plegado.
+  - Hecho en `feat/today-d2-tasks` (PR sin merge). Ver "Cómo funciona today" → "D2" en `docs/HANDOFF.md`.
 - [ ] **D3: Proyectos** — sección de solo lectura con `getProjectsTodaySummary` (LED, vencimiento, "Bloqueado por …", enlace); `projects` revalida `/`.
   - Verificar: unitarias de las filas; E2E con un proyecto que vence y uno bloqueado.
 
@@ -43,4 +44,5 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Archivados de hábitos** (de H5): la lista lee cada hábito archivado completo, con su historial; si crecen, una consulta más liviana.
 - [ ] **`DayCell` en Claude Design** (de H5): los estados "pasado sin cumplir", "parcial" y "no cuenta" del calendario de hábitos viven en `overrides.css` (`PENDING UPSTREAM`); aplicarlos en Claude Design y vaciar el override.
 - [ ] **Calendario de hábitos a 320 px** (de H5): cada día mide ~39 px (cumple WCAG AA, no los 44 px del principio 14). Revisarlo con el diseño.
+- [ ] **Hook único de pads de hábitos** (de D1): que `habits` exporte `useHabitPadsLog` (o un componente cliente que dibuje la grilla de pads con su registro) y `today` deje de importar `habit-list-optimistic`, `habits-copy` y `useHabitsScreen`, como `tasks` hizo en D2 con `taskCompletion` y `TaskTodayRow`.
 - [ ] **Confeti en hitos de racha** (de H4): sin `canvas-confetti` (dependencia nueva, pide OK del owner); hoy solo texto.

@@ -2,14 +2,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { expectScreenshot } from "./support/screenshots";
-import { test as habitsLocked } from "./support/habits";
+import { boardTest } from "./support/today-tasks";
 import { HOME_HEADING } from "./support/owner";
 
 /**
- * For the tests that measure "/" (width, axe): the board shows every habit due today, so they
- * hold the habits lock (and start with no habits), like the habits and today specs that add them.
+ * For the tests that measure "/" (width, axe): the board shows every habit and task due today, so
+ * they hold the habits and tasks locks and start with an empty board (e2e/support/today-tasks.ts).
  */
-const homeLocked = habitsLocked;
+const homeLocked = boardTest;
 
 const THEMES = ["dark", "light"] as const;
 

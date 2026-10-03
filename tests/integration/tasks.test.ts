@@ -107,6 +107,8 @@ describe("capture", () => {
       tags: [],
     });
     expect(revalidatePath).toHaveBeenCalledWith("/tasks");
+    // A task due today shows on the home page (today, D2): creating one revalidates it.
+    expect(revalidatePath).toHaveBeenCalledWith("/");
     expect((await listInboxTasks()).map((item) => item.id)).toEqual([task.id]);
   });
 
@@ -407,9 +409,13 @@ describe("soft delete and undo", () => {
       ok: true,
       data: { id: task.id, title: "x" },
     });
-    // The list and (T5) the project screens, never the task's page: it would turn into its 404
-    // before the client leaves it.
-    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/tasks"], ["/projects", "layout"]]);
+    // The list, (T5) the project screens and (D2) the home page, never the task's page: it would
+    // turn into its 404 before the client leaves it.
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([
+      ["/tasks"],
+      ["/projects", "layout"],
+      ["/"],
+    ]);
     expect((await row(task.id)).deletedAt).toBeInstanceOf(Date);
     expect(await listInboxTasks()).toEqual([]);
     expect(await getTask(task.id)).toBeNull();

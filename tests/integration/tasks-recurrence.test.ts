@@ -184,6 +184,8 @@ describe("completing a recurring task", () => {
     // Untouched: its updated_at is its created_at.
     expect(spawned.updatedAt).toEqual(spawned.createdAt);
     expect(revalidatePath).toHaveBeenCalledWith("/tasks");
+    // The home page's "Tareas" (today, D2) follows a completion made anywhere.
+    expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
   test("the plain completeTask (T1) spawns too; a second completion spawns nothing", async () => {

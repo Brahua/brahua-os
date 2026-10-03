@@ -1,5 +1,6 @@
+import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { animationsSettled } from "./support/animations";
 import { fontsLoaded } from "./support/fonts";
 import { test as habitsLocked } from "./support/habits";
@@ -18,6 +19,7 @@ import {
   taskRow,
   uniqueTitle,
 } from "./support/tasks";
+import { tasksTest as test } from "./support/today-tasks";
 
 // T1 of `tasks`: quick capture (the orange key on the phone, C on the desktop), the inbox
 // (complete and undo, Clasificar) and the detail. The inbox is shared by tests running in
@@ -32,6 +34,9 @@ async function setTheme(page: Page, theme: (typeof THEMES)[number]) {
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
   await fontsLoaded(page);
 }
+
+/** Screenshots over "/": its board shows every task due today, whoever created it. */
+const TODAY_BOARD_HIDDEN_CSS = path.join(__dirname, "support/today-board-hidden.css");
 
 async function axeViolations(page: Page) {
   await afterSaveSettled(page);
@@ -111,7 +116,7 @@ test("capture into an area: it goes there, not to the inbox", async ({ page }, t
   await expect(inbox(page).getByRole("link", { name: title })).toHaveCount(0);
 });
 
-test("complete with one tap, Deshacer brings it back, and both survive a reload", async ({
+test("complete with one tap, Deshacer brings it back, and both survive a reload @today-tasks", async ({
   page,
 }, testInfo) => {
   const title = uniqueTitle("regar plantas", testInfo);
@@ -191,7 +196,7 @@ test("the detail: a side sheet on the desktop, its page on the phone; edits and 
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations (inbox, Clasificar, capture, detail)`, async ({
+  test(`${theme} theme: no accessibility violations (inbox, Clasificar, capture, detail) @today-tasks`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -231,7 +236,8 @@ for (const theme of THEMES) {
   });
 
   // On "/" behind the sheet is today's board, which shows every habit due today (and shows
-  // through the sheet's edges): with the habits lock "/" is always the empty day.
+  // through the sheet's edges): with the habits lock "/" has no habits, and the board (tasks,
+  // projects) is hidden under the sheet (today-board-hidden.css).
   habitsLocked(
     `${theme} theme: the quick capture sheet (reference screenshot)`,
     async ({ page }) => {
@@ -247,7 +253,9 @@ for (const theme of THEMES) {
         }),
       ).toBeAttached();
       await animationsSettled(page);
-      await expectScreenshot(captureSheet(page), `quick-capture-${theme}.png`);
+      await expectScreenshot(captureSheet(page), `quick-capture-${theme}.png`, {
+        stylePath: TODAY_BOARD_HIDDEN_CSS,
+      });
     },
   );
 }
@@ -263,7 +271,9 @@ test("unknown or deleted task pages are a 404 inside the shell", async ({ page }
   );
 });
 
-test("at 320 px the inbox and the views don't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the inbox and the views don't scroll sideways @today-tasks", async ({
+  page,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const title = uniqueTitle("un título bastante largo para una pantalla angosta", testInfo);
   await insertTask({ title, due: -3, priority: "high" });
