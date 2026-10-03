@@ -14,6 +14,7 @@ import type { Database } from "@/lib/db";
 import { planReorder } from "@/modules/core/life-area-order";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { habits } from "./db/schema";
+import { detailsUpdateColumns } from "./details-input";
 import { frequencyColumns } from "./frequency-input";
 import type { HabitItem, UpdateHabitInput } from "./habit-input";
 import {
@@ -76,7 +77,13 @@ export async function updateHabitById(
     }
     await tx
       .update(habits)
-      .set({ name: input.name, lifeAreaId: input.lifeAreaId, ...frequencyColumns(input) })
+      .set({
+        name: input.name,
+        lifeAreaId: input.lifeAreaId,
+        ...frequencyColumns(input),
+        // H5: identity and cue, when sent.
+        ...detailsUpdateColumns(input),
+      })
       .where(eq(habits.id, input.id));
     if (measure) await applyMeasureUpdate(tx, input.id, measure, today);
     return (await selectHabitItemById(tx, input.id, today)) as HabitItem;

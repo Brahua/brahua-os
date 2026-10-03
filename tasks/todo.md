@@ -15,8 +15,8 @@
 
 ## Fase 3 — Rachas e historial
 
-- [ ] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(En PR, rama `feat/habits-h4-streaks`; ver HANDOFF → "Cómo funciona habits" → "H4", con los puntos de extensión para H5.)*
-- [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados".
+- [x] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(PR #66 integrado; ver HANDOFF → "Cómo funciona habits" → "H4".)*
+- [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados"; "Más detalles" (identidad, momento, fecha de inicio). *(En PR, rama `feat/habits-h5-history`; ver HANDOFF → "Cómo funciona habits" → "H5", con lo que H6 puede reusar.)*
 - [ ] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño.
 
 ### Checkpoint final
@@ -35,4 +35,5 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Minutos de CI** (2026-10-02): el plan gratuito da 2.000 min/mes a repos privados y se agotaron en dos días con agentes en paralelo. Antes de volver el repo a privado (~2026-11-01): `paths-ignore` para PRs solo de docs, no lanzar el CI por cada push de un agente (push una vez, con el gate local en verde), menos capturas y medir el consumo por run.
 - [x] **Pruebas unitarias intermitentes:** `project-dependencies` y `project-detail` comprobaban la vuelta atrás optimista justo después del aviso (que puede llegar antes); ahora esperan con `waitFor`. Hecho en `fix/flaky-rollback-tests`.
 - [ ] **Hitos en proyectos cerrados** (del Checkpoint final de `tasks`): en un proyecto Terminado o Cancelado la sección Tareas no deja agregar, pero Hitos sí deja crear y reordenar. Decidir con el owner si se bloquea también.
+- [ ] **"Archivados" más liviano** (de H5): la sección en "Semana" lee cada hábito archivado como `HabitItem` (con todos sus registros marcados para las rachas) aunque solo muestra nombre, área y "Reactivar". Con muchos archivados, una consulta propia (id, nombre, área).
 - [ ] **Navegación definitiva de Tareas** (T6): espera el diseño del owner en Claude Design; hoy es provisional (atajo 3, barra inferior después de la tecla de captura).

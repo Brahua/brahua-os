@@ -4,7 +4,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
-import HabitsPage, { metadata } from "@/app/(app)/habits/page";
+import HabitsPage, { generateMetadata } from "@/app/(app)/habits/page";
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
 import { listLifeAreas } from "@/modules/core/queries";
@@ -14,7 +14,12 @@ import { HabitsScreen, HabitsScreenWithin } from "@/modules/habits/components/ha
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import { HABIT_ERRORS, type HabitAreaSummary, type HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
-import { listActiveHabits, listArchivedHabits } from "@/modules/habits/queries";
+import {
+  getDeletedHabit,
+  getHabitsWeek,
+  listActiveHabits,
+  listArchivedHabits,
+} from "@/modules/habits/queries";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -26,6 +31,8 @@ vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/habits/queries", () => ({
   listActiveHabits: vi.fn(),
   listArchivedHabits: vi.fn(),
+  getDeletedHabit: vi.fn(),
+  getHabitsWeek: vi.fn(),
 }));
 vi.mock("@/modules/habits/actions", () => ({
   createHabit: vi.fn(),
@@ -35,6 +42,8 @@ vi.mock("@/modules/habits/actions", () => ({
 vi.mock("@/modules/habits/log-actions", () => ({ setHabitDone: vi.fn() }));
 
 const TODAY = "2026-10-02";
+/** "Hoy" (no `?vista=`). */
+const PAGE_PROPS = { searchParams: Promise.resolve({}) };
 /** 10:00 in Lima on TODAY. Only Date is faked (timers stay real for userEvent). */
 const NOW = new Date("2026-10-02T15:00:00.000Z");
 
@@ -72,6 +81,8 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     pause: null,
     recentLogs: [],
     recentPaused: [],
+    identity: null,
+    cue: null,
     ...values,
   };
 }
@@ -151,6 +162,15 @@ beforeEach(() => {
     .mockResolvedValue({ user: { id: "owner" } } as never);
   vi.mocked(listActiveHabits).mockReset().mockResolvedValue(HABITS);
   vi.mocked(listArchivedHabits).mockReset().mockResolvedValue([]);
+  vi.mocked(getDeletedHabit).mockReset().mockResolvedValue(null);
+  vi.mocked(getHabitsWeek)
+    .mockReset()
+    .mockResolvedValue({
+      monday: "2026-09-28",
+      earliestStart: "2026-09-01",
+      rows: [],
+      total: { done: 0, expected: 0 },
+    });
   vi.mocked(listLifeAreas)
     .mockReset()
     .mockResolvedValue(AREAS.map((area) => ({ ...area, sortOrder: 0 })));
@@ -220,11 +240,14 @@ const announcer = () => document.querySelector("[data-habits-announcer]");
 
 describe("/habits", () => {
   test("title, owner check, today's pads in their order and the live count", async () => {
-    expect(metadata.title).toBe("Hábitos · brahua-os");
-    render(await HabitsPage());
+    expect((await generateMetadata({ searchParams: Promise.resolve({}) })).title).toBe(
+      "Hábitos · brahua-os",
+    );
+    render(await HabitsPage(PAGE_PROPS));
     expect(requireOwner).toHaveBeenCalled();
     expect(listActiveHabits).toHaveBeenCalled();
-    expect(listArchivedHabits).toHaveBeenCalled();
+    // H5: "Archivados" is in "Semana" now: "Hoy" doesn't read it.
+    expect(listArchivedHabits).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toBeInTheDocument();
     expect(padNames()).toEqual(["Meditar", "Leer", "Tomar agua"]);
     // A toggle per habit: pressed is done today.
@@ -238,9 +261,53 @@ describe("/habits", () => {
     );
   });
 
+  test("H5: Semana has its own title and reads the week (with ?semana=) and the archived ones", async () => {
+    const search = { vista: "semana", semana: "2026-09-30" };
+    expect((await generateMetadata({ searchParams: Promise.resolve(search) })).title).toBe(
+      "Semana · Hábitos · brahua-os",
+    );
+    render(await HabitsPage({ searchParams: Promise.resolve(search) }));
+    expect(requireOwner).toHaveBeenCalled();
+    expect(getHabitsWeek).toHaveBeenCalledWith(NOW, "2026-09-30");
+    expect(listArchivedHabits).toHaveBeenCalled();
+    expect(listActiveHabits).not.toHaveBeenCalled();
+    const views = screen.getByRole("navigation", { name: "Vistas de hábitos" });
+    expect(within(views).getByRole("link", { name: "Semana" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(views).getByRole("link", { name: "Hoy" })).toHaveAttribute("href", "/habits");
+    expect(document.querySelector("[data-week-total]")).toBeInTheDocument();
+  });
+
+  test("H5: ?deleted= with a deleted habit: focus to the heading, then the notice with Deshacer", async () => {
+    vi.mocked(getDeletedHabit).mockResolvedValue({ id: MEDITAR.id, name: "Meditar" });
+    render(await HabitsPage({ searchParams: Promise.resolve({ deleted: MEDITAR.id }) }));
+    expect(getDeletedHabit).toHaveBeenCalledWith(MEDITAR.id);
+    expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus();
+    const notice = await within(notices()).findByText("«Meditar» se eliminó.");
+    expect(notice).toBeInTheDocument();
+    expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
+  });
+
+  test("H5: ?deleted= without a deleted habit, or a list: no notice, focus left alone", async () => {
+    const first = render(
+      await HabitsPage({ searchParams: Promise.resolve({ deleted: MEDITAR.id }) }),
+    );
+    expect(getDeletedHabit).toHaveBeenCalledWith(MEDITAR.id);
+    // Positive control of the path: with a habit it focuses the heading at once (see above).
+    expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).not.toHaveFocus();
+    first.unmount();
+    render(await HabitsPage({ searchParams: Promise.resolve({ deleted: ["a", "b"] }) }));
+    expect(getDeletedHabit).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(within(notices()).queryByText(/se eliminó/)).toBeNull(), {
+      timeout: 400,
+    });
+  });
+
   test("empty: an explanation and a key to create the first one; no count", async () => {
     vi.mocked(listActiveHabits).mockResolvedValue([]);
-    render(await HabitsPage());
+    render(await HabitsPage(PAGE_PROPS));
     expect(
       screen.getByRole("heading", { level: 2, name: "Todavía no tienes hábitos" }),
     ).toBeVisible();
@@ -367,7 +434,7 @@ describe("one tap", () => {
   test("23:30 in Lima is still the same day: the page logs it, not UTC's next one", async () => {
     vi.setSystemTime(new Date("2026-10-03T04:30:00.000Z"));
     const user = userEvent.setup();
-    render(await HabitsPage());
+    render(await HabitsPage(PAGE_PROPS));
     expect(vi.mocked(listActiveHabits).mock.calls[0][0]).toEqual(
       new Date("2026-10-03T04:30:00.000Z"),
     );

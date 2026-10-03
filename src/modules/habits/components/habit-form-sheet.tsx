@@ -13,6 +13,7 @@ import {
   type RadioGridOption,
 } from "@/modules/core/components/radio-grid";
 import { createHabit } from "../actions";
+import { startDateError } from "../details-input";
 import { frequencySummary } from "../frequency-input";
 import { measureSummary } from "../measure-input";
 import {
@@ -32,6 +33,12 @@ import {
   frequencyDraftOf,
   frequencyValues,
 } from "./frequency-field";
+import {
+  DetailsFields,
+  detailsDraftOf,
+  detailsValues,
+  type DetailsFieldsHandle,
+} from "./details-fields";
 import {
   MeasureFields,
   measureDraft,
@@ -72,6 +79,8 @@ export type HabitFormSheetProps = {
   returnFocusRef: React.RefObject<HTMLElement | null>;
   /** H2: the habit to edit (the form starts from it and saves with `updateHabit`). */
   habit?: HabitItem | null;
+  /** H5: Lima's today (the screen's): the start date's default and window. */
+  today: string;
   /** Created (or, editing, saved): the screen closes the sheet and focuses its pad. */
   onCreated: (habit: HabitItem) => void;
   /** Called once the sheet has fully closed (see `Sheet`). */
@@ -91,6 +100,7 @@ export function HabitFormSheet({
   areas: activeAreas,
   returnFocusRef,
   habit = null,
+  today,
   onCreated,
   onClosed,
 }: HabitFormSheetProps) {
@@ -126,6 +136,9 @@ export function HabitFormSheet({
   const avoid = measure.kind === "avoid";
   const sentFrequency = frequencyValues(avoid ? frequencyDraftOf(null) : frequency);
   const measureValues = habit ? measureEditValues(measure) : measureDraft(measure);
+  // H5: "Más detalles" (identity, cue and, creating, the start date).
+  const [details, setDetails] = useState(() => detailsDraftOf(habit, today));
+  const detailsFields = useRef<DetailsFieldsHandle>(null);
 
   useEffect(() => {
     if (!focusFirstInvalid.current) return;
@@ -135,6 +148,8 @@ export function HabitFormSheet({
     else if (first === "lifeAreaId") focusRadioGrid(areaGroup.current);
     else if (first === "frequency" || first === "weeklyTarget" || first === "weekdays") {
       focusFrequencyField(frequencyGroup.current, first);
+    } else if (first === "identity" || first === "cue" || first === "startDate") {
+      detailsFields.current?.focus(first);
     } else if (first) measureFields.current?.focus(first);
   });
 
@@ -163,13 +178,27 @@ export function HabitFormSheet({
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
-    const values = { name, lifeAreaId, ...sentFrequency, ...measureValues };
+    const values = {
+      name,
+      lifeAreaId,
+      ...sentFrequency,
+      ...measureValues,
+      ...detailsValues(details, habit, today),
+    };
     const parsed = habit
       ? updateHabitInputSchema.safeParse({ id: habit.id, ...values })
       : createHabitInputSchema.safeParse(values);
     if (!parsed.success) {
       const failed = fail(parsed.error);
       if (!failed.ok) showErrors(failed);
+      return;
+    }
+    // H5: a new habit starts today or up to 7 days back (the server checks it again).
+    // (Blank is today.)
+    const startError =
+      editing || !details.startDate ? null : startDateError(details.startDate, today);
+    if (startError) {
+      showErrors({ error: startError, fieldErrors: { startDate: [startError] } });
       return;
     }
     setFormError(null);
@@ -341,7 +370,18 @@ export function HabitFormSheet({
           {errors.lifeAreaId ? <FieldError id={areaErrorId} message={errors.lifeAreaId} /> : null}
         </div>
 
-        {/* "Más detalles" slot: identity, cue and start date (not assigned to H2–H5 yet). */}
+        {/* H5 ("Más detalles"): identity, cue and, creating, the start date. */}
+        <DetailsFields
+          ref={detailsFields}
+          value={details}
+          onChange={setDetails}
+          errors={errors}
+          editing={editing}
+          today={today}
+          onEdit={(field) => {
+            if (errors[field]) clearError(field);
+          }}
+        />
 
         <p className="bo-text-body-sm text-text-secondary">
           <span className="bo-text-label">{HABITS_COPY.summaryLabel}: </span>

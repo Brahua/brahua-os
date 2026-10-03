@@ -74,6 +74,15 @@ type NewHabit = {
   pause?: { start: number; end: number; reason?: string };
   /** H4: started this many days ago (default 7). */
   startedDaysAgo?: number;
+  /** H5: started on this day (YYYY-MM-DD; overrides `startedDaysAgo`), for fixed screenshots. */
+  startDate?: string;
+  /** H5: logs on fixed days (YYYY-MM-DD; the target is the goal). */
+  logs?: { day: string; quantity?: number }[];
+  /** H5: pauses on fixed days. */
+  pauses?: { startDate: string; endDate: string; reason?: string }[];
+  /** H5: "Más detalles". */
+  identity?: string;
+  cue?: string;
 };
 
 /**
@@ -111,7 +120,9 @@ export function insertHabit(habit: NewHabit): Promise<string> {
         weeklyTarget: habit.weeklyTarget ?? null,
         weekdays: habit.weekdays ?? null,
         archivedAt: habit.archived ? new Date() : null,
-        startDate: limaDay(-(habit.startedDaysAgo ?? 7)),
+        startDate: habit.startDate ?? limaDay(-(habit.startedDaysAgo ?? 7)),
+        identity: habit.identity ?? null,
+        cue: habit.cue ?? null,
         sortOrder: habit.sortOrder ?? 1_000 + Math.floor(Math.random() * 1_000),
       })
       .returning({ id: habits.id });
@@ -129,6 +140,14 @@ export function insertHabit(habit: NewHabit): Promise<string> {
       await db
         .insert(habitLogs)
         .values({ habitId: row.id, day: limaDay(offset), quantity: target, target });
+    }
+    for (const entry of habit.logs ?? []) {
+      await db
+        .insert(habitLogs)
+        .values({ habitId: row.id, day: entry.day, quantity: entry.quantity ?? target, target });
+    }
+    for (const pause of habit.pauses ?? []) {
+      await db.insert(habitPauses).values({ habitId: row.id, reason: null, ...pause });
     }
     if (habit.pause) {
       await db.insert(habitPauses).values({
@@ -241,6 +260,31 @@ export const habitsCount = (page: Page) => page.locator("[data-habits-count]");
 /** H2: the folded "No tocan hoy (N)" section's toggle, and its pads. */
 export const notDueToggle = (page: Page) => page.getByRole("button", { name: /^No tocan hoy/ });
 export const notDuePads = (page: Page) => page.locator('[data-habits-grid="not-due"]');
+
+/** H5: opens "Semana" (a week: any day of it) and waits until it is hydrated. */
+export async function openWeek(page: Page, week?: string) {
+  await page.goto(`/habits?vista=semana${week ? `&semana=${week}` : ""}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Hábitos" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+}
+
+/** H5: opens a habit's page (a month of its calendar) and waits until it is hydrated. */
+export async function openHabitPage(page: Page, id: string, month?: string) {
+  await page.goto(`/habits/${id}${month ? `?mes=${month}` : ""}`);
+  await expect(page.getByRole("grid")).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+}
+
+/** H5: a habit as stored, with its "Más detalles". */
+export function readHabitDetails(id: string) {
+  return withDb(async (db) => {
+    const [row] = await db
+      .select({ identity: habits.identity, cue: habits.cue, startDate: habits.startDate })
+      .from(habits)
+      .where(eq(habits.id, id));
+    return row;
+  });
+}
 
 /** Opens /habits and waits until it is hydrated (keys and clicks reach React). */
 export async function openHabits(page: Page) {

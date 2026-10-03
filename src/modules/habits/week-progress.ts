@@ -17,8 +17,15 @@ export type HabitWeek = Pick<
  * with none is neutral (0).
  */
 export function weekQuota(weeklyTarget: number, availableDays = 7): number {
-  const available = Math.max(0, Math.min(7, availableDays));
-  return Math.ceil((weeklyTarget * available) / 7);
+  return proportionalQuota(weeklyTarget, Math.max(0, Math.min(7, availableDays)));
+}
+
+/**
+ * "X por semana" over any number of available days, `ceil(X × days / 7)`: a week's quota
+ * (`weekQuota`) and, H5, a month's (`monthCompliance` in streak.ts).
+ */
+export function proportionalQuota(weeklyTarget: number, availableDays: number): number {
+  return Math.ceil((weeklyTarget * Math.max(0, availableDays)) / 7);
 }
 
 /**

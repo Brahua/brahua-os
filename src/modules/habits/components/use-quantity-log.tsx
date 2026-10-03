@@ -42,8 +42,13 @@ type QuantityLogArgs = {
 /** The sheet open: "Ajustar el día" (today) or, with `days`, "Registrar otro día" (H4). */
 type Adjusting = { habit: HabitItem; key: number; days?: OtherDay[] };
 
-/** How a day reads in a notice: "hecho", "recaída registrada", "6 de 8 vasos". */
-function dayState(habit: HabitItem): string {
+/**
+ * How a day reads in a notice: "hecho", "recaída registrada", "6 de 8 vasos" (H5: the habit's
+ * page says it too after logging a day of its calendar).
+ */
+export function dayState(
+  habit: Pick<HabitItem, "kind" | "measure" | "quantity" | "target" | "unit">,
+): string {
   if (habit.kind === "avoid") {
     return habit.quantity > 0 ? PAUSE_COPY.stateSlip : PAUSE_COPY.stateClean;
   }
@@ -290,6 +295,7 @@ export function useQuantityLog({
       onOpenChange={setAdjustOpen}
       habit={adjusting.habit}
       days={adjusting.days}
+      today={today}
       returnFocusRef={adjustReturn}
       onClosed={() => {
         if (document.activeElement === document.body || document.activeElement === null) {

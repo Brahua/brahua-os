@@ -3,6 +3,7 @@
 import {
   Archive,
   CalendarClock,
+  CalendarDays,
   CalendarX,
   Pause,
   Pencil,
@@ -11,14 +12,17 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { Key, Sheet } from "@/design-system";
+import Link from "next/link";
+import { Icon, Key, Sheet } from "@/design-system";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import type { HabitItem } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
+import { HISTORY_COPY } from "../history-copy";
 import { MEASURE_COPY } from "../measure-copy";
 import { ORGANIZE_COPY } from "../organize-copy";
 import { isPausedToday } from "../habit-status";
 import { PAUSE_COPY } from "../pause-copy";
+import { habitPath } from "../routes";
 import { otherLoggableDays } from "../schedule";
 import { useHabitsScreen } from "./habits-screen";
 import { preloadPause } from "./use-pause-flow";
@@ -101,6 +105,7 @@ export function HabitOptionsSheet({
   }
 
   const helpId = `${ids}-delete-help`;
+  const pageHelpId = `${ids}-page-help`;
   const archiveHelpId = `${ids}-archive-help`;
   const adjustHelpId = `${ids}-adjust-help`;
   const otherDayHelpId = `${ids}-other-day-help`;
@@ -120,6 +125,19 @@ export function HabitOptionsSheet({
       focusTitleOnOpen
     >
       <div className="flex flex-col gap-6">
+        {/* H5: the habit's page (its calendar, streaks and pauses). */}
+        <div className="flex flex-col items-start gap-2">
+          <Key asChild variant="ghost">
+            <Link href={habitPath(habit.id)} aria-describedby={pageHelpId} data-habit-page-link="">
+              <Icon icon={CalendarDays} />
+              {HISTORY_COPY.openPage}
+            </Link>
+          </Key>
+          <p id={pageHelpId} className="bo-text-body-sm text-text-secondary">
+            {HISTORY_COPY.openPageHelp}
+          </p>
+        </div>
+
         {/* H2: Editar (opens the form once this sheet is gone) and Archivar. */}
         {onEdit || onArchive ? (
           <div className="flex flex-col items-start gap-2">

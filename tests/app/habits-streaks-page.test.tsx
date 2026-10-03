@@ -70,6 +70,8 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
     pause: null,
     recentLogs: [],
     recentPaused: [],
+    identity: null,
+    cue: null,
     ...values,
   };
 }

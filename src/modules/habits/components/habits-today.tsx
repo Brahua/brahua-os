@@ -24,7 +24,7 @@ import { streakMilestone } from "../streak-notice";
 import { weekProgress } from "../week-progress";
 import { HabitOrderContext, PlainHabitOrder, type HabitOrderListProps } from "./habit-order-rows";
 import { HabitPad, habitPadSelector } from "./habit-pad";
-import { ArchivedHabits, FoldedSection, reactivateSelector } from "./habit-sections";
+import { FoldedSection } from "./habit-sections";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 import { PausedHabits, resumeSelector } from "./paused-habits";
 import { usePauseFlow, type TrackFocus } from "./use-pause-flow";
@@ -66,8 +66,8 @@ const isShown = (element: HTMLElement) => element.closest("[hidden]") === null;
 type HabitsTodayProps = {
   /** The active habits with today's log, in their manual order. */
   habits: HabitItem[];
-  /** H2: the archived habits ("Archivados", with "Reactivar"). */
-  archived?: HabitItem[];
+  /** H5: the view switch ("Hoy · Semana"), under the header. */
+  viewSwitch?: React.ReactNode;
   /** Id of the page's heading (tabIndex -1): focus goes there when nothing else is left. */
   headingId: string;
 };
@@ -79,11 +79,10 @@ type HabitsTodayProps = {
  * the day (optimistic, with "Deshacer" ⌘Z in the notice); everything goes through the screen's
  * save queue, and a refusal or a network failure rolls back with a notice.
  */
-export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayProps) {
+export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps) {
   const { today, areas, enqueue, toaster, announce, isCurrentDay } = useHabitsScreen();
   const { push } = toaster;
   const [view, apply] = useOptimistic(habits, applyHabitListChange);
-  const [archivedView, applyArchived] = useOptimistic(archived, applyHabitListChange);
   const [saving, startSaving] = useTransition();
   const reducedMotion = usePrefersReducedMotion();
   const due = dueOn(view, today);
@@ -365,83 +364,46 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
     });
   }
 
-  // ── Archive and reactivate (H2) ──
+  // ── Archive (H2) and its undo ──
+  // "Archivados" with "Reactivar" is in "Semana" (H5: `ArchivedHabitsSection`).
 
-  /**
-   * Out of "Hoy" into "Archivados" at once. `undoable`: from the options (the notice offers
-   * "Deshacer", which puts it back in its place); otherwise the undo of a "Reactivar".
-   */
-  function archive(habit: HabitItem, undoable: boolean) {
+  /** Out of "Hoy" at once, from the options; the notice offers "Deshacer" (back in its place). */
+  function archive(habit: HabitItem) {
     const index = latest.current.findIndex((item) => item.id === habit.id);
     startSaving(async () => {
       apply({ type: "remove", id: habit.id });
-      applyArchived({ type: "restore", habit, index: 0 });
       const queued = await enqueue(`habit-archive:${habit.id}`, () =>
         archiveHabit({ id: habit.id }),
       );
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
       if (!result.ok) {
-        notSaved(
-          undoable ? ORGANIZE_COPY.notArchived : HABITS_COPY.notUndone,
-          failureReason(result),
-        );
+        notSaved(ORGANIZE_COPY.notArchived, failureReason(result));
         return;
       }
-      if (undoable) {
-        push({
-          title: ORGANIZE_COPY.archivedNoticeTitle,
-          text: ORGANIZE_COPY.archivedNotice(habit.name),
-          action: { label: HABITS_COPY.undo, run: () => reactivate(habit, index) },
-        });
-      } else {
-        announce(ORGANIZE_COPY.archivedAgain(habit.name));
-      }
+      push({
+        title: ORGANIZE_COPY.archivedNoticeTitle,
+        text: ORGANIZE_COPY.archivedNotice(habit.name),
+        action: { label: HABITS_COPY.undo, run: () => putBack(habit, index) },
+      });
     });
   }
 
-  /**
-   * Back into "Hoy" at once: at the end ("Reactivar", `index` null: the notice offers
-   * "Deshacer") or at `index`, its old place (the undo of an archive, only announced).
-   */
-  function reactivate(habit: HabitItem, index: number | null) {
-    const undoable = index === null;
+  /** The undo of an archive: back into "Hoy" at once, at `index` (its old place). Announced. */
+  function putBack(habit: HabitItem, index: number) {
     startSaving(async () => {
-      applyArchived({ type: "remove", id: habit.id });
-      apply({ type: "restore", habit, index: index ?? Number.MAX_SAFE_INTEGER });
-      const position = undoable ? "end" : "original";
+      apply({ type: "restore", habit, index });
       const queued = await enqueue(`habit-archive:${habit.id}`, () =>
-        unarchiveHabit({ id: habit.id, position }),
+        unarchiveHabit({ id: habit.id, position: "original" }),
       );
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
       if (!result.ok) {
-        notSaved(
-          undoable ? ORGANIZE_COPY.notReactivated : HABITS_COPY.notUndone,
-          failureReason(result),
-        );
+        notSaved(HABITS_COPY.notUndone, failureReason(result));
         return;
       }
-      if (undoable) {
-        push({
-          title: ORGANIZE_COPY.reactivatedTitle,
-          text: ORGANIZE_COPY.reactivated(habit.name),
-          action: { label: HABITS_COPY.undo, run: () => archive(habit, false) },
-        });
-      } else {
-        announce(ORGANIZE_COPY.backInPlace(habit.name));
-      }
+      announce(ORGANIZE_COPY.backInPlace(habit.name));
     });
-  }
-
-  /** "Reactivar" in "Archivados": focus to the next archived one, else to the habit's pad. */
-  function reactivateFromList(habit: HabitItem) {
-    const index = archivedView.findIndex((item) => item.id === habit.id);
-    const neighbor = archivedView[index + 1] ?? archivedView[index - 1];
-    // The last one: the section its pad goes to ("No tocan hoy", "En pausa") opens for focus.
-    const target = neighbor ? reactivateSelector(neighbor.id) : revealSelector(habit);
-    reactivate(habit, null);
-    focusWhenReady(target);
   }
 
   // ── Manual order (H2) ──
@@ -578,7 +540,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
   function archiveFromOptions(habit: HabitItem) {
     optionsReturn.current = neighborElement(habit.id);
     setOptionsOpen(false);
-    archive(habit, true);
+    archive(habit);
   }
 
   function editFromOptions(habit: HabitItem) {
@@ -715,6 +677,9 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
         </div>
       </header>
 
+      {/* H5: "Hoy · Semana". */}
+      {viewSwitch}
+
       {isOrdering ? (
         <section aria-labelledby={`${headingId}-order`} className="flex flex-col gap-3">
           <h2 id={`${headingId}-order`} className="bo-text-title">
@@ -796,18 +761,14 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
         />
       )}
 
-      {/* H2: "Archivados (N)", folded, with "Reactivar" (H5 moves it to "Semana"). */}
-      {isOrdering ? null : (
-        <ArchivedHabits habits={archivedView} onReactivate={reactivateFromList} />
-      )}
-
       {formOpening > 0 ? (
         <HabitFormSheet
-          key={formOpening}
+          key={`form-${formOpening}`}
           open={formOpen}
           onOpenChange={setFormOpen}
           areas={areas}
           habit={formHabit}
+          today={today}
           returnFocusRef={formReturn}
           onCreated={onSaved}
           onClosed={afterFormClosed}
@@ -816,7 +777,7 @@ export function HabitsToday({ habits, archived = [], headingId }: HabitsTodayPro
 
       {options ? (
         <HabitOptionsSheet
-          key={options.key}
+          key={`options-${options.key}`}
           open={optionsOpen}
           onOpenChange={setOptionsOpen}
           habit={options.habit}
