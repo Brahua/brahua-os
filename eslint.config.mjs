@@ -63,27 +63,43 @@ const PROJECTS_IMPORT = {
   message: "`projects` depende de `core`: core no puede importarlo (usa un contrato registrado).",
 };
 // `habits` depends on `core` only (SPEC-habits "Límites entre módulos"); none of the others
-// imports it (`today` will, from H6 on).
+// imports it but `today`.
 const HABITS_IMPORT = {
   group: ["@/modules/habits", "@/modules/habits/*"],
   message:
     "`habits` depende de `core`: core, projects y tasks no pueden importarlo (usa un contrato registrado).",
 };
+// `today` is a leaf (SPEC-today "Contratos"): it reads the others' contracts and nobody imports
+// it. Only the home page (src/app) and the registry (src/lib/modules.ts) do.
+const TODAY_IMPORT = {
+  group: ["@/modules/today", "@/modules/today/*"],
+  message:
+    "`today` es una hoja: ningún módulo lo importa (expón un contrato en tu módulo y que `today` lo lea).",
+};
 const moduleBoundaries = [
   {
+    files: ["src/modules/habits/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { patterns: [TODAY_IMPORT] }] },
+  },
+  {
     files: ["src/modules/tasks/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [HABITS_IMPORT] }] },
+    rules: { "no-restricted-imports": ["error", { patterns: [HABITS_IMPORT, TODAY_IMPORT] }] },
   },
   {
     files: ["src/modules/projects/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT, HABITS_IMPORT] }] },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [TASKS_IMPORT, HABITS_IMPORT, TODAY_IMPORT] },
+      ],
+    },
   },
   {
     files: ["src/modules/core/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [TASKS_IMPORT, PROJECTS_IMPORT, HABITS_IMPORT] },
+        { patterns: [TASKS_IMPORT, PROJECTS_IMPORT, HABITS_IMPORT, TODAY_IMPORT] },
       ],
     },
   },

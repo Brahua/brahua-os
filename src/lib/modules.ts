@@ -6,10 +6,11 @@
 // Component that imports this registry, so a manifest must never import server-only code
 // (database, auth, `server-only` modules) or it ends up in the browser bundle.
 import type { LucideIcon } from "lucide-react";
-import { areasModule, homeModule, settingsModule } from "@/modules/core/module";
+import { areasModule, settingsModule } from "@/modules/core/module";
 import { habitsModule } from "@/modules/habits/module";
 import { projectsModule } from "@/modules/projects/module";
 import { tasksModule } from "@/modules/tasks/module";
+import { todayModule } from "@/modules/today/module";
 
 /** Number keys 1–8 (SPEC-design-system "Atajos de teclado"). */
 export type NavShortcutKey = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -45,7 +46,7 @@ export type ModuleManifest = {
 
 /** Every module the app knows about, available or planned. Order does not matter here. */
 export const MODULES: readonly ModuleManifest[] = [
-  homeModule,
+  todayModule,
   projectsModule,
   tasksModule,
   habitsModule,
