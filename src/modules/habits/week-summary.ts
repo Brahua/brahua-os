@@ -155,3 +155,39 @@ export function dayDots(
   }
   return { total, done: 0, complete: false };
 }
+
+/** H6: one habit's week for `weekly-review` (`getHabitsWeekSummary`): only its compliance. */
+export type HabitWeekSummaryItem = {
+  id: string;
+  name: string;
+  area: { id: string; name: string; color: HabitAreaSummary["color"] } | null;
+  /** "5 de 7", "2 de 3" (`weekCompliance`, the same rule as "Semana"). */
+  compliance: Compliance;
+};
+
+/** H6: a week's compliance for `weekly-review`: each habit's and the total ("18 de 24"). */
+export type HabitsWeekSummary = {
+  /** The Monday of the week summarized. */
+  weekStart: string;
+  /** The active habits that had started by its Sunday, in their manual order. */
+  habits: HabitWeekSummaryItem[];
+  /** The habits' compliance summed (`weekTotal`). */
+  total: Compliance;
+};
+
+/** H6: the summary of a week's rows ("Semana" builds the same rows: `habitWeekRow`). */
+export function buildHabitsWeekSummary(
+  monday: string,
+  rows: readonly HabitWeekRow[],
+): HabitsWeekSummary {
+  return {
+    weekStart: monday,
+    habits: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      area: row.area ? { id: row.area.id, name: row.area.name, color: row.area.color } : null,
+      compliance: row.compliance,
+    })),
+    total: weekTotal(rows),
+  };
+}

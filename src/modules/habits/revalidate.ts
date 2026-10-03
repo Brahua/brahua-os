@@ -3,10 +3,14 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { HABITS_PATH } from "./routes";
 
+/** The home page ("Hoy"): the `today` module shows the habits due today there (H6). */
+const HOME_PATH = "/";
+
 /**
- * Every page under /habits ("Hoy", and from H5 on "Semana" and each habit's page): a single
- * user's pages are cheap to render again. H6 adds the home page (`today`) here.
+ * Every page under /habits ("Hoy", "Semana" and each habit's page) and the home page, where
+ * `today` shows the habits due today (H6): a single user's pages are cheap to render again.
  */
 export function revalidateHabitScreens() {
   revalidatePath(HABITS_PATH, "layout");
+  revalidatePath(HOME_PATH);
 }

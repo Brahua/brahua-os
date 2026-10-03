@@ -35,6 +35,8 @@ vi.mock("@/lib/db", async (importOriginal) => ({
 
 const ORIGINAL_ENV = { ...process.env };
 const MISSING = "00000000-0000-4000-8000-000000000000";
+/** What every habits action revalidates: all of /habits and (H6) the home page, `today`. */
+const HABIT_SCREENS = [["/habits", "layout"], ["/"]];
 /** The actions log Lima's today by the real clock: so do the tests. */
 const today = () => ownerDateKey(new Date());
 
@@ -120,8 +122,9 @@ describe("create", () => {
       });
     }
     expect(await testDb.$count(habits)).toBe(1);
-    // Refused or not, the page is revalidated (its areas were out of date).
-    expect(revalidatePath).toHaveBeenCalledTimes(3);
+    // Refused or not, the pages are revalidated (their areas were out of date): /habits and,
+    // H6, the home page (`today`) each time.
+    expect(revalidatePath).toHaveBeenCalledTimes(3 * HABIT_SCREENS.length);
   });
 
   test("invalid input writes nothing", async () => {
@@ -171,7 +174,7 @@ describe("log a yes/no day (setHabitDone)", () => {
       ok: true,
       data: { id: habit.id, quantity: 1, target: 1, hasLogs: true },
     });
-    expect(revalidatePath).toHaveBeenLastCalledWith("/habits", "layout");
+    expect(vi.mocked(revalidatePath).mock.calls.slice(-2)).toEqual(HABIT_SCREENS);
     expect(await setHabitDone({ id: habit.id, day, done: true })).toMatchObject({
       ok: true,
       data: { quantity: 1 },
@@ -313,7 +316,7 @@ describe("soft delete and undo", () => {
       ok: true,
       data: { id: habit.id, name: "Meditar" },
     });
-    expect(revalidatePath).toHaveBeenLastCalledWith("/habits", "layout");
+    expect(vi.mocked(revalidatePath).mock.calls.slice(-2)).toEqual(HABIT_SCREENS);
     expect((await row(habit.id)).deletedAt).not.toBeNull();
     expect((await listActiveHabits(new Date())).map((item) => item.id)).toEqual([other.id]);
     expect(await selectHabitItemById(testDb, habit.id, today())).toBeNull();
