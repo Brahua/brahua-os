@@ -105,3 +105,19 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   checkpoint walkthrough with Claude in Chrome (prefix data with `[QA]`, delete it after, restore theme,
   window size and sidebar). Use element refs, not coordinates, and wait after scrolling: clicks during a
   smooth scroll or before hydration are lost. Never type with no field focused (keys hit app shortcuts).
+
+## Lessons from `habits` (retrospective, 2026-10-02)
+
+- **Check the GitHub identity, not the status line:** `gh auth status` can say "Brahua" while the token is
+  `jbrahua`. Before merges or admin calls run `gh api user -q .login`; fix with
+  `env -u GH_TOKEN gh auth switch -h github.com -u Brahua`.
+- **Ruleset and bot commits:** after `update-screenshots.yml`, the PR's own run stays at `action_required`;
+  approve it while waiting, or `gh run rerun <id>` once it has completed. Only that run satisfies the ruleset.
+- **Parallel slices:** the second agent finishes locally and waits for the first PR to merge before it
+  rebases and pushes once; the first agent leaves rebase notes (renamed exports, new fields) in its report.
+- **Agents stall when the laptop sleeps:** they keep their worktree; resume them with `SendMessage` and
+  record in-flight work (worktree, branch, next step) before the owner closes the laptop.
+- **Disk:** remove finished worktrees right after merging; several agents with `.next` and `.pgdata` fill it.
+- **Shortcuts registered in effects:** a key handler for something that appears after a Server Action must
+  be registered in `useLayoutEffect` (or earlier); with `useEffect` a fast key press is lost (it was the
+  real cause of the `areas-order` flake, #65).
