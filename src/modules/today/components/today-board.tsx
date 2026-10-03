@@ -5,9 +5,11 @@ import { ScreenServicesProvider } from "@/modules/core/components/screen-service
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { HABITS_PATH } from "@/modules/habits/routes";
 import { TASKS_PATH } from "@/modules/tasks/routes";
-import { todaySections } from "../today-board";
+import { habitsTally, isDayComplete, todaySections, type DayTally } from "../today-board";
 import { TODAY_COPY } from "../today-copy";
+import { DayComplete } from "./day-complete";
 import { TodayHabits } from "./today-habits";
+import { TodayProgressProvider } from "./today-progress";
 
 /**
  * A section another slice fills (D2 "Tareas", D3 "Proyectos"): how many items it has today and
@@ -31,16 +33,27 @@ export type TodaySlot = {
   content: React.ReactNode;
 };
 
+/**
+ * Slot D4, "Día completo": what the board can't read from the other slots. The block itself
+ * (`DayComplete`) is the board's: it follows the sections' live progress
+ * (`TodayProgressProvider`), so it shows the moment the last thing is done.
+ */
+export type DayCompleteSlot = {
+  /** `getTasksDoneTodayCount(now)`: tasks completed today (Lima), whatever their due date. */
+  tasksDoneToday: number;
+};
+
 export type TodayBoardProps = {
   /** The Lima day the page was read for (YYYY-MM-DD). */
   today: string;
   /** `getHabitsDueToday(now)`: the "Hábitos" section (D1). */
   habits: HabitItem[];
   /**
-   * Slot D4, "Día completo": rendered first, above the sections, when given (and then the empty
-   * day is not). D4 decides when (its pure rule in `today-board.ts`); the board only places it.
+   * Slot D4, "Día completo": when given, the block is mounted first, above the sections, and
+   * shows itself while `isDayComplete` (live). Complete by the server's read, the day is not
+   * empty (they never show together).
    */
-  dayComplete?: React.ReactNode;
+  dayComplete?: DayCompleteSlot;
   /** Slot D2, "Tareas": after "Hábitos". */
   tasks?: TodaySlot;
   /** Slot D3, "Proyectos": last. */
@@ -55,11 +68,16 @@ export type TodayBoardProps = {
  * empty day included). A Server Component: only the provider and the sections are client parts.
  */
 export function TodayBoard({ today, habits, dayComplete, tasks, projects }: TodayBoardProps) {
+  // The server's tally: the base of the live one (`TodayProgressProvider`).
+  const tally: DayTally = {
+    habits: habitsTally(habits, today),
+    tasks: { pending: tasks?.count ?? 0, doneToday: dayComplete?.tasksDoneToday ?? 0 },
+  };
   const sections = todaySections({
     habits: habits.length,
     tasks: tasks?.count,
     projects: projects?.count,
-    dayComplete: dayComplete != null,
+    dayComplete: dayComplete !== undefined && isDayComplete(tally),
   });
 
   return (
@@ -68,14 +86,16 @@ export function TodayBoard({ today, habits, dayComplete, tasks, projects }: Toda
       actionHint={TODAY_COPY.undoHint}
       day={{ today, changedMessage: TODAY_COPY.newDay }}
     >
-      <div className="flex flex-col gap-10" data-today-board="">
-        {dayComplete}
-        {sections.empty ? <EmptyDay /> : null}
-        {sections.habits ? <TodayHabits today={today} habits={habits} /> : null}
-        {/* Mounted whenever the slot is given, even at 0: see `TodaySlot`. */}
-        {tasks ? tasks.content : null}
-        {projects ? projects.content : null}
-      </div>
+      <TodayProgressProvider today={today} initial={tally}>
+        <div className="flex flex-col gap-10" data-today-board="">
+          {dayComplete ? <DayComplete /> : null}
+          {sections.empty ? <EmptyDay /> : null}
+          {sections.habits ? <TodayHabits today={today} habits={habits} /> : null}
+          {/* Mounted whenever the slot is given, even at 0: see `TodaySlot`. */}
+          {tasks ? tasks.content : null}
+          {projects ? projects.content : null}
+        </div>
+      </TodayProgressProvider>
     </ScreenServicesProvider>
   );
 }

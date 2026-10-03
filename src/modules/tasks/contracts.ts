@@ -5,12 +5,16 @@
 // A pending task of a closed project (Terminado, Cancelado) stays, as in the "Hoy" view, but it
 // isn't a next action here: like the project cards (T5), a closed project's mark isn't shown.
 //
+// getTasksDoneTodayCount(now) (for `today`'s "Día completo", D4): how many visible tasks were
+// completed on Lima's day of `now`, in one query.
+//
 // (The progress source for `projects` lives in progress-source.ts, T5.)
 import "server-only";
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
+import { OWNER_TIME_ZONE } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { projects } from "@/modules/projects/db/schema";
 import { isClosed } from "@/modules/projects/project-close";
@@ -89,4 +93,32 @@ export async function selectTasksTodaySummary(
 export async function getTasksTodaySummary(now: Date): Promise<TaskTodayItem[]> {
   await requireOwner();
   return selectTasksTodaySummary(getDb(), now);
+}
+
+/**
+ * How many visible tasks were completed on Lima's day of `now` (ONE query): `done_at` read as a
+ * Lima date, so 23:59 counts for that day and 00:00 for the next. A deleted task, or one of a
+ * deleted project, never counts (`visibleTask`). Trusts its caller (see getTasksDoneTodayCount).
+ */
+export async function selectTasksDoneTodayCount(db: Database, now: Date): Promise<number> {
+  const [row] = await db
+    .select({ count: count() })
+    .from(tasks)
+    .where(
+      and(
+        visibleTask,
+        isNotNull(tasks.doneAt),
+        sql`(${tasks.doneAt} at time zone ${OWNER_TIME_ZONE})::date = ${limaToday(now)}::date`,
+      ),
+    );
+  return row?.count ?? 0;
+}
+
+/**
+ * For `today`'s "Día completo" (D4): how many tasks were completed today (Lima), whatever their
+ * due date. Checks the owner like the other queries (redirects to /login without one).
+ */
+export async function getTasksDoneTodayCount(now: Date): Promise<number> {
+  await requireOwner();
+  return selectTasksDoneTodayCount(getDb(), now);
 }

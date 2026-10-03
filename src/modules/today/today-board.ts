@@ -2,7 +2,7 @@
 // provider modules say, never decides their rules: whether a habit counts as done is `habits`'
 // `todayCount` (the same "N de M" as /habits), never a copy of it.
 import type { HabitItem } from "@/modules/habits/habit-input";
-import { todayCount } from "@/modules/habits/habit-status";
+import { dueOn, isDayDone, todayCount } from "@/modules/habits/habit-status";
 
 /**
  * Id of the board's `<h1 tabIndex={-1}>` (the greeting): where focus goes when the focused
@@ -107,4 +107,55 @@ export function applyTodayTaskChange<T extends { id: string }>(
   if (list.some((task) => task.id === change.task.id)) return [...list];
   const index = Math.min(Math.max(0, change.index), list.length);
   return [...list.slice(0, index), change.task, ...list.slice(index)];
+}
+
+// ── Día completo (D4) ──
+
+/**
+ * What "Hábitos" says about closing the day, from its (optimistic) list: the "X de N" (`done`
+ * by `habits`' `countsAsDone`, `total`) and `active`, how many were actually done today. A habit
+ * to avoid without a relapse counts as done but isn't activity (nothing was done today to keep
+ * it), and neither is a weekly habit whose week was already met (`countsAsDone` without its day
+ * done). Decision to review with the owner: the conservative reading of "hubo algo hoy".
+ */
+export type HabitsTally = { done: number; total: number; active: number };
+
+export function habitsTally(habits: readonly HabitItem[], today: string): HabitsTally {
+  const due = dueOn(habits, today);
+  return {
+    ...todayCount(habits, today),
+    active: due.filter((habit) => habit.kind !== "avoid" && isDayDone(habit)).length,
+  };
+}
+
+/** What "Tareas" says about closing the day: still to do, and completed today (Lima). */
+export type TasksTally = { pending: number; doneToday: number };
+
+/** Everything "Día completo" looks at. Projects never count toward closing the day. */
+export type DayTally = { habits: HabitsTally; tasks: TasksTally };
+
+/**
+ * "Día completo" (SPEC-today, principle 8): every habit due today counts as done (`habits`'
+ * rule), no overdue or due-today task is left, and something was done today (a habit done today
+ * or a task completed today), so an empty day is never celebrated.
+ */
+export function isDayComplete({ habits, tasks }: DayTally): boolean {
+  const habitsDone = habits.done >= habits.total;
+  const activity = habits.active > 0 || tasks.doneToday > 0;
+  return habitsDone && tasks.pending === 0 && activity;
+}
+
+/**
+ * A stable pick among `count` variants for a Lima day (YYYY-MM-DD): the same all day (no change
+ * on each render; server and client agree), different across days. A small string hash (FNV-1a),
+ * not randomness.
+ */
+export function variantForDay(day: string, count: number): number {
+  if (count <= 0) return 0;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < day.length; index += 1) {
+    hash ^= day.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash % count;
 }

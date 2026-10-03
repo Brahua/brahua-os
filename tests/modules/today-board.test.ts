@@ -6,6 +6,8 @@ import {
   applyTodayTaskChange,
   focusAfterTaskLeaves,
   habitsProgress,
+  habitsTally,
+  isDayComplete,
   taskFold,
   todaySections,
   TODAY_TASKS_VISIBLE,
@@ -13,6 +15,7 @@ import {
   type TaskFocusTarget,
   type TodayCounts,
   type TodayTaskChange,
+  variantForDay,
 } from "@/modules/today/today-board";
 
 const TODAY = "2026-10-02"; // A Friday.
@@ -169,5 +172,117 @@ describe("applyTodayTaskChange", () => {
     expect(applyTodayTaskChange(list, change).map((task) => task.id)).toEqual(ids);
     // Pure: the input list is never mutated.
     expect(list.map((task) => task.id)).toEqual(before);
+  });
+});
+
+describe("habitsTally (Día completo: the “X de N” and what was actually done today)", () => {
+  test("active: a day done today counts; a clean avoid and a week met before today don't", () => {
+    const habits = [
+      habit({ quantity: 1 }), // yes/no, done today: active
+      habit({ measure: "quantity", goal: 8, target: 8, quantity: 10 }), // past the goal: active
+      habit({ measure: "quantity", goal: 8, target: 8, quantity: 6 }), // 6/8: neither
+      habit({ kind: "avoid" }), // clean: done, not active
+      habit({ kind: "avoid", quantity: 1 }), // a relapse: neither
+      // 3 per week, already met before today: done, not active.
+      habit({ frequency: "weekly_count", weeklyTarget: 3, weekDoneBefore: 3 }),
+    ];
+    expect(habitsTally(habits, TODAY)).toEqual({ done: 4, total: 6, active: 2 });
+  });
+
+  test("not due today (another weekday, paused) counts for nothing", () => {
+    const habits = [
+      habit({ quantity: 1, frequency: "weekdays", weekdays: [1] }), // Mondays only
+      habit({ quantity: 1, pause: { id: "p", startDate: TODAY, endDate: TODAY, reason: null } }),
+    ];
+    expect(habitsTally(habits, TODAY)).toEqual({ done: 0, total: 0, active: 0 });
+  });
+});
+
+describe("isDayComplete", () => {
+  const habits = (values: { done: number; total: number; active: number }) => values;
+  const tasks = (pending: number, doneToday: number) => ({ pending, doneToday });
+
+  test.each<[string, Parameters<typeof isDayComplete>[0], boolean]>([
+    [
+      "everything done, with habits and tasks done today",
+      { habits: habits({ done: 5, total: 5, active: 5 }), tasks: tasks(0, 4) },
+      true,
+    ],
+    [
+      "everything done, only habits today",
+      { habits: habits({ done: 2, total: 2, active: 2 }), tasks: tasks(0, 0) },
+      true,
+    ],
+    [
+      "no habits today, only tasks completed",
+      { habits: habits({ done: 0, total: 0, active: 0 }), tasks: tasks(0, 1) },
+      true,
+    ],
+    [
+      "an empty day (nothing due, nothing done): never celebrated",
+      { habits: habits({ done: 0, total: 0, active: 0 }), tasks: tasks(0, 0) },
+      false,
+    ],
+    [
+      "a habit pending",
+      { habits: habits({ done: 2, total: 3, active: 2 }), tasks: tasks(0, 4) },
+      false,
+    ],
+    [
+      "a task pending (overdue or due today)",
+      { habits: habits({ done: 3, total: 3, active: 3 }), tasks: tasks(1, 4) },
+      false,
+    ],
+    [
+      "only projects on the board (they never count): nothing done, not complete",
+      { habits: habits({ done: 0, total: 0, active: 0 }), tasks: tasks(0, 0) },
+      false,
+    ],
+    [
+      "only habits to avoid, all clean, nothing else done: not complete (no activity)",
+      { habits: habits({ done: 2, total: 2, active: 0 }), tasks: tasks(0, 0) },
+      false,
+    ],
+    [
+      "habits to avoid clean and a task completed today: complete",
+      { habits: habits({ done: 2, total: 2, active: 0 }), tasks: tasks(0, 1) },
+      true,
+    ],
+  ])("%s", (_, tally, expected) => {
+    expect(isDayComplete(tally)).toBe(expected);
+  });
+
+  test("from real habits: a clean avoid alone isn't activity; a done one is", () => {
+    const avoid = habit({ kind: "avoid" });
+    expect(isDayComplete({ habits: habitsTally([avoid], TODAY), tasks: tasks(0, 0) })).toBe(false);
+    // Positive control: the same day with a yes/no habit done today.
+    const done = habit({ quantity: 1 });
+    expect(isDayComplete({ habits: habitsTally([avoid, done], TODAY), tasks: tasks(0, 0) })).toBe(
+      true,
+    );
+  });
+});
+
+describe("variantForDay (the closing line: stable all day, varied across days)", () => {
+  test("the same day always picks the same variant, within range", () => {
+    for (const day of ["2026-10-02", "2026-12-31", "2027-01-01"]) {
+      const pick = variantForDay(day, 6);
+      expect(pick).toBe(variantForDay(day, 6));
+      expect(pick).toBeGreaterThanOrEqual(0);
+      expect(pick).toBeLessThan(6);
+    }
+  });
+
+  test("a month of days uses several variants", () => {
+    const picks = new Set(
+      Array.from({ length: 30 }, (_, index) =>
+        variantForDay(`2026-10-${String(index + 1).padStart(2, "0")}`, 6),
+      ),
+    );
+    expect(picks.size).toBeGreaterThan(3);
+  });
+
+  test("no variants: 0", () => {
+    expect(variantForDay("2026-10-02", 0)).toBe(0);
   });
 });

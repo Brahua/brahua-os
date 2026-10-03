@@ -16,6 +16,7 @@ import {
   type TodayTaskChange,
 } from "../today-board";
 import { TODAY_COPY } from "../today-copy";
+import { useReportTasks } from "./today-progress";
 
 /** Id of the section's heading (tabIndex -1): focus lands there if its target is gone. */
 export const TODAY_TASKS_HEADING_ID = "today-tasks-title";
@@ -51,6 +52,9 @@ export function TodayTasks({ tasks }: TodayTasksProps) {
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
   const fold = taskFold(view.length, expanded);
+  // "Día completo" (D4) follows this optimistic list (today-progress.tsx): what is still pending,
+  // and the completions (or undos) the server's read doesn't have yet.
+  useReportTasks({ pending: view.length, doneDelta: tasks.length - view.length });
 
   // ── Focus when a row leaves (after the commit that removed it) ──
   const pendingFocus = useRef<string | null>(null);

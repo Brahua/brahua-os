@@ -5,6 +5,7 @@ import { createDb } from "@/lib/db";
 import { projectMilestones } from "@/modules/projects/db/schema";
 import { tasks } from "@/modules/tasks/db/schema";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
+import { requireTodayTasksTag } from "./today-tasks";
 
 type NewProjectTask = {
   title: string;
@@ -14,11 +15,15 @@ type NewProjectTask = {
   next?: boolean;
 };
 
-/** Tasks of a project of the calling test, straight in the database. Returns their ids. */
+/**
+ * Tasks of a project of the calling test, straight in the database. Returns their ids. A done one
+ * is done today: the test needs `@today-tasks` (a board test would park it, see today-tasks.ts).
+ */
 export async function insertProjectTasks(
   projectId: string,
   list: readonly NewProjectTask[],
 ): Promise<string[]> {
+  for (const task of list) requireTodayTasksTag({ done: task.done });
   const db = createDb(testDatabaseUrl());
   try {
     const milestones = await db

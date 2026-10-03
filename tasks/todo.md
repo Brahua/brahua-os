@@ -21,6 +21,7 @@
 
 - [ ] **D4: Día completo** — `getTasksDoneTodayCount(now)` en `tasks` (con integración, borde de medianoche de Lima); regla pura en `today-board.ts` (con actividad hoy); bloque con mensajes variados, fundido (nada con movimiento reducido) y anuncio único.
   - Verificar: tablas de casos; E2E terminar lo último pendiente muestra el bloque; un día vacío no.
+  - Hecho en `feat/today-d4-day-complete` (PR sin merge). Ver "Cómo funciona today" → "D4" en `docs/HANDOFF.md`.
 
 ### Checkpoint final
 - [ ] Recorrido completo en producción con el Chrome personal del owner (datos `[QA]` borrados después) y revisión en el iPhone.

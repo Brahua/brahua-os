@@ -144,15 +144,18 @@ describe("sections and the empty day", () => {
     render(
       <TodayBoard
         today={TODAY}
-        habits={[MEDITAR]}
-        dayComplete={<p data-slot="day-complete">Día completo</p>}
-        tasks={{ count: 2, content: <section data-slot="tasks">Tareas</section> }}
+        habits={[LEER]}
+        dayComplete={{ tasksDoneToday: 1 }}
+        tasks={{ count: 0, content: <section data-slot="tasks">Tareas</section> }}
         projects={{ count: 1, content: <section data-slot="projects">Proyectos</section> }}
       />,
     );
     const board = document.querySelector("[data-today-board]")!;
     const order = [...board.children].map(
-      (child) => child.getAttribute("data-slot") ?? child.getAttribute("data-today-section"),
+      (child) =>
+        child.getAttribute("data-slot") ??
+        child.getAttribute("data-today-section") ??
+        (child.hasAttribute("data-today-complete") ? "day-complete" : null),
     );
     expect(order).toEqual(["day-complete", "habits", "tasks", "projects"]);
   });
@@ -162,16 +165,19 @@ describe("sections and the empty day", () => {
       <TodayBoard
         today={TODAY}
         habits={[]}
-        dayComplete={<p data-slot="day-complete">Día completo</p>}
+        dayComplete={{ tasksDoneToday: 2 }}
         tasks={{ count: 0, content: <section data-slot="tasks">Tareas</section> }}
       />,
     );
     const board = document.querySelector("[data-today-board]")!;
     // The slot stays mounted at 0 (its section hides itself without rows: TodaySlot).
-    expect([...board.children].map((child) => child.getAttribute("data-slot"))).toEqual([
-      "day-complete",
-      "tasks",
-    ]);
+    expect(
+      [...board.children].map(
+        (child) =>
+          child.getAttribute("data-slot") ??
+          (child.hasAttribute("data-today-complete") ? "day-complete" : null),
+      ),
+    ).toEqual(["day-complete", "tasks"]);
     expect(
       screen.queryByRole("region", { name: "Nada programado para hoy" }),
     ).not.toBeInTheDocument();

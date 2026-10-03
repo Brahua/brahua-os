@@ -12,8 +12,9 @@ import type { HabitItem } from "@/modules/habits/habit-input";
 import { applyHabitListChange } from "@/modules/habits/habit-list-optimistic";
 import { HABITS_COPY } from "@/modules/habits/habits-copy";
 import { HABITS_PATH } from "@/modules/habits/routes";
-import { habitsProgress } from "../today-board";
+import { habitsTally } from "../today-board";
 import { TODAY_COPY } from "../today-copy";
+import { useReportHabits } from "./today-progress";
 
 /** Id of the section's heading (tabIndex -1): focus lands there if its target left. */
 export const TODAY_HABITS_HEADING_ID = "today-habits-title";
@@ -49,7 +50,9 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
   const { today, toaster } = useHabitsScreen();
   const [view, apply] = useOptimistic(habits, applyHabitListChange);
   const [saving, startSaving] = useTransition();
-  const count = habitsProgress(view, today);
+  const count = habitsTally(view, today);
+  // "Día completo" (D4) follows this optimistic list, not a copy of it (today-progress.tsx).
+  useReportHabits(count);
 
   function notSaved(text: string, reason: string) {
     toaster.push({ title: HABITS_COPY.notSavedTitle, text: `${text} ${reason}`, tone: "error" });
