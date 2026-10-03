@@ -53,7 +53,8 @@
   - ✅ H2 (frecuencias y agenda): PR #63 integrado. Ver "Cómo funciona habits" → "H2", con lo que H3 debe mirar al rebasar y las **decisiones para revisar con el owner**.
   - ✅ H3 (cantidad, varias veces al día y a evitar): PR #64 integrado. Ver "Cómo funciona habits" → "H3", con sus **decisiones para revisar con el owner**.
   - ✅ H4 (rachas y pausas): PR #66 integrado. Ver "Cómo funciona habits" → "H4", con los puntos de extensión para H5 y sus **decisiones para revisar con el owner**.
-  - H5 (historial: Semana, página del hábito, "Más detalles"): PR de `feat/habits-h5-history`, **sin merge**. Ver "Cómo funciona habits" → "H5", con lo que H6 puede reusar y sus **decisiones para revisar con el owner**.
+  - ✅ H5 (historial: Semana, página del hábito, "Más detalles"): PR #67 integrado. Ver "Cómo funciona habits" → "H5", con sus **decisiones para revisar con el owner**.
+  - H6, parte del contrato (`getHabitsTodaySummary`, `getHabitsWeekSummary`, registrar desde otra pantalla): PR de `feat/habits-h6-today-contract`, **sin merge**. Ver "Cómo funciona habits" → "H6", con sus **decisiones para revisar con el owner**. La navegación definitiva espera el diseño del owner en Claude Design (backlog técnico).
   - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4.
   - ✅ T3 (recurrencia): PR #52 integrado. Ver "Cómo funciona tasks" → "T3: recurrencia".
   - ✅ T2 (vistas y detalle): PR #53 integrado. Ver "Cómo funciona tasks" → "T2: vistas y detalle".
@@ -602,7 +603,7 @@ Solo la parte del contrato. **La navegación definitiva de T6 sigue pendiente**:
 
 ## Cómo funciona habits
 
-Estado: H1 (PR #62), H2 (PR #63), H3 (PR #64) y H4 (PR #66) integrados. H5 (historial) en PR (ver "H5").
+Estado: H1 (PR #62), H2 (PR #63), H3 (PR #64), H4 (PR #66) y H5 (PR #67) integrados. H6 (contrato con `today`) en PR (ver "H6").
 
 ### H1: datos, crear y registrar con un toque
 
@@ -778,6 +779,31 @@ Estado: H1 (PR #62), H2 (PR #63), H3 (PR #64) y H4 (PR #66) integrados. H5 (hist
   - El cumplimiento del mes en "X por semana" no topa los días por semana (7 días hechos en una semana cuentan 7).
   - En el celular, los días del calendario miden ~39 px de ancho a 320 px (cumple 2.5.8 AA; la meta de 44 px del principio 14 se logra desde ~360 px).
   - "Archivados" en "Semana" sigue leyendo cada archivado como `HabitItem` completo (con su historial), heredado de H2: barato con pocos; si crece, una consulta más liviana (anotado en el backlog técnico).
+
+### H6: contrato con `today`
+
+Solo la parte del contrato (como T6). **La navegación definitiva sigue pendiente**: espera el diseño del owner en Claude Design; la navegación provisional de H1 no cambió (backlog técnico de `tasks/todo.md`). Sin migración.
+
+- **`today-summary.ts`** (puro, apto para el cliente): `HabitTodayItem` (`id`, `name`, `area` —`{ id, name, color }` o `null`—, `kind`, `measure`, `goal`, `unit`, `step`, `quantity` de hoy, `done`, `week` —`{ done, quota }` solo en "X por semana"— y `streak` —`{ count, unit: "days" | "weeks" }`—), `habitsDueToday(hábitos, now)` y `buildHabitsTodaySummary(hábitos, now)` (se quedan con los que `dueOn` da para el día de Lima de `now`: programados hoy —diarios, "X por semana" todos los días aunque la semana ya se cumplió, días fijos solo los suyos, nunca antes de `start_date`— y sin pausa hoy; conserva el orden recibido) y `habitTodayItem(hábito)`. **Todas las reglas son las de la pantalla**: `done` = `countsAsDone` (día cumplido con el `target` del día, o la semana cumplida; en "a evitar", sin recaída hoy), `week` = `weekProgress` (con la cuota proporcional de H4; hoy suma si está cumplido), `streak` = `shownStreak(streakChoice, isDayDone)`, la misma racha que el pad. Así `today` y `/habits` nunca discrepan.
+- **`contracts.ts`** (`server-only`):
+  - `selectHabitsTodaySummary(db, now)` / `getHabitsTodaySummary(now)` (con `requireOwner()`: sin owner redirige a `/login`): `selectItems` de `habits.ts` con `activeHabit` y `start_date <= hoy` → **3 consultas** con cualquier cantidad de hábitos (hábitos con el registro de hoy, registros para las rachas, pausas; 1 sin hábitos), todas con `visibleHabit`/`ofVisibleHabit`.
+  - `selectHabitsDueToday(db, now)` / `getHabitsDueToday(now)` (con `requireOwner()`): **los mismos hábitos** como `HabitItem` completos, lo que piden `HabitPad`, `useDayLog` y `useQuantityLog` (las mismas 3 consultas; el resumen se arma desde aquí). Un tablero con pads lee este en vez del resumen (una lectura, no dos).
+  - `selectHabitsWeekSummary(db, weekStart, now)` / `getHabitsWeekSummary(weekStart, now = new Date())` (para `weekly-review`, con `requireOwner()`): `selectHabitsWeek` de H5 (**3 consultas**, las mismas filas y reglas que "Semana") → `HabitsWeekSummary` (`weekStart` —el lunes—, `habits: { id, name, area, compliance: { done, expected } }[]` en el orden manual y `total`, el "18 de 24" de `weekTotal`). Tipos y `buildHabitsWeekSummary` en `week-summary.ts` (puro).
+- **Registrar desde `today`** (`components/use-day-log.tsx`, nuevo): el toque de un pad sí/no (y la recaída) salió de `HabitsToday` a un hook, `useDayLog({ view, apply, startSaving, notSaved })` → `{ toggle }`, con la misma forma que `useQuantityLog` de H3 (→ `add`). `HabitsToday` lo usa sin cambios de comportamiento. Una pantalla de otro módulo arma su tablero así: `ScreenServicesProvider` (o su propio proveedor de `ScreenServicesContext`) → `HabitsScreenWithin today areas` → su `useOptimistic(lista, applyHabitListChange)` + `useDayLog` + `useQuantityLog` + `<HabitPad habit onToggle={toggle} onAdd={add} />`. La cola, los avisos (con "Deshacer") y el anunciador son los del anfitrión (un solo visor de avisos por pantalla); `HabitsScreenWithin` fuera de un anfitrión lanza un error. Los pads necesitan `HabitItem` (no el DTO): `today` los lee con `getHabitsDueToday(now)`; `areas` de `HabitsScreenWithin` solo alimenta el formulario de crear, que un pad nunca abre (`[]` sirve). Enlaza con `habitPath(id)`.
+- **Revalidación:** `revalidateHabitScreens()` revalida también la portada (`/`), donde vivirá `today`: un registro desde `/habits` o desde `today` refresca ambas.
+- **Límites:** la regla de `eslint.config.mjs` ya cubría `@/modules/habits/*`; `tests/lint/module-boundaries-rule.test.ts` ahora prueba también que `core`, `projects` y `tasks` no pueden importar `@/modules/habits/contracts` (y que la portada sí).
+- **Pruebas (H6):** unitarias `tests/modules/habits-today-summary.test.ts` (quiénes entran y en qué orden: diario, semanal también cumplido, días fijos de hoy, a evitar; antes del inicio y en pausa hoy fuera, con control positivo; medianoche de Lima a las 23:59:59 y a las 00:00; la forma del DTO; `done` por tipo y frecuencia, con `target` del día y cuota proporcional; la racha mostrada; el resumen de la semana) y `tests/app/habits-today-host.test.tsx` (un tablero dentro de un anfitrión con `ScreenServicesProvider`: toque sí/no y de cantidad por la cola del anfitrión, aviso en su visor con "Deshacer", anuncio por su anunciador, vuelta atrás con `waitFor` ante un rechazo, sin visor propio; fuera de un anfitrión, error). Integración `tests/integration/habits-today-summary.test.ts` (quiénes entran: archivado, eliminado, en pausa, de otro día y antes del inicio fuera, cada uno con control positivo; orden por `sort_order`; medianoche de Lima; el DTO completo de cada tipo con rachas en días y semanas; semana cumplida; pausa en medio sin romper la racha; **3 consultas con 10 hábitos** y 1 sin hábitos; resumen de la semana: cumplimiento y total, semana en curso hasta hoy, semana futura o anterior a todo inicio vacía con control positivo, día mal formado rechazado sin consultas, 3 consultas con 10 hábitos; sin sesión / cookie falsa / otro usuario → `/login` en los dos, con control positivo del owner).
+- **Decisiones para revisar con el owner** (H6, opción conservadora):
+  - Los hábitos **a evitar** entran siempre (son diarios), con `done: true` mientras no haya recaída hoy.
+  - El resumen no separa pendientes y hechos ni pone tope: `today` decide (como pide la spec). El orden es el manual de `/habits`.
+  - `area` lleva solo `{ id, name, color }` (la spec), sin ícono ni `slug`: si `today` quiere el ícono del área (no solo color, principio de accesibilidad), se agrega al DTO sin romper nada.
+  - `streak` es la racha que muestra el pad (cuenta hoy si está cumplido; si no, la de ayer sin romperla); la mejor racha no va (es de la página del hábito).
+  - Sin `href` en el DTO: `today` usa `habitPath(id)`, como en tareas.
+  - `getHabitsWeekSummary` recibe cualquier día de la semana (devuelve su lunes en `weekStart`) y un `now` opcional (para las pruebas y para cerrar una semana en curso). Una semana futura, o anterior al inicio de todos los hábitos activos, devuelve un resumen **vacío** de esa semana (nunca los números de otra, como hace "Semana" con `?semana=`); un día mal formado lanza `RangeError` (error de programación, sin consultas). Por hábito solo lleva id, nombre, área y cumplimiento (lo mínimo para `weekly-review`; los días quedan en "Semana").
+  - Para registrar desde `today`, el tablero lee `HabitItem` con `getHabitsDueToday` (revisión: el DTO solo no alcanza para un pad) en vez de que el DTO traiga todo lo que necesita el pad: el DTO se queda chico y el pad usa las mismas reglas optimistas que `/habits`.
+  - `getHabitsWeekSummary` de una semana pasada usa los hábitos activos **de hoy** (como "Semana"): uno archivado o eliminado después sale también de las semanas pasadas y el total cambia. Si `weekly-review` necesita la historia fija, lo define su spec (p. ej. guardar el resumen al cerrar la semana).
+  - Una semana futura devuelve el resumen vacío sin consultar la base.
+  - `revalidateHabitScreens()` revalida la portada aunque hoy todavía no muestre hábitos (es barato y queda listo para `today`).
 
 ## Pruebas E2E
 

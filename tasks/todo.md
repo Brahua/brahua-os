@@ -16,8 +16,8 @@
 ## Fase 3 — Rachas e historial
 
 - [x] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(PR #66 integrado; ver HANDOFF → "Cómo funciona habits" → "H4".)*
-- [ ] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados"; "Más detalles" (identidad, momento, fecha de inicio). *(En PR, rama `feat/habits-h5-history`; ver HANDOFF → "Cómo funciona habits" → "H5", con lo que H6 puede reusar.)*
-- [ ] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño.
+- [x] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados"; "Más detalles" (identidad, momento, fecha de inicio). *(PR #67 integrado; ver HANDOFF → "Cómo funciona habits" → "H5".)*
+- [x] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño. *(Contrato hecho en la rama `feat/habits-h6-today-contract`, con `getHabitsWeekSummary` para `weekly-review` y el hook `useDayLog`; ver HANDOFF → "Cómo funciona habits" → "H6". **La navegación definitiva sigue esperando el diseño del owner en Claude Design**: queda la provisional de H1, anotada en el backlog técnico.)*
 
 ### Checkpoint final
 - [ ] Recorrido completo en producción (agente con el Chrome del owner) y el iPhone (owner).
@@ -37,3 +37,4 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Hitos en proyectos cerrados** (del Checkpoint final de `tasks`): en un proyecto Terminado o Cancelado la sección Tareas no deja agregar, pero Hitos sí deja crear y reordenar. Decidir con el owner si se bloquea también.
 - [ ] **"Archivados" más liviano** (de H5): la sección en "Semana" lee cada hábito archivado como `HabitItem` (con todos sus registros marcados para las rachas) aunque solo muestra nombre, área y "Reactivar". Con muchos archivados, una consulta propia (id, nombre, área).
 - [ ] **Navegación definitiva de Tareas** (T6): espera el diseño del owner en Claude Design; hoy es provisional (atajo 3, barra inferior después de la tecla de captura).
+- [ ] **Navegación definitiva de Hábitos** (H6): espera el diseño del owner en Claude Design, como la de Tareas; hoy es la provisional de H1 (atajo 4, la celda después de la tecla de captura en la barra inferior, Tareas en "Más").
