@@ -912,6 +912,29 @@ Solo la parte del contrato (como T6). **La navegación definitiva sigue pendient
 - **Para el Checkpoint (iPhone, con el owner):** al marcar el último hábito, el bloque aparece **arriba** del tablero y empuja la grilla de pads hacia abajo bajo el dedo (un segundo toque rápido puede caer en otro pad). Verificarlo en el iPhone; si molesta, opciones: reservar el alto, o mostrarlo sin empujar (p. ej. aparecer solo al volver a la página).
   - **Frases:** 6 propias, tranquilas y sin culpa ni presión para mañana ("Hiciste lo que tocaba hoy. Lo demás puede esperar.", "Todo listo por hoy. Buen trabajo.", …), en `TODAY_COPY.dayCompleteMessages`. Ícono `CheckCheck` en gris (no naranja: no es una acción). Fundido de 600 ms (hasta 800 ms para celebraciones, `docs/principios-ux.md`), solo al aparecer en vivo.
 
+## Datos de demo
+
+`scripts/demo-data.ts` carga datos realistas para ver todas las pantallas con contenido: 7 proyectos (uno terminado, uno pausado, "Viaje a Europa 2027" bloqueado por "Renovar pasaporte"), 21 hitos, 4 enlaces, 27 tareas (4 en la bandeja, 2 retrasadas, 6 para hoy, 5 en la semana, 4 sin fecha, 6 hechas en días pasados y **ninguna hoy**; 2 recurrentes; etiquetas `casa`, `compras`, `trámites`, `estudio`) y 8 hábitos con ~4 semanas de registros (rachas creíbles, una pausa "Viaje", "Meditar" ya hecho hoy y el resto pendiente). Las fechas se calculan desde el día de Lima en que se corre, así que la portada siempre tiene algo "de hoy". Usa las áreas del seed por slug y nunca toca `core` (áreas, ajustes, cuenta y passkeys).
+
+**El owner lo corre en su propia terminal** (el agente nunca ve la URL). Las tres piden escribir el host de la base remota para confirmar, no corren contra una remota sin `ALLOW_PROD_DB=1` (`VERCEL=1` no cuenta) y nunca imprimen la URL, secretos ni mensajes de Postgres:
+
+```bash
+# Insertar (idempotente: ids fijos UUID v5; correrlo otra vez no duplica nada)
+DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo
+
+# Quitar solo los datos de demo (y lo que cuelga de ellos)
+DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo:remove
+
+# DESTRUCTIVO: borrar TODOS los proyectos, tareas y hábitos y dejar solo la demo
+DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo:replace
+```
+
+- **`db:demo`:** una transacción con los mismos locks de los módulos; los hábitos van al final del orden. Si una fila de demo ya existe, la deja como está (no la "refresca"); para volver a fechar la demo, `db:demo:remove` y luego `db:demo`. No toca los proyectos, tareas ni hábitos reales.
+- **`db:demo:remove`:** borra físicamente solo las filas con ids de demo, con sus hitos, enlaces, dependencias, registros, pausas y uniones de etiquetas, más las ocurrencias que haya creado completar una recurrente de demo. Una tarea **tuya** dentro de un proyecto de demo se conserva y pasa al área de ese proyecto (sin proyecto, hito ni "próxima acción"). Una etiqueta de demo que ya usas en tareas tuyas se queda. Reordena los hábitos que quedan (0…n-1; sin cambios si la demo seguía al final).
+- **`db:demo:replace` (destructivo):** en una sola transacción borra **todas** las filas de `projects`, `project_milestones`, `project_links`, `project_dependencies`, `tasks`, `task_tags`, `task_tag_links`, `habits`, `habit_logs` y `habit_pauses` (también las de borrado lógico) e inserta la demo. Antes muestra cuántas filas borrará por tabla y pide el host y luego la palabra `BORRAR`. Si faltan áreas del seed, falla sin borrar nada. **Antes de correrlo:** lanzar el respaldo (`gh workflow run backup.yml -R Brahua/brahua-os`) y comprobar que terminó bien (`gh run watch <id>` en verde, con su artefacto), como en "Respaldos (C10)".
+- **Respaldos y exportación:** mientras existan, los datos de demo salen en `pnpm db:export` y en el respaldo semanal como cualquier otro dato.
+- **Pruebas:** `tests/integration/demo-data.test.ts` (insertar dos veces no duplica; los contratos de `today` y las listas leen datos válidos y no sale "Día completo"; los `CHECK` pasan cualquier día de la semana y a fin de mes; `remove` deja la base igual que antes, con control positivo; `replace` deja solo la demo y no toca áreas ni la cuenta).
+
 ## Pruebas E2E
 
 - **Base de pruebas (sin Docker):** Postgres 18 nativo del paquete npm `embedded-postgres` (binarios en `node_modules`, ~144 MB en macOS arm64). `pnpm db:test:start` (idempotente: crea el clúster en `.pgdata/` la primera vez, lo arranca en el puerto 54329 con `postgres`/`postgres` y crea `brahua_os_test`), `pnpm db:test:stop` (conserva los datos) y `pnpm db:test:reset` (borra `.pgdata/`). En local, `pnpm test:integration` y `pnpm test:e2e` usan esa URL si `TEST_DATABASE_URL` no está definida y, si no hay nada escuchando, la arrancan y la paran al terminar. Sin durabilidad (`fsync=off`): si se corrompe, `pnpm db:test:reset`. Si el puerto está ocupado (por ejemplo, un contenedor viejo de Docker), `TEST_DB_PORT=<otro>` cambia el puerto y la URL por defecto. CI no la usa: sigue con el servicio Postgres 18 de GitHub Actions.
