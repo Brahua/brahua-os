@@ -71,10 +71,11 @@ beforeEach(async () => {
   request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
 });
 
-/** Revalidates the list and the project's page. */
+/** Revalidates the list, the project's page and "Hoy" (the `today` board, D3). */
 function expectRevalidated(id: string) {
   expect(revalidatePath).toHaveBeenCalledWith("/projects");
   expect(revalidatePath).toHaveBeenCalledWith(`/projects/${id}`);
+  expect(revalidatePath).toHaveBeenCalledWith("/");
 }
 
 describe("each edit writes its field, returns the project and revalidates", () => {
@@ -271,8 +272,9 @@ describe("soft delete and undo", () => {
     expect(await getProject(project.id)).toBeNull();
     expect(await getDeletedProject(project.id)).toEqual({ id: project.id, name: "Mudanza" });
     expect(await getDeletedProject(other.id)).toBeNull();
-    // Only the list: the page being viewed must not turn into its 404 before the client leaves.
-    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/projects"]]);
+    // The list and "Hoy", not the page: the page being viewed must not turn into its 404 before
+    // the client leaves.
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/projects"], ["/"]]);
   });
 
   test("the list's undo is only offered for a recent delete (10 minutes)", async () => {
@@ -366,7 +368,7 @@ describe("a deleted or missing project can't be edited", () => {
     for (const id of [project.id, MISSING]) {
       vi.mocked(revalidatePath).mockClear();
       expect(await deleteProject({ id })).toEqual({ ok: false, error: PROJECT_ERRORS.notFound });
-      expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/projects"]]);
+      expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/projects"], ["/"]]);
     }
   });
 

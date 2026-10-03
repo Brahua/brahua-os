@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import Home from "@/app/(app)/page";
@@ -7,6 +7,7 @@ import { requireOwner } from "@/lib/auth";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
+import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import { getTasksTodaySummary, type TaskTodayItem } from "@/modules/tasks/contracts";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
@@ -16,6 +17,7 @@ vi.mock("@/modules/tasks/recurrence-actions", () => ({
   completeTaskWithNext: vi.fn(),
   reopenTaskWithSpawn: vi.fn(),
 }));
+vi.mock("@/modules/projects/contracts", () => ({ getProjectsTodaySummary: vi.fn() }));
 vi.mock("@/modules/habits/log-actions", () => ({
   setHabitDone: vi.fn(),
   logHabit: vi.fn(),
@@ -35,6 +37,8 @@ beforeEach(() => {
   vi.mocked(getHabitsDueToday).mockResolvedValue([]);
   vi.mocked(getTasksTodaySummary).mockReset();
   vi.mocked(getTasksTodaySummary).mockResolvedValue([]);
+  vi.mocked(getProjectsTodaySummary).mockReset();
+  vi.mocked(getProjectsTodaySummary).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -67,6 +71,32 @@ test("home page does not render without the owner (requireOwner redirects)", asy
   // Nothing is read before the owner is known.
   expect(getHabitsDueToday).not.toHaveBeenCalled();
   expect(getTasksTodaySummary).not.toHaveBeenCalled();
+  expect(getProjectsTodaySummary).not.toHaveBeenCalled();
+});
+
+test("home page reads the projects summary at the same instant and shows Proyectos (D3)", async () => {
+  vi.mocked(getProjectsTodaySummary).mockResolvedValue([
+    {
+      id: "00000000-0000-4000-8000-0000000000aa",
+      name: "Renovar pasaporte",
+      area: { id: "a1", slug: "travel", name: "Planes y Viajes", icon: "plane", color: "travel" },
+      status: "active",
+      priority: "medium",
+      dueDate: "2026-10-03",
+      due: { kind: "soon", days: 3, label: "Vence en 3 días" },
+      blockedBy: [],
+    },
+  ]);
+  render(await Home());
+  expect(getProjectsTodaySummary).toHaveBeenCalledTimes(1);
+  expect(getProjectsTodaySummary).toHaveBeenCalledWith(new Date("2026-09-30T13:15:00Z"));
+  const section = screen.getByRole("region", { name: "Proyectos" });
+  expect(within(section).getByRole("link", { name: "Renovar pasaporte" })).toHaveAttribute(
+    "href",
+    "/projects/00000000-0000-4000-8000-0000000000aa",
+  );
+  // Something is due: no empty day.
+  expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
 });
 
 test("greeting and date follow Lima, not UTC, around midnight", async () => {

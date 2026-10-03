@@ -37,13 +37,8 @@ import {
   setProjectStatus,
   softDeleteProject,
 } from "./projects";
-import { PROJECTS_PATH, projectPath } from "./routes";
-
-/** The list and the project's page both show what changed. */
-function revalidateProject(id: string) {
-  revalidatePath(PROJECTS_PATH);
-  revalidatePath(projectPath(id));
-}
+import { revalidateProjectListings, revalidateProjectScreens } from "./revalidate";
+import { PROJECTS_PATH } from "./routes";
 
 /**
  * The result of a write to one project: the project as saved, or "not found" when it doesn't
@@ -51,7 +46,7 @@ function revalidateProject(id: string) {
  * (a deleted project's page becomes its 404).
  */
 function saved<T>(id: string, project: T | null): ActionResult<T> {
-  revalidateProject(id);
+  revalidateProjectScreens(id);
   return project ? ok(project) : fail(PROJECT_ERRORS.notFound);
 }
 
@@ -124,7 +119,7 @@ const changeArea = ownerAction(
     const project = await setProjectArea(getDb(), id, lifeAreaId);
     if (project !== "areaUnavailable") return saved(id, project);
     // Revalidated too: an area archived meanwhile drops out of the page's choices.
-    revalidateProject(id);
+    revalidateProjectScreens(id);
     return {
       ok: false,
       error: INVALID_FIELDS_MESSAGE,
@@ -168,9 +163,9 @@ const remove = ownerAction(
   projectIdInputSchema,
   async ({ id }) => {
     const project = await softDeleteProject(getDb(), id);
-    // Only the list: revalidating the page being viewed would swap it for its 404 before the
-    // client's router.replace leaves it.
-    revalidatePath(PROJECTS_PATH);
+    // The list and "Hoy", not the page: revalidating the page being viewed would swap it for its
+    // 404 before the client's router.replace leaves it.
+    revalidateProjectListings();
     return project ? ok(project) : fail(PROJECT_ERRORS.notFound);
   },
   { name: "deleteProject" },
@@ -199,7 +194,7 @@ const addBlocker = ownerAction(
   async ({ id, blockedById }) => {
     const outcome = await insertDependency(getDb(), id, blockedById);
     // Revalidated whatever the outcome: a refusal means the page's candidates were stale.
-    revalidateProject(id);
+    revalidateProjectScreens(id);
     if (outcome === "added") return ok({ id, blockedById });
     if (outcome === "notFound") return fail(PROJECT_ERRORS.notFound);
     return {
@@ -224,7 +219,7 @@ const removeBlocker = ownerAction(
   projectDependencyInputSchema,
   async ({ id, blockedById }) => {
     const removed = await deleteDependency(getDb(), id, blockedById);
-    revalidateProject(id);
+    revalidateProjectScreens(id);
     return removed ? ok({ id, blockedById }) : fail(PROJECT_ERRORS.notFound);
   },
   { name: "removeDependency" },
