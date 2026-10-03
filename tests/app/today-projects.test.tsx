@@ -1,6 +1,6 @@
 // D3 of `today`: the "Proyectos" section (SPEC-today "Proyectos"). Read only: one row per project
 // of `getProjectsTodaySummary`, in its order, with the area's LED, the due notice of `projects`
-// and "Bloqueado por …", each row a link to its project. Neutral colors: never an alarm.
+// and "Bloqueado por …", each row a link to its project. The projects list's colors, never red.
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { dueState } from "@/modules/projects/progress";
@@ -51,22 +51,25 @@ describe("rows", () => {
     expect(row("Renovar pasaporte").querySelector(".bo-led.bo-area--travel")).not.toBeNull();
   });
 
-  test("due today and overdue: the projects' own labels, in neutral colors", () => {
+  test("due today and overdue: the projects' own labels, in its signal color (never red)", () => {
     render(
       <TodayProjects
         projects={[
           project({ name: "Ruta por Europa", status: "paused", dueDate: "2026-09-30" }),
           project({ name: "Viaje a Cusco", dueDate: "2026-10-02" }),
+          project({ name: "Pronto", dueDate: "2026-10-05" }),
         ]}
       />,
     );
     const overdue = within(row("Ruta por Europa")).getByText("Vencido hace 2 días");
     const today = within(row("Viaje a Cusco")).getByText("Vence hoy");
     for (const label of [overdue, today]) {
-      // Never red nor the signal color: a reminder, not an alarm.
-      expect(label.closest("p")).toHaveClass("text-text-secondary");
-      expect(label.className).not.toMatch(/signal|danger|red/);
+      // The same color as the projects list's cards.
+      expect(label).toHaveClass("text-signal-text");
+      expect(label.className).not.toMatch(/danger|red/);
     }
+    // Due later: the row's secondary color (positive control).
+    expect(within(row("Pronto")).getByText("Vence en 3 días")).not.toHaveClass("text-signal-text");
   });
 
   test("blocked by several: every blocker's name, also in the link's description", () => {
@@ -127,6 +130,11 @@ test("the section: an h2 'Proyectos' that takes focus and a link to the module",
     "href",
     "/projects",
   );
+});
+
+test("no rows: nothing at all", () => {
+  const { container } = render(<TodayProjects projects={[]} />);
+  expect(container).toBeEmptyDOMElement();
 });
 
 describe("on the board", () => {

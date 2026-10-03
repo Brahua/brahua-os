@@ -1,6 +1,7 @@
 import { Lock } from "lucide-react";
 import Link from "next/link";
 import { Icon, keyClasses, Led } from "@/design-system";
+import { cn } from "@/lib/cn";
 import type { ProjectTodayItem } from "@/modules/projects/contracts";
 import { DEPENDENCIES_COPY } from "@/modules/projects/projects-copy";
 import { PROJECTS_PATH, projectPath } from "@/modules/projects/routes";
@@ -13,8 +14,10 @@ export const TODAY_PROJECTS_HEADING_ID = "today-projects-title";
  * "Proyectos" on the board (D3, SPEC-today "Proyectos"): what `getProjectsTodaySummary(now)`
  * returns, in its order (overdue first, then due soonest, then blocked only). Read only: each row
  * links to its project. No cap (projects are few). A Server Component: no state, no hooks.
+ * Without rows it renders nothing (the section decides whether it shows).
  */
 export function TodayProjects({ projects }: { projects: readonly ProjectTodayItem[] }) {
+  if (projects.length === 0) return null;
   return (
     <section
       aria-labelledby={TODAY_PROJECTS_HEADING_ID}
@@ -41,11 +44,13 @@ export function TodayProjects({ projects }: { projects: readonly ProjectTodayIte
 /**
  * One project: its area's LED, the name (a link whose ::after covers the row) and, under it, the
  * area, the due notice ("Vence hoy", "Vence en N días", "Vencido hace N días", from `projects`'
- * `dueState`) and "Bloqueado por X, Y". Neutral colors only: a reminder, never an alarm.
+ * `dueState`) and "Bloqueado por X, Y". "Vence hoy" and overdue take the signal color, as on the
+ * projects list (`ProjectCard`); never red.
  */
 export function TodayProjectRow({ project }: { project: ProjectTodayItem }) {
   const { area, due, blockedBy } = project;
   const blocked = blockedBy.length > 0;
+  const urgent = due?.kind === "today" || due?.kind === "overdue";
   const blockedText = blocked ? DEPENDENCIES_COPY.blockedBy(blockedBy.map((b) => b.name)) : null;
   // The visible metadata is aria-hidden (its flex items would be read run together); the link
   // says it in words through this description.
@@ -78,7 +83,11 @@ export function TodayProjectRow({ project }: { project: ProjectTodayItem }) {
         >
           <span className="max-w-full min-w-0 truncate">{area.name}</span>
           {due ? (
-            <time dateTime={project.dueDate ?? undefined} data-due={due.kind}>
+            <time
+              dateTime={project.dueDate ?? undefined}
+              data-due={due.kind}
+              className={cn(urgent && "text-signal-text")}
+            >
               {due.label}
             </time>
           ) : null}
