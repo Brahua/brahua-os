@@ -2,7 +2,8 @@
 // nothing, every CHECK passes on any weekday, the contracts read valid data ("Hoy" has pending
 // habits and tasks, no "Día completo"), `remove` leaves the owner's data exactly as it was and
 // `replace` keeps only the demo in the module tables, never touching areas or the account.
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { authUsers, lifeAreas } from "@/modules/core/db/schema";
 import { seed } from "@/modules/core/seed";
@@ -11,13 +12,19 @@ import {
   selectHabitsDueToday,
   selectHabitsTodaySummary,
 } from "@/modules/habits/contracts";
-import { habitLogs, habits } from "@/modules/habits/db/schema";
-import { HABITS_ADVISORY_SPACE } from "@/modules/habits/habits";
+import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
+import { HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY } from "@/modules/habits/habits";
 import { listActiveHabits } from "@/modules/habits/queries";
 import { getProjectsTodaySummary, selectProjectsTodaySummary } from "@/modules/projects/contracts";
-import { projects } from "@/modules/projects/db/schema";
+import {
+  projectDependencies,
+  projectLinks,
+  projectMilestones,
+  projects,
+} from "@/modules/projects/db/schema";
+import { PROJECT_LINKS_KEY } from "@/modules/projects/lock-keys";
 import { MILESTONES_ADVISORY_SPACE } from "@/modules/projects/milestones";
-import { PROJECTS_ADVISORY_SPACE } from "@/modules/projects/projects";
+import { PROJECT_DEPENDENCIES_LOCK, PROJECTS_ADVISORY_SPACE } from "@/modules/projects/projects";
 import { listProjects } from "@/modules/projects/queries";
 import {
   getTasksDoneTodayCount,
@@ -31,12 +38,14 @@ import { listDoneTasks, listUpcomingTasks } from "@/modules/tasks/view-queries";
 import { habitsTally, isDayComplete } from "@/modules/today/today-board";
 import { ownerDateKey } from "@/lib/time";
 import {
-  DEMO_LOCK_SPACES,
   MODULE_TABLES,
   countModuleRows,
   demoId,
   demoIds,
+  demoLocks,
+  gate,
   insertDemoData,
+  previewRemoveDemo,
   removeDemoData,
   replaceWithDemoData,
   uuidV5,
@@ -122,11 +131,50 @@ test("ids are UUID v5 (RFC 4122 test vector) and the locks are the modules' own"
     "2ed6657d-e927-568b-95e1-2665a8aea6a2",
   );
   expect(demoId("project:aws")).toBe(demoId("project:aws"));
-  expect(DEMO_LOCK_SPACES).toEqual({
-    projects: PROJECTS_ADVISORY_SPACE,
-    milestones: MILESTONES_ADVISORY_SPACE,
-    tasks: TASKS_ADVISORY_SPACE,
-    habits: HABITS_ADVISORY_SPACE,
+  const locks = demoLocks();
+  // The module-wide ones first, with the modules' own keys (the dependency lock's text too).
+  expect(locks.slice(0, 2)).toEqual([
+    [PROJECTS_ADVISORY_SPACE, "project_dependencies"],
+    [HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY],
+  ]);
+  const dependencyLock = new PgDialect().sqlToQuery(PROJECT_DEPENDENCIES_LOCK);
+  expect(dependencyLock.sql).toContain(String(locks[0][0]));
+  expect(dependencyLock.params).toContain(locks[0][1]);
+  // Per demo project: its milestones, links and tasks locks; per demo habit: its own.
+  const aws = demoId("project:aws");
+  expect(locks).toContainEqual([MILESTONES_ADVISORY_SPACE, aws]);
+  expect(locks).toContainEqual([PROJECT_LINKS_KEY, aws]);
+  expect(locks).toContainEqual([TASKS_ADVISORY_SPACE, aws]);
+  expect(locks).toContainEqual([HABITS_ADVISORY_SPACE, demoId("habit:meditar")]);
+});
+
+describe("gate: what a run must confirm before any query", () => {
+  test.each([
+    ["insert", true, false, { ok: true, askHost: false, askWord: false }],
+    ["remove", true, false, { ok: true, askHost: false, askWord: false }],
+    ["insert", false, true, { ok: true, askHost: true, askWord: false }],
+    ["remove", false, true, { ok: true, askHost: true, askWord: false }],
+    ["replace", true, true, { ok: true, askHost: false, askWord: true }],
+    ["replace", false, true, { ok: true, askHost: true, askWord: true }],
+  ] as const)("passes: %s (local %s, tty %s)", (mode, isLocal, isTTY, expected) => {
+    expect(gate(mode, isLocal, isTTY)).toEqual(expected);
+  });
+
+  test.each([
+    ["insert", false, false],
+    ["remove", false, false],
+    ["replace", true, false],
+    ["replace", false, false],
+  ] as const)("refuses without a terminal: %s (local %s)", (mode, isLocal, isTTY) => {
+    expect(gate(mode, isLocal, isTTY)).toEqual({
+      ok: false,
+      message: expect.stringMatching(/interactive terminal/),
+    });
+  });
+
+  test("refuses an unknown mode", () => {
+    expect(gate("delete", true, true)).toMatchObject({ ok: false, message: /Usage/ });
+    expect(gate("", true, true)).toMatchObject({ ok: false });
   });
 });
 
@@ -223,6 +271,36 @@ describe("insert", () => {
       expect(Object.values(await countModuleRows(testDb)).every((n) => n === 0)).toBe(true);
     }
   });
+
+  test("timestamps tell a coherent story", async () => {
+    await insertDemoData(testDb, NOW);
+    // A spawned occurrence is created when the previous one is completed.
+    const [previous] = await testDb
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, demoId("task:regar-anterior")));
+    const [next] = await testDb
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, demoId("task:regar")));
+    expect(next.spawnedFromId).toBe(previous.id);
+    expect(next.createdAt).toEqual(previous.doneAt);
+    expect(next.updatedAt).toEqual(previous.doneAt);
+    // The finished project closes at or after its last milestone and its last task.
+    const done = demoId("project:ingles");
+    const [project] = await testDb.select().from(projects).where(eq(projects.id, done));
+    const milestones = await testDb
+      .select({ doneAt: projectMilestones.doneAt })
+      .from(projectMilestones)
+      .where(eq(projectMilestones.projectId, done));
+    const projectTasks = await testDb
+      .select({ doneAt: tasks.doneAt })
+      .from(tasks)
+      .where(eq(tasks.projectId, done));
+    const last = Math.max(...[...milestones, ...projectTasks].map((row) => row.doneAt!.getTime()));
+    expect(project.completedAt!.getTime()).toBeGreaterThanOrEqual(last);
+    expect(project.updatedAt.getTime()).toBeGreaterThanOrEqual(project.completedAt!.getTime());
+  });
 });
 
 describe("remove", () => {
@@ -242,16 +320,121 @@ describe("remove", () => {
     const [first] = await testDb.select().from(habits).where(eq(habits.id, demoIds().habits[0]));
     expect(first.sortOrder).toBe(1);
 
+    const preview = await previewRemoveDemo(testDb);
     const result = await removeDemoData(testDb);
+    expect(result).toEqual(preview);
     expect(result).toMatchObject({
       projects: 7,
       tasks: 27,
       habits: 8,
       pauses: 1,
-      detachedTasks: 0,
+      tags: 3, // "casa" is the owner's
+      spawnedOccurrences: 0,
+      keptOccurrences: 0,
+      movedTasks: 0,
+      ownMilestones: 0,
+      ownLinks: 0,
+      ownDependencies: 0,
+      ownLogs: 0,
+      ownPauses: 0,
     });
-    expect(result.tags).toBe(3); // "casa" is the owner's
     expect(await snapshot()).toEqual(before);
+  });
+
+  test("an owner's habit created after the demo keeps its place and the order closes up", async () => {
+    const real = await insertRealData();
+    await insertDemoData(testDb, NOW);
+    const [later] = await testDb
+      .insert(habits)
+      .values({
+        name: "Hábito nuevo",
+        measure: "check",
+        frequency: "daily",
+        startDate: "2026-10-02",
+        sortOrder: 9, // after the owner's (0) and the demo's (1–8), like a new habit
+      })
+      .returning({ id: habits.id });
+
+    await removeDemoData(testDb);
+    const left = await testDb
+      .select({ id: habits.id, sortOrder: habits.sortOrder })
+      .from(habits)
+      .orderBy(habits.sortOrder);
+    expect(left).toEqual([
+      { id: real.habit, sortOrder: 0 },
+      { id: later.id, sortOrder: 1 },
+    ]);
+  });
+
+  test("counts and handles what hangs from the demo: the owner's occurrences, milestones, links, dependencies, logs and pauses", async () => {
+    const real = await insertRealData();
+    await insertDemoData(testDb, NOW);
+    const aws = demoId("project:aws");
+    const meditar = demoId("habit:meditar");
+    // The app's untouched copy after completing the demo "Luz": deleted with it.
+    await testDb.insert(tasks).values({
+      title: "Pagar recibo de luz",
+      spawnedFromId: demoId("task:luz"),
+      lifeAreaId: await areaId("home"),
+    });
+    // Occurrences the owner edited, or moved to one of their projects: kept, unlinked.
+    const [edited] = await testDb
+      .insert(tasks)
+      .values({
+        title: "Regar las plantas (y abonar)",
+        spawnedFromId: demoId("task:regar"),
+        updatedAt: new Date("2026-10-04T15:00:00Z"),
+      })
+      .returning({ id: tasks.id });
+    const [moved] = await testDb
+      .insert(tasks)
+      .values({
+        title: "Inscripción",
+        spawnedFromId: demoId("task:inscripcion"),
+        projectId: real.project,
+      })
+      .returning({ id: tasks.id });
+    await testDb
+      .insert(projectMilestones)
+      .values({ projectId: aws, title: "Mi hito", sortOrder: 5 });
+    await testDb
+      .insert(projectLinks)
+      .values({ projectId: aws, url: "https://example.com", sortOrder: 2 });
+    await testDb.insert(projectDependencies).values({ projectId: real.project, blockedById: aws });
+    // A tap on a demo habit today (a correction of the demo's own log) and a new pause.
+    await testDb
+      .update(habitLogs)
+      .set({ quantity: 0 })
+      .where(and(eq(habitLogs.habitId, meditar), eq(habitLogs.day, ownerDateKey(NOW))));
+    await testDb
+      .insert(habitPauses)
+      .values({ habitId: meditar, startDate: "2026-10-10", endDate: "2026-10-12" });
+
+    const preview = await previewRemoveDemo(testDb);
+    expect(preview).toMatchObject({
+      spawnedOccurrences: 1,
+      keptOccurrences: 2,
+      movedTasks: 0,
+      ownMilestones: 1,
+      ownLinks: 1,
+      ownDependencies: 1,
+      ownLogs: 1,
+      ownPauses: 1,
+      pauses: 2,
+    });
+    expect(await removeDemoData(testDb)).toEqual(preview);
+
+    const kept = await testDb
+      .select({ id: tasks.id, spawnedFromId: tasks.spawnedFromId, projectId: tasks.projectId })
+      .from(tasks)
+      .where(inArray(tasks.id, [edited.id, moved.id]));
+    expect(kept).toHaveLength(2);
+    expect(kept.every((task) => task.spawnedFromId === null)).toBe(true);
+    expect(kept.find((task) => task.id === moved.id)?.projectId).toBe(real.project);
+    // Positive control: the owner's project is still there, only its edge to the demo is gone.
+    expect(await testDb.select().from(projects)).toHaveLength(1);
+    expect(await testDb.select().from(projectDependencies)).toEqual([]);
+    expect(await testDb.select().from(projectMilestones)).toEqual([]);
   });
 
   test("keeps the owner's task in a demo project (moved to its area) and drops spawned occurrences", async () => {
@@ -269,7 +452,7 @@ describe("remove", () => {
     });
 
     const result = await removeDemoData(testDb);
-    expect(result).toMatchObject({ tasks: 28, detachedTasks: 1 });
+    expect(result).toMatchObject({ tasks: 27, spawnedOccurrences: 1, movedTasks: 1 });
     const left = await testDb.select().from(tasks);
     expect(left).toHaveLength(1);
     expect(left[0]).toMatchObject({
@@ -284,6 +467,15 @@ describe("remove", () => {
 });
 
 describe("replace", () => {
+  test("a failure after the deletes rolls everything back", async () => {
+    await insertRealData();
+    const before = await snapshot();
+    expect(before.projects).toHaveLength(1);
+    // An invalid date fails inside insertDemoRows, after every table was emptied.
+    await expect(replaceWithDemoData(testDb, new Date(Number.NaN))).rejects.toThrow();
+    expect(await snapshot()).toEqual(before);
+  });
+
   test("keeps only the demo in the module tables; areas and the account untouched", async () => {
     await insertRealData();
     // A soft-deleted project counts too.

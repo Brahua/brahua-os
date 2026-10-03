@@ -1,13 +1,16 @@
 // Realistic demo data (projects, tasks and habits) so every screen has something to show. The
-// owner runs it in their own terminal; the agent never sees the database URL.
-//   DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo           insert (idempotent)
-//   DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo:remove    remove only the demo rows
-//   DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo:replace   DESTRUCTIVE: delete every
-//     project, task and habit (soft-deleted ones too) and insert the demo
+// owner runs it in their own terminal; the agent never sees the database URL. Read the URL
+// without echo, so the password never lands in the shell history:
+//   read -rs 'DATABASE_URL_UNPOOLED?URL directa de Neon: ' && export DATABASE_URL_UNPOOLED && echo
+//   ALLOW_PROD_DB=1 pnpm db:demo            insert (idempotent)
+//   ALLOW_PROD_DB=1 pnpm db:demo:remove     remove only the demo rows (and what hangs from them)
+//   ALLOW_PROD_DB=1 pnpm db:demo:replace    DESTRUCTIVE: delete every project, task and habit
+//                                           (soft-deleted ones too) and insert the demo
+//   unset DATABASE_URL_UNPOOLED
 //
 // Safety, like `auth:owner`: only DATABASE_URL_UNPOOLED, a non-local host needs ALLOW_PROD_DB=1
 // (a Vercel build is never permission) and typing the host back; `replace` also asks for the
-// word BORRAR. Nothing prints the URL, a secret or a Postgres message (`describeError`).
+// word BORRAR (`gate`). Nothing prints the URL, a secret or a Postgres message (`describeError`).
 //
 // Every demo row has a deterministic id (UUID v5 of a key under DEMO_NAMESPACE), so inserting
 // twice adds nothing and `remove` deletes exactly those rows. Dates are relative to Lima's day of
@@ -15,7 +18,7 @@
 // seed's); `core` (areas, settings, auth) is never written.
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { and, inArray, sql } from "drizzle-orm";
+import { and, inArray, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { createDb } from "@/lib/db";
 import {
@@ -35,7 +38,15 @@ import {
   projects,
 } from "@/modules/projects/db/schema";
 import { taskTagLinks, taskTags, tasks } from "@/modules/tasks/db/schema";
+import { HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY } from "@/modules/habits/lock-keys";
+import {
+  MILESTONES_ADVISORY_SPACE,
+  PROJECT_DEPENDENCIES_KEY,
+  PROJECT_LINKS_KEY,
+  PROJECTS_ADVISORY_SPACE,
+} from "@/modules/projects/lock-keys";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
+import { TASKS_ADVISORY_SPACE } from "@/modules/tasks/lock-keys";
 import { CANCELLED, prompt } from "./terminal-prompt";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -84,30 +95,33 @@ function notAfter(date: Date, now: Date): Date {
   return date > now ? now : date;
 }
 
-// ── Locks (the modules' own keys, so a demo write never interleaves with an app write) ──────────
-// Rule of every module: advisory locks first, before any row lock. Spaces from projects.ts
-// (2000 and 2001), tasks.ts (3000), habits.ts (4000) and project-links.ts; the integration test
-// checks they still match the modules.
+// ── Locks (the modules' own keys, from their lock-keys.ts, so a demo write never interleaves with
+// an app write). Rule of every module: advisory locks first, before any row lock.
 
-export const DEMO_LOCK_SPACES = { projects: 2_000, milestones: 2_001, tasks: 3_000, habits: 4_000 };
+/** The advisory locks the demo takes, in order: `[space, key]` (a text space is hashed too). */
+export function demoLocks(): [number | string, string][] {
+  const locks: [number | string, string][] = [
+    [PROJECTS_ADVISORY_SPACE, PROJECT_DEPENDENCIES_KEY],
+    [HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY],
+  ];
+  for (const id of DEMO_PROJECTS.map((project) => demoId(`project:${project.key}`)).sort()) {
+    locks.push(
+      [MILESTONES_ADVISORY_SPACE, id],
+      [PROJECT_LINKS_KEY, id],
+      [TASKS_ADVISORY_SPACE, id],
+    );
+  }
+  for (const id of DEMO_HABITS.map((habit) => demoId(`habit:${habit.key}`)).sort()) {
+    locks.push([HABITS_ADVISORY_SPACE, id]);
+  }
+  return locks;
+}
 
 async function takeLocks(tx: Tx) {
-  const { projects: p, milestones: m, tasks: t, habits: h } = DEMO_LOCK_SPACES;
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(${sql.raw(String(p))}, hashtext('project_dependencies'))`,
-  );
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(${sql.raw(String(h))}, hashtext('habits:order'))`,
-  );
-  const projectIds = DEMO_PROJECTS.map((project) => demoId(`project:${project.key}`)).sort();
-  for (const id of projectIds) {
-    await tx.execute(sql`select pg_advisory_xact_lock(${sql.raw(String(m))}, hashtext(${id}))`);
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('project_links'), hashtext(${id}))`);
-    await tx.execute(sql`select pg_advisory_xact_lock(${sql.raw(String(t))}, hashtext(${id}))`);
-  }
-  const habitIds = DEMO_HABITS.map((habit) => demoId(`habit:${habit.key}`)).sort();
-  for (const id of habitIds) {
-    await tx.execute(sql`select pg_advisory_xact_lock(${sql.raw(String(h))}, hashtext(${id}))`);
+  for (const [space, key] of demoLocks()) {
+    // A text space is the links lock's form: (hashtext('project_links'), hashtext(<project>)).
+    const first = typeof space === "number" ? sql.raw(String(space)) : sql`hashtext(${space})`;
+    await tx.execute(sql`select pg_advisory_xact_lock(${first}, hashtext(${key}))`);
   }
 }
 
@@ -821,9 +835,13 @@ async function insertDemoRows(tx: Tx, now: Date): Promise<DemoCounts> {
             lifeAreaId: area[p.area],
             startDate: p.start === undefined ? null : day(p.start),
             dueDate: p.due === undefined ? null : day(p.due),
-            completedAt: p.completed === undefined ? null : at(day(p.completed), 18),
+            // Closed after its last milestone (20:00) and its last task (19:30) of that day.
+            completedAt: p.completed === undefined ? null : at(day(p.completed), 21),
             createdAt: at(day(p.created), 9),
-            updatedAt: at(day(Math.max(p.created, p.completed ?? -1)), 18),
+            updatedAt:
+              p.completed === undefined
+                ? at(day(Math.max(p.created, -1)), 18)
+                : at(day(p.completed), 21),
           })),
         )
         .onConflictDoNothing({ target: projects.id })
@@ -897,8 +915,13 @@ async function insertDemoRows(tx: Tx, now: Date): Promise<DemoCounts> {
   const ordered = [...DEMO_TASKS].sort(
     (a, b) => Number(Boolean(a.spawnedFrom)) - Number(Boolean(b.spawnedFrom)),
   );
+  const doneAt = (t: DemoTask) => (t.done === undefined ? null : at(day(t.done), 19, 30));
+  const byKey = new Map(DEMO_TASKS.map((t) => [t.key, t]));
   const taskRows = ordered.map((t) => {
     const due = t.due === undefined ? null : day(t.due);
+    // A spawned occurrence is created when the previous one is completed (one instant for both).
+    const previous = t.spawnedFrom ? byKey.get(t.spawnedFrom) : undefined;
+    const spawnedAt = previous ? doneAt(previous) : null;
     const recurrence = t.recurrence;
     return {
       id: taskId(t.key),
@@ -906,7 +929,7 @@ async function insertDemoRows(tx: Tx, now: Date): Promise<DemoCounts> {
       notes: t.notes ?? null,
       priority: t.priority,
       dueDate: due,
-      doneAt: t.done === undefined ? null : at(day(t.done), 19, 30),
+      doneAt: doneAt(t),
       // The project's area is the task's: never both.
       lifeAreaId: t.project ? null : t.area ? area[t.area] : null,
       projectId: t.project ? projectId(t.project) : null,
@@ -918,8 +941,8 @@ async function insertDemoRows(tx: Tx, now: Date): Promise<DemoCounts> {
       // Day X of the month: the day it is due.
       recurrenceMonthDay: recurrence?.kind === "month_day" && due ? Number(due.slice(8, 10)) : null,
       spawnedFromId: t.spawnedFrom ? taskId(t.spawnedFrom) : null,
-      createdAt: notAfter(at(day(t.created), 8, 15), now),
-      updatedAt: notAfter(at(day(t.done ?? t.created), 19, 30), now),
+      createdAt: spawnedAt ?? notAfter(at(day(t.created), 8, 15), now),
+      updatedAt: spawnedAt ?? notAfter(at(day(t.done ?? t.created), 19, 30), now),
     };
   });
   const newTasks = new Set(
@@ -1036,90 +1059,184 @@ export async function insertDemoData(db: Database, now: Date): Promise<DemoCount
 
 // ── Remove ──────────────────────────────────────────────────────────────────────────────────────
 
-export type RemoveResult = {
+/** What `remove` deletes or changes (the summary before confirming, and the result after). */
+export type RemoveCounts = {
   projects: number;
   tasks: number;
-  tags: number;
   habits: number;
+  tags: number;
   logs: number;
   pauses: number;
-  /** The owner's own tasks that were inside a demo project: moved to that project's area. */
-  detachedTasks: number;
+  /** Occurrences the app created when a demo recurring task was completed, untouched: deleted. */
+  spawnedOccurrences: number;
+  /** Occurrences the owner edited or moved out of the demo: kept, unlinked from the demo. */
+  keptOccurrences: number;
+  /** The owner's own tasks inside a demo project: kept, moved to that project's area. */
+  movedTasks: number;
+  /** The owner's milestones and links in demo projects: deleted with them (cascade). */
+  ownMilestones: number;
+  ownLinks: number;
+  /** Dependencies between a demo project and one of the owner's: deleted (cascade). */
+  ownDependencies: number;
+  /** Logs and pauses on demo habits that the demo didn't write (added or corrected): deleted. */
+  ownLogs: number;
+  ownPauses: number;
 };
 
+const uuidList = (values: readonly string[]) =>
+  sql.join(
+    values.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+
 /**
- * Deletes the demo rows and their children, and nothing else, in one transaction:
- * - the demo tasks and every occurrence spawned from them (completing a demo recurring task
- *   creates one with a random id); their tag links go with them;
+ * The demo tasks plus the occurrences spawned from them that are still the app's untouched copy
+ * (`updated_at = created_at`) and stay in the demo (no project, or a demo project). An occurrence
+ * the owner edited or moved ends the chain: it is the owner's now.
+ */
+async function removableTaskIds(db: Database | Tx): Promise<string[]> {
+  const ids = demoIds();
+  const result = await db.execute<{ id: string }>(sql`
+    with recursive chain(id) as (
+      select id from tasks where id in (${uuidList(ids.tasks)})
+      union
+      select t.id from tasks t join chain c on t.spawned_from_id = c.id
+      where t.updated_at = t.created_at
+        and (t.project_id is null or t.project_id in (${uuidList(ids.projects)}))
+    )
+    select id from chain`);
+  return result.rows.map((row) => row.id);
+}
+
+const count = async (db: Database | Tx, query: SQL) =>
+  Number((await db.execute<{ n: number }>(sql`select count(*)::int as n from ${query}`)).rows[0].n);
+
+/** The logs of the demo habits that aren't the demo's own (the owner added or corrected them). */
+async function countOwnLogs(db: Database | Tx): Promise<number> {
+  const rows = await db
+    .select({
+      habitId: habitLogs.habitId,
+      day: habitLogs.day,
+      quantity: habitLogs.quantity,
+      startDate: habits.startDate,
+    })
+    .from(habitLogs)
+    .innerJoin(habits, sql`${habits.id} = ${habitLogs.habitId}`)
+    .where(inArray(habitLogs.habitId, demoIds().habits));
+  const expected = new Map<string, Map<string, number>>();
+  let own = 0;
+  for (const row of rows) {
+    const habit = DEMO_HABITS.find((h) => habitId(h.key) === row.habitId);
+    if (!habit) continue;
+    let byDay = expected.get(row.habitId);
+    if (!byDay) {
+      // The day the demo was inserted: start date + the days it says it had been running.
+      const insertedOn = addDays(row.startDate, habit.started);
+      const demoRows = habitLogRows(habit, insertedOn, at(insertedOn, 23, 59));
+      byDay = new Map(demoRows.map((log) => [log.day, log.quantity]));
+      expected.set(row.habitId, byDay);
+    }
+    if (byDay.get(row.day) !== row.quantity) own++;
+  }
+  return own;
+}
+
+/** Counts what `remove` would delete or change now, without writing. */
+export async function previewRemoveDemo(db: Database | Tx): Promise<RemoveCounts> {
+  const ids = demoIds();
+  const chain = await removableTaskIds(db);
+  const inChain = chain.length ? sql`id in (${uuidList(chain)})` : sql`false`;
+  const demoProjects = uuidList(ids.projects);
+  const demoHabits = uuidList(ids.habits);
+  return {
+    projects: await count(db, sql`projects where id in (${demoProjects})`),
+    tasks: await count(db, sql`tasks where id in (${uuidList(ids.tasks)})`),
+    habits: await count(db, sql`habits where id in (${demoHabits})`),
+    tags: await count(
+      db,
+      sql`task_tags g where g.id in (${uuidList(ids.tags)}) and not exists (
+        select 1 from task_tag_links l where l.tag_id = g.id
+          and not ${chain.length ? sql`l.task_id in (${uuidList(chain)})` : sql`false`})`,
+    ),
+    logs: await count(db, sql`habit_logs where habit_id in (${demoHabits})`),
+    pauses: await count(db, sql`habit_pauses where habit_id in (${demoHabits})`),
+    spawnedOccurrences: chain.filter((id) => !ids.tasks.includes(id)).length,
+    keptOccurrences: chain.length
+      ? await count(db, sql`tasks where spawned_from_id in (${uuidList(chain)}) and not ${inChain}`)
+      : 0,
+    movedTasks: await count(
+      db,
+      sql`tasks where project_id in (${demoProjects}) and not ${inChain}`,
+    ),
+    ownMilestones: await count(
+      db,
+      sql`project_milestones where project_id in (${demoProjects}) and id not in (${uuidList(ids.milestones)})`,
+    ),
+    ownLinks: await count(
+      db,
+      sql`project_links where project_id in (${demoProjects}) and id not in (${uuidList(ids.links)})`,
+    ),
+    ownDependencies: await count(
+      db,
+      sql`project_dependencies where (project_id in (${demoProjects})) <> (blocked_by_id in (${demoProjects}))`,
+    ),
+    ownLogs: await countOwnLogs(db),
+    ownPauses: await count(
+      db,
+      sql`habit_pauses where habit_id in (${demoHabits}) and id not in (${uuidList(ids.pauses)})`,
+    ),
+  };
+}
+
+/**
+ * Deletes the demo rows and what hangs from them, and nothing of the owner's, in one transaction
+ * (the counts are read under the same locks, so they are what it does):
+ * - the demo tasks and the untouched occurrences spawned from them (`removableTaskIds`); an
+ *   occurrence the owner edited or moved is kept and unlinked (`spawned_from_id = null`);
  * - the owner's own tasks inside a demo project are kept and moved to that project's area
- *   (without project, milestone or next-action mark), so nothing real is lost;
+ *   (without project, milestone or next-action mark);
  * - a demo tag is deleted only if no task is left with it (the owner may have used it);
  * - the demo habits with all their logs and pauses; the order of the rest is renumbered 0…n-1
  *   (unchanged when the demo was still at the end);
  * - the demo projects, with their milestones, links and dependencies (cascade).
  */
-export async function removeDemoData(db: Database): Promise<RemoveResult> {
+export async function removeDemoData(db: Database): Promise<RemoveCounts> {
   const ids = demoIds();
   return db.transaction(async (tx) => {
     await takeLocks(tx);
+    const counts = await previewRemoveDemo(tx);
+    const chain = await removableTaskIds(tx);
 
-    const closure = await tx.execute<{ id: string }>(sql`
-      with recursive chain(id) as (
-        select id from tasks where id in (${sql.join(
-          ids.tasks.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        )})
-        union
-        select t.id from tasks t join chain c on t.spawned_from_id = c.id
-      )
-      select id from chain`);
-    const taskIds = closure.rows.map((row) => row.id);
-
-    const detached = await tx.execute(sql`
+    if (chain.length) {
+      // Kept occurrences: the owner's now, unlinked from what is deleted.
+      await tx.execute(sql`
+        update tasks set spawned_from_id = null, updated_at = now()
+        where spawned_from_id in (${uuidList(chain)}) and id not in (${uuidList(chain)})`);
+    }
+    await tx.execute(sql`
       update tasks t
       set project_id = null, milestone_id = null, is_next_action = false,
           life_area_id = p.life_area_id, updated_at = now()
       from projects p
       where p.id = t.project_id
-        and t.project_id in (${sql.join(
-          ids.projects.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        )})
-        ${
-          taskIds.length
-            ? sql`and t.id not in (${sql.join(
-                taskIds.map((id) => sql`${id}::uuid`),
-                sql`, `,
-              )})`
-            : sql``
-        }`);
-
-    let removedTasks = 0;
-    if (taskIds.length) {
+        and t.project_id in (${uuidList(ids.projects)})
+        ${chain.length ? sql`and t.id not in (${uuidList(chain)})` : sql``}`);
+    if (chain.length) {
       // The self-reference is RESTRICT: unlink the chain before deleting it.
-      await tx.update(tasks).set({ spawnedFromId: null }).where(inArray(tasks.id, taskIds));
-      removedTasks = (
-        await tx.delete(tasks).where(inArray(tasks.id, taskIds)).returning({ id: tasks.id })
-      ).length;
+      await tx.update(tasks).set({ spawnedFromId: null }).where(inArray(tasks.id, chain));
+      await tx.delete(tasks).where(inArray(tasks.id, chain));
     }
-    const removedTags = await tx
+    await tx
       .delete(taskTags)
       .where(
         and(
           inArray(taskTags.id, ids.tags),
           sql`not exists (select 1 from task_tag_links l where l.tag_id = ${taskTags.id})`,
         ),
-      )
-      .returning({ id: taskTags.id });
+      );
 
-    const logs = await tx
-      .delete(habitLogs)
-      .where(inArray(habitLogs.habitId, ids.habits))
-      .returning({ day: habitLogs.day });
-    const pauses = await tx
-      .delete(habitPauses)
-      .where(inArray(habitPauses.habitId, ids.habits))
-      .returning({ id: habitPauses.id });
+    await tx.delete(habitLogs).where(inArray(habitLogs.habitId, ids.habits));
+    await tx.delete(habitPauses).where(inArray(habitPauses.habitId, ids.habits));
     const removedHabits = await tx
       .delete(habits)
       .where(inArray(habits.id, ids.habits))
@@ -1131,20 +1248,8 @@ export async function removeDemoData(db: Database): Promise<RemoveResult> {
         where r.id = h.id and h.sort_order <> r.position`);
     }
 
-    const removedProjects = await tx
-      .delete(projects)
-      .where(inArray(projects.id, ids.projects))
-      .returning({ id: projects.id });
-
-    return {
-      projects: removedProjects.length,
-      tasks: removedTasks,
-      tags: removedTags.length,
-      habits: removedHabits.length,
-      logs: logs.length,
-      pauses: pauses.length,
-      detachedTasks: detached.rowCount ?? 0,
-    };
+    await tx.delete(projects).where(inArray(projects.id, ids.projects));
+    return counts;
   });
 }
 
@@ -1207,29 +1312,35 @@ export async function replaceWithDemoData(
 
 // ── CLI ─────────────────────────────────────────────────────────────────────────────────────────
 
-const MODES = ["insert", "remove", "replace"] as const;
-type Mode = (typeof MODES)[number];
+export const MODES = ["insert", "remove", "replace"] as const;
+export type Mode = (typeof MODES)[number];
 
-/** Demo rows present now (for the summary before `remove`). */
-async function countDemoRows(db: Database) {
-  const ids = demoIds();
-  const [p] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(projects)
-    .where(inArray(projects.id, ids.projects));
-  const [t] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(tasks)
-    .where(inArray(tasks.id, ids.tasks));
-  const [h] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(habits)
-    .where(inArray(habits.id, ids.habits));
-  return { projects: p.n, tasks: t.n, habits: h.n };
+export type Gate =
+  { ok: true; askHost: boolean; askWord: boolean } | { ok: false; message: string };
+
+/**
+ * What a run must confirm, before any query: a remote database always asks for its host (so it
+ * needs a terminal); `replace` always asks for BORRAR too (a terminal even locally). A local
+ * insert or remove (the test database) runs without prompts. ALLOW_PROD_DB is checked before
+ * this (`resolveOwnerScriptDatabaseUrl`).
+ */
+export function gate(mode: string, isLocal: boolean, isTTY: boolean): Gate {
+  if (!(MODES as readonly string[]).includes(mode)) {
+    return { ok: false, message: `Usage: tsx scripts/demo-data.ts <${MODES.join("|")}>` };
+  }
+  const askHost = !isLocal;
+  const askWord = mode === "replace";
+  if ((askHost || askWord) && !isTTY) {
+    return {
+      ok: false,
+      message: "Run this in an interactive terminal: the confirmation is typed.",
+    };
+  }
+  return { ok: true, askHost, askWord };
 }
 
-async function confirmHost(url: string): Promise<boolean> {
-  if (isLocalDatabaseUrl(url)) return true;
+async function confirmHost(url: string, askHost: boolean): Promise<boolean> {
+  if (!askHost) return true;
   const host = databaseHost(url);
   const typed = await prompt(`Remote database. Type its host (${host}) to continue: `, {
     hidden: false,
@@ -1243,11 +1354,7 @@ const summary = (counts: Record<string, number>) =>
     .join("\n");
 
 async function main() {
-  const mode = process.argv[2] as Mode;
-  if (!MODES.includes(mode)) {
-    console.error(`Usage: tsx scripts/demo-data.ts <${MODES.join("|")}>`);
-    process.exit(1);
-  }
+  const mode = process.argv[2] ?? "";
   let url: string;
   try {
     url = resolveOwnerScriptDatabaseUrl(process.env);
@@ -1255,29 +1362,33 @@ async function main() {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   }
-  if (!process.stdin.isTTY && (!isLocalDatabaseUrl(url) || mode === "replace")) {
-    console.error("Run this in an interactive terminal: the confirmation is typed.");
+  const check = gate(mode, isLocalDatabaseUrl(url), Boolean(process.stdin.isTTY));
+  if (!check.ok) {
+    console.error(check.message);
     process.exit(1);
   }
+  const unchanged = "The host does not match. Nothing was changed.";
   console.log(`Target database: ${describeDatabaseTarget(url)}`);
   const db = createDb(url);
   try {
     const now = new Date();
     if (mode === "insert") {
       console.log(`Demo data for ${ownerDateKey(now)} (Lima).`);
-      if (!(await confirmHost(url))) return fail("The host does not match. Nothing was changed.");
+      if (!(await confirmHost(url, check.askHost))) return fail(unchanged);
       const counts = await insertDemoData(db, now);
       console.log(`Inserted (rows already there were left as they are):\n${summary(counts)}`);
     } else if (mode === "remove") {
-      console.log(`Demo rows present:\n${summary(await countDemoRows(db))}`);
-      if (!(await confirmHost(url))) return fail("The host does not match. Nothing was changed.");
+      console.log(
+        `What remove would delete or change now:\n${summary(await previewRemoveDemo(db))}`,
+      );
+      if (!(await confirmHost(url, check.askHost))) return fail(unchanged);
       const result = await removeDemoData(db);
       console.log(`Removed:\n${summary(result)}`);
     } else {
       console.log("DESTRUCTIVE: deletes EVERY project, task and habit (soft-deleted ones too).");
       console.log("Areas, settings and the owner's account are kept. Rows that will be deleted:");
       console.log(summary(await countModuleRows(db)));
-      if (!(await confirmHost(url))) return fail("The host does not match. Nothing was changed.");
+      if (!(await confirmHost(url, check.askHost))) return fail(unchanged);
       const word = await prompt("Type BORRAR to delete them and insert the demo: ", {
         hidden: false,
       });
@@ -1301,7 +1412,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     if (error instanceof DemoDataError || (error instanceof Error && error.message === CANCELLED)) {
       console.error(error.message);
     } else {
-      console.error("Failed, nothing was changed:", describeError(error));
+      console.error(
+        "Failed; the transaction was not confirmed. Check counts with `db:demo:remove` before retrying.",
+        describeError(error),
+      );
     }
     process.exit(1);
   });

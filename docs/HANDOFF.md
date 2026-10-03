@@ -916,24 +916,29 @@ Solo la parte del contrato (como T6). **La navegación definitiva sigue pendient
 
 `scripts/demo-data.ts` carga datos realistas para ver todas las pantallas con contenido: 7 proyectos (uno terminado, uno pausado, "Viaje a Europa 2027" bloqueado por "Renovar pasaporte"), 21 hitos, 4 enlaces, 27 tareas (4 en la bandeja, 2 retrasadas, 6 para hoy, 5 en la semana, 4 sin fecha, 6 hechas en días pasados y **ninguna hoy**; 2 recurrentes; etiquetas `casa`, `compras`, `trámites`, `estudio`) y 8 hábitos con ~4 semanas de registros (rachas creíbles, una pausa "Viaje", "Meditar" ya hecho hoy y el resto pendiente). Las fechas se calculan desde el día de Lima en que se corre, así que la portada siempre tiene algo "de hoy". Usa las áreas del seed por slug y nunca toca `core` (áreas, ajustes, cuenta y passkeys).
 
-**El owner lo corre en su propia terminal** (el agente nunca ve la URL). Las tres piden escribir el host de la base remota para confirmar, no corren contra una remota sin `ALLOW_PROD_DB=1` (`VERCEL=1` no cuenta) y nunca imprimen la URL, secretos ni mensajes de Postgres:
+**El owner lo corre en su propia terminal** (el agente nunca ve la URL). Contra una base remota, los tres comandos exigen `ALLOW_PROD_DB=1` (`VERCEL=1` no cuenta) y piden escribir el host para confirmar; nunca imprimen la URL, secretos ni mensajes de Postgres. Para que la contraseña **no quede en el historial de zsh**, la URL se lee sin eco y se borra al terminar:
 
 ```bash
+read -rs 'DATABASE_URL_UNPOOLED?URL directa de Neon: ' && export DATABASE_URL_UNPOOLED && echo
+
 # Insertar (idempotente: ids fijos UUID v5; correrlo otra vez no duplica nada)
-DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo
+ALLOW_PROD_DB=1 pnpm db:demo
 
 # Quitar solo los datos de demo (y lo que cuelga de ellos)
-DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo:remove
+ALLOW_PROD_DB=1 pnpm db:demo:remove
 
 # DESTRUCTIVO: borrar TODOS los proyectos, tareas y hábitos y dejar solo la demo
-DATABASE_URL_UNPOOLED='…' ALLOW_PROD_DB=1 pnpm db:demo:replace
+ALLOW_PROD_DB=1 pnpm db:demo:replace
+
+unset DATABASE_URL_UNPOOLED
 ```
 
-- **`db:demo`:** una transacción con los mismos locks de los módulos; los hábitos van al final del orden. Si una fila de demo ya existe, la deja como está (no la "refresca"); para volver a fechar la demo, `db:demo:remove` y luego `db:demo`. No toca los proyectos, tareas ni hábitos reales.
-- **`db:demo:remove`:** borra físicamente solo las filas con ids de demo, con sus hitos, enlaces, dependencias, registros, pausas y uniones de etiquetas, más las ocurrencias que haya creado completar una recurrente de demo. Una tarea **tuya** dentro de un proyecto de demo se conserva y pasa al área de ese proyecto (sin proyecto, hito ni "próxima acción"). Una etiqueta de demo que ya usas en tareas tuyas se queda. Reordena los hábitos que quedan (0…n-1; sin cambios si la demo seguía al final).
-- **`db:demo:replace` (destructivo):** en una sola transacción borra **todas** las filas de `projects`, `project_milestones`, `project_links`, `project_dependencies`, `tasks`, `task_tags`, `task_tag_links`, `habits`, `habit_logs` y `habit_pauses` (también las de borrado lógico) e inserta la demo. Antes muestra cuántas filas borrará por tabla y pide el host y luego la palabra `BORRAR`. Si faltan áreas del seed, falla sin borrar nada. **Antes de correrlo:** lanzar el respaldo (`gh workflow run backup.yml -R Brahua/brahua-os`) y comprobar que terminó bien (`gh run watch <id>` en verde, con su artefacto), como en "Respaldos (C10)".
+- **`db:demo`:** una transacción con los mismos locks de los módulos (sus claves salen de `src/modules/*/lock-keys.ts`); los hábitos van al final del orden. Si una fila de demo ya existe, la deja como está (no la "refresca"); para volver a fechar la demo, `db:demo:remove` y luego `db:demo`. No toca los proyectos, tareas ni hábitos reales.
+- **`db:demo:remove`:** antes de confirmar muestra lo que borrará o cambiará, también lo que arrastra: ocurrencias creadas al completar una recurrente de demo, hitos y enlaces tuyos en proyectos de demo, dependencias entre un proyecto tuyo y uno de demo, y registros y pausas que agregaste o corregiste en hábitos de demo. Borra físicamente las filas de demo con sus hitos, enlaces, dependencias, registros, pausas y uniones de etiquetas, y las ocurrencias **intactas** de recurrentes de demo; una ocurrencia que editaste o moviste a un proyecto tuyo se **conserva** y se suelta (`spawned_from_id = null`). Una tarea **tuya** dentro de un proyecto de demo se conserva y pasa al área de ese proyecto (sin proyecto, hito ni "próxima acción"). Una etiqueta de demo que ya usas en tareas tuyas se queda. Reordena los hábitos que quedan (0…n-1; sin cambios si la demo seguía al final).
+- **`db:demo:replace` (destructivo):** en una sola transacción borra **todas** las filas de `projects`, `project_milestones`, `project_links`, `project_dependencies`, `tasks`, `task_tags`, `task_tag_links`, `habits`, `habit_logs` y `habit_pauses` (también las de borrado lógico) e inserta la demo. Antes muestra cuántas filas borrará por tabla y pide el host y luego la palabra `BORRAR` (siempre en una terminal interactiva, también en local). Si algo falla, la transacción no se confirma: nada queda a medias. Si faltan áreas del seed, falla sin borrar nada. **Antes de correrlo:** lanzar el respaldo (`gh workflow run backup.yml -R Brahua/brahua-os`) y comprobar que terminó bien (`gh run watch <id>` en verde, con su artefacto), como en "Respaldos (C10)".
+- **Si un comando falla:** dice "the transaction was not confirmed"; antes de reintentar, revisar los conteos con `db:demo:remove` (muestra el resumen y se puede cancelar con Ctrl-C al pedir el host).
 - **Respaldos y exportación:** mientras existan, los datos de demo salen en `pnpm db:export` y en el respaldo semanal como cualquier otro dato.
-- **Pruebas:** `tests/integration/demo-data.test.ts` (insertar dos veces no duplica; los contratos de `today` y las listas leen datos válidos y no sale "Día completo"; los `CHECK` pasan cualquier día de la semana y a fin de mes; `remove` deja la base igual que antes, con control positivo; `replace` deja solo la demo y no toca áreas ni la cuenta).
+- **Pruebas:** `tests/integration/demo-data.test.ts`: insertar dos veces no duplica; los contratos de `today` y las listas leen datos válidos y no sale "Día completo"; los `CHECK` pasan cualquier día de la semana y a fin de mes; fechas coherentes (ocurrencia creada al completar la anterior, proyecto cerrado después de su último hito y tarea); `remove` deja la base igual que antes con control positivo, cuenta y maneja lo que arrastra (ocurrencias editadas o movidas se sueltan) y cierra el orden de hábitos con uno creado después; `replace` deja solo la demo sin tocar áreas ni la cuenta, y una falla después de borrar revierte todo; `gate` (qué confirma cada modo, `replace` sin terminal falla) y los locks con las claves de los módulos.
 
 ## Pruebas E2E
 

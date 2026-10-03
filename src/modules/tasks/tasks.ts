@@ -17,6 +17,7 @@ import { lifeAreas } from "@/modules/core/db/schema";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
 import { CLOSED_STATUSES } from "@/modules/projects/project-close";
 import { taskTagLinks, taskTags, tasks } from "./db/schema";
+import { TASKS_ADVISORY_SPACE } from "./lock-keys";
 import {
   COMPLETED_COLUMNS,
   recurrenceColumns,
@@ -38,8 +39,7 @@ import type {
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-/** First key of every advisory lock `tasks` takes (its namespace among the app's locks). */
-export const TASKS_ADVISORY_SPACE = 3_000;
+export { TASKS_ADVISORY_SPACE } from "./lock-keys";
 
 /**
  * Takes the task locks of `projectIds` (deduplicated, sorted). Must be the first locks of the
