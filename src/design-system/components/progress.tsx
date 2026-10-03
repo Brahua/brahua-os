@@ -154,21 +154,13 @@ export function DotMatrix({
   );
 }
 
-/**
- * `empty` (a past day not met: an empty cell, never red), `partial` (a quantity under its goal,
- * filled by `fill`) and `off` (a day that doesn't count: not scheduled, before the start) are
- * H5's, PENDING UPSTREAM in Claude Design (styles in overrides.css).
- */
-export type DayState = "done" | "rest" | "today" | "upcoming" | "empty" | "partial" | "off";
+export type DayState = "done" | "rest" | "today" | "upcoming";
 
 const DAY_TEXT: Record<DayState, string> = {
   done: "hecho",
   rest: "descanso",
   today: "hoy, pendiente",
   upcoming: "por venir",
-  empty: "sin marcar",
-  partial: "en progreso",
-  off: "no cuenta",
 };
 
 type DayCellProps = Omit<React.ComponentProps<"span">, "children"> & {
@@ -178,8 +170,6 @@ type DayCellProps = Omit<React.ComponentProps<"span">, "children"> & {
   size?: "md" | "lg";
   /** Day name for screen readers ("jueves 24"). */
   label?: string;
-  /** `partial`: how much of the goal is done, 0–1 (the fill's intensity). */
-  fill?: number;
 };
 
 /** A habit's day (design system `DayCell`). Rest is a valid state: grey dash, never red. */
@@ -188,13 +178,10 @@ export function DayCell({
   today = false,
   size = "md",
   label,
-  fill,
   className,
-  style,
   ...props
 }: DayCellProps) {
   const text = today && state === "done" ? "hoy, hecho" : DAY_TEXT[state];
-  const level = state === "partial" ? Math.max(0, Math.min(1, fill ?? 0)) : null;
   return (
     <span
       role="img"
@@ -206,7 +193,6 @@ export function DayCell({
         today && "is-today",
         className,
       )}
-      style={level === null ? style : ({ "--fill": level, ...style } as React.CSSProperties)}
       {...props}
     />
   );

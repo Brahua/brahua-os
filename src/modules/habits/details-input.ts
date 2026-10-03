@@ -5,13 +5,9 @@
 // `detailsUpdateShape`.
 import { z } from "zod";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
-import {
-  HABIT_CUE_MAX_LENGTH,
-  HABIT_IDENTITY_MAX_LENGTH,
-  HABIT_LOG_WINDOW_DAYS,
-} from "./habit-constants";
+import { HABIT_CUE_MAX_LENGTH, HABIT_IDENTITY_MAX_LENGTH } from "./habit-constants";
 import { DETAILS_ERRORS } from "./history-copy";
-import { addDays } from "./schedule";
+import { logWindowStart } from "./schedule";
 
 /** An optional text, stored like names (normalized; blank is null), up to `max` characters. */
 function optionalText(max: number, errors: { tooLong: string; invisible: string }) {
@@ -74,7 +70,7 @@ export type DetailsField = (typeof DETAILS_FIELDS)[number];
  */
 export function startDateError(startDate: string, today: string): string | null {
   if (startDate > today) return DETAILS_ERRORS.startDateFuture;
-  if (startDate < addDays(today, -HABIT_LOG_WINDOW_DAYS)) return DETAILS_ERRORS.startDateTooEarly;
+  if (startDate < logWindowStart(today)) return DETAILS_ERRORS.startDateTooEarly;
   return null;
 }
 

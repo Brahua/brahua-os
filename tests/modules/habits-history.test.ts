@@ -14,7 +14,7 @@ import {
 } from "@/modules/habits/calendar";
 import { detailsColumns, startDateError } from "@/modules/habits/details-input";
 import { createHabitInputSchema, updateHabitInputSchema } from "@/modules/habits/habit-input";
-import { dayStateText, DETAILS_ERRORS } from "@/modules/habits/history-copy";
+import { dayStateText, DETAILS_ERRORS, HISTORY_COPY } from "@/modules/habits/history-copy";
 import {
   monthCompliance,
   monthDays,
@@ -27,6 +27,7 @@ import {
   dayDots,
   habitWeekRow,
   parseWeekParam,
+  weekLinks,
   weekTotal,
   type HabitWeekHabit,
 } from "@/modules/habits/week-summary";
@@ -287,6 +288,87 @@ describe("the week view", () => {
     expect(parseWeekParam(value, TODAY, "2026-09-01")).toBe(monday);
   });
 
+  test("the week links: back to the first week, forward and to this week", () => {
+    expect(weekLinks("2026-09-21", TODAY, "2026-09-01")).toEqual({
+      previous: "2026-09-14",
+      next: "2026-09-28",
+      current: "2026-09-28",
+    });
+    expect(weekLinks("2026-08-31", TODAY, "2026-09-01")).toMatchObject({ previous: null });
+    expect(weekLinks("2026-09-28", TODAY, "2026-09-01")).toMatchObject({
+      next: null,
+      current: null,
+    });
+    expect(weekLinks("2026-09-28", TODAY, null)).toEqual({
+      previous: null,
+      next: null,
+      current: null,
+    });
+  });
+
+  test("the range: one month or two, across years too", () => {
+    expect(HISTORY_COPY.weekRange("2026-09-21", "2026-09-27")).toBe("Del 21 al 27 de setiembre");
+    expect(HISTORY_COPY.weekRange("2026-09-28", "2026-10-04")).toBe(
+      "Del 28 de setiembre al 4 de octubre",
+    );
+    expect(HISTORY_COPY.weekRange("2026-12-28", "2027-01-03")).toBe(
+      "Del 28 de diciembre al 3 de enero",
+    );
+  });
+
+  test.each([
+    ["Monday, nothing done yet: nothing counts", "2026-09-28", [], { done: 0, expected: 0 }],
+    ["Monday, done", "2026-09-28", ["2026-09-28"], { done: 1, expected: 1 }],
+    [
+      "Sunday, the whole week",
+      "2026-10-04",
+      ["2026-09-28", "2026-10-04"],
+      { done: 2, expected: 7 },
+    ],
+  ])("today on the week's edges: %s", (_, today, marked, compliance) => {
+    expect(habitWeekRow(habit(), history(marked), "2026-09-28", today).compliance).toEqual(
+      compliance,
+    );
+  });
+
+  test("rows of the other kinds: fixed days, X por semana, a habit to avoid", () => {
+    const marked = history(["2026-09-28", "2026-09-30"]);
+    const fixed = habitWeekRow(
+      habit({ frequency: "weekdays", weekdays: [1, 3, 5] }),
+      marked,
+      "2026-09-28",
+      TODAY,
+    );
+    expect(fixed.days.map((day) => day.status)).toEqual([
+      "done",
+      "notScheduled",
+      "done",
+      "notScheduled",
+      "empty",
+      "future",
+      "future",
+    ]);
+    // Friday is today and not done: it doesn't count yet.
+    expect(fixed.compliance).toEqual({ done: 2, expected: 2 });
+    const weekly = habitWeekRow(
+      habit({ frequency: "weekly_count", weeklyTarget: 3 }),
+      marked,
+      "2026-09-28",
+      TODAY,
+    );
+    expect(weekly.compliance).toEqual({ done: 2, expected: 3 });
+    // A habit to avoid: the marked days are relapses (empty, never red); today is clean.
+    const avoid = habitWeekRow(habit({ kind: "avoid" }), marked, "2026-09-28", TODAY);
+    expect(avoid.days.map((day) => day.status).slice(0, 5)).toEqual([
+      "empty",
+      "done",
+      "empty",
+      "done",
+      "done",
+    ]);
+    expect(avoid.compliance).toEqual({ done: 3, expected: 5 });
+  });
+
   test("without habits, only the current week", () => {
     expect(parseWeekParam("2026-09-14", TODAY, null)).toBe("2026-09-28");
   });
@@ -315,6 +397,18 @@ describe("the week view", () => {
       "quantity",
       { status: "partial", quantity: 15, target: 30 },
       { total: 9, done: 4, complete: false },
+    ],
+    [
+      "30 min, 1 logged: one dot lit",
+      "quantity",
+      { status: "partial", quantity: 1, target: 30 },
+      { total: 9, done: 1, complete: false },
+    ],
+    [
+      "30 min, 29 logged: never all lit",
+      "quantity",
+      { status: "partial", quantity: 29, target: 30 },
+      { total: 9, done: 8, complete: false },
     ],
     [
       "over the goal",

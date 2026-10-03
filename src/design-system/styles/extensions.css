@@ -214,10 +214,12 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 .bo-habit-week--single .bo-dotmatrix__grid { grid-template-columns: var(--_d); min-height: var(--_d); }
 /* Habits (H5): a habit's monthly calendar. Each day is a key (the day's number over its DayCell)
    in a 7-column grid that fits 320 px; the key of the focused day is the grid's tab stop. */
-.bo-habit-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.bo-habit-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .bo-habit-calendar__head { font: 500 11px/14px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-secondary); text-align: center; padding-block: 4px; }
 .bo-habit-calendar__day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; min-height: 56px; padding: 6px 0; border-radius: var(--radius-md); background: transparent; color: var(--color-text); font: 500 13px/16px var(--font-mono); font-variant-numeric: tabular-nums; cursor: pointer; }
 .bo-habit-calendar__day:hover:not([aria-disabled="true"]) { background: var(--color-well); }
 .bo-habit-calendar__day:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 0; }
 .bo-habit-calendar__day[aria-disabled="true"] { cursor: default; }
+/* A day that can't be logged (read only, or still to come): its number recedes, a cue on touch. */
+.bo-habit-calendar__day[aria-disabled="true"] > span:first-child { color: var(--color-text-secondary); }
 .bo-habit-calendar__day.is-today { color: var(--color-signal-text, var(--color-text)); font-weight: 700; }

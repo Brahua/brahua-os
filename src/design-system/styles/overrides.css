@@ -13,19 +13,25 @@
 }
 
 /*
- * PENDING UPSTREAM (2026-10-02, habits H5: a habit's monthly calendar): DayCell lacks three states
- * the calendar needs (SPEC-habits "Pantallas": "Si falta el estado «pasado sin cumplir» en
+ * PENDING UPSTREAM (2026-10-02, habits H5: a habit's monthly calendar, drawn with the DayCell
+ * classes by `CalendarDayCell` in src/modules/habits): DayCell lacks three states the calendar needs (SPEC-habits "Pantallas": "Si falta el estado «pasado sin cumplir» en
  * DayCell…"). `is-empty`: a past day not met, the plain outlined cell (never red, never a cross).
- * `is-partial`: a quantity under its goal, filled with the text color at an intensity that grows
- * with `--fill` (0–1), always under a done day's solid fill. `is-off`: a day that doesn't count
- * (not scheduled, before the start), a faint dot with no outline.
+ * `is-partial`: a quantity under its goal, filled from the bottom up to `--fill` (0–1, at least a
+ * quarter so a little shows) in the text color: the filled part contrasts like a done day's, and
+ * its height tells it from both empty and done. `is-off`: a day that doesn't count (not
+ * scheduled, before the start), a faint dot with no outline. In forced colors (where shadows and
+ * backgrounds go away) every state keeps a visible shape: outline, solid, bottom fill, dash, dot.
  */
 .bo-daycell.is-empty {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--color-border-control);
 }
 .bo-daycell.is-partial {
-  background: color-mix(in oklab, var(--color-text) calc(18% + 42% * var(--fill, 0)), transparent);
+  background: linear-gradient(
+    to top,
+    var(--color-text) calc(max(var(--fill, 0), 0.25) * 100%),
+    transparent 0
+  );
   box-shadow: inset 0 0 0 1px var(--color-border-control);
 }
 .bo-daycell.is-partial.is-today {
@@ -40,4 +46,40 @@
   height: 3px;
   border-radius: 50%;
   background: var(--color-border-strong);
+}
+@media (forced-colors: active) {
+  .bo-daycell {
+    border: 1px solid CanvasText;
+  }
+  .bo-daycell.is-off,
+  .bo-daycell.is-upcoming {
+    border-style: dashed;
+  }
+  .bo-daycell.is-off {
+    border-color: transparent;
+  }
+  .bo-daycell.is-done,
+  .bo-daycell.is-partial,
+  .bo-daycell.is-rest::after,
+  .bo-daycell.is-off::after {
+    forced-color-adjust: none;
+  }
+  .bo-daycell.is-done {
+    background: CanvasText;
+  }
+  .bo-daycell.is-partial {
+    background: linear-gradient(
+      to top,
+      CanvasText calc(max(var(--fill, 0), 0.25) * 100%),
+      Canvas 0
+    );
+  }
+  .bo-daycell.is-rest::after,
+  .bo-daycell.is-off::after {
+    background: CanvasText;
+  }
+  .bo-daycell.is-today {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
 }

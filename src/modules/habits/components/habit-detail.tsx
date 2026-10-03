@@ -4,11 +4,11 @@ import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Pencil, Trash2 } fr
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { AreaTag, Icon, Key, StatNumber } from "@/design-system";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { deleteHabit } from "../actions";
-import { monthLinks } from "../calendar";
+import { monthLinks, monthOf } from "../calendar";
 import { frequencySummary } from "../frequency-input";
 import type { HabitDayLog, HabitItem, HabitPauseSummary } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
@@ -35,6 +35,7 @@ import {
 import type { OtherDay } from "./adjust-day-sheet";
 import { HabitCalendar, type CalendarDay } from "./habit-calendar";
 import { HabitPausesSection } from "./habit-pauses-section";
+import { RefocusOnChange } from "./refocus-on-change";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 import { dayState, preloadAdjust } from "./use-quantity-log";
 
@@ -112,18 +113,25 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
   const deleteHelpId = `${ids}-delete-help`;
   const archiveHelpId = `${ids}-archive-help`;
 
-  const history: StreakHistory = {
-    logs: new Map<string, DayLog>(
-      logView.map((log) => [log.day, { quantity: log.quantity, target: log.target }]),
-    ),
-    pauses: pauseView,
-  };
+  // The history as shown (optimistic) and what the stats read from it: walked once per change of
+  // the logs, the pauses or the month, not on every render (a sheet opening, a busy key…).
+  const { history, current, best, compliance, total } = useMemo(() => {
+    const shown: StreakHistory = {
+      logs: new Map<string, DayLog>(
+        logView.map((log) => [log.day, { quantity: log.quantity, target: log.target }]),
+      ),
+      pauses: pauseView,
+    };
+    return {
+      history: shown,
+      current: currentStreak(habit, shown, today),
+      best: bestStreak(habit, shown, today),
+      compliance: monthCompliance(habit, shown, month, today),
+      total: totalDone(habit, shown, today),
+    };
+  }, [habit, logView, pauseView, month, today]);
   const avoid = habit.kind === "avoid";
   const byQuantity = !avoid && habit.measure === "quantity";
-  const current = currentStreak(habit, history, today);
-  const best = bestStreak(habit, history, today);
-  const compliance = monthCompliance(habit, history, month, today);
-  const total = totalDone(habit, history, today);
   const links = monthLinks(month, today, habit.startDate);
 
   function notSaved(text: string, reason: string) {
@@ -165,9 +173,11 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
     // A page read for another Lima day reloads: the 7 days moved.
     if (!isCurrentDay()) return;
     adjustReturn.current = trigger;
-    const days = [today, ...otherLoggableDays(habit.startDate, today)]
-      .filter((option) => option >= habit.startDate)
-      .map((option) => ({ day: option, ...logOf(option), paused: isPausedOn(pauseView, option) }));
+    const days = [today, ...otherLoggableDays(habit.startDate, today)].map((option) => ({
+      day: option,
+      ...logOf(option),
+      paused: isPausedOn(pauseView, option),
+    }));
     setAdjusting((previous) => ({ key: (previous?.key ?? 0) + 1, day, days }));
     setAdjustOpen(true);
   }
@@ -223,6 +233,20 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
   const [busyPauses, setBusyPauses] = useState<ReadonlySet<string>>(() => new Set());
   const busyNow = useRef(new Set<string>());
 
+  // After a refused "Reanudar": back to its key (focus had moved to the section's heading).
+  const refocusPause = useRef<string | null>(null);
+  useEffect(() => {
+    const id = refocusPause.current;
+    if (!id) return;
+    const key = document.querySelector<HTMLElement>(
+      `[data-habit-pause="${CSS.escape(id)}"] button`,
+    );
+    if (!key) return;
+    refocusPause.current = null;
+    const active = document.activeElement;
+    if (active === null || active === document.body || active.id === pausesHeadingId) key.focus();
+  });
+
   function hold(id: string): boolean {
     if (busyNow.current.has(id)) return false;
     busyNow.current.add(id);
@@ -257,6 +281,8 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
         if (queued.kind === "skipped" || queued.superseded) return;
         const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
         if (!result.ok) {
+          // The row comes back (the rollback): focus goes back to its key once it is there.
+          refocusPause.current = pause.id;
           notSaved(PAUSE_COPY.notResumed, failureReason(result));
           return;
         }
@@ -517,7 +543,7 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
             name="best"
           />
           <Stat
-            label={HISTORY_COPY.monthCompliance}
+            label={HISTORY_COPY.monthCompliance(month)}
             value={compliance.done}
             unit={HISTORY_COPY.ofTotal(compliance.expected)}
             name="month"
@@ -533,7 +559,9 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
 
       <section aria-labelledby={monthTitleId} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id={monthTitleId} className="bo-text-title">
+          {/* Another month: if its link left (the first or the current one), focus here. */}
+          <RefocusOnChange value={month} targetId={monthTitleId} />
+          <h2 id={monthTitleId} tabIndex={-1} className="bo-text-title outline-none">
             <span className="sr-only">{HISTORY_COPY.calendarHeading}: </span>
             {HISTORY_COPY.monthTitle(month)}
           </h2>
@@ -548,7 +576,15 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
             ) : null}
             {links.next ? (
               <Key asChild variant="ghost">
-                <Link href={habitMonthHref(habit.id, links.next)} prefetch={false} rel="next">
+                <Link
+                  // Today's month is the bare page (its canonical URL: no redirect on the way).
+                  href={habitMonthHref(
+                    habit.id,
+                    links.next === monthOf(today) ? undefined : links.next,
+                  )}
+                  prefetch={false}
+                  rel="next"
+                >
                   {HISTORY_COPY.nextMonth}
                   <Icon icon={ChevronRight} />
                 </Link>
@@ -601,7 +637,15 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
           </p>
         </div>
         {confirming ? (
-          <div className="flex flex-col gap-3">
+          // Esc is "No, conservarlo" (like closing a dialog), unless it is already deleting.
+          <div
+            className="flex flex-col gap-3"
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || deleting) return;
+              event.preventDefault();
+              keep();
+            }}
+          >
             <h3 ref={confirmTitle} tabIndex={-1} className="bo-text-body-strong outline-none">
               {HABITS_COPY.confirmTitle(habit.name)}
             </h3>
@@ -657,6 +701,7 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
           habit={habit}
           days={adjusting.days}
           initialDay={adjusting.day}
+          today={today}
           returnFocusRef={adjustReturn}
           onSave={saveDay}
         />
@@ -682,6 +727,7 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
           onOpenChange={setFormOpen}
           areas={areas}
           habit={habit}
+          today={today}
           returnFocusRef={formReturn}
           onCreated={(habitSaved) => {
             saved.current = habitSaved;

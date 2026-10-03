@@ -12,6 +12,7 @@ import { HabitDetail } from "@/modules/habits/components/habit-detail";
 import { HabitsScreen } from "@/modules/habits/components/habits-screen";
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import { HabitsWeekView } from "@/modules/habits/components/habits-week";
+import { RefocusOnChange } from "@/modules/habits/components/refocus-on-change";
 import type { HabitDayLog, HabitItem, HabitPauseSummary } from "@/modules/habits/habit-input";
 import { DETAILS_ERRORS } from "@/modules/habits/history-copy";
 import type { HabitsWeek } from "@/modules/habits/history";
@@ -277,6 +278,27 @@ describe("the calendar grid", () => {
     expect(dayKey("2026-10-31")).toHaveFocus();
   });
 
+  test("a past month starts on its 1st; Shift or Alt with an arrow is left alone", async () => {
+    const user = userEvent.setup();
+    render(
+      <HabitCalendar
+        month="2026-09"
+        today={TODAY}
+        dayOf={dayOf}
+        onOpenDay={vi.fn()}
+        labelledBy="none"
+        describedBy="none"
+      />,
+    );
+    const stops = screen.getAllByRole("button").filter((key) => key.tabIndex === 0);
+    expect(stops).toEqual([dayKey("2026-09-01")]);
+    dayKey("2026-09-01").focus();
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    expect(dayKey("2026-09-01")).toHaveFocus();
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    expect(dayKey("2026-09-01")).toHaveFocus();
+  });
+
   test("only the days that can be logged open; the others are aria-disabled, still focusable", async () => {
     const user = userEvent.setup();
     const onOpenDay = renderCalendar();
@@ -361,6 +383,8 @@ describe("a habit's page", () => {
     const sheet = await screen.findByRole("dialog", { name: "Registrar «Leer»" });
     await user.click(within(sheet).getByRole("switch", { name: "Hecho ese día" }));
     await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
+    // Positive control: shown at once.
+    expect(dayKey("2026-10-01")).toHaveAccessibleName("jueves 1 de octubre: hecho");
     await server.answer({ ok: false, error: "Ese día no es válido." });
     expect(
       await within(notices()).findByText("No se pudo registrar ese día. Ese día no es válido."),
@@ -368,6 +392,68 @@ describe("a habit's page", () => {
     await waitFor(() =>
       expect(dayKey("2026-10-01")).toHaveAccessibleName("jueves 1 de octubre: sin marcar"),
     );
+  });
+
+  test("a refused archive comes back: the key says Archivar, the days can be logged", async () => {
+    const user = userEvent.setup();
+    renderDetail(habit());
+    const key = screen.getByRole("button", { name: "Archivar" });
+    await user.click(key);
+    expect(key).toHaveAccessibleName("Reactivar");
+    await server.answer({ ok: false, error: "Este hábito ya no existe (se eliminó)." });
+    expect(
+      await within(notices()).findByText(
+        "No se pudo archivar. Este hábito ya no existe (se eliminó).",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(key).toHaveAccessibleName("Archivar"));
+    expect(document.querySelector("[data-habit-archived]")).not.toBeInTheDocument();
+    expect(dayKey("2026-10-01")).not.toHaveAttribute("aria-disabled");
+  });
+
+  test("a refused Reanudar brings the pause back, with focus on its key", async () => {
+    const user = userEvent.setup();
+    const pause = { id: "p1", startDate: "2026-09-30", endDate: "2026-10-05", reason: null };
+    renderDetail(habit(), { pauses: [pause] });
+    const name = "Reanudar: Del 30 de setiembre al 5 de octubre";
+    await user.click(screen.getByRole("button", { name }));
+    // Positive control: it moved to the past ones at once.
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    await server.answer({ ok: false, error: "Esa pausa ya no existe. Actualiza la página." });
+    expect(await within(notices()).findByText(/^No se pudo reanudar\./)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name })).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "Pausar" })).not.toBeInTheDocument();
+  });
+
+  test("without logged days Eliminar deletes at once; a refusal stays on the page", async () => {
+    const user = userEvent.setup();
+    renderDetail(habit({ hasLogs: false }));
+    await user.click(screen.getByRole("button", { name: "Eliminar hábito" }));
+    expect(deleteHabit).toHaveBeenCalledWith({ id: ID });
+    expect(screen.getByRole("button", { name: "Eliminando…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await server.answer({ ok: false, error: "Este hábito ya no existe (se eliminó)." });
+    expect(
+      await within(notices()).findByText(
+        "No se pudo eliminar. Este hábito ya no existe (se eliminó).",
+      ),
+    ).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Eliminar hábito" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
+
+  test("Esc on the delete confirmation keeps the habit", async () => {
+    const user = userEvent.setup();
+    renderDetail(habit({ hasLogs: true }));
+    await user.click(screen.getByRole("button", { name: "Eliminar hábito" }));
+    expect(screen.getByRole("heading", { level: 3, name: "¿Eliminar «Leer»?" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Eliminar hábito" })).toHaveFocus();
+    expect(deleteHabit).not.toHaveBeenCalled();
   });
 
   test("pauses: the current one resumes (optimistic, to the past ones); a paused day is rest", async () => {
@@ -429,6 +515,32 @@ describe("a habit's page", () => {
     expect(deleteHabit).toHaveBeenCalledTimes(1);
     await server.answer();
     expect(router.replace).toHaveBeenCalledWith(`/habits?deleted=${ID}`);
+  });
+});
+
+describe("RefocusOnChange", () => {
+  function Page({ value }: { value: string }) {
+    return (
+      <>
+        <h2 id="target" tabIndex={-1}>
+          {value}
+        </h2>
+        <RefocusOnChange value={value} targetId="target" />
+      </>
+    );
+  }
+
+  test("never on the first render; after a change, only if focus was lost", () => {
+    const { rerender } = render(<Page value="a" />);
+    expect(document.body).toHaveFocus();
+    rerender(<Page value="b" />);
+    expect(screen.getByRole("heading", { name: "b" })).toHaveFocus();
+    const other = document.createElement("button");
+    document.body.append(other);
+    other.focus();
+    rerender(<Page value="c" />);
+    expect(other).toHaveFocus();
+    other.remove();
   });
 });
 
@@ -524,6 +636,19 @@ describe("Semana", () => {
     expect(screen.queryByRole("link", { name: "Volver a esta semana" })).not.toBeInTheDocument();
   });
 
+  test("a week before every habit started: a plain note, no way to create", () => {
+    renderWeek(
+      week({
+        monday: "2026-08-31",
+        rows: [],
+        earliestStart: "2026-09-01",
+        total: { done: 0, expected: 0 },
+      }),
+    );
+    expect(screen.getByText("Esa semana no tenías hábitos activos.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ir a Hoy" })).not.toBeInTheDocument();
+  });
+
   test("empty: without habits, the way to create one; a week before them, a plain note", () => {
     renderWeek(
       week({
@@ -583,6 +708,27 @@ describe("Más detalles in the form", () => {
       }),
     );
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  test("folded with something inside, the line under the toggle says what", async () => {
+    const user = userEvent.setup();
+    renderToday();
+    await user.click(screen.getByRole("button", { name: "Crear un hábito" }));
+    const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
+    const toggle = within(dialog).getByRole("button", { name: "Más detalles" });
+    expect(toggle).toHaveAccessibleDescription(
+      "Identidad, momento y fecha de inicio (opcionales).",
+    );
+    await user.click(toggle);
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Momento (opcional)" }),
+      "Al despertar",
+    );
+    const start = within(dialog).getByLabelText("Fecha de inicio");
+    await user.clear(start);
+    await user.type(start, "2026-09-29");
+    await user.click(toggle);
+    expect(toggle).toHaveAccessibleDescription("Momento · empieza el 29 de setiembre");
   });
 
   test("a start date out of its window: the error on the field, focused (the section opens)", async () => {

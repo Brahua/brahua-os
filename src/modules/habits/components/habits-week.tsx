@@ -7,9 +7,10 @@ import { HABITS_COPY } from "../habits-copy";
 import { dayStateText, HISTORY_COPY, WEEKDAY_LETTERS } from "../history-copy";
 import type { HabitsWeek } from "../history";
 import { habitPath, habitViewHref } from "../routes";
-import { addDays, weekStart } from "../schedule";
-import { dayDots, type HabitWeekRow } from "../week-summary";
+import { addDays } from "../schedule";
+import { dayDots, weekLinks, type HabitWeekRow } from "../week-summary";
 import { ArchivedHabitsSection } from "./archived-habits-section";
+import { RefocusOnChange } from "./refocus-on-change";
 
 type HabitsWeekViewProps = {
   week: HabitsWeek;
@@ -38,12 +39,10 @@ export function HabitsWeekView({
 }: HabitsWeekViewProps) {
   const { monday, rows, total, earliestStart } = week;
   const sunday = addDays(monday, 6);
-  const current = monday === weekStart(today);
-  const previous =
-    earliestStart !== null && monday > weekStart(earliestStart) ? addDays(monday, -7) : null;
-  const next = current ? null : addDays(monday, 7);
+  const links = weekLinks(monday, today, earliestStart);
+  const current = links.current === null;
+  const { previous, next } = links;
   const weekHeadingId = `${headingId}-week`;
-  const rangeId = `${headingId}-range`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,14 +55,9 @@ export function HabitsWeekView({
 
       {viewSwitch}
 
-      <section
-        aria-labelledby={weekHeadingId}
-        aria-describedby={rangeId}
-        className="flex flex-col gap-4"
-      >
-        <h2 id={weekHeadingId} className="sr-only">
-          {HISTORY_COPY.weekHeading}
-        </h2>
+      <section aria-labelledby={weekHeadingId} className="flex flex-col gap-4">
+        {/* Another week: if its link left (the first or the current one), focus to its range. */}
+        <RefocusOnChange value={monday} targetId={weekHeadingId} />
 
         <Lcd block className="max-w-180" data-week-total="">
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -73,9 +67,15 @@ export function HabitsWeekView({
               unit={HISTORY_COPY.ofTotal(total.expected)}
               label={current ? HISTORY_COPY.thisWeek : HISTORY_COPY.thatWeek}
             />
-            <p id={rangeId} className="bo-lcd__meta">
+            {/* The section's heading: the week shown ("Del 21 al 27 de setiembre"). */}
+            <h2
+              id={weekHeadingId}
+              tabIndex={-1}
+              className="bo-lcd__meta outline-none"
+              data-week-range=""
+            >
               {HISTORY_COPY.weekRange(monday, sunday)}
-            </p>
+            </h2>
           </div>
         </Lcd>
 

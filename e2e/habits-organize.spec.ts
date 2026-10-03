@@ -211,7 +211,10 @@ test("archive with Deshacer; reactivate from 'Archivados' (in 'Semana') at the e
   await untilSaved(page, () =>
     page.getByRole("dialog", { name }).getByRole("button", { name: "Archivar" }).click(),
   );
-  // H5: "Archivados" is in "Semana".
+  // H5: "Archivados" is in "Semana", not in "Hoy" (also once the archive is saved and read again).
+  await expect(notices(page).getByText(`«${name}» se archivó.`)).toBeVisible();
+  await page.reload();
+  await expect(pads(page)).toBeVisible();
   await expect(page.getByRole("button", { name: /^Archivados/ })).toHaveCount(0);
   await openWeek(page);
   const archived = page.getByRole("button", { name: /^Archivados/ });

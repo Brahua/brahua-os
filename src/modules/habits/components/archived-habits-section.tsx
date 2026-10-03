@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { fail } from "@/lib/action-result";
 import type { HabitItem } from "../habit-input";
 import { applyHabitListChange } from "../habit-list-optimistic";
@@ -44,6 +44,19 @@ export function ArchivedHabitsSection({ habits, headingId }: ArchivedHabitsSecti
     setBusy(new Set(busyNow.current));
   }
 
+  // After a refused "Reactivar", its row comes back (the rollback): focus goes back to its key
+  // once it is there, if it is still where the reactivation left it (the next key or the heading).
+  const refocus = useRef<{ id: string; from: Element | null } | null>(null);
+  useEffect(() => {
+    const pending = refocus.current;
+    if (!pending) return;
+    const key = document.querySelector<HTMLElement>(reactivateSelector(pending.id));
+    if (!key) return;
+    refocus.current = null;
+    const active = document.activeElement;
+    if (active === pending.from || active === document.body || active === null) key.focus();
+  });
+
   function notSaved(text: string, reason: string) {
     push({ title: HABITS_COPY.notSavedTitle, text: `${text} ${reason}`, tone: "error" });
   }
@@ -61,6 +74,7 @@ export function ArchivedHabitsSection({ habits, headingId }: ArchivedHabitsSecti
         if (queued.kind === "skipped" || queued.superseded) return;
         const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
         if (!result.ok) {
+          refocus.current = { id: habit.id, from: document.activeElement };
           notSaved(ORGANIZE_COPY.notReactivated, failureReason(result));
           return;
         }

@@ -92,7 +92,7 @@ export function ofVisibleHabit(habitId: AnyPgColumn): SQL {
 const dayLog = alias(habitLogs, "day_log");
 
 /** The columns of a `HabitItem` (with the log of the day joined as `day_log`). */
-export const ROW = {
+const ROW = {
   id: habits.id,
   name: habits.name,
   // H5: shown on the habit's page and edited in "Más detalles".

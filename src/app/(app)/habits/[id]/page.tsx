@@ -60,9 +60,12 @@ export default async function HabitPage({ params, searchParams }: HabitPageProps
   ]);
   if (!loaded) notFound();
   const { item, archived, logs, pauses } = loaded;
-  // A month before the habit started shows its first month (the URL says so).
-  const month = parseMonthParam(search[MONTH_PARAM], today, item.startDate);
-  if (month !== asked) redirect(habitMonthHref(id, month === monthOf(today) ? undefined : month));
+  // The URL always names the month shown: one before the start goes to the first month, one that
+  // isn't real or is later goes to today's, and today's is the bare page.
+  const raw = search[MONTH_PARAM];
+  const month = parseMonthParam(raw, today, item.startDate);
+  const canonical = month === monthOf(today) ? undefined : month;
+  if (raw !== undefined && raw !== canonical) redirect(habitMonthHref(id, canonical));
   const areas: HabitAreaSummary[] = lifeAreas.map(({ id: areaId, slug, name, icon, color }) => ({
     id: areaId,
     slug,

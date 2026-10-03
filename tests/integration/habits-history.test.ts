@@ -118,7 +118,9 @@ describe("Semana", () => {
     await insertHabit({ name: "Leer", startDate: "2026-09-15" });
     await insertHabit({ name: "Archivado", archivedAt: new Date() });
     await insertHabit({ name: "Eliminado", deletedAt: new Date() });
-    await insertHabit({ name: "Nuevo", startDate: "2026-10-01" });
+    const nuevo = await insertHabit({ name: "Nuevo", startDate: "2026-10-01" });
+    // A log before its start (never written by the app): not read, not counted.
+    await log(nuevo, "2026-09-29");
     const previous = await selectHabitsWeek(testDb, TODAY, "2026-09-23");
     expect(previous.monday).toBe("2026-09-21");
     // "Nuevo" started after that Sunday.
@@ -129,6 +131,18 @@ describe("Semana", () => {
     expect((await selectHabitsWeek(testDb, TODAY, "no")).monday).toBe(MONDAY);
     const current = await selectHabitsWeek(testDb, TODAY);
     expect(current.rows.map((row) => row.name)).toEqual(["Leer", "Nuevo"]);
+    const row = current.rows[1];
+    expect(row.days.map((day) => day.status)).toEqual([
+      "beforeStart",
+      "beforeStart",
+      "beforeStart",
+      "empty",
+      "empty",
+      "future",
+      "future",
+    ]);
+    expect(row.days[1]).toMatchObject({ quantity: 0 });
+    expect(row.compliance).toEqual({ done: 0, expected: 1 });
   });
 
   test("three queries, whatever the number of habits (one without any)", async () => {
@@ -196,9 +210,18 @@ describe("a habit's page", () => {
 
   test("three queries; archived habits have a page; deleted or missing ones don't", async () => {
     const id = await insertHabit();
-    await log(id, "2026-09-10");
+    for (const day of ["2026-08-20", "2026-09-10", "2026-09-11", "2026-09-30", "2026-10-01"]) {
+      await log(id, day);
+    }
+    await testDb.insert(habitPauses).values([
+      { habitId: id, startDate: "2026-09-01", endDate: "2026-09-02" },
+      { habitId: id, startDate: "2026-09-20", endDate: "2026-09-21" },
+      { habitId: id, startDate: "2026-10-10", endDate: "2026-10-12" },
+    ]);
     const select = vi.spyOn(testDb, "select");
-    expect(await selectHabitDetail(testDb, id, "2026-09", TODAY)).not.toBeNull();
+    const loaded = await selectHabitDetail(testDb, id, "2026-09", TODAY);
+    expect(loaded?.logs).toHaveLength(4);
+    expect(loaded?.pauses).toHaveLength(3);
     expect(select).toHaveBeenCalledTimes(3);
     select.mockRestore();
     await testDb.update(habits).set({ archivedAt: new Date() }).where(eq(habits.id, id));
@@ -214,7 +237,8 @@ describe("a habit's page", () => {
     expect(await getHabitDetail("not-a-uuid", "2026-09", TODAY)).toBeNull();
     const malformed = select.mock.calls.length;
     select.mockClear();
-    // Positive control: a well-formed id reads the habit (its three queries).
+    // Positive control: a well-formed id reads habits (one query: none found, so no logs or
+    // pauses). The owner check makes the same queries both times.
     expect(await getHabitDetail(MISSING, "2026-09", TODAY)).toBeNull();
     expect(select.mock.calls.length - malformed).toBe(1);
     select.mockRestore();

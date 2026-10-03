@@ -16,7 +16,7 @@
 import type { HabitFrequency, HabitKind } from "./habit-constants";
 import { isDayDone } from "./habit-status";
 import { addDays, isScheduledOn, weekStart } from "./schedule";
-import { weekQuota } from "./week-progress";
+import { proportionalQuota, weekQuota } from "./week-progress";
 
 /** What the streak rules need of a habit. */
 export type StreakRules = {
@@ -300,7 +300,7 @@ export function monthCompliance(
   if (streakUnit(habit) === "weeks") {
     const available = days.filter((day) => isAvailableOn(habit, history.pauses, day));
     const done = available.filter((day) => day <= today && isDoneOn(habit, history, day)).length;
-    return { done, expected: Math.ceil(((habit.weeklyTarget ?? 0) * available.length) / 7) };
+    return { done, expected: proportionalQuota(habit.weeklyTarget ?? 0, available.length) };
   }
   return daysCompliance(habit, history, days, today);
 }

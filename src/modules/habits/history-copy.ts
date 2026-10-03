@@ -19,6 +19,8 @@ const MONTH_FORMAT = new Intl.DateTimeFormat("es-PE", {
 export const formatMonth = (month: string) =>
   MONTH_FORMAT.format(new Date(`${month}-01T00:00:00Z`));
 
+const MONTH_NAME_FORMAT = new Intl.DateTimeFormat("es-PE", { month: "long", timeZone: "UTC" });
+
 const capitalize = (text: string) => text.charAt(0).toLocaleUpperCase("es-PE") + text.slice(1);
 
 /** The weekday letters under the week's dots and over the calendar, Monday first. */
@@ -90,7 +92,6 @@ export const HISTORY_COPY = {
   weekPageTitle: "Semana · Hábitos · brahua-os",
 
   // "Semana"
-  weekHeading: "Semana",
   /** "Del 28 de setiembre al 4 de octubre", "Del 21 al 27 de setiembre" (es-PE month names). */
   weekRange: (monday: string, sunday: string) =>
     `Del ${monday.slice(0, 7) === sunday.slice(0, 7) ? Number(monday.slice(8)) : formatPauseDay(monday)} al ${formatPauseDay(sunday)}`,
@@ -142,9 +143,9 @@ export const HISTORY_COPY = {
   cleanStreak: "Días limpio seguidos",
   bestClean: "Mejor racha limpio",
   streakUnit: (count: number, unit: StreakUnit) => unitWord(count, unit),
-  monthCompliance: "Cumplimiento del mes",
-  monthComplianceOf: (done: number, expected: number) =>
-    expected === 0 ? "Sin días que cuenten" : `${done} de ${expected}`,
+  /** "Cumplimiento de setiembre": the month the calendar shows. */
+  monthCompliance: (month: string) =>
+    `Cumplimiento de ${MONTH_NAME_FORMAT.format(new Date(`${month}-01T00:00:00Z`))}`,
   /** "42 días · hechos en total" (principle 10: the evidence adds up). */
   totalLabel: "Hechos en total",
   totalCleanLabel: "Limpio en total",
@@ -162,7 +163,6 @@ export const HISTORY_COPY = {
   /** A day key's name: "martes 29 de septiembre: 6 de 8 vasos" (plus "hoy"). */
   dayKey: (day: string, today: boolean, state: string) =>
     `${formatDayName(day)}${today ? " (hoy)" : ""}: ${state}`,
-  dayReadOnly: "Solo lectura: ya no se puede corregir.",
   /** The adjust sheet opened from the calendar: today is offered too. */
   todayKey: "Hoy",
   dayDescription: `Hoy o uno de los ${HABIT_LOG_WINDOW_DAYS} días anteriores. Un día en pausa se guarda, pero no cuenta.`,
@@ -198,6 +198,19 @@ export const HISTORY_COPY = {
   moreDetails: "Más detalles",
   moreDetailsHelp: "Identidad, momento y fecha de inicio (opcionales).",
   moreDetailsEditHelp: "Identidad y momento (opcionales).",
+  identityShort: "Identidad",
+  cueShort: "Momento",
+  detailsToReview: "Revisa estos datos.",
+  /** Folded with something in it: "Identidad y momento · empieza el 29 de setiembre". */
+  detailsFilled: (filled: readonly string[], startDate: string | null) =>
+    capitalize(
+      [
+        filled.length === 2 ? `${filled[0]} y ${filled[1].toLowerCase()}` : filled[0],
+        startDate ? `empieza el ${formatPauseDay(startDate)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    ),
   identityField: "Identidad (opcional)",
   identityHelp: "Quién quieres ser, por ejemplo «Soy alguien que lee».",
   cueField: "Momento (opcional)",

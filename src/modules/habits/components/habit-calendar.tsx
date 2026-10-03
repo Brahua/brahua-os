@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { DayCell, type DayState } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { monthGrid, moveInMonth } from "../calendar";
 import { WEEKDAY_FULL, WEEKDAY_LETTERS } from "../history-copy";
 import type { DayStatus } from "../streak";
+import { CalendarDayCell, type CalendarCellState } from "./calendar-day-cell";
 
 /** One day of the calendar, as its parent computed it. */
 export type CalendarDay = {
@@ -33,7 +33,7 @@ type HabitCalendarProps = {
 };
 
 /** A day's DayCell state: done, rest (paused), still to come, today pending, not met, partial… */
-function cellState(status: DayStatus, isToday: boolean): DayState {
+function cellState(status: DayStatus, isToday: boolean): CalendarCellState {
   switch (status) {
     case "done":
       return "done";
@@ -125,9 +125,7 @@ export function HabitCalendar({
                   }}
                 >
                   <span aria-hidden>{Number(day.slice(8))}</span>
-                  <DayCell
-                    aria-hidden
-                    size="lg"
+                  <CalendarDayCell
                     state={cellState(cell.status, isToday)}
                     today={isToday}
                     fill={cell.fill}

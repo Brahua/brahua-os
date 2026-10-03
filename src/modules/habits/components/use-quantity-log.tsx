@@ -295,6 +295,7 @@ export function useQuantityLog({
       onOpenChange={setAdjustOpen}
       habit={adjusting.habit}
       days={adjusting.days}
+      today={today}
       returnFocusRef={adjustReturn}
       onClosed={() => {
         if (document.activeElement === document.body || document.activeElement === null) {

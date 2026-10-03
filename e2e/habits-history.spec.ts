@@ -183,9 +183,12 @@ test("the page's calendar: yesterday logged from it joins the streak; arrows mov
   await expect(stat(page, "current")).toHaveText("3");
   await expect(key).toBeFocused();
   // The grid: one tab stop, arrows by day (yesterday → the day before).
-  await page.keyboard.press("ArrowLeft");
-  // Yesterday the 1st: the day before is in another month, so focus stays.
-  await expect(yesterday.endsWith("-01") ? key : dayKey(page, limaDay(-2))).toBeFocused();
+  // Toward a neighbor that is always in the month (yesterday the 1st: today, the 2nd), and back.
+  const firstOfMonth = yesterday.endsWith("-01");
+  await page.keyboard.press(firstOfMonth ? "ArrowRight" : "ArrowLeft");
+  await expect(dayKey(page, firstOfMonth ? limaDay(0) : limaDay(-2))).toBeFocused();
+  await page.keyboard.press(firstOfMonth ? "ArrowLeft" : "ArrowRight");
+  await expect(key).toBeFocused();
   await page.reload();
   await expect(stat(page, "current")).toHaveText("3");
 });
@@ -253,7 +256,7 @@ test("create with Más detalles: identity and a start date three days back", asy
     .getByRole("link", { name: "Ver historial y detalles" })
     .click();
   await expect(page.locator("[data-habit-identity]")).toHaveText("Soy alguien que escribe");
-  const id = page.url().split("/").pop()!.split("?")[0];
+  const id = new URL(page.url()).pathname.split("/").pop()!;
   await expect.poll(async () => (await readHabitDetails(id)).startDate).toBe(limaDay(-3));
 });
 
@@ -287,8 +290,10 @@ test("at 320 px, Semana and the page don't scroll sideways", async ({ page }, te
   const { leer } = await insertFixedHabits();
   await page.setViewportSize({ width: 320, height: 640 });
   await openWeek(page, "2026-03-09");
+  await fontsLoaded(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await openHabitPage(page, leer, "2026-03");
+  await fontsLoaded(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   const box = await dayKey(page, "2026-03-29").boundingBox();
   expect(box!.x + box!.width).toBeLessThanOrEqual(320);
@@ -310,6 +315,10 @@ for (const theme of THEMES) {
     await openWeek(page, "2026-03-09");
     await setTheme(page, theme);
     await page.getByRole("button", { name: /^Archivados/ }).click();
+    expect(await axeViolations(page)).toEqual([]);
+    // The current week too: today's mark and the days still to come.
+    await openWeek(page);
+    await expect(page.locator("[data-habit-week]").first()).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
 
     await openHabitPage(page, leer, "2026-03");

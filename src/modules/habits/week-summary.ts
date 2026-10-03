@@ -3,7 +3,7 @@
 // builds the rows with these (history.ts), and `getHabitsWeekSummary` (weekly-review) can too.
 import type { HabitKind, HabitMeasure } from "./habit-constants";
 import type { HabitAreaSummary } from "./habit-input";
-import { weekStart } from "./schedule";
+import { addDays, weekStart } from "./schedule";
 import {
   dayStatus,
   weekCompliance,
@@ -104,6 +104,21 @@ export function parseWeekParam(
   return monday < first ? first : monday;
 }
 
+/**
+ * The weeks "Semana" links to from `monday` (Mondays; null: none): back to the week of the
+ * earliest start date, forward to the current week, and the current week itself when it isn't
+ * the one shown. The same bounds as `parseWeekParam`.
+ */
+export function weekLinks(monday: string, today: string, earliestStart: string | null) {
+  const current = weekStart(today);
+  const first = earliestStart && earliestStart < today ? weekStart(earliestStart) : current;
+  return {
+    previous: monday > first ? addDays(monday, -7) : null,
+    next: monday < current ? addDays(monday, 7) : null,
+    current: monday === current ? null : current,
+  };
+}
+
 function isRealDay(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
@@ -134,7 +149,9 @@ export function dayDots(
   if (day.status === "done") return { total, done: total, complete: true };
   if (day.status === "partial" && quantity) {
     const reached = Math.min(day.quantity, day.target);
-    return { total, done: Math.floor((reached * total) / day.target), complete: false };
+    // Something logged always lights one dot (a small part of a big goal too).
+    const lit = Math.max(1, Math.floor((reached * total) / day.target));
+    return { total, done: Math.min(lit, total - 1), complete: false };
   }
   return { total, done: 0, complete: false };
 }

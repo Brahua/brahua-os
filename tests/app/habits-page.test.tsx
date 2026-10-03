@@ -14,7 +14,12 @@ import { HabitsScreen, HabitsScreenWithin } from "@/modules/habits/components/ha
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import { HABIT_ERRORS, type HabitAreaSummary, type HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
-import { listActiveHabits, listArchivedHabits } from "@/modules/habits/queries";
+import {
+  getDeletedHabit,
+  getHabitsWeek,
+  listActiveHabits,
+  listArchivedHabits,
+} from "@/modules/habits/queries";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -157,6 +162,15 @@ beforeEach(() => {
     .mockResolvedValue({ user: { id: "owner" } } as never);
   vi.mocked(listActiveHabits).mockReset().mockResolvedValue(HABITS);
   vi.mocked(listArchivedHabits).mockReset().mockResolvedValue([]);
+  vi.mocked(getDeletedHabit).mockReset().mockResolvedValue(null);
+  vi.mocked(getHabitsWeek)
+    .mockReset()
+    .mockResolvedValue({
+      monday: "2026-09-28",
+      earliestStart: "2026-09-01",
+      rows: [],
+      total: { done: 0, expected: 0 },
+    });
   vi.mocked(listLifeAreas)
     .mockReset()
     .mockResolvedValue(AREAS.map((area) => ({ ...area, sortOrder: 0 })));
@@ -245,6 +259,44 @@ describe("/habits", () => {
       "aria-haspopup",
       "dialog",
     );
+  });
+
+  test("H5: Semana has its own title and reads the week (with ?semana=) and the archived ones", async () => {
+    const search = { vista: "semana", semana: "2026-09-30" };
+    expect((await generateMetadata({ searchParams: Promise.resolve(search) })).title).toBe(
+      "Semana · Hábitos · brahua-os",
+    );
+    render(await HabitsPage({ searchParams: Promise.resolve(search) }));
+    expect(requireOwner).toHaveBeenCalled();
+    expect(getHabitsWeek).toHaveBeenCalledWith(NOW, "2026-09-30");
+    expect(listArchivedHabits).toHaveBeenCalled();
+    expect(listActiveHabits).not.toHaveBeenCalled();
+    const views = screen.getByRole("navigation", { name: "Vistas de hábitos" });
+    expect(within(views).getByRole("link", { name: "Semana" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(views).getByRole("link", { name: "Hoy" })).toHaveAttribute("href", "/habits");
+    expect(document.querySelector("[data-week-total]")).toBeInTheDocument();
+  });
+
+  test("H5: ?deleted= with a deleted habit: focus to the heading, then the notice with Deshacer", async () => {
+    vi.mocked(getDeletedHabit).mockResolvedValue({ id: MEDITAR.id, name: "Meditar" });
+    render(await HabitsPage({ searchParams: Promise.resolve({ deleted: MEDITAR.id }) }));
+    expect(getDeletedHabit).toHaveBeenCalledWith(MEDITAR.id);
+    expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus();
+    const notice = await within(notices()).findByText("«Meditar» se eliminó.");
+    expect(notice).toBeInTheDocument();
+    expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
+  });
+
+  test("H5: ?deleted= without a deleted habit, or a list: no notice", async () => {
+    render(await HabitsPage({ searchParams: Promise.resolve({ deleted: MEDITAR.id }) }));
+    expect(getDeletedHabit).toHaveBeenCalledTimes(1);
+    render(await HabitsPage({ searchParams: Promise.resolve({ deleted: ["a", "b"] }) }));
+    expect(getDeletedHabit).toHaveBeenCalledTimes(1);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(screen.queryByText(/se eliminó/)).not.toBeInTheDocument();
   });
 
   test("empty: an explanation and a key to create the first one; no count", async () => {

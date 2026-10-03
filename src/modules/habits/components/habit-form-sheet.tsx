@@ -39,7 +39,6 @@ import {
   detailsValues,
   type DetailsFieldsHandle,
 } from "./details-fields";
-import { useHabitsScreen } from "./habits-screen";
 import {
   MeasureFields,
   measureDraft,
@@ -80,6 +79,8 @@ export type HabitFormSheetProps = {
   returnFocusRef: React.RefObject<HTMLElement | null>;
   /** H2: the habit to edit (the form starts from it and saves with `updateHabit`). */
   habit?: HabitItem | null;
+  /** H5: Lima's today (the screen's): the start date's default and window. */
+  today: string;
   /** Created (or, editing, saved): the screen closes the sheet and focuses its pad. */
   onCreated: (habit: HabitItem) => void;
   /** Called once the sheet has fully closed (see `Sheet`). */
@@ -99,6 +100,7 @@ export function HabitFormSheet({
   areas: activeAreas,
   returnFocusRef,
   habit = null,
+  today,
   onCreated,
   onClosed,
 }: HabitFormSheetProps) {
@@ -135,7 +137,6 @@ export function HabitFormSheet({
   const sentFrequency = frequencyValues(avoid ? frequencyDraftOf(null) : frequency);
   const measureValues = habit ? measureEditValues(measure) : measureDraft(measure);
   // H5: "Más detalles" (identity, cue and, creating, the start date).
-  const { today } = useHabitsScreen();
   const [details, setDetails] = useState(() => detailsDraftOf(habit, today));
   const detailsFields = useRef<DetailsFieldsHandle>(null);
 

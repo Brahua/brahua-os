@@ -768,6 +768,7 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
           onOpenChange={setFormOpen}
           areas={areas}
           habit={formHabit}
+          today={today}
           returnFocusRef={formReturn}
           onCreated={onSaved}
           onClosed={afterFormClosed}

@@ -12,7 +12,6 @@ import { formatDayName, formatWeekdayDay, PAUSE_COPY } from "../pause-copy";
 import { HISTORY_COPY } from "../history-copy";
 import { quantitySchema } from "../quantity-input";
 import { addDays } from "../schedule";
-import { useHabitsScreen } from "./habits-screen";
 
 /** The field's text as a number for the schema: blank is "missing", anything else as typed. */
 function parseQuantity(text: string): number | undefined {
@@ -38,6 +37,8 @@ export type AdjustDaySheetProps = {
    * it. `days` may then include today too.
    */
   initialDay?: string;
+  /** Lima's today (the screen's): "Hoy" and "Ayer" among the days. */
+  today: string;
   /** Where focus goes when the sheet closes (the pad's options key). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
   onClosed?: () => void;
@@ -61,12 +62,12 @@ export function AdjustDaySheet({
   habit,
   days,
   initialDay,
+  today,
   returnFocusRef,
   onClosed,
   onSave,
 }: AdjustDaySheetProps) {
   const isDesktop = useIsDesktop();
-  const { today } = useHabitsScreen();
   const other = days !== undefined;
   const [picked, setPicked] = useState<OtherDay | null>(
     days?.find((option) => option.day === initialDay) ?? days?.[0] ?? null,

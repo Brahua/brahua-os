@@ -79,29 +79,43 @@ export function DetailsFields({
   });
 
   const invalid = Object.values(errors).some(Boolean);
+  // Folded, the line under the toggle says what is inside (filled in, or to review), so nothing
+  // is sent unseen: "Identidad, momento · empieza el 29 de setiembre", "Revisa estos datos.".
+  const filled: string[] = [];
+  if (value.identity.trim()) filled.push(HISTORY_COPY.identityShort);
+  if (value.cue.trim()) filled.push(HISTORY_COPY.cueShort);
+  const startsEarlier = !editing && value.startDate !== "" && value.startDate !== today;
+  const summary = invalid
+    ? HISTORY_COPY.detailsToReview
+    : !open && (filled.length > 0 || startsEarlier)
+      ? HISTORY_COPY.detailsFilled(filled, startsEarlier ? value.startDate : null)
+      : editing
+        ? HISTORY_COPY.moreDetailsEditHelp
+        : HISTORY_COPY.moreDetailsHelp;
+  const summaryId = `${ids}-summary`;
 
   return (
-    <div className="flex flex-col gap-4" data-habit-details="">
+    <div className="flex flex-col gap-2" data-habit-details="">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
+        aria-describedby={summaryId}
         onClick={() => setOpen((previous) => !previous)}
-        className={cn(
-          "bo-section-label min-h-11 cursor-pointer rounded-md px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
-          invalid && !open && "text-text",
-        )}
+        className="bo-section-label min-h-11 cursor-pointer rounded-md px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
-        <span className="flex flex-col items-start gap-0.5 text-left">
-          <span className="bo-section-label__title">{HISTORY_COPY.moreDetails}</span>
-          <span className="bo-text-body-sm text-text-secondary normal-case">
-            {editing ? HISTORY_COPY.moreDetailsEditHelp : HISTORY_COPY.moreDetailsHelp}
-          </span>
-        </span>
+        <span className="bo-section-label__title">{HISTORY_COPY.moreDetails}</span>
         <Icon icon={ChevronDown} size="sm" className={cn(open && "rotate-180")} />
       </button>
+      <p
+        id={summaryId}
+        className={cn("bo-text-body-sm px-1", invalid ? "bo-field__error" : "text-text-secondary")}
+        data-habit-details-summary=""
+      >
+        {summary}
+      </p>
       {/* Folded, its fields aren't there at all (Enter in "Nombre" still submits the form). */}
-      <div id={panelId} hidden={!open} className="flex flex-col gap-6">
+      <div id={panelId} hidden={!open} className="mt-2 flex flex-col gap-6">
         {open ? (
           <>
             <TextField

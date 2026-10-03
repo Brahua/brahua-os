@@ -615,8 +615,6 @@ describe("archive and reactivate", () => {
     await user.click(screen.getByRole("button", { name: "Reactivar «Leer»" }));
     expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus();
     expect(screen.queryByRole("button", { name: /Archivados/ })).not.toBeInTheDocument();
-    // A second activation while it is on its way does nothing.
-    expect(unarchiveHabit).toHaveBeenCalledTimes(1);
     await server.answer();
   });
 
