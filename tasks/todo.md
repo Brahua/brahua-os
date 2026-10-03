@@ -1,28 +1,6 @@
-# Tareas: habits
+# Tareas
 
-> Plan: [`tasks/plan.md`](plan.md) · Spec: [`SPEC-habits.md`](../SPEC-habits.md)
-> Cada tarea termina con lint, typecheck, unitarias, integración y build en verde, E2E nativa de lo tocado, un PR con los 3 checks verdes y el deploy con smoke test. Commits en inglés (`feat(habits): …`).
-> Tareas anteriores en [`archive/`](archive/).
-
-## Fase 1 — Base
-
-- [x] **H1: Datos, crear y registrar con un toque** — tablas `habits`, `habit_logs`, `habit_pauses` (con `kind`, `CHECK`, índices, locks en el espacio 4000, `visibleHabit`) y exportación; crear un hábito sí/no diario; `/habits` "Hoy" con pads, toque optimista y "Deshacer"; manifiesto provisional; eliminar y deshacer. Deja slots para H2 y H3. *(PR #62 integrado; slots en HANDOFF → "Cómo funciona habits".)*
-
-## Fase 2 — Reglas *(H2 y H3 en paralelo)*
-
-- [x] **H2: Frecuencias y agenda** — X por semana y días fijos; qué toca hoy; "No tocan hoy"; editar; orden manual; archivar y reactivar. *(PR #63 integrado; ver HANDOFF → "Cómo funciona habits" → "H2".)*
-- [x] **H3: Cantidad, varias veces al día y a evitar** — meta, unidad y paso; `target` por día; "Ajustar"; atajo "Varias veces al día"; tipo "A evitar" (recaída). *(PR #64 integrado; ver HANDOFF → "Cómo funciona habits" → "H3".)*
-
-## Fase 3 — Rachas e historial
-
-- [x] **H4: Rachas y pausas** — `streak.ts` con tablas de casos; racha en el pad (la mejor, en el detalle de H5); pausas; registro y corrección hasta 7 días atrás; hitos de racha. *(PR #66 integrado; ver HANDOFF → "Cómo funciona habits" → "H4".)*
-- [x] **H5: Historial** — vista Semana con el total ("18 de 24"); detalle con calendario mensual, estadísticas y pausas; "Archivados"; "Más detalles" (identidad, momento, fecha de inicio). *(PR #67 integrado; ver HANDOFF → "Cómo funciona habits" → "H5".)*
-- [x] **H6: Contrato con today y navegación** — `getHabitsTodaySummary(now)`; `HabitPad` y acciones reutilizables; navegación definitiva cuando llegue el diseño. *(Contrato hecho en la rama `feat/habits-h6-today-contract`, con `getHabitsWeekSummary` para `weekly-review` y el hook `useDayLog`; ver HANDOFF → "Cómo funciona habits" → "H6". **La navegación definitiva sigue esperando el diseño del owner en Claude Design**: queda la provisional de H1, anotada en el backlog técnico.)*
-
-### Checkpoint final
-- [ ] Recorrido completo en producción (agente con el Chrome del owner) y el iPhone (owner).
-- [ ] Se cumplen los criterios de éxito de `SPEC-habits.md`.
-- [ ] Revisión con el owner antes del siguiente módulo.
+> Siguiente módulo: **`today`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: today"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Backlog técnico
 
@@ -38,3 +16,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **"Archivados" más liviano** (de H5): la sección en "Semana" lee cada hábito archivado como `HabitItem` (con todos sus registros marcados para las rachas) aunque solo muestra nombre, área y "Reactivar". Con muchos archivados, una consulta propia (id, nombre, área).
 - [ ] **Navegación definitiva de Tareas** (T6): espera el diseño del owner en Claude Design; hoy es provisional (atajo 3, barra inferior después de la tecla de captura).
 - [ ] **Navegación definitiva de Hábitos** (H6): espera el diseño del owner en Claude Design, como la de Tareas; hoy es la provisional de H1 (atajo 4, la celda después de la tecla de captura en la barra inferior, Tareas en "Más").
+- [ ] **Archivados de hábitos** (de H5): la lista lee cada hábito archivado completo, con su historial; si crecen, una consulta más liviana.
+- [ ] **`DayCell` en Claude Design** (de H5): los estados "pasado sin cumplir", "parcial" y "no cuenta" del calendario de hábitos viven en `overrides.css` (`PENDING UPSTREAM`); aplicarlos en Claude Design y vaciar el override.
+- [ ] **Calendario de hábitos a 320 px** (de H5): cada día mide ~39 px (cumple WCAG AA, no los 44 px del principio 14). Revisarlo con el diseño.
+- [ ] **Confeti en hitos de racha** (de H4): sin `canvas-confetti` (dependencia nueva, pide OK del owner); hoy solo texto.

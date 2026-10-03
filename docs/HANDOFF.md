@@ -5,7 +5,7 @@
 
 ## Cómo retomar
 
-1. Leer este archivo, `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-habits.md` cuando exista).
+1. Leer este archivo (sobre todo "Siguiente: today"), `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-today.md` cuando exista).
 2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
@@ -48,7 +48,8 @@
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
 - **tasks:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final, recorrido hecho por el agente en producción con el Chrome del owner). Plan y tareas archivados en `tasks/archive/tasks-*.md`. Pendientes en el backlog de `tasks/todo.md`: navegación definitiva (diseño del owner en Claude Design) e hitos en proyectos cerrados. El owner aceptó las decisiones autónomas de abajo.
-- **habits:** en curso. `SPEC-habits.md` aprobada (v2, 2026-10-02); plan en `tasks/plan.md` y tareas H1–H6 en `tasks/todo.md`. Autónomo hasta el Checkpoint final.
+- **habits:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner). H1–H6 integrados (#62–#64, #66–#68). Plan y tareas archivados en `tasks/archive/habits-*.md`. El owner aceptó las decisiones autónomas de "Cómo funciona habits". Pendiente en el backlog: navegación definitiva de Tareas y Hábitos (Claude Design), `DayCell` upstream y los demás ítems de H4/H5.
+- **today:** siguiente módulo, **sin empezar**. Ver "Siguiente: today" abajo.
   - ✅ H1 (datos, crear, registrar con un toque y eliminar): PR #62 integrado. Ver "Cómo funciona habits" → "H1", con los slots para H2 y H3 y las **decisiones para revisar con el owner**.
   - ✅ H2 (frecuencias y agenda): PR #63 integrado. Ver "Cómo funciona habits" → "H2", con lo que H3 debe mirar al rebasar y las **decisiones para revisar con el owner**.
   - ✅ H3 (cantidad, varias veces al día y a evitar): PR #64 integrado. Ver "Cómo funciona habits" → "H3", con sus **decisiones para revisar con el owner**.
@@ -65,6 +66,25 @@
   - ✅ T5 (tareas en proyectos): PR #54 integrado. Ver "Cómo funciona tasks" → "T5: tareas en proyectos", con las **decisiones para revisar con el owner** y lo que hay que tocar al rebasar sobre T3 y T4.
   - ✅ Arreglo: los anuncios de `tasks` usan `useAnnouncer` de core (PR #56): un temporizador sin limpiar dejó `main` en rojo tras T5.
   - ✅ T6, parte del contrato (`getTasksTodaySummary`): PR #55 integrado. Ver "Cómo funciona tasks" → "T6: contrato con `today`", con sus decisiones para revisar con el owner. La navegación definitiva de T6 espera el diseño del owner en Claude Design.
+
+## Siguiente: today
+
+Punto de partida para la próxima sesión (el owner pidió empezar `today` en una sesión nueva, 2026-10-02).
+
+- **Qué es** (`CAPABILITY-MAP.md`): el tablero diario en `/` con los hábitos de hoy, las tareas que vencen y lo que cada módulo exponga como "resumen de hoy". Con `today` llega el **MVP usable**. Depende de `core`, `habits` y `tasks`.
+- **Cómo empezar:** skill `spec-driven-development` → borrador de `SPEC-today.md` en español con el formato de `SPEC-habits.md`/`SPEC-tasks.md`, supuestos y preguntas para el owner (con `AskUserQuestion`); con la spec aprobada, plan en `tasks/plan.md` y tareas en `tasks/todo.md`. El owner trabaja en modo autónomo hasta el Checkpoint final (memoria `modo-autonomo`).
+- **Lo que ya existe y `today` reutiliza:**
+  - Portada provisional: `src/app/(app)/page.tsx` (saludo y fecha) y el ítem "Hoy" del manifiesto de `core` (`src/modules/core/module.ts`, `href: "/"`, atajo 1). `today` toma la portada.
+  - Tareas: `getTasksTodaySummary(now)` (`@/modules/tasks/contracts`, T6): retrasadas y de hoy, mismo orden que la vista Hoy; enlazar con `taskPath(id)`.
+  - Hábitos: `getHabitsTodaySummary(now)` (DTO) y `getHabitsDueToday(now)` (`HabitItem` para pads) en `@/modules/habits/contracts` (H6); registrar desde la portada con `ScreenServicesProvider` → `HabitsScreenWithin` → `useDayLog`/`useQuantityLog` + `HabitPad` (ver "H6"). `revalidateHabitScreens()` ya revalida `/`.
+  - `getHabitsWeekSummary` existe para `weekly-review` (no para `today`).
+  - Servicios de pantalla (`src/modules/core/components/screen-services.tsx`): cola, avisos y anunciador del anfitrión; una sola zona de avisos por pantalla.
+  - Regla de límites (`eslint.config.mjs`): `core`, `projects` y `tasks` no importan `habits`; la portada (`src/app`) sí puede importar los contratos.
+- **Decisiones abiertas probables para la spec:** qué secciones y en qué orden (hábitos pendientes primero, tareas retrasadas y de hoy, próximas acciones de proyectos), tope de elementos, saludo y fecha, captura rápida desde la portada, estado vacío y "día completo", y la navegación definitiva (Hoy, Tareas, Hábitos) que el owner itera en Claude Design.
+- **Operación:**
+  - Repo **público** hasta que se renueven los minutos de Actions (~2026-11-01); después vuelve a privado (recordárselo al owner y bajar el consumo antes: backlog "Minutos de CI").
+  - Antes de `gh`: `gh api user -q .login` debe decir `Brahua` (la cuenta activa puede cambiar sola a `jbrahua`).
+  - Checkpoint final: el agente lo recorre en producción con Claude in Chrome en el perfil **personal** del owner (memoria `qa-en-chrome`).
 
 ## C2a: pasos del usuario (en orden)
 
