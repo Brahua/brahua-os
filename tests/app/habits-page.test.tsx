@@ -290,13 +290,19 @@ describe("/habits", () => {
     expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
   });
 
-  test("H5: ?deleted= without a deleted habit, or a list: no notice", async () => {
-    render(await HabitsPage({ searchParams: Promise.resolve({ deleted: MEDITAR.id }) }));
-    expect(getDeletedHabit).toHaveBeenCalledTimes(1);
+  test("H5: ?deleted= without a deleted habit, or a list: no notice, focus left alone", async () => {
+    const first = render(
+      await HabitsPage({ searchParams: Promise.resolve({ deleted: MEDITAR.id }) }),
+    );
+    expect(getDeletedHabit).toHaveBeenCalledWith(MEDITAR.id);
+    // Positive control of the path: with a habit it focuses the heading at once (see above).
+    expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).not.toHaveFocus();
+    first.unmount();
     render(await HabitsPage({ searchParams: Promise.resolve({ deleted: ["a", "b"] }) }));
     expect(getDeletedHabit).toHaveBeenCalledTimes(1);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    expect(screen.queryByText(/se eliminó/)).not.toBeInTheDocument();
+    await waitFor(() => expect(within(notices()).queryByText(/se eliminó/)).toBeNull(), {
+      timeout: 400,
+    });
   });
 
   test("empty: an explanation and a key to create the first one; no count", async () => {

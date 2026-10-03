@@ -45,11 +45,16 @@ export function ArchivedHabitsSection({ habits, headingId }: ArchivedHabitsSecti
   }
 
   // After a refused "Reactivar", its row comes back (the rollback): focus goes back to its key
-  // once it is there, if it is still where the reactivation left it (the next key or the heading).
-  const refocus = useRef<{ id: string; from: Element | null } | null>(null);
+  // once it is there, if it is still where the reactivation left it (the next key or the heading)
+  // and within a few seconds (never on some much later render).
+  const refocus = useRef<{ id: string; from: Element | null; until: number } | null>(null);
   useEffect(() => {
     const pending = refocus.current;
     if (!pending) return;
+    if (Date.now() > pending.until) {
+      refocus.current = null;
+      return;
+    }
     const key = document.querySelector<HTMLElement>(reactivateSelector(pending.id));
     if (!key) return;
     refocus.current = null;
@@ -65,6 +70,10 @@ export function ArchivedHabitsSection({ habits, headingId }: ArchivedHabitsSecti
     if (!hold(habit.id)) return;
     const index = view.findIndex((item) => item.id === habit.id);
     const neighbor = view[index + 1] ?? view[index - 1];
+    // Focus never stays on a key that leaves: the next archived one, else the heading.
+    const landed =
+      (neighbor ? document.querySelector<HTMLElement>(reactivateSelector(neighbor.id)) : null) ??
+      document.getElementById(headingId);
     startSaving(async () => {
       try {
         apply({ type: "remove", id: habit.id });
@@ -74,7 +83,7 @@ export function ArchivedHabitsSection({ habits, headingId }: ArchivedHabitsSecti
         if (queued.kind === "skipped" || queued.superseded) return;
         const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
         if (!result.ok) {
-          refocus.current = { id: habit.id, from: document.activeElement };
+          refocus.current = { id: habit.id, from: landed, until: Date.now() + 5_000 };
           notSaved(ORGANIZE_COPY.notReactivated, failureReason(result));
           return;
         }
@@ -87,11 +96,7 @@ export function ArchivedHabitsSection({ habits, headingId }: ArchivedHabitsSecti
         release(habit.id);
       }
     });
-    // Focus never stays on a key that leaves: the next archived one, else the heading.
-    const next = neighbor
-      ? document.querySelector<HTMLElement>(reactivateSelector(neighbor.id))
-      : null;
-    (next ?? document.getElementById(headingId))?.focus();
+    landed?.focus();
   }
 
   /** The undo of "Reactivar": back into "Archivados" at once, in its place. Announced. */

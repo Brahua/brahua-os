@@ -632,6 +632,25 @@ describe("archive and reactivate", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Archivados/ })).toHaveTextContent("1"),
     );
+    // Focus was on the heading (the last one left): back to its "Reactivar".
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reactivar «Leer»" })).toHaveFocus(),
+    );
+  });
+
+  test("a refused reactivate doesn't pull focus back once the person moved on", async () => {
+    const LEER = habit({ name: "Leer" });
+    const user = userEvent.setup();
+    renderPage({ habits: [MEDITAR], archived: [LEER] });
+    await user.click(screen.getByRole("button", { name: /Archivados/ }));
+    await user.click(screen.getByRole("button", { name: "Reactivar «Leer»" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Hábitos" })).toHaveFocus();
+    pad("Meditar").focus();
+    await server.answer(fail(HABIT_ERRORS.notFound));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reactivar «Leer»" })).toBeInTheDocument(),
+    );
+    expect(pad("Meditar")).toHaveFocus();
   });
 });
 

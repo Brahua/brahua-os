@@ -20,7 +20,8 @@
  * quarter so a little shows) in the text color: the filled part contrasts like a done day's, and
  * its height tells it from both empty and done. `is-off`: a day that doesn't count (not
  * scheduled, before the start), a faint dot with no outline. In forced colors (where shadows and
- * backgrounds go away) every state keeps a visible shape: outline, solid, bottom fill, dash, dot.
+ * backgrounds go away) every state keeps a visible shape: outline, solid, bottom fill, dash, dot;
+ * that block applies to every DayCell (the /design specimens too), not only the calendar.
  */
 .bo-daycell.is-empty {
   background: transparent;
@@ -68,6 +69,7 @@
     background: CanvasText;
   }
   .bo-daycell.is-partial {
+    box-shadow: none;
     background: linear-gradient(
       to top,
       CanvasText calc(max(var(--fill, 0), 0.25) * 100%),

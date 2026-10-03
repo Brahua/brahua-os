@@ -234,10 +234,15 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
   const busyNow = useRef(new Set<string>());
 
   // After a refused "Reanudar": back to its key (focus had moved to the section's heading).
-  const refocusPause = useRef<string | null>(null);
+  const refocusPause = useRef<{ id: string; until: number } | null>(null);
   useEffect(() => {
-    const id = refocusPause.current;
-    if (!id) return;
+    const pending = refocusPause.current;
+    if (!pending) return;
+    if (Date.now() > pending.until) {
+      refocusPause.current = null;
+      return;
+    }
+    const { id } = pending;
     const key = document.querySelector<HTMLElement>(
       `[data-habit-pause="${CSS.escape(id)}"] button`,
     );
@@ -282,7 +287,7 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
         const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
         if (!result.ok) {
           // The row comes back (the rollback): focus goes back to its key once it is there.
-          refocusPause.current = pause.id;
+          refocusPause.current = { id: pause.id, until: Date.now() + 5_000 };
           notSaved(PAUSE_COPY.notResumed, failureReason(result));
           return;
         }
