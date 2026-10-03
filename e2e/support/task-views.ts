@@ -85,7 +85,9 @@ type NewViewTask = {
 
 /** A task of the calling test, straight in the database. Returns its id. */
 export async function insertViewTask(task: NewViewTask): Promise<string> {
-  requireTodayTasksTag({ due: task.due, done: task.doneHoursAgo !== undefined });
+  const doneAt =
+    task.doneHoursAgo === undefined ? null : new Date(Date.now() - task.doneHoursAgo * 3_600_000);
+  requireTodayTasksTag({ due: task.due, doneAt });
   const db = createDb(testDatabaseUrl());
   try {
     const area = task.areaSlug
@@ -102,10 +104,7 @@ export async function insertViewTask(task: NewViewTask): Promise<string> {
         title: task.title,
         priority: task.priority ?? "medium",
         dueDate: task.due === undefined ? null : limaDay(task.due),
-        doneAt:
-          task.doneHoursAgo === undefined
-            ? null
-            : new Date(Date.now() - task.doneHoursAgo * 3_600_000),
+        doneAt,
         lifeAreaId: area?.id ?? null,
         projectId: task.projectId ?? null,
         ...(task.createdMinute === undefined

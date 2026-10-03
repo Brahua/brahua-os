@@ -73,7 +73,13 @@ export function DayComplete() {
           <span className="sr-only">{TODAY_COPY.dayCompleteLabel}: </span>
           {achieved.map((part, index) => (
             <Fragment key={part}>
-              {index > 0 ? <span aria-hidden="true"> · </span> : null}
+              {/* The spaces stay outside the hidden dot: read as "1 hábito 1 tarea", not joined. */}
+              {index > 0 ? (
+                <>
+                  {" "}
+                  <span aria-hidden="true">·</span>{" "}
+                </>
+              ) : null}
               {part}
             </Fragment>
           ))}

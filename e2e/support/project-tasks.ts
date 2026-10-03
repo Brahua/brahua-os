@@ -17,13 +17,14 @@ type NewProjectTask = {
 
 /**
  * Tasks of a project of the calling test, straight in the database. Returns their ids. A done one
- * is done today: the test needs `@today-tasks` (a board test would park it, see today-tasks.ts).
+ * is done now (today): the test needs `@today-tasks` (a board test would park it, today-tasks.ts).
  */
 export async function insertProjectTasks(
   projectId: string,
   list: readonly NewProjectTask[],
 ): Promise<string[]> {
-  for (const task of list) requireTodayTasksTag({ done: task.done });
+  const now = new Date();
+  for (const task of list) requireTodayTasksTag({ doneAt: task.done ? now : null });
   const db = createDb(testDatabaseUrl());
   try {
     const milestones = await db
@@ -39,7 +40,7 @@ export async function insertProjectTasks(
           title: task.title,
           projectId,
           milestoneId: task.milestone === undefined ? null : milestones[task.milestone].id,
-          doneAt: task.done ? new Date() : null,
+          doneAt: task.done ? now : null,
           isNextAction: task.next ?? false,
         })
         .returning({ id: tasks.id });

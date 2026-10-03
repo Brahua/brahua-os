@@ -30,6 +30,7 @@ import type { ProjectStatus } from "@/modules/projects/project-constants";
 import { tasks } from "@/modules/tasks/db/schema";
 import type { TaskPriority } from "@/modules/tasks/task-constants";
 import type { TaskRecurrence } from "@/modules/tasks/task-input";
+import { ownerDateKey } from "@/lib/time";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 import { test as habitsTest } from "./habits";
 import { limaDay } from "./projects";
@@ -67,13 +68,14 @@ async function lockTodayTasks(mode: "exclusive" | "shared"): Promise<Client> {
 const PARKED_AT = "2000-01-01T00:00:00Z";
 
 /**
- * Throws when the calling test leaves a pending task due today or before, or a done task (it may
- * be done today), without the `@today-tasks` tag: a board test running meanwhile would park it
- * under the test. For the insert helpers of the tasks specs (`insertTodayTask`, the board's own,
- * is exempt).
+ * Throws when the calling test leaves a pending task due today or before, or a task done today
+ * (Lima), without the `@today-tasks` tag: a board test running meanwhile would park it under the
+ * test. For the insert helpers of the tasks specs (`insertTodayTask`, the board's own, is exempt).
  */
-export function requireTodayTasksTag(task: { due?: number; done?: boolean }) {
-  const parkable = task.done === true || (task.due !== undefined && task.due <= 0);
+export function requireTodayTasksTag(task: { due?: number; doneAt?: Date | null }) {
+  const parkable = task.doneAt
+    ? ownerDateKey(task.doneAt) === limaDay(0)
+    : task.due !== undefined && task.due <= 0;
   if (!parkable) return;
   const info = test.info();
   if (!info.tags.includes(TODAY_TASKS)) {

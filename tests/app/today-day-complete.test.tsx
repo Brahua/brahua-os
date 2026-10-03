@@ -6,7 +6,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { ok, type ActionResult } from "@/lib/action-result";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { ownerDateKey } from "@/lib/time";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
@@ -110,6 +110,13 @@ function Board({ habits = [], tasks = [], doneToday = 0 }: BoardProps) {
   );
 }
 
+/** The text a screen reader reads: without `aria-hidden` parts, whitespace collapsed. */
+function spokenText(element: Element): string {
+  const copy = element.cloneNode(true) as Element;
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove();
+  return (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 const block = () => screen.queryByRole("region", { name: "Día completo" });
 const achieved = () => document.querySelector("[data-today-complete-achieved]");
 const notices = () => screen.getByRole("region", { name: "Avisos" });
@@ -165,8 +172,9 @@ describe("what it says", () => {
     expect(within(region).getByRole("heading", { level: 2, name: "Día completo" })).toBeVisible();
     expect(region).toHaveTextContent(dayCompleteMessage(TODAY));
     expect(achieved()).toHaveTextContent("Logrado hoy: 2 hábitos · 4 tareas");
-    // The middle dot is decoration: not read.
+    // The middle dot is decoration: not read. What is read keeps the parts apart.
     expect(achieved()!.querySelector('[aria-hidden="true"]')).toHaveTextContent("·");
+    expect(spokenText(achieved()!)).toBe("Logrado hoy: 2 hábitos 4 tareas");
     // Not live: no fade and nothing announced.
     expect(region).not.toHaveAttribute("data-appeared");
     await pastAnnouncerDelay();
@@ -268,6 +276,32 @@ describe("live", () => {
     expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
     await pastAnnouncerDelay();
     expect(said).toEqual(["Día completo: 1 tarea."]);
+  });
+
+  test("the last task's completion refused: the block leaves with the rolled-back row", async () => {
+    const informe = task({ title: "Enviar informe" });
+    render(<Board habits={[habit({ quantity: 1 })]} tasks={[informe]} />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Hecha: Enviar informe" }));
+    expect(block()).toBeInTheDocument();
+    await answer(fail("Revisa tu conexión e inténtalo de nuevo."));
+    // The row rolls back when the transition ends (after the notice): wait for it.
+    await waitFor(() => expect(block()).toBeNull());
+    expect(screen.getByRole("checkbox", { name: "Hecha: Enviar informe" })).toBeInTheDocument();
+  });
+
+  test("the last habit's tap refused: the block leaves with the rolled-back pad", async () => {
+    const meditar = habit({ name: "Meditar" });
+    render(<Board habits={[meditar, habit({ name: "Leer", quantity: 1 })]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Meditar" }));
+    expect(block()).toBeInTheDocument();
+    await answer(fail("Revisa tu conexión e inténtalo de nuevo."));
+    await waitFor(() => expect(block()).toBeNull());
+    expect(screen.getByRole("button", { name: "Meditar" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   test("tapping the last habit shows it; undoing it takes it away; again, announced again", async () => {

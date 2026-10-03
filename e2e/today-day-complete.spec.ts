@@ -90,8 +90,8 @@ test("completing the last task shows Día completo at once; Deshacer takes it aw
   await openToday(page);
   await expect(complete(page)).toBeVisible();
   await expect(achieved(page)).toHaveText("Logrado hoy: 1 hábito · 1 tarea");
+  // Not live: no fade (not being announced on load is covered by the unit tests).
   await expect(complete(page)).not.toHaveAttribute("data-appeared");
-  await expect(announcer(page)).toHaveText("");
 });
 
 test("the last habit closes the day too, and undoing it reopens it", async ({ page }, testInfo) => {
