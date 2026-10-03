@@ -6,6 +6,7 @@ import { and, asc, eq, gt, gte, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { isSameIdSet } from "@/modules/core/life-area-order";
 import { projectLinks, projects } from "./db/schema";
+import { PROJECT_LINKS_KEY } from "./lock-keys";
 import type { ProjectLinkSummary } from "./project-link-input";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -18,7 +19,7 @@ const LINK = { id: projectLinks.id, url: projectLinks.url, label: projectLinks.l
  * the project (two ints: a namespace and the project), so other projects never wait.
  */
 export function projectLinksLock(projectId: string) {
-  return sql`select pg_advisory_xact_lock(hashtext('project_links'), hashtext(${projectId}))`;
+  return sql`select pg_advisory_xact_lock(hashtext(${PROJECT_LINKS_KEY}), hashtext(${projectId}))`;
 }
 
 /** A project's links in order. */

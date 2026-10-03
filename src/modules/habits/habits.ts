@@ -22,6 +22,7 @@ import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { habitLogs, habitPauses, habits } from "./db/schema";
 import { detailsColumns, startDateError } from "./details-input";
+import { HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY } from "./lock-keys";
 import { frequencyColumns } from "./frequency-input";
 import { measureColumns } from "./measure-input";
 import type {
@@ -45,11 +46,7 @@ import {
 
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-/** First key of every advisory lock `habits` takes (its namespace among the app's locks). */
-export const HABITS_ADVISORY_SPACE = 4_000;
-
-/** Second key of the order lock (create, reorder, archive, unarchive, delete, restore). */
-export const HABITS_ORDER_KEY = "habits:order";
+export { HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY } from "./lock-keys";
 
 async function advisoryLock(tx: Tx, key: string) {
   await tx.execute(

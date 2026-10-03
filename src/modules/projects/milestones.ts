@@ -15,7 +15,7 @@ import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db";
 import { isSameIdSet } from "@/modules/core/life-area-order";
 import { projectMilestones, projects } from "./db/schema";
-import { PROJECTS_ADVISORY_SPACE } from "./projects";
+import { MILESTONES_ADVISORY_SPACE } from "./lock-keys";
 import {
   MAX_MILESTONES_PER_PROJECT,
   type AddMilestoneInput,
@@ -43,8 +43,7 @@ const live = isNull(projectMilestones.deletedAt);
 /** Why a milestone write did nothing. */
 export type MilestoneFailure = "projectNotFound" | "milestoneNotFound";
 
-/** Second key space of `projects` (`PROJECTS_ADVISORY_SPACE` is the dependency graph's). */
-export const MILESTONES_ADVISORY_SPACE = PROJECTS_ADVISORY_SPACE + 1;
+export { MILESTONES_ADVISORY_SPACE } from "./lock-keys";
 
 /**
  * Transaction-scoped lock on one project's milestones: `(MILESTONES_ADVISORY_SPACE,

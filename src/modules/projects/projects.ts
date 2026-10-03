@@ -7,6 +7,7 @@ import { alias, type PgUpdateSetSource } from "drizzle-orm/pg-core";
 import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { projectDependencies, projects } from "./db/schema";
+import { PROJECT_DEPENDENCIES_KEY, PROJECTS_ADVISORY_SPACE } from "./lock-keys";
 import {
   NON_BLOCKING_STATUSES,
   type ActiveBlocker,
@@ -278,8 +279,7 @@ export async function restoreProjectById(db: Database, id: string): Promise<Proj
 
 // ── Dependencies (P4): "Bloqueado por" ──────────────────────────────────────────────────────────
 
-/** First key of every advisory lock `projects` takes (its namespace among the app's locks). */
-export const PROJECTS_ADVISORY_SPACE = 2_000;
+export { PROJECTS_ADVISORY_SPACE } from "./lock-keys";
 
 /**
  * Serializes every write that can add an edge to the dependency graph (one user: one global
@@ -291,7 +291,7 @@ export const PROJECTS_ADVISORY_SPACE = 2_000;
  * projects (edit, delete, restore) never take it. The cycle check relies on READ COMMITTED:
  * each statement after the lock sees every edge committed by the transaction that held it.
  */
-export const PROJECT_DEPENDENCIES_LOCK = sql`select pg_advisory_xact_lock(${sql.raw(String(PROJECTS_ADVISORY_SPACE))}, hashtext('project_dependencies'))`;
+export const PROJECT_DEPENDENCIES_LOCK = sql`select pg_advisory_xact_lock(${sql.raw(String(PROJECTS_ADVISORY_SPACE))}, hashtext(${PROJECT_DEPENDENCIES_KEY}))`;
 
 const blocker = alias(projects, "blocker");
 const blockerArea = alias(lifeAreas, "blocker_area");
