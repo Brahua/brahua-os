@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import {
   addTaskField,
   groupHeadings,
@@ -20,9 +20,11 @@ import {
 } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
+import { tasksTest as test } from "./support/today-tasks";
 
 // T5 of `tasks`: tasks in projects. Every test works on its own project (inserted in "Hobbies"
-// with a unique name), so they run in parallel without a lock.
+// with a unique name), so they run in parallel without a lock; the ones that complete a task (or
+// insert a done one) hold the shared tasks lock (`@today-tasks`): a board test would park it.
 
 const THEMES = ["dark", "light"] as const;
 
@@ -49,7 +51,7 @@ async function cardOf(page: Page, name: string) {
   return { link, card: page.locator("article", { has: link }) };
 }
 
-test("add with Enter (to a milestone too), grouped by milestone; the progress counts tasks", async ({
+test("add with Enter (to a milestone too), grouped by milestone; the progress counts tasks @today-tasks", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Taller", testInfo);
@@ -102,7 +104,7 @@ test("add with Enter (to a milestone too), grouped by milestone; the progress co
   await expect(card).toContainText("2 de 5");
 });
 
-test("the next action: one per project, on the card; complete it from the card and undo", async ({
+test("the next action: one per project, on the card; complete it from the card and undo @today-tasks", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Cocina", testInfo);
@@ -154,7 +156,7 @@ test("the next action: one per project, on the card; complete it from the card a
   expect(await isNextAction(draw)).toBe(true);
 });
 
-test("completing the next action in the section clears it; the detail's switch marks it", async ({
+test("completing the next action in the section clears it; the detail's switch marks it @today-tasks", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Baño", testInfo);
@@ -179,7 +181,7 @@ test("completing the next action in the section clears it; the detail's switch m
   await expect(nextFlag(page, "Sellar ducha")).toHaveAttribute("aria-pressed", "true");
 });
 
-test("Marcar como terminado counts the open tasks too", async ({ page }, testInfo) => {
+test("Marcar como terminado counts the open tasks too @today-tasks", async ({ page }, testInfo) => {
   const name = uniqueName("Repisa", testInfo);
   const id = await insertProject({ name, milestones: [false] });
   await insertProjectTasks(id, [
@@ -201,7 +203,7 @@ test("Marcar como terminado counts the open tasks too", async ({ page }, testInf
 });
 
 for (const theme of THEMES) {
-  test(`axe: the section, the card's key and the notice in the ${theme} theme`, async ({
+  test(`axe: the section, the card's key and the notice in the ${theme} theme @today-tasks`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

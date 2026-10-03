@@ -1,9 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { isDesktop, limaDay, notices, untilSaved } from "./support/projects";
 import { insertRecurringTask, limaWeekday, readTasksByTitle } from "./support/recurrence";
 import { afterSaveSettled } from "./support/saves";
+import { tasksTest as test } from "./support/today-tasks";
 import {
   captureSheet,
   captureStatus,
@@ -44,7 +45,7 @@ async function openDetail(page: Page, title: string, desktop: boolean) {
   return page.locator("main");
 }
 
-test("capture a recurring task; completing it brings the next one with its date; Deshacer removes it", async ({
+test("capture a recurring task; completing it brings the next one with its date; Deshacer removes it @today-tasks", async ({
   page,
 }, testInfo) => {
   const title = uniqueTitle("regar las plantas", testInfo);

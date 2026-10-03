@@ -223,3 +223,10 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 /* A day that can't be logged (read only, or still to come): its number recedes, a cue on touch. */
 .bo-habit-calendar__day[aria-disabled="true"] > span:first-child { color: var(--color-text-secondary); }
 .bo-habit-calendar__day.is-today { color: var(--color-signal-text, var(--color-text)); font-weight: 700; }
+/* Today (D4): "Día completo" fades in when it appears live (opacity only, principle 8: a calm
+   close, no confetti); loaded already complete it is just there. Never with reduced motion. Not a
+   synced component: no PENDING UPSTREAM. */
+.bo-day-complete[data-appeared] { animation: bo-fade-in 600ms var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .bo-day-complete[data-appeared] { animation: none; }
+}

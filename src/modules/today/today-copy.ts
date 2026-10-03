@@ -29,6 +29,28 @@ export const TODAY_COPY = {
   tasksLess: "Ver menos",
   seeTasks: "Ver tareas",
 
+  // ── Día completo (D4) ──
+  dayCompleteTitle: "Día completo",
+  /**
+   * The closing line, one per day (`variantForDay`: stable all day, different across days;
+   * principle 15, variable with moderation). Calm, never guilt nor pressure for tomorrow.
+   */
+  dayCompleteMessages: [
+    "Hiciste lo que tocaba hoy. Lo demás puede esperar.",
+    "Todo listo por hoy. Buen trabajo.",
+    "Cerraste el día. Disfruta lo que queda.",
+    "Nada pendiente para hoy. Tómate un respiro.",
+    "Lo de hoy está hecho. Mañana, pizarra limpia.",
+    "Un día bien aprovechado. Descansa.",
+  ],
+  /** What was achieved today, "5 hábitos · 4 tareas" (a part at 0 is left out). */
+  dayCompleteHabits: (n: number) => (n === 1 ? "1 hábito" : `${n} hábitos`),
+  dayCompleteTasks: (n: number) => (n === 1 ? "1 tarea" : `${n} tareas`),
+  dayCompleteLabel: "Logrado hoy",
+  /** Announced once when the day becomes complete with the board open (not on load). */
+  dayCompleteAnnouncement: (achieved: string[]) =>
+    achieved.length > 0 ? `Día completo: ${achieved.join(" y ")}.` : "Día completo.",
+
   // ── Día vacío ──
   emptyTitle: "Nada programado para hoy",
   emptyText: "Un día libre. Si quieres, puedes crear un hábito o anotar una tarea.",

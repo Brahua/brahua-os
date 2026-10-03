@@ -136,7 +136,7 @@ test("Todas: filters by project and area live in the URL and survive a reload @t
   await expect(viewRow(page, fixtureTitles[0])).toHaveCount(0);
 });
 
-test("Hechas: done in the last 30 days; Deshacer reopens it, and the notice undoes that", async ({
+test("Hechas: done in the last 30 days; Deshacer reopens it, and the notice undoes that @today-tasks", async ({
   page,
 }, testInfo) => {
   const recent = uniqueTitle("lavar ropa", testInfo);

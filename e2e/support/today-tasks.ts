@@ -1,17 +1,21 @@
 // The tasks of "/" (today's board, D2 of `today`) in the E2E suite. The board shows EVERY pending
 // task due today or before, whoever created it: the views fixture (VIEWS_FIXTURE has one overdue
-// and one due today) and the tasks other specs leave behind. So:
+// and one due today) and the tasks other specs leave behind. And since D4 it counts EVERY task
+// completed today for "Día completo" (a day with only projects, or nothing, isn't complete; one
+// with a task done by another spec would be). So:
 //
 // - Tests that look at the tasks of "/" (the today specs, the ones in home.spec that measure "/")
 //   use `boardTest`: it holds the habits lock and the tasks lock (exclusive), and parks every pending task due
-//   today or before (soft-deleted for the test, back at the end, even after a failure). Each
-//   starts with no habits and no tasks on the board (other sections, e.g. projects, may show).
+//   today or before and every task completed today (soft-deleted for the test, back at the end,
+//   even after a failure). Each starts with no habits, no tasks and nothing done today on the
+//   board (other sections, e.g. projects, may show).
 //   Screenshots over "/" that don't need the board hide it instead (today-board-hidden.css).
-// - Tests elsewhere that rely on their own (or the fixture's) tasks due today or before, which a
-//   board test would park under them, use `tasksTest` with `@today-tasks` in their title (a
-//   Playwright tag): they only hold the tasks lock (shared: they run together) while they run.
-//   The insert helpers enforce it (`requireTodayTasksTag`): an untagged test that leaves a pending
-//   task due today or before fails at once.
+// - Tests elsewhere that rely on their own (or the fixture's) tasks due today or before, or that
+//   complete a task (or insert a done one), which a board test would park under them, use
+//   `tasksTest` with `@today-tasks` in their title (a Playwright tag): they only hold the tasks
+//   lock (shared: they run together) while they run. The insert helpers enforce it
+//   (`requireTodayTasksTag`): an untagged test that leaves a pending task due today or before, or a
+//   done one, fails at once. A test that completes a task through the UI tags itself.
 //
 // Lock order: a board test takes the habits lock first, then the tasks lock (the fixture depends
 // on `habitsLock`); a tagged test only takes the tasks lock. No test waits for the habits lock
@@ -26,6 +30,7 @@ import type { ProjectStatus } from "@/modules/projects/project-constants";
 import { tasks } from "@/modules/tasks/db/schema";
 import type { TaskPriority } from "@/modules/tasks/task-constants";
 import type { TaskRecurrence } from "@/modules/tasks/task-input";
+import { ownerDateKey } from "@/lib/time";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 import { test as habitsTest } from "./habits";
 import { limaDay } from "./projects";
@@ -63,12 +68,15 @@ async function lockTodayTasks(mode: "exclusive" | "shared"): Promise<Client> {
 const PARKED_AT = "2000-01-01T00:00:00Z";
 
 /**
- * Throws when the calling test leaves a pending task due today or before without the
- * `@today-tasks` tag: a board test running meanwhile would park it under the test. For the
- * insert helpers of the tasks specs (`insertTodayTask`, the board's own, is exempt).
+ * Throws when the calling test leaves a pending task due today or before, or a task done today
+ * (Lima), without the `@today-tasks` tag: a board test running meanwhile would park it under the
+ * test. For the insert helpers of the tasks specs (`insertTodayTask`, the board's own, is exempt).
  */
-export function requireTodayTasksTag(task: { due?: number; done?: boolean }) {
-  if (task.due === undefined || task.due > 0 || task.done) return;
+export function requireTodayTasksTag(task: { due?: number; doneAt?: Date | null }) {
+  const parkable = task.doneAt
+    ? ownerDateKey(task.doneAt) === limaDay(0)
+    : task.due !== undefined && task.due <= 0;
+  if (!parkable) return;
   const info = test.info();
   if (!info.tags.includes(TODAY_TASKS)) {
     throw new Error(
@@ -106,9 +114,10 @@ const boardProjects: string[] = [];
 
 /**
  * `test` for the tests that look at "/": the habits lock and an empty board (no habits, see
- * `habits.ts`), and the tasks lock (exclusive) with every pending task due today or before parked
- * (`deleted_at` = `PARKED_AT`, back at the end, even after a failure). Raw SQL (not Drizzle):
- * parking must not touch `updated_at` (T3 keeps an edited next occurrence).
+ * `habits.ts`), and the tasks lock (exclusive) with every pending task due today or before, and
+ * every task completed today (Lima), parked (`deleted_at` = `PARKED_AT`, back at the end, even
+ * after a failure). Raw SQL (not Drizzle): parking must not touch `updated_at` (T3 keeps an
+ * edited next occurrence).
  */
 export const boardTest = habitsTest.extend<{ boardTasks: void }>({
   boardTasks: [
@@ -123,7 +132,9 @@ export const boardTest = habitsTest.extend<{ boardTasks: void }>({
         await unpark();
         await client.query(
           `update tasks set deleted_at = $1
-           where deleted_at is null and done_at is null and due_date <= $2`,
+           where deleted_at is null
+             and ((done_at is null and due_date <= $2)
+               or (done_at at time zone 'America/Lima')::date = $2::date)`,
           [PARKED_AT, limaDay(0)],
         );
         try {

@@ -8,11 +8,18 @@ import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
 import { getProjectsTodaySummary } from "@/modules/projects/contracts";
-import { getTasksTodaySummary, type TaskTodayItem } from "@/modules/tasks/contracts";
+import {
+  getTasksDoneTodayCount,
+  getTasksTodaySummary,
+  type TaskTodayItem,
+} from "@/modules/tasks/contracts";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/habits/contracts", () => ({ getHabitsDueToday: vi.fn() }));
-vi.mock("@/modules/tasks/contracts", () => ({ getTasksTodaySummary: vi.fn() }));
+vi.mock("@/modules/tasks/contracts", () => ({
+  getTasksTodaySummary: vi.fn(),
+  getTasksDoneTodayCount: vi.fn(),
+}));
 vi.mock("@/modules/tasks/recurrence-actions", () => ({
   completeTaskWithNext: vi.fn(),
   reopenTaskWithSpawn: vi.fn(),
@@ -39,6 +46,8 @@ beforeEach(() => {
   vi.mocked(getTasksTodaySummary).mockResolvedValue([]);
   vi.mocked(getProjectsTodaySummary).mockReset();
   vi.mocked(getProjectsTodaySummary).mockResolvedValue([]);
+  vi.mocked(getTasksDoneTodayCount).mockReset();
+  vi.mocked(getTasksDoneTodayCount).mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -72,6 +81,7 @@ test("home page does not render without the owner (requireOwner redirects)", asy
   expect(getHabitsDueToday).not.toHaveBeenCalled();
   expect(getTasksTodaySummary).not.toHaveBeenCalled();
   expect(getProjectsTodaySummary).not.toHaveBeenCalled();
+  expect(getTasksDoneTodayCount).not.toHaveBeenCalled();
 });
 
 test("home page reads the projects summary at the same instant and shows Proyectos (D3)", async () => {
@@ -173,4 +183,24 @@ test("home page reads today's tasks at the page's instant and shows them in “T
   expect(tasks).toBeInTheDocument();
   // A task today: the day isn't empty.
   expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
+});
+
+test("home page reads the tasks done today at the page's instant: “Día completo” (D4)", async () => {
+  vi.mocked(getTasksDoneTodayCount).mockResolvedValue(3);
+  render(await Home());
+
+  expect(getTasksDoneTodayCount).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(getTasksDoneTodayCount).mock.calls[0][0]).toBe(
+    vi.mocked(getHabitsDueToday).mock.calls[0][0],
+  );
+  // Nothing pending and 3 tasks done today: the day is complete, not empty.
+  const complete = screen.getByRole("region", { name: "Día completo" });
+  expect(complete).toHaveTextContent("3 tareas");
+  expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
+});
+
+test("nothing pending and nothing done today: the empty day, never “Día completo” (D4)", async () => {
+  render(await Home());
+  expect(screen.queryByRole("region", { name: "Día completo" })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Nada programado para hoy" })).toBeInTheDocument();
 });
