@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-02.
+> Última actualización: 2026-10-03.
 
 ## Cómo retomar
 
@@ -49,7 +49,7 @@
 
 - **tasks:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final, recorrido hecho por el agente en producción con el Chrome del owner). Plan y tareas archivados en `tasks/archive/tasks-*.md`. Pendientes en el backlog de `tasks/todo.md`: navegación definitiva (diseño del owner en Claude Design) e hitos en proyectos cerrados. El owner aceptó las decisiones autónomas de abajo.
 - **habits:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner). H1–H6 integrados (#62–#64, #66–#68). Plan y tareas archivados en `tasks/archive/habits-*.md`. El owner aceptó las decisiones autónomas de "Cómo funciona habits". Pendiente en el backlog: navegación definitiva de Tareas y Hábitos (Claude Design), `DayCell` upstream y los demás ítems de H4/H5.
-- **today:** siguiente módulo, **sin empezar**. Ver "Siguiente: today" abajo.
+- **today:** en curso. `SPEC-today.md` **aprobada** por el owner (2026-10-03); plan en `tasks/plan.md` y tareas D1–D4 en `tasks/todo.md`. Siguiente: D1 (tablero con hábitos). Ver "Siguiente: today" abajo.
   - ✅ H1 (datos, crear, registrar con un toque y eliminar): PR #62 integrado. Ver "Cómo funciona habits" → "H1", con los slots para H2 y H3 y las **decisiones para revisar con el owner**.
   - ✅ H2 (frecuencias y agenda): PR #63 integrado. Ver "Cómo funciona habits" → "H2", con lo que H3 debe mirar al rebasar y las **decisiones para revisar con el owner**.
   - ✅ H3 (cantidad, varias veces al día y a evitar): PR #64 integrado. Ver "Cómo funciona habits" → "H3", con sus **decisiones para revisar con el owner**.
