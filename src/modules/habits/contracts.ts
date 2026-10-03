@@ -8,9 +8,12 @@
 // - getHabitsWeekSummary(weekStart, now) (for `weekly-review`): a week's compliance per habit and
 //   its total ("18 de 24"), the rows of the "Semana" view (`selectHabitsWeek`, three queries).
 //
-// To log from `today`: the client component `HabitPad`, the actions of log-actions.ts and the
-// hooks `useDayLog`/`useQuantityLog` inside `HabitsScreenWithin` (the host's queue, notices and
-// announcer through `ScreenServicesContext`). Link with `habitPath(id)` (routes.ts).
+// - getHabitsDueToday(now) (for `today`'s pads): the same habits as full `HabitItem`s.
+//
+// To log from `today`: getHabitsDueToday, then the client component `HabitPad`, the actions of
+// log-actions.ts and the hooks `useDayLog`/`useQuantityLog` inside `HabitsScreenWithin` (the
+// host's queue, notices and announcer through `ScreenServicesContext`; `areas` only feeds the
+// create form, which a pad never opens: `[]` is fine). Link with `habitPath(id)` (routes.ts).
 import "server-only";
 import { and, lte, type SQL } from "drizzle-orm";
 import { z } from "zod";
@@ -21,7 +24,8 @@ import { habits } from "./db/schema";
 import { activeHabit, selectItems } from "./habits";
 import { selectHabitsWeek } from "./history";
 import { weekStart as mondayOf } from "./schedule";
-import { buildHabitsTodaySummary, type HabitTodayItem } from "./today-summary";
+import type { HabitItem } from "./habit-input";
+import { buildHabitsTodaySummary, habitsDueToday, type HabitTodayItem } from "./today-summary";
 import { buildHabitsWeekSummary, type HabitsWeekSummary } from "./week-summary";
 
 export type { HabitTodayArea, HabitTodayItem } from "./today-summary";
@@ -32,13 +36,20 @@ export type { HabitWeekSummaryItem, HabitsWeekSummary } from "./week-summary";
  * manual order; then the pure rules keep the ones due today and not paused. Three queries (one
  * without habits). Trusts its caller (see getHabitsTodaySummary).
  */
-export async function selectHabitsTodaySummary(
-  db: Database,
-  now: Date,
-): Promise<HabitTodayItem[]> {
+export async function selectHabitsTodaySummary(db: Database, now: Date): Promise<HabitTodayItem[]> {
+  return buildHabitsTodaySummary(await selectHabitsDueToday(db, now), now);
+}
+
+/**
+ * The habits due today as full `HabitItem`s (what the pads and the logging hooks need), in the
+ * manual order. Three queries (one without habits). Trusts its caller (see getHabitsDueToday).
+ */
+export async function selectHabitsDueToday(db: Database, now: Date): Promise<HabitItem[]> {
   const today = ownerDateKey(now);
+  // A prefilter (the rules below check the start date again): no history read for habits that
+  // haven't started.
   const started = and(activeHabit, lte(habits.startDate, today)) as SQL;
-  return buildHabitsTodaySummary(await selectItems(db, today, started), now);
+  return habitsDueToday(await selectItems(db, today, started), now);
 }
 
 /**
@@ -49,6 +60,16 @@ export async function selectHabitsTodaySummary(
 export async function getHabitsTodaySummary(now: Date): Promise<HabitTodayItem[]> {
   await requireOwner();
   return selectHabitsTodaySummary(getDb(), now);
+}
+
+/**
+ * For `today`'s pads: the same habits as `getHabitsTodaySummary`, as the `HabitItem`s that
+ * `HabitPad`, `useDayLog` and `useQuantityLog` take (inside `HabitsScreenWithin`). A board that
+ * shows pads reads this one instead of the summary (one read, not two). Checks the owner.
+ */
+export async function getHabitsDueToday(now: Date): Promise<HabitItem[]> {
+  await requireOwner();
+  return selectHabitsDueToday(getDb(), now);
 }
 
 const day = z.iso.date();
@@ -67,8 +88,12 @@ export async function selectHabitsWeekSummary(
     throw new RangeError("weekStart must be a day as YYYY-MM-DD");
   }
   const monday = mondayOf(weekStart);
-  const week = await selectHabitsWeek(db, ownerDateKey(now), monday);
-  // "Semana" keeps its `?semana=` within the weeks there are; a summary says nothing instead.
+  const today = ownerDateKey(now);
+  // A week still to come: nothing to read.
+  if (monday > mondayOf(today)) return buildHabitsWeekSummary(monday, []);
+  const week = await selectHabitsWeek(db, today, monday);
+  // `selectHabitsWeek` clamps the week like "Semana"'s `?semana=` (to the first week of the
+  // active habits): another week came back, so this one has no habits. Say nothing for it.
   if (week.monday !== monday) return buildHabitsWeekSummary(monday, []);
   return buildHabitsWeekSummary(monday, week.rows);
 }

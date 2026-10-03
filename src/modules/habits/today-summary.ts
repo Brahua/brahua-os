@@ -49,11 +49,17 @@ export type HabitTodayItem = {
  * the week met, fixed days on theirs; never before the start date), in the order given (the
  * manual one).
  */
-export function buildHabitsTodaySummary(
-  habits: readonly HabitItem[],
-  now: Date,
-): HabitTodayItem[] {
-  return dueOn(habits, ownerDateKey(now)).map(habitTodayItem);
+export function buildHabitsTodaySummary(habits: readonly HabitItem[], now: Date): HabitTodayItem[] {
+  return habitsDueToday(habits, now).map(habitTodayItem);
+}
+
+/**
+ * The habits due today (Lima's day of `now`) and not paused today, as full `HabitItem`s in the
+ * order given: what `getHabitsDueToday` gives `today` for its pads (`HabitPad`, `useDayLog`,
+ * `useQuantityLog` need the whole item), the same ones the summary describes.
+ */
+export function habitsDueToday<T extends HabitItem>(habits: readonly T[], now: Date): T[] {
+  return dueOn(habits, ownerDateKey(now));
 }
 
 /** One habit's DTO (its day as read). */
@@ -62,9 +68,7 @@ export function habitTodayItem(habit: HabitItem): HabitTodayItem {
   return {
     id: habit.id,
     name: habit.name,
-    area: habit.area
-      ? { id: habit.area.id, name: habit.area.name, color: habit.area.color }
-      : null,
+    area: habit.area ? { id: habit.area.id, name: habit.area.name, color: habit.area.color } : null,
     kind: habit.kind,
     measure: habit.measure,
     goal: habit.goal,

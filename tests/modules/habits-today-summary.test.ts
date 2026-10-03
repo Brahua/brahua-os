@@ -3,7 +3,11 @@
 // `weekly-review`.
 import { describe, expect, test } from "vitest";
 import type { HabitAreaSummary, HabitItem } from "@/modules/habits/habit-input";
-import { buildHabitsTodaySummary, habitTodayItem } from "@/modules/habits/today-summary";
+import {
+  buildHabitsTodaySummary,
+  habitsDueToday,
+  habitTodayItem,
+} from "@/modules/habits/today-summary";
 import { buildHabitsWeekSummary, type HabitWeekRow } from "@/modules/habits/week-summary";
 
 /** Friday 2026-10-02, 10:00 in Lima. */
@@ -105,8 +109,11 @@ describe("which habits enter, in what order", () => {
       habit({ name: "en pausa", pause: pause("2026-10-01", "2026-10-05") }),
       habit({ name: "pausa desde hoy", pause: pause(TODAY, TODAY) }),
       habit({ name: "pausa mañana", pause: pause("2026-10-03", "2026-10-09") }),
+      habit({ name: "pausa terminada", pause: pause("2026-09-20", "2026-10-01") }),
     ];
-    expect(names(buildHabitsTodaySummary(list, NOW))).toEqual(["pausa mañana"]);
+    expect(names(buildHabitsTodaySummary(list, NOW))).toEqual(["pausa mañana", "pausa terminada"]);
+    // The pads' list (`getHabitsDueToday`) has the same habits, as full items.
+    expect(habitsDueToday(list, NOW)).toEqual([list[2], list[3]]);
   });
 
   test("Lima's day: at 23:59:59 it is still Friday; at 00:00 it is Saturday", () => {
@@ -238,7 +245,7 @@ describe("buildHabitsWeekSummary (weekly-review)", () => {
       days: [],
     }) satisfies HabitWeekRow;
 
-  test("each habit's compliance in order and the total (\"18 de 24\")", () => {
+  test('each habit\'s compliance in order and the total ("18 de 24")', () => {
     const summary = buildHabitsWeekSummary("2026-09-28", [
       row("Leer", 5, 7, HEALTH),
       row("Correr", 2, 3, null),

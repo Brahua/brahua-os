@@ -3,6 +3,7 @@
 // builds the rows with these (history.ts), and `getHabitsWeekSummary` (weekly-review) can too.
 import type { HabitKind, HabitMeasure } from "./habit-constants";
 import type { HabitAreaSummary } from "./habit-input";
+import type { HabitTodayArea } from "./today-summary";
 import { addDays, weekStart } from "./schedule";
 import {
   dayStatus,
@@ -160,7 +161,7 @@ export function dayDots(
 export type HabitWeekSummaryItem = {
   id: string;
   name: string;
-  area: { id: string; name: string; color: HabitAreaSummary["color"] } | null;
+  area: HabitTodayArea | null;
   /** "5 de 7", "2 de 3" (`weekCompliance`, the same rule as "Semana"). */
   compliance: Compliance;
 };
@@ -175,7 +176,10 @@ export type HabitsWeekSummary = {
   total: Compliance;
 };
 
-/** H6: the summary of a week's rows ("Semana" builds the same rows: `habitWeekRow`). */
+/**
+ * H6: the summary of a week's rows ("Semana" builds the same rows: `habitWeekRow`). The total is
+ * `weekTotal` of these same rows (the one sum "Semana" shows too), so it can't disagree with them.
+ */
 export function buildHabitsWeekSummary(
   monday: string,
   rows: readonly HabitWeekRow[],

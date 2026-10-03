@@ -3,12 +3,14 @@
 // control), its order, its DTO and streaks, Lima's midnight, a fixed number of queries and
 // authorization; and the week summary for `weekly-review`.
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { seed } from "@/modules/core/seed";
 import {
+  getHabitsDueToday,
   getHabitsTodaySummary,
   getHabitsWeekSummary,
+  selectHabitsDueToday,
   selectHabitsTodaySummary,
   selectHabitsWeekSummary,
 } from "@/modules/habits/contracts";
@@ -75,6 +77,11 @@ beforeEach(async () => {
   await seed(testDb);
   request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
   order = 0;
+});
+
+// The query-count spies on testDb: restored even when an assertion fails first.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("getHabitsTodaySummary: which habits enter", () => {
@@ -181,7 +188,6 @@ describe("getHabitsTodaySummary: the DTO", () => {
     await log(correr, "2026-09-24");
     await log(correr, "2026-09-25");
     const fumar = await insertHabit({ name: "Fumar", kind: "avoid", startDate: "2026-09-26" });
-    await log(fumar, "2026-09-25", 1, 1); // before the start: ignored
 
     expect(await getHabitsTodaySummary(NOW)).toEqual([
       {
@@ -295,21 +301,42 @@ describe("getHabitsTodaySummary: the DTO", () => {
     expect(items).toHaveLength(10);
     expect(select).toHaveBeenCalledTimes(3);
     expect(execute).not.toHaveBeenCalled();
-    select.mockRestore();
-    execute.mockRestore();
   });
 
   test("one query without habits", async () => {
     const select = vi.spyOn(testDb, "select");
     expect(await selectHabitsTodaySummary(testDb, NOW)).toEqual([]);
     expect(select).toHaveBeenCalledTimes(1);
-    select.mockRestore();
+  });
+});
+
+describe("getHabitsDueToday (today's pads)", () => {
+  test("the same habits as the summary, as full HabitItems, in three queries", async () => {
+    const leer = await insertHabit({ name: "Leer" });
+    await log(leer, TODAY);
+    await insertHabit({ name: "sábado", frequency: "weekdays", weekdays: [SATURDAY] });
+    const agua = await insertHabit({ name: "Agua", measure: "quantity", goal: 8, unit: "vasos" });
+    const items = await getHabitsDueToday(NOW);
+    expect(items.map((item) => item.id)).toEqual(
+      (await getHabitsTodaySummary(NOW)).map((item) => item.id),
+    );
+    expect(items.map((item) => item.id)).toEqual([leer, agua]);
+    // What the pad and the logging hooks need (not in the summary's DTO).
+    expect(items[0]).toMatchObject({ quantity: 1, target: 1, weekAvailable: 7, pause: null });
+    expect(items[0].streak).toEqual({ unit: "days", done: 1, notDone: 0 });
+
+    const select = vi.spyOn(testDb, "select");
+    const execute = vi.spyOn(testDb, "execute");
+    await selectHabitsDueToday(testDb, NOW);
+    expect(select).toHaveBeenCalledTimes(3);
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 
 describe("getHabitsWeekSummary (weekly-review)", () => {
   test("each active habit's compliance and the total, by the rules of Semana", async () => {
-    const leer = await insertHabit({ name: "Leer" });
+    const health = await area("health");
+    const leer = await insertHabit({ name: "Leer", lifeAreaId: health.id });
     for (const day of ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-26", "2026-09-27"]) {
       await log(leer, day);
     }
@@ -320,18 +347,32 @@ describe("getHabitsWeekSummary (weekly-review)", () => {
     });
     await log(correr, "2026-09-21");
     await log(correr, "2026-09-24");
-    await insertHabit({ name: "archivado", archivedAt: NOW });
-    await insertHabit({ name: "después", startDate: "2026-09-28" });
+    // Leer's area: { id, name, color }, like the today summary.
+    const leerArea = { id: health.id, name: health.name, color: health.color };
     // Any day of the week names it (Thursday → its Monday).
     const summary = await getHabitsWeekSummary("2026-09-24", NOW);
     expect(summary).toEqual({
       weekStart: "2026-09-21",
       habits: [
-        { id: leer, name: "Leer", area: null, compliance: { done: 5, expected: 7 } },
+        { id: leer, name: "Leer", area: leerArea, compliance: { done: 5, expected: 7 } },
         { id: correr, name: "Correr", area: null, compliance: { done: 2, expected: 3 } },
       ],
       total: { done: 7, expected: 10 },
     });
+  });
+
+  test("archived, deleted or not started by that Sunday: out (positive controls)", async () => {
+    const archived = await insertHabit({ name: "archivado", archivedAt: NOW });
+    const deleted = await insertHabit({ name: "eliminado", deletedAt: NOW });
+    await insertHabit({ name: "después", startDate: "2026-09-28" });
+    await insertHabit({ name: "base" });
+    const week = async (day: string) => names((await getHabitsWeekSummary(day, NOW)).habits);
+    expect(await week("2026-09-21")).toEqual(["base"]);
+    // The habit that started on the 28th is in its own week.
+    expect(await week(MONDAY)).toEqual(["después", "base"]);
+    await testDb.update(habits).set({ archivedAt: null }).where(eq(habits.id, archived));
+    await testDb.update(habits).set({ deletedAt: null }).where(eq(habits.id, deleted));
+    expect(await week("2026-09-21")).toEqual(["archivado", "eliminado", "base"]);
   });
 
   test("the current week counts up to today", async () => {
@@ -361,19 +402,27 @@ describe("getHabitsWeekSummary (weekly-review)", () => {
     await expect(selectHabitsWeekSummary(testDb, "2026-13-01", NOW)).rejects.toThrow(RangeError);
     await expect(selectHabitsWeekSummary(testDb, "ayer", NOW)).rejects.toThrow(RangeError);
     expect(select).not.toHaveBeenCalled();
-    select.mockRestore();
+  });
+
+  test("a future week reads nothing", async () => {
+    await insertHabit({ name: "Leer" });
+    const select = vi.spyOn(testDb, "select");
+    expect((await selectHabitsWeekSummary(testDb, "2026-10-08", NOW)).habits).toEqual([]);
+    expect(select).not.toHaveBeenCalled();
   });
 
   test("three queries with 10 habits", async () => {
     for (let index = 0; index < 10; index += 1) {
       const id = await insertHabit({ name: `h${index}` });
       await log(id, MONDAY);
+      await pause(id, "2026-09-10", "2026-09-12");
     }
     const select = vi.spyOn(testDb, "select");
+    const execute = vi.spyOn(testDb, "execute");
     const summary = await selectHabitsWeekSummary(testDb, MONDAY, NOW);
     expect(summary.habits).toHaveLength(10);
     expect(select).toHaveBeenCalledTimes(3);
-    select.mockRestore();
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 
@@ -385,14 +434,16 @@ describe("authorization", () => {
       async () => new Headers({ cookie: "better-auth.session_token=forged.value" }),
     ],
     ["another user", async () => new Headers({ cookie: await sessionCookieFor(OTHER) })],
-  ])("with %s both summaries redirect to /login", async (_, headers) => {
+  ])("with %s every contract redirects to /login", async (_, headers) => {
     await insertHabit({ name: "Leer" });
     // Positive control: the owner sees it.
     expect(names(await getHabitsTodaySummary(NOW))).toEqual(["Leer"]);
+    expect(names(await getHabitsDueToday(NOW))).toEqual(["Leer"]);
     expect((await getHabitsWeekSummary(MONDAY, NOW)).habits).toHaveLength(1);
     request.headers = await headers();
     const toLogin = { digest: expect.stringMatching(/^NEXT_REDIRECT;.*;\/login;/) };
     await expect(getHabitsTodaySummary(NOW)).rejects.toMatchObject(toLogin);
+    await expect(getHabitsDueToday(NOW)).rejects.toMatchObject(toLogin);
     await expect(getHabitsWeekSummary(MONDAY, NOW)).rejects.toMatchObject(toLogin);
   });
 });

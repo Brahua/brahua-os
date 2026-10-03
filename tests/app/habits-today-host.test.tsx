@@ -15,6 +15,7 @@ import { useDayLog } from "@/modules/habits/components/use-day-log";
 import { useQuantityLog } from "@/modules/habits/components/use-quantity-log";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { applyHabitListChange } from "@/modules/habits/habit-list-optimistic";
+import { habitsDueToday } from "@/modules/habits/today-summary";
 import { logHabit, setHabitDone } from "@/modules/habits/log-actions";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
@@ -28,8 +29,9 @@ vi.mock("@/modules/habits/log-actions", () => ({
   setHabitQuantity: vi.fn(),
 }));
 
-/** Lima's real today: the day check (`isCurrentDay`) reads the real clock. */
-const TODAY = ownerDateKey(new Date());
+/** Friday 2026-10-02, 10:00 in Lima. Only Date is faked (timers stay real for userEvent). */
+const NOW = new Date("2026-10-02T15:00:00.000Z");
+const TODAY = ownerDateKey(NOW);
 
 let serial = 0;
 function habit(values: Partial<HabitItem> = {}): HabitItem {
@@ -63,7 +65,16 @@ function habit(values: Partial<HabitItem> = {}): HabitItem {
 }
 
 const MEDITAR = habit({ name: "Meditar" });
-const AGUA = habit({ name: "Agua", measure: "quantity", goal: 8, target: 8, unit: "vasos" });
+const AGUA = habit({
+  name: "Agua",
+  measure: "quantity",
+  goal: 8,
+  target: 8,
+  unit: "vasos",
+  step: 2,
+});
+/** Saturdays only: not due on TODAY (a Friday), so the contract leaves it out. */
+const SABADO = habit({ name: "Sábados", frequency: "weekdays", weekdays: [6] });
 
 /** What a host's board would do with the habits due today: pads and the logging hooks. */
 function Board({ habits }: { habits: HabitItem[] }) {
@@ -91,12 +102,16 @@ function Board({ habits }: { habits: HabitItem[] }) {
 /** The host's "Sin guardar" (a host shows the failure with its own notices). */
 let hostNotSaved: (text: string, reason: string) => void = () => {};
 
-/** Another module's screen: its own queue, notice viewport ("Avisos de hoy") and announcer. */
+/**
+ * Another module's screen: its own queue, notice viewport ("Avisos de hoy") and announcer. Its
+ * board gets what `getHabitsDueToday(now)` returns: the active habits filtered by
+ * `habitsDueToday` (the contract's own rule).
+ */
 function Host({ habits }: { habits: HabitItem[] }) {
   return (
     <ScreenServicesProvider label="Avisos de hoy" actionHint="Deshacer con ⌘Z">
       <HabitsScreenWithin today={TODAY} areas={[]}>
-        <Board habits={habits} />
+        <Board habits={habitsDueToday(habits, NOW)} />
       </HabitsScreenWithin>
     </ScreenServicesProvider>
   );
@@ -114,6 +129,8 @@ const pad = (name: string) => screen.getByRole("button", { name: new RegExp(name
 const notices = () => screen.getByRole("region", { name: "Avisos de hoy" });
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   pending.length = 0;
   hostNotSaved = () => {};
   const wait = () =>
@@ -125,13 +142,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
 describe("habits inside a host screen (ScreenServicesContext)", () => {
   test("a yes/no tap logs today through the host's queue; Deshacer and its announcement too", async () => {
     const user = userEvent.setup();
-    const { container } = render(<Host habits={[MEDITAR]} />);
+    const { container } = render(<Host habits={[MEDITAR, SABADO]} />);
+    // Only what the contract gives for today (a Friday): no Saturday habit.
+    expect(screen.queryByRole("button", { name: /Sábados/ })).not.toBeInTheDocument();
     // Habits brings no viewport or announcer of its own: the host's only.
     expect(container.querySelector("[data-habits-announcer]")).toBeNull();
     expect(screen.queryByRole("region", { name: "Avisos" })).not.toBeInTheDocument();
@@ -145,8 +165,11 @@ describe("habits inside a host screen (ScreenServicesContext)", () => {
     // The notice lands in the host's viewport, with "Deshacer".
     expect(await within(notices()).findByText(/«Meditar» quedó hecho hoy/)).toBeInTheDocument();
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
-    expect(setHabitDone).toHaveBeenLastCalledWith({ id: MEDITAR.id, day: TODAY, done: false });
+    await waitFor(() =>
+      expect(setHabitDone).toHaveBeenLastCalledWith({ id: MEDITAR.id, day: TODAY, done: false }),
+    );
     await answer(ok(MEDITAR));
+    await waitFor(() => expect(pad("Meditar")).toHaveAttribute("aria-pressed", "false"));
     // The undo is only announced, by the host's announcer.
     await waitFor(() =>
       expect(container.querySelector("[data-screen-announcer]")).toHaveTextContent(
@@ -159,9 +182,13 @@ describe("habits inside a host screen (ScreenServicesContext)", () => {
     const user = userEvent.setup();
     render(<Host habits={[AGUA]} />);
     await user.click(pad("Agua"));
-    expect(logHabit).toHaveBeenCalledWith({ id: AGUA.id, day: TODAY, delta: 1 });
-    await answer(ok({ ...AGUA, quantity: 1 }));
-    expect(await within(notices()).findByText(/Agua/)).toBeInTheDocument();
+    // Optimistic at once: its step (2), not 1.
+    expect(pad("Agua")).toHaveAccessibleDescription(/2 de 8 vasos/);
+    await waitFor(() =>
+      expect(logHabit).toHaveBeenCalledWith({ id: AGUA.id, day: TODAY, delta: 2 }),
+    );
+    await answer(ok({ ...AGUA, quantity: 2 }));
+    expect(await within(notices()).findByText(/«Agua»: 2 de 8 vasos hoy/)).toBeInTheDocument();
     expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
   });
 

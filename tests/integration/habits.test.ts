@@ -124,7 +124,11 @@ describe("create", () => {
     expect(await testDb.$count(habits)).toBe(1);
     // Refused or not, the pages are revalidated (their areas were out of date): /habits and,
     // H6, the home page (`today`) each time.
-    expect(revalidatePath).toHaveBeenCalledTimes(3 * HABIT_SCREENS.length);
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([
+      ...HABIT_SCREENS,
+      ...HABIT_SCREENS,
+      ...HABIT_SCREENS,
+    ]);
   });
 
   test("invalid input writes nothing", async () => {
