@@ -7,6 +7,7 @@ import { tasks } from "@/modules/tasks/db/schema";
 import type { TaskPriority } from "@/modules/tasks/task-constants";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 import { limaDay } from "./projects";
+import { requireTodayTasksTag } from "./today-tasks";
 
 /** A task title no other test (or retry) uses: the inbox is shared by tests running in parallel. */
 export function uniqueTitle(prefix: string, testInfo: TestInfo) {
@@ -22,6 +23,7 @@ type NewTask = {
 
 /** An inbox task of the calling test, straight in the database. Returns its id. */
 export async function insertTask(task: NewTask): Promise<string> {
+  requireTodayTasksTag(task);
   const db = createDb(testDatabaseUrl());
   try {
     const [row] = await db

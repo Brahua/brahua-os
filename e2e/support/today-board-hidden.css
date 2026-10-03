@@ -1,0 +1,6 @@
+/* Screenshots taken over "/" (the quick capture sheet): today's board shows every task due today
+   and every project due soon, whoever created them, and it shows through the sheet's edges.
+   Hidden, so the reference never depends on other tests' data. */
+[data-today-board] {
+  display: none !important;
+}

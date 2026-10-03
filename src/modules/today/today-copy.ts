@@ -18,6 +18,17 @@ export const TODAY_COPY = {
   /** The corner key of a quantity pad: opens "Ajustar el día" straight away. */
   adjust: (name: string) => `Ajustar «${name}»`,
 
+  // ── Tareas (D2) ──
+  tasksTitle: "Tareas",
+  /** The total next to the title (live: a completed task leaves it at once). */
+  tasksCount: (n: number) => `${n}`,
+  tasksCountSuffix: " para hoy",
+  tasksList: "Tareas de hoy",
+  /** The fold: "Ver 6 más" / "Ver menos" (SPEC-today: 3 shown, the rest folded). */
+  tasksMore: (n: number) => `Ver ${n} más`,
+  tasksLess: "Ver menos",
+  seeTasks: "Ver tareas",
+
   // ── Día vacío ──
   emptyTitle: "Nada programado para hoy",
   emptyText: "Un día libre. Si quieres, puedes crear un hábito o anotar una tarea.",

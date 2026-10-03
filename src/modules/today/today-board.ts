@@ -35,7 +35,10 @@ export type TodaySections = {
 
 /**
  * A section without items is not shown; with none at all (and no "Día completo") the day is
- * empty (principle 13). "Día completo" and the empty day never show together.
+ * empty (principle 13). "Día completo" and the empty day never show together. The board uses
+ * `habits` and `empty`; the slots' sections (tasks, projects) stay mounted and hide themselves
+ * when they have no rows (`TodaySlot`), so `tasks` and `projects` here only say whether they have
+ * items according to the server's read.
  */
 export function todaySections(counts: TodayCounts): TodaySections {
   const habits = counts.habits > 0;
@@ -55,4 +58,53 @@ export function habitsProgress(
   today: string,
 ): { done: number; total: number } {
   return todayCount(habits, today);
+}
+
+// ── Tareas (D2) ──
+
+/** How many tasks "Tareas" shows before "Ver N más" (SPEC-today: 3, principle 5). */
+export const TODAY_TASKS_VISIBLE = 3;
+
+/**
+ * The fold of "Tareas": how many rows are shown and hidden, and what the toggle says ("more":
+ * "Ver N más" with N = `hidden`; "less": "Ver menos"; null: no toggle, everything fits). The
+ * expanded state lives on the page only (never remembered).
+ */
+export type TaskFold = { shown: number; hidden: number; toggle: "more" | "less" | null };
+
+export function taskFold(total: number, expanded: boolean): TaskFold {
+  const count = Math.max(0, total);
+  if (count <= TODAY_TASKS_VISIBLE) return { shown: count, hidden: 0, toggle: null };
+  if (expanded) return { shown: count, hidden: 0, toggle: "less" };
+  return { shown: TODAY_TASKS_VISIBLE, hidden: count - TODAY_TASKS_VISIBLE, toggle: "more" };
+}
+
+/**
+ * Where focus goes when the row `id` leaves the list `ids` (in its order before it leaves): the
+ * next row, else the previous one, else (the list empties and the section leaves with it) the
+ * board's heading. The next row is always a shown one: rows rise into the fold.
+ */
+export type TaskFocusTarget = { kind: "row"; id: string } | { kind: "board" };
+
+export function focusAfterTaskLeaves(ids: readonly string[], id: string): TaskFocusTarget {
+  const rest = ids.filter((other) => other !== id);
+  if (rest.length === 0) return { kind: "board" };
+  const index = ids.indexOf(id);
+  if (index === -1) return { kind: "row", id: rest[0] };
+  return { kind: "row", id: ids[index + 1] ?? ids[index - 1] };
+}
+
+/** An optimistic change to the "Tareas" list: a completed row leaves, an undone one returns. */
+export type TodayTaskChange<T> =
+  { type: "remove"; id: string } | { type: "restore"; task: T; index: number };
+
+/** Applies a change; a row that is already there is never doubled (the server may be first). */
+export function applyTodayTaskChange<T extends { id: string }>(
+  list: readonly T[],
+  change: TodayTaskChange<T>,
+): T[] {
+  if (change.type === "remove") return list.filter((task) => task.id !== change.id);
+  if (list.some((task) => task.id === change.task.id)) return [...list];
+  const index = Math.min(Math.max(0, change.index), list.length);
+  return [...list.slice(0, index), change.task, ...list.slice(index)];
 }

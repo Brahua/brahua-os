@@ -10,9 +10,14 @@ import { TODAY_COPY } from "../today-copy";
 import { TodayHabits } from "./today-habits";
 
 /**
- * A section another slice fills (D2 "Tareas", D3 "Proyectos"): how many items it has today (0:
- * the section is left out, and counts toward the empty day) and what it renders.
+ * A section another slice fills (D2 "Tareas", D3 "Proyectos"): how many items it has today and
+ * what it renders.
  *
+ * - `count` only decides the empty day (0 counts toward it). `content` is rendered whenever the
+ *   slot is given, even with `count: 0`: the section itself renders nothing (no heading) while it
+ *   has no rows. So a client section stays mounted when the server's read comes back empty after
+ *   its last row left, and its "Deshacer" still has a live component to put the row back in at
+ *   once (with `aria-disabled` while it saves) instead of waiting for the next read.
  * - `content` is rendered inside the board's `ScreenServicesProvider`: its client parts read the
  *   screen's queue, notices, announcer and `isCurrentDay` with `useRequiredScreenServices()` and
  *   never mount a notice viewport of their own.
@@ -67,8 +72,9 @@ export function TodayBoard({ today, habits, dayComplete, tasks, projects }: Toda
         {dayComplete}
         {sections.empty ? <EmptyDay /> : null}
         {sections.habits ? <TodayHabits today={today} habits={habits} /> : null}
-        {sections.tasks ? tasks?.content : null}
-        {sections.projects ? projects?.content : null}
+        {/* Mounted whenever the slot is given, even at 0: see `TodaySlot`. */}
+        {tasks ? tasks.content : null}
+        {projects ? projects.content : null}
       </div>
     </ScreenServicesProvider>
   );
