@@ -1,34 +1,6 @@
-# Tareas: today
+# Tareas
 
-> Plan: [`plan.md`](plan.md) · Spec: [`SPEC-today.md`](../SPEC-today.md)
-> Cada tarea termina con lint, typecheck, unitarias, integración y build en verde, E2E nativa de lo tocado, un PR con los 3 checks verdes y el deploy con smoke test. Commits en inglés (`feat(today): …`).
-> Planes y tareas de módulos cerrados en [`archive/`](archive/).
-
-## Fase 1 — Base
-
-- [x] **D1: Tablero con hábitos** — módulo `src/modules/today/` (manifiesto "Hoy" desde `core`, regla de límites: nadie importa `today`); portada `/` con cabecera, sección Hábitos ("X de N", pads con registro y "Deshacer" vía `getHabitsDueToday` y los servicios del anfitrión) y día vacío; `TodayBoard` con slots para Tareas, Proyectos y Día completo.
-  - Verificar: unitarias de secciones ocultas y día vacío; E2E registrar y deshacer desde `/` (celular y escritorio), axe en ambos temas, 320 px.
-  - Integrado en PR #71. Ver "Cómo funciona today" → "D1" en `docs/HANDOFF.md`.
-
-## Fase 2 — Secciones *(D2 y D3 en paralelo)*
-
-- [x] **D2: Tareas** — sección con `getTasksTodaySummary`, 3 visibles y "Ver N más"/"Ver menos", casilla para completar (con `completeTaskWithNext` y el aviso de la siguiente), foco restaurado al salir la fila, enlace a la tarea; `tasks` revalida `/`.
-  - Verificar: unitarias del tope y del foco; E2E completar y deshacer, recurrente, plegado.
-  - Integrado en PR #72. Ver "Cómo funciona today" → "D2" en `docs/HANDOFF.md`.
-- [x] **D3: Proyectos** — sección de solo lectura con `getProjectsTodaySummary` (LED, vencimiento, "Bloqueado por …", enlace); `projects` revalida `/`.
-  - Verificar: unitarias de las filas; E2E con un proyecto que vence y uno bloqueado.
-  - Integrado en PR #73. Ver "Cómo funciona today" → "D3" en `docs/HANDOFF.md`.
-
-## Fase 3 — Cierre
-
-- [ ] **D4: Día completo** — `getTasksDoneTodayCount(now)` en `tasks` (con integración, borde de medianoche de Lima); regla pura en `today-board.ts` (con actividad hoy); bloque con mensajes variados, fundido (nada con movimiento reducido) y anuncio único.
-  - Verificar: tablas de casos; E2E terminar lo último pendiente muestra el bloque; un día vacío no.
-  - Hecho en `feat/today-d4-day-complete` (PR sin merge). Ver "Cómo funciona today" → "D4" en `docs/HANDOFF.md`.
-
-### Checkpoint final
-- [ ] Recorrido completo en producción con el Chrome personal del owner (datos `[QA]` borrados después) y revisión en el iPhone.
-- [ ] Se cumplen los criterios de éxito de `SPEC-today.md`.
-- [ ] Revisión con el owner: cierre del módulo y decisiones autónomas.
+> Siguiente módulo: **`finance`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: finance"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Backlog técnico
 
@@ -50,3 +22,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Hook único de pads de hábitos** (de D1): que `habits` exporte `useHabitPadsLog` (o un componente cliente que dibuje la grilla de pads con su registro) y `today` deje de importar `habit-list-optimistic`, `habits-copy` y `useHabitsScreen`, como `tasks` hizo en D2 con `taskCompletion` y `TaskTodayRow`.
 - [ ] **Áreas y la portada** (de D2): renombrar, cambiar el color o archivar un área (`core`) no revalida `/`; las tareas (y los hábitos) de la portada muestran el área vieja hasta la siguiente lectura. `core` no puede importar a `today`: que `core` revalide `/` directamente al cambiar un área.
 - [ ] **Confeti en hitos de racha** (de H4): sin `canvas-confetti` (dependencia nueva, pide OK del owner); hoy solo texto.
+- [ ] **Clic perdido tras eliminar** (del Checkpoint final de `today`, 2026-10-03): justo después de eliminar una tarea o un hábito (aviso con "Deshacer" en pantalla), el primer clic en la página no hace nada y el segundo sí. Pasa en Tareas y en Hábitos. Reproducir con una E2E y corregir (¿foco o capa del visor de avisos?).
+- [ ] **Grilla de hábitos que salta en el iPhone** (de D4): al cumplirse un hábito de cantidad su tarjeta crece y "Día completo" aparece arriba y empuja la grilla bajo el dedo. Si molesta en el uso diario: reservar alto o no empujar en vivo (opciones en HANDOFF → D4).
+- [ ] **E2E intermitente "Hito"** (`e2e/task-views.spec.ts`, escritorio; visto en local durante D4): tras elegir "Sin hito", `milestoneId` no vuelve a `null` en 5 s en corridas conjuntas. Estabilizar.
+- [ ] **Datos de demo que envejecen:** las fechas se calculan el día en que se cargan (2026-10-03). Para refrescarlas: `pnpm db:demo:remove` y `pnpm db:demo` (ver HANDOFF → "Datos de demo"). Quitarlos antes de usar la app con datos reales.

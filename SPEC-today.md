@@ -1,6 +1,6 @@
 # Spec: today
 
-> Módulo `today` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core`, `habits`, `tasks` (y lee `projects`) · Estado: **APROBADO v1** (2026-10-03).
+> Módulo `today` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core`, `habits`, `tasks` (y lee `projects`) · Estado: **APROBADO v1** (2026-10-03) · **Cerrado** el 2026-10-05 (el owner aceptó las decisiones autónomas).
 
 ## Objetivo
 

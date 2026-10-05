@@ -1,6 +1,6 @@
 # Plan de implementación: today
 
-> Spec: [`SPEC-today.md`](../SPEC-today.md) (APROBADO v1, 2026-10-03) · Tareas: [`todo.md`](todo.md)
+> Spec: [`SPEC-today.md`](../../SPEC-today.md) (APROBADO v1, 2026-10-03) · Tareas: [`today-todo.md`](today-todo.md)
 > Planes anteriores en [`archive/`](archive/).
 
 ## Enfoque
