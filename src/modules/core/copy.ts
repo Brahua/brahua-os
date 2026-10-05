@@ -6,6 +6,8 @@ export const NAV_COPY = {
   capture: "Capturar",
   /** The capture key without a registered capture provider (src/lib/quick-capture.ts). */
   captureUnavailable: "Próximamente",
+  /** The switch between the quick captures of several modules ("Tarea · Gasto"). */
+  captureKind: "Qué capturar",
   collapseSidebar: "Contraer barra lateral",
   expandSidebar: "Expandir barra lateral",
   more: "Más",

@@ -2,13 +2,20 @@ import { attachDatabasePool } from "@vercel/functions";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as coreSchema from "@/modules/core/db/schema";
+import * as financeSchema from "@/modules/finance/db/schema";
 import * as habitsSchema from "@/modules/habits/db/schema";
 import * as projectsSchema from "@/modules/projects/db/schema";
 import * as tasksSchema from "@/modules/tasks/db/schema";
 import { poolConfig } from "./db-config";
 
 /** Every module's tables. Add each new module's schema here. */
-export const schema = { ...coreSchema, ...projectsSchema, ...tasksSchema, ...habitsSchema };
+export const schema = {
+  ...coreSchema,
+  ...projectsSchema,
+  ...tasksSchema,
+  ...habitsSchema,
+  ...financeSchema,
+};
 
 export type Database = NodePgDatabase<typeof schema> & { $client: Pool };
 

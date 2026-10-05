@@ -50,7 +50,7 @@ const screenshotsThroughHelper = {
   },
 };
 
-// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks; core ← habits). A module never imports one that
+// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks; core ← habits; core ← finance). A module never imports one that
 // depends on it: cross-module features go through registered contracts and the composition roots
 // in src/lib (progress-sources.ts, project-extensions.ts, capture-providers.tsx).
 const TASKS_IMPORT = {
@@ -76,19 +76,49 @@ const TODAY_IMPORT = {
   message:
     "`today` es una hoja: ningún módulo lo importa (expón un contrato en tu módulo y que `today` lo lea).",
 };
+// `finance` depends on `core` only (SPEC-finance "Contratos"); none of the others imports it but
+// `today` (F4). It imports no module but `core` either.
+const FINANCE_IMPORT = {
+  group: ["@/modules/finance", "@/modules/finance/*"],
+  message:
+    "`finance` depende de `core`: core, projects, tasks y habits no pueden importarlo (usa un contrato registrado).",
+};
+const FINANCE_ONLY_CORE = {
+  group: [
+    "@/modules/projects",
+    "@/modules/projects/*",
+    "@/modules/tasks",
+    "@/modules/tasks/*",
+    "@/modules/habits",
+    "@/modules/habits/*",
+  ],
+  message: "`finance` solo depende de `core`: no importa otros módulos.",
+};
 const moduleBoundaries = [
   {
+    files: ["src/modules/finance/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT] }] },
+  },
+  {
     files: ["src/modules/habits/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [TODAY_IMPORT] }] },
+    rules: { "no-restricted-imports": ["error", { patterns: [FINANCE_IMPORT, TODAY_IMPORT] }] },
   },
   {
     files: ["src/modules/tasks/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [HABITS_IMPORT, TODAY_IMPORT] }] },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT] },
+      ],
+    },
   },
   {
     files: ["src/modules/projects/**/*.{ts,tsx}"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: [TASKS_IMPORT, HABITS_IMPORT, TODAY_IMPORT] }],
+      "no-restricted-imports": [
+        "error",
+        { patterns: [TASKS_IMPORT, HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT] },
+      ],
     },
   },
   {
@@ -96,7 +126,7 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [TASKS_IMPORT, PROJECTS_IMPORT, HABITS_IMPORT, TODAY_IMPORT] },
+        { patterns: [TASKS_IMPORT, PROJECTS_IMPORT, HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT] },
       ],
     },
   },

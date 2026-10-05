@@ -7,6 +7,7 @@
 // (database, auth, `server-only` modules) or it ends up in the browser bundle.
 import type { LucideIcon } from "lucide-react";
 import { areasModule, settingsModule } from "@/modules/core/module";
+import { financeModule } from "@/modules/finance/module";
 import { habitsModule } from "@/modules/habits/module";
 import { projectsModule } from "@/modules/projects/module";
 import { tasksModule } from "@/modules/tasks/module";
@@ -50,6 +51,7 @@ export const MODULES: readonly ModuleManifest[] = [
   projectsModule,
   tasksModule,
   habitsModule,
+  financeModule,
   areasModule,
   settingsModule,
 ];

@@ -233,7 +233,11 @@ describe("AppNav", () => {
     expect(fireEvent.keyDown(document.body, { key: "4" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/habits");
     push.mockReset();
-    expect(fireEvent.keyDown(document.body, { key: "5" })).toBe(true);
+    // SPEC-finance: Finanzas is 5.
+    expect(fireEvent.keyDown(document.body, { key: "5" })).toBe(false);
+    expect(push).toHaveBeenCalledWith("/finance");
+    push.mockReset();
+    expect(fireEvent.keyDown(document.body, { key: "6" })).toBe(true);
     expect(push).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(document.body, { key: "7" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/areas");
@@ -286,7 +290,7 @@ describe("AppNav quick capture (extension point)", () => {
       </div>
     ) : null;
   }
-  const provider: CaptureProvider = { id: "fake", Sheet: FakeSheet, preload };
+  const provider: CaptureProvider = { id: "fake", label: "Prueba", Sheet: FakeSheet, preload };
 
   beforeEach(() => {
     opened.mockReset();
@@ -296,7 +300,7 @@ describe("AppNav quick capture (extension point)", () => {
   function renderNav(props: Partial<Parameters<typeof AppNav>[0]> = {}, withProvider = true) {
     const nav = <AppNav initialCollapsed={false} shortcutsEnabled {...props} />;
     return render(
-      withProvider ? <QuickCaptureContext value={provider}>{nav}</QuickCaptureContext> : nav,
+      withProvider ? <QuickCaptureContext value={[provider]}>{nav}</QuickCaptureContext> : nav,
     );
   }
 
@@ -349,7 +353,7 @@ describe("AppNav quick capture (extension point)", () => {
 
     desktop = true;
     render(
-      <QuickCaptureContext value={provider}>
+      <QuickCaptureContext value={[provider]}>
         <AppNav initialCollapsed={false} shortcutsEnabled />
         <input aria-label="Texto" />
       </QuickCaptureContext>,
@@ -380,5 +384,105 @@ describe("AppNav quick capture (extension point)", () => {
     }
     expect(fireEvent.keyDown(document.body, { key: "c" })).toBe(true);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("AppNav quick capture with several providers (Tarea · Gasto, SPEC-finance)", () => {
+  /** A provider whose sheet is a dialog named after it, with the shell's switch first. */
+  function provider(id: string, label: string, preload = vi.fn()): CaptureProvider {
+    function Sheet({ open, onOpenChange, switcher }: CaptureSheetProps) {
+      return open ? (
+        <div role="dialog" aria-label={`Hoja ${label}`}>
+          {switcher}
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Cerrar {label}
+          </button>
+        </div>
+      ) : null;
+    }
+    return { id, label, Sheet, preload };
+  }
+
+  afterEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  function renderWith(providers: CaptureProvider[]) {
+    return render(
+      <QuickCaptureContext value={providers}>
+        <AppNav initialCollapsed={false} shortcutsEnabled />
+      </QuickCaptureContext>,
+    );
+  }
+
+  const openCapture = () => fireEvent.click(screen.getAllByRole("button", { name: "Capturar" })[0]);
+
+  test("the first provider opens by default with a switch; another one swaps the sheet and is remembered", () => {
+    renderWith([provider("tasks", "Tarea"), provider("finance", "Gasto")]);
+    openCapture();
+    const choice = within(screen.getByRole("dialog", { name: "Hoja Tarea" })).getByRole(
+      "radiogroup",
+      { name: "Qué capturar" },
+    );
+    expect(within(choice).getByRole("radio", { name: "Tarea" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(within(choice).getByRole("radio", { name: "Gasto" }));
+    expect(screen.queryByRole("dialog", { name: "Hoja Tarea" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Hoja Gasto" })).toBeInTheDocument();
+    expect(localStorage.getItem("bo_capture_kind")).toBe("finance");
+
+    // Closed and opened again: the remembered one.
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar Gasto" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    openCapture();
+    expect(screen.getByRole("dialog", { name: "Hoja Gasto" })).toBeInTheDocument();
+  });
+
+  test("an opening reads the device's choice; an unknown one falls back to the first", () => {
+    localStorage.setItem("bo_capture_kind", "finance");
+    const { unmount } = renderWith([provider("tasks", "Tarea"), provider("finance", "Gasto")]);
+    openCapture();
+    expect(screen.getByRole("dialog", { name: "Hoja Gasto" })).toBeInTheDocument();
+    unmount();
+
+    localStorage.setItem("bo_capture_kind", "gone");
+    renderWith([provider("tasks", "Tarea"), provider("finance", "Gasto")]);
+    openCapture();
+    expect(screen.getByRole("dialog", { name: "Hoja Tarea" })).toBeInTheDocument();
+  });
+
+  test("without storage (private mode) it opens the first and still switches", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    renderWith([provider("tasks", "Tarea"), provider("finance", "Gasto")]);
+    openCapture();
+    expect(screen.getByRole("dialog", { name: "Hoja Tarea" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Gasto" }));
+    expect(screen.getByRole("dialog", { name: "Hoja Gasto" })).toBeInTheDocument();
+  });
+
+  test("one provider: no switch; with two, pointing at the key preloads both", () => {
+    const tasksPreload = vi.fn();
+    const financePreload = vi.fn();
+    const { unmount } = renderWith([provider("tasks", "Tarea", tasksPreload)]);
+    openCapture();
+    expect(screen.queryByRole("radiogroup", { name: "Qué capturar" })).toBeNull();
+    unmount();
+
+    renderWith([
+      provider("tasks", "Tarea", tasksPreload),
+      provider("finance", "Gasto", financePreload),
+    ]);
+    fireEvent.pointerEnter(screen.getAllByRole("button", { name: "Capturar" })[1]);
+    expect(tasksPreload).toHaveBeenCalled();
+    expect(financePreload).toHaveBeenCalled();
   });
 });

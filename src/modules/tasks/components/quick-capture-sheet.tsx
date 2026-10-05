@@ -67,7 +67,12 @@ const FIELD_ORDER: Field[] = ["title", "placement", "dueDate", "priority", "tags
  * polite status says where it went. Not optimistic: it waits for the server (a few hundred ms),
  * so nothing is lost if the save fails — the text stays in the field with the reason.
  */
-export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: CaptureSheetProps) {
+export function QuickCaptureSheet({
+  open,
+  onOpenChange,
+  returnFocusRef,
+  switcher,
+}: CaptureSheetProps) {
   const isDesktop = useIsDesktop();
   const ids = useId();
   const formId = `${ids}-form`;
@@ -285,6 +290,9 @@ export function QuickCaptureSheet({ open, onOpenChange, returnFocusRef }: Captur
         data-quick-capture=""
         data-saving={pending ? "" : undefined}
       >
+        {/* The shell's "Tarea · Gasto" switch, when another module offers a capture too. */}
+        {switcher}
+
         <TextField
           ref={titleInput}
           id={`${ids}-title`}

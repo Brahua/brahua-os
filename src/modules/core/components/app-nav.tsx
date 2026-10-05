@@ -4,10 +4,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { itemForShortcut, navItems } from "@/lib/modules";
 import { requestNavigation } from "@/lib/navigation-guard";
-import { QuickCaptureContext } from "@/lib/quick-capture";
+import {
+  pickCaptureProvider,
+  QuickCaptureContext,
+  readCaptureChoice,
+  rememberCaptureChoice,
+} from "@/lib/quick-capture";
 import { navShortcutFor } from "@/lib/shortcuts";
 import { sidebarCookie } from "../nav-preferences";
 import { BottomNav } from "./bottom-nav";
+import { CaptureSwitcher } from "./capture-switcher";
 import { Sidebar } from "./sidebar";
 
 // Same breakpoint as Tailwind's `lg`, where the sidebar replaces the bottom bar.
@@ -29,8 +35,10 @@ type AppNavProps = {
  * so there is no flash). Owns the collapsed state and the global shortcuts `[`, `1`–`8` and `C`,
  * which only act from 1024 px, where the sidebar that shows them is on screen.
  *
- * Quick capture: the orange keys and `C` open the sheet of the registered capture provider
- * (src/lib/quick-capture.ts; `tasks` registers it). Without one the keys show as not available.
+ * Quick capture: the orange keys and `C` open the sheet of a registered capture provider
+ * (src/lib/quick-capture.ts; `tasks` and `finance` offer one). With several, the sheet shows a
+ * switch between them ("Tarea · Gasto") and the device remembers the last one picked. Without
+ * any, the keys show as not available.
  */
 export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const pathname = usePathname();
@@ -39,7 +47,10 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const collapsedRef = useRef(initialCollapsed);
   const bottomNav = useRef<HTMLElement>(null);
 
-  const capture = use(QuickCaptureContext);
+  const providers = use(QuickCaptureContext);
+  // The provider picked at the last opening (or switch); null: the first one.
+  const [captureKind, setCaptureKind] = useState<string | null>(null);
+  const capture = pickCaptureProvider(providers, captureKind);
   const [captureOpen, setCaptureOpen] = useState(false);
   // New sheet per opening (the form starts empty); none mounted until the first one.
   const [captureOpening, setCaptureOpening] = useState(0);
@@ -53,10 +64,20 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
       (active instanceof HTMLElement && active !== document.body
         ? active
         : document.getElementById("content"));
+    // The device's last choice, read at each opening (another tab may have changed it).
+    setCaptureKind(readCaptureChoice());
     setCaptureOpening((value) => value + 1);
     setCaptureOpen(true);
   }, []);
   const canCapture = capture !== null;
+  const preloadCapture = useCallback(() => {
+    for (const provider of providers) provider.preload?.();
+  }, [providers]);
+  // Another provider picked in the open sheet: its sheet replaces this one (still open).
+  const switchCapture = useCallback((id: string) => {
+    rememberCaptureChoice(id);
+    setCaptureKind(id);
+  }, []);
 
   // Writes the cookie only on a real toggle (never on mount).
   const toggleSidebar = useCallback(() => {
@@ -129,7 +150,7 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
           onToggle={toggleSidebar}
           shortcuts={shortcutsEnabled}
           onCapture={capture ? openCapture : undefined}
-          onCapturePreload={capture?.preload}
+          onCapturePreload={capture ? preloadCapture : undefined}
           className="h-full"
         />
       </div>
@@ -139,16 +160,25 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
           items={ITEMS}
           pathname={pathname}
           onCapture={capture ? openCapture : undefined}
-          onCapturePreload={capture?.preload}
+          onCapturePreload={capture ? preloadCapture : undefined}
           className="bo-bottomnav--fixed"
         />
       </div>
       {capture && captureOpening > 0 ? (
         <capture.Sheet
-          key={captureOpening}
+          key={`${captureOpening}:${capture.id}`}
           open={captureOpen}
           onOpenChange={setCaptureOpen}
           returnFocusRef={captureTrigger}
+          switcher={
+            providers.length > 1 ? (
+              <CaptureSwitcher
+                providers={providers}
+                value={capture.id}
+                onValueChange={switchCapture}
+              />
+            ) : undefined
+          }
         />
       ) : null}
     </>

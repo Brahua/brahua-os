@@ -230,3 +230,6 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 @media (prefers-reduced-motion: reduce) {
   .bo-day-complete[data-appeared] { animation: none; }
 }
+/* Finance (F1): amounts are data, in IBM Plex Mono with tabular figures (SPEC-finance
+   "Pantallas"): the amount field and the amounts of the month's list. Not a synced component. */
+.bo-amount-field .bo-field__control, .bo-amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

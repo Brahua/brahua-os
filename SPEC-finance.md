@@ -137,7 +137,7 @@ export const financeExpenses = pgTable("finance_expenses", {
   description: text("description"),                  // ≤ 80
   amountCents: bigint("amount_cents", { mode: "number" }).notNull(), // 1–100 000 000
   currency: text("currency", { enum: CURRENCIES }).notNull(),
-  exchangeRate: numeric("exchange_rate", { precision: 8, scale: 4 }), // PEN per USD at save; USD only
+  exchangeRate: numeric("exchange_rate", { precision: 8, scale: 4 }), // PEN per USD at save; USD only, null if no rate was set
   spentOn: date("spent_on").notNull(),                // Lima day
   categoryId: uuid("category_id").references(() => financeCategories.id, { onDelete: "restrict" }),
   paymentMethodId: uuid("payment_method_id").references(() => financePaymentMethods.id, { onDelete: "restrict" }),
@@ -164,7 +164,7 @@ export const financeSettings = pgTable("finance_settings", {
 });
 ```
 
-- **`CHECK`** (con `coalesce(…, false)` como `tasks_recurrence_check`): largos; montos 1–100 000 000 céntimos; cada ciclo con exactamente sus campos (`weekly` → `weekday`; `monthly` → `day_of_month`; `every_n_months` → `day_of_month`, `interval_months`, `anchor_month`; `yearly` → `day_of_month`, `anchor_month`); `exchange_rate` presente si y solo si `currency = 'USD'`, entre 1 y 10; `paid` ⇔ `expense_id` presente; settings con `id = 1`.
+- **`CHECK`** (con `coalesce(…, false)` como `tasks_recurrence_check`): largos; montos 1–100 000 000 céntimos; cada ciclo con exactamente sus campos (`weekly` → `weekday`; `monthly` → `day_of_month`; `every_n_months` → `day_of_month`, `interval_months`, `anchor_month`; `yearly` → `day_of_month`, `anchor_month`); `exchange_rate` nunca en PEN y opcional en USD (entre 1 y 10; nulo si al registrarlo no había tipo fijado: ese gasto se suma aparte, "sin convertir"; ajustado en F1); `paid` ⇔ `expense_id` presente; settings con `id = 1`.
 - **Índices:** `finance_expenses (spent_on) WHERE deleted_at IS NULL`; `finance_expenses (recurring_payment_id) WHERE deleted_at IS NULL`; únicos por `lower(name)` entre los no archivados en categorías y medios; `finance_recurring_payments (archived_at) WHERE deleted_at IS NULL`.
 - **Pagar** en una transacción: lock del pago, inserta el gasto y el `settlement` (`paid`); un segundo "Pagado" del mismo período choca con la PK y responde "Ya estaba pagado" (idempotente, sin gasto doble). "Deshacer" elimina el gasto (lógico) y borra el `settlement` (la única fila que se borra físicamente: es un estado, no un dato del owner; queda documentado junto al código). Eliminar un gasto pagado de un recurrente hace lo mismo: el período vuelve a pendiente.
 - **Bloqueos** (`FINANCE_ADVISORY_SPACE = 5000`, dos claves como `projects`): `(5000, hashtext('finance:categories'))` y `(5000, hashtext('finance:methods'))` para crear, ordenar y archivar; `(5000, hashtext(<recurring_id>))` para pagar, omitir, deshacer y editar el ciclo. Siempre el primer lock de la transacción.

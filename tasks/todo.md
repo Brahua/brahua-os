@@ -6,7 +6,7 @@
 
 ## Fase 1 — Base
 
-- [ ] **F1: Datos y gastos sueltos** — migración con las seis tablas (`CHECK`, índices), locks `FINANCE_ADVISORY_SPACE = 5000`, exportación; `money.ts`; catálogo (categorías y medios: crear, renombrar, ordenar, archivar) y tipo de cambio en la hoja "Ajustes"; `/finance` → Mes con la lista de gastos del mes; hoja "Gasto" (crear, editar, eliminar con "Deshacer"); captura rápida con selector "Tarea · Gasto"; manifiesto "Finanzas" (atajo 5) y regla de límites. Slots para Pagos, resumen y "Pendiente de pagar".
+- [ ] **F1: Datos y gastos sueltos** (PR de `feat/finance-f1`, sin merge) — migración con las seis tablas (`CHECK`, índices), locks `FINANCE_ADVISORY_SPACE = 5000`, exportación; `money.ts`; catálogo (categorías y medios: crear, renombrar, ordenar, archivar) y tipo de cambio en la hoja "Ajustes"; `/finance` → Mes con la lista de gastos del mes; hoja "Gasto" (crear, editar, eliminar con "Deshacer"); captura rápida con selector "Tarea · Gasto"; manifiesto "Finanzas" (atajo 5) y regla de límites. Slots para Pagos, resumen y "Pendiente de pagar".
   - Verificar: unitarias de `money.ts` y Zod; integración de `CHECK`, catálogo con lock y tipo de cambio guardado; E2E capturar un gasto en ≤ 3 interacciones (celular), editar, eliminar y deshacer, captura de tareas intacta, axe en ambos temas, 320 px.
 
 ## Fase 2 — Recurrentes y resumen *(F2 y F3 en paralelo)*
