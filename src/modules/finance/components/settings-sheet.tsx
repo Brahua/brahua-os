@@ -121,6 +121,8 @@ export function SettingsSheet({
   const [error, setError] = useState<string | null>(null);
   const [announcement, announce] = useAnnouncer();
   const [pending, startTransition] = useTransition();
+  // Which action is saving ("create:categories", "rate"…): only its key says so.
+  const [busyTag, setBusyTag] = useState<string | null>(null);
 
   /**
    * Runs a catalog action: on success the sheet takes the catalog it returns, says `done` and
@@ -130,10 +132,12 @@ export function SettingsSheet({
     action: (input: unknown) => Promise<Result>,
     input: unknown,
     {
+      tag,
       done,
       after,
       onError,
     }: {
+      tag: string;
       done: (catalog: FinanceCatalog) => string;
       after?: (catalog: FinanceCatalog) => void;
       onError?: (message: string) => boolean;
@@ -141,12 +145,15 @@ export function SettingsSheet({
   ) {
     if (pending) return;
     setError(null);
+    setBusyTag(tag);
     startTransition(async () => {
       const result = await call(action, input);
+      setBusyTag(null);
       if (!result.ok) {
         const message = reasonOf(result);
-        if (!onError?.(message)) setError(message);
-        announce(message);
+        // On its field (not live): said through the status region. Otherwise the alert says it.
+        if (onError?.(message)) announce(message);
+        else setError(message);
         return;
       }
       setCatalog(result.data);
@@ -168,6 +175,13 @@ export function SettingsSheet({
       returnFocusRef={returnFocusRef}
       focusTitleOnOpen
       closeDisabled={pending}
+      onEscapeKeyDown={(event) => {
+        // Esc inside an inline edit cancels the edit (focus back to its "Editar"), not the sheet.
+        const form = (document.activeElement as HTMLElement | null)?.closest("[data-inline-edit]");
+        if (!form) return;
+        event.preventDefault();
+        form.querySelector<HTMLButtonElement>("[data-cancel-edit]")?.click();
+      }}
     >
       <div
         className="flex flex-col gap-8"
@@ -180,12 +194,13 @@ export function SettingsSheet({
             {error}
           </p>
         ) : null}
-        <RateSection catalog={catalog} pending={pending} run={run} />
+        <RateSection catalog={catalog} pending={pending} busyTag={busyTag} run={run} />
         <CatalogSection
           kind="categories"
           items={catalog.categories}
           archived={catalog.archivedCategories}
           pending={pending}
+          busyTag={busyTag}
           run={run}
         />
         <CatalogSection
@@ -193,6 +208,7 @@ export function SettingsSheet({
           items={catalog.methods}
           archived={catalog.archivedMethods}
           pending={pending}
+          busyTag={busyTag}
           run={run}
         />
         <p role="status" className="sr-only" data-settings-status="">
@@ -207,6 +223,7 @@ type Run = (
   action: (input: unknown) => Promise<Result>,
   input: unknown,
   options: {
+    tag: string;
     done: (catalog: FinanceCatalog) => string;
     after?: (catalog: FinanceCatalog) => void;
     onError?: (message: string) => boolean;
@@ -216,10 +233,12 @@ type Run = (
 function RateSection({
   catalog,
   pending,
+  busyTag,
   run,
 }: {
   catalog: FinanceCatalog;
   pending: boolean;
+  busyTag: string | null;
   run: Run;
 }) {
   const ids = useId();
@@ -242,6 +261,7 @@ function RateSection({
       setExchangeRate,
       { rate: value },
       {
+        tag: "rate",
         done: (next) =>
           next.usdToPenE4 === null
             ? FINANCE_COPY.rateCleared
@@ -278,7 +298,7 @@ function RateSection({
           }}
         />
         <Key type="submit" className="w-fit" aria-disabled={pending || undefined}>
-          {FINANCE_COPY.rateSave}
+          {busyTag === "rate" ? FINANCE_COPY.saving : FINANCE_COPY.rateSave}
         </Key>
       </form>
     </section>
@@ -291,6 +311,7 @@ const ACTIONS = {
     empty: FINANCE_COPY.categoriesEmpty,
     newLabel: FINANCE_COPY.newCategory,
     archivedTitle: FINANCE_COPY.archivedCategories,
+    archivedList: "«Archivadas»",
     reorder: reorderCategories,
     archive: archiveCategory,
     unarchive: unarchiveCategory,
@@ -300,6 +321,7 @@ const ACTIONS = {
     empty: FINANCE_COPY.methodsEmpty,
     newLabel: FINANCE_COPY.newMethod,
     archivedTitle: FINANCE_COPY.archivedMethods,
+    archivedList: "«Archivados»",
     reorder: reorderPaymentMethods,
     archive: archivePaymentMethod,
     unarchive: unarchivePaymentMethod,
@@ -341,12 +363,14 @@ function CatalogSection({
   items,
   archived,
   pending,
+  busyTag,
   run,
 }: {
   kind: CatalogKind;
   items: readonly Item[];
   archived: readonly Item[];
   pending: boolean;
+  busyTag: string | null;
   run: Run;
 }) {
   const copy = ACTIONS[kind];
@@ -384,6 +408,7 @@ function CatalogSection({
       return;
     }
     run(withCurrency ? createPaymentMethod : createCategory, input, {
+      tag: `create:${kind}`,
       done: () => FINANCE_COPY.created(parsed.data.name),
       after: () => {
         setNewName("");
@@ -412,6 +437,7 @@ function CatalogSection({
       return;
     }
     run(withCurrency ? updatePaymentMethod : renameCategory, input, {
+      tag: `edit:${kind}`,
       done: () => FINANCE_COPY.renamed(parsed.data.name),
       after: () => {
         setEditing(null);
@@ -439,6 +465,7 @@ function CatalogSection({
       copy.reorder,
       { ids },
       {
+        tag: `move:${kind}`,
         done: () => FINANCE_COPY.moved(item.name, to + 1, items.length),
         // At an end the key it used is unavailable: keep focus on the row's other arrow.
         after: () => {
@@ -458,7 +485,8 @@ function CatalogSection({
       copy.archive,
       { id: item.id },
       {
-        done: () => FINANCE_COPY.archived(item.name),
+        tag: `archive:${kind}`,
+        done: () => FINANCE_COPY.archived(item.name, copy.archivedList),
         after: () =>
           focusLater(() =>
             neighbor ? keys.current.get(`archive:${neighbor.id}`) : newInput.current,
@@ -473,6 +501,7 @@ function CatalogSection({
       copy.unarchive,
       { id: item.id },
       {
+        tag: `unarchive:${kind}`,
         done: () => FINANCE_COPY.unarchived(item.name),
         after: () => focusLater(() => keys.current.get(`edit:${item.id}`)),
       },
@@ -494,7 +523,12 @@ function CatalogSection({
             if (editing?.id === item.id) {
               return (
                 <li key={item.id}>
-                  <form noValidate onSubmit={saveEdit} className="bo-card gap-3">
+                  <form
+                    noValidate
+                    onSubmit={saveEdit}
+                    className="bo-card gap-3"
+                    data-inline-edit=""
+                  >
                     <TextField
                       ref={editInput}
                       id={`${ids}-edit-${item.id}`}
@@ -521,10 +555,11 @@ function CatalogSection({
                     ) : null}
                     <div className="flex flex-wrap gap-2">
                       <Key type="submit" variant="signal" aria-disabled={pending || undefined}>
-                        {FINANCE_COPY.save}
+                        {busyTag === `edit:${kind}` ? FINANCE_COPY.saving : FINANCE_COPY.save}
                       </Key>
                       <Key
                         variant="ghost"
+                        data-cancel-edit=""
                         aria-disabled={pending || undefined}
                         onClick={() => {
                           if (pending) return;
@@ -627,7 +662,7 @@ function CatalogSection({
           </div>
         ) : null}
         <Key type="submit" className="w-fit" aria-disabled={pending || undefined}>
-          {pending ? FINANCE_COPY.adding : FINANCE_COPY.add}
+          {busyTag === `create:${kind}` ? FINANCE_COPY.adding : FINANCE_COPY.add}
         </Key>
       </form>
 

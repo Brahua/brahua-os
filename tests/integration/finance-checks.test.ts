@@ -167,6 +167,9 @@ describe("expenses", () => {
     expect(await violation(expense({ currency: "USD", exchangeRate: "0.9999" }))).toEqual(rule);
     expect(await violation(expense({ currency: "USD", exchangeRate: "10.0001" }))).toEqual(rule);
     expect(await violation(expense({ currency: "USD", exchangeRate: "3.7512" }))).toBeNull();
+    // The borders.
+    expect(await violation(expense({ currency: "USD", exchangeRate: "1.0000" }))).toBeNull();
+    expect(await violation(expense({ currency: "USD", exchangeRate: "10.0000" }))).toBeNull();
     // SPEC-finance "Tipo de cambio": without a rate set, a USD expense is stored unconverted.
     expect(await violation(expense({ currency: "USD", exchangeRate: null }))).toBeNull();
     const [row] = await testDb
@@ -288,6 +291,14 @@ describe("settlements and settings", () => {
       await violation(settlement({ status: "late" })),
     );
     expect(await violation(settlement({ status: "paid", expenseId }))).toBeNull();
+    // A paid period's expense can't be deleted while the settlement points at it.
+    expect(
+      (
+        await violation(() =>
+          testDb.execute(sql`delete from finance_expenses where id = ${expenseId}`),
+        )
+      )?.code,
+    ).toBe("23001");
     // A second settlement of the same period collides with the primary key.
     expect(await violation(settlement({}))).toEqual({
       code: "23505",
@@ -303,8 +314,23 @@ describe("settlements and settings", () => {
       await violation(() => testDb.insert(financeSettings).values({ id: 1, usdToPen: "0.5" })),
     ).toEqual(check("finance_settings_usd_to_pen_check"));
     expect(
-      await violation(() => testDb.insert(financeSettings).values({ id: 1, usdToPen: "3.75" })),
+      await violation(() => testDb.insert(financeSettings).values({ id: 1, usdToPen: "10.0001" })),
+    ).toEqual(check("finance_settings_usd_to_pen_check"));
+    expect(
+      await violation(() =>
+        testDb
+          .insert(financeSettings)
+          .values({ id: 1, usdToPen: "3.75", lastPaymentMethodId: methodId }),
+      ),
     ).toBeNull();
+    // The last method used can't be deleted while the settings point at it.
+    expect(
+      (
+        await violation(() =>
+          testDb.execute(sql`delete from finance_payment_methods where id = ${methodId}`),
+        )
+      )?.code,
+    ).toBe("23001");
     expect(await violation(() => testDb.insert(financeSettings).values({}))).toEqual({
       code: "23505",
       constraint: "finance_settings_pkey",

@@ -142,14 +142,14 @@ export async function archivePaymentMethod(input: unknown): Promise<Result> {
 function unarchiveAction(kind: CatalogKind) {
   return ownerAction(
     unarchiveCatalogInputSchema,
-    async (data) => afterWrite(kind, await unarchiveCatalogItem(getDb(), kind, data)),
+    async ({ id }) => afterWrite(kind, await unarchiveCatalogItem(getDb(), kind, id)),
     { name: `unarchiveFinance-${kind}` },
   );
 }
 const unarchiveCat = unarchiveAction("categories");
 const unarchiveMethod = unarchiveAction("methods");
 
-/** Reactivates a category (at the end, or in its place for an undo). */
+/** Reactivates a category, at the end of the list. */
 export async function unarchiveCategory(input: unknown): Promise<Result> {
   return unarchiveCat(input);
 }

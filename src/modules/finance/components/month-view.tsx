@@ -40,8 +40,8 @@ export function MonthView({ month, expenses }: MonthViewProps) {
   const rows = useRef(new Map<string, HTMLButtonElement>());
   // Where focus goes when the sheet closes: the row (or key) that opened it, or a neighbor.
   const returnFocus = useRef<HTMLElement | null>(null);
-  // What to say once the sheet has closed (an edit saved).
-  const afterClose = useRef<string | null>(null);
+  // What to say, and where focus goes, once the sheet has closed after an edit.
+  const afterClose = useRef<{ message: string; id: string; neighbor: string | null } | null>(null);
 
   function openSheet(expense: ExpenseItem | null, opener: HTMLElement | null) {
     returnFocus.current = opener;
@@ -50,6 +50,12 @@ export function MonthView({ month, expenses }: MonthViewProps) {
 
   function closeSheet() {
     setSheet((previous) => (previous ? { ...previous, open: false } : previous));
+  }
+
+  /** The id of the row after `id` (or before it), if any. */
+  function neighborIdOf(id: string): string | null {
+    const index = shown.findIndex((expense) => expense.id === id);
+    return (shown[index + 1] ?? shown[index - 1])?.id ?? null;
   }
 
   /** The row after `id` (or before it), else the add key: where focus goes when it leaves. */
@@ -90,7 +96,7 @@ export function MonthView({ month, expenses }: MonthViewProps) {
       if (result.kind === "done" && result.value.ok) {
         toaster.push({
           title: FINANCE_COPY.deletedTitle,
-          text: FINANCE_COPY.savedText(text.amount, text.label),
+          text: FINANCE_COPY.savedText(text.spoken, text.label),
           action: { label: FINANCE_COPY.undo, run: () => restore(expense) },
         });
         return;
@@ -175,14 +181,26 @@ export function MonthView({ month, expenses }: MonthViewProps) {
             // An edit shows in its row: it is said once the sheet is gone (the page is hidden
             // from screen readers until then), not a notice (a plain notice would hold back the
             // next one's "Deshacer").
-            if (sheet.expense) {
-              const text = expenseRowText(saved);
-              afterClose.current = `${FINANCE_COPY.editedTitle}: ${FINANCE_COPY.savedText(text.amount, text.label)}.`;
-            }
+            if (!sheet.expense) return;
+            const text = expenseRowText(saved);
+            afterClose.current = {
+              message: `${FINANCE_COPY.editedTitle}: ${FINANCE_COPY.savedText(text.spoken, text.label)}.`,
+              id: saved.id,
+              neighbor: neighborIdOf(saved.id),
+            };
           }}
           onClosed={() => {
-            if (afterClose.current) announce(afterClose.current);
+            const after = afterClose.current;
             afterClose.current = null;
+            if (!after) return;
+            // A new date can move the row to another day (a new element) or out of the month:
+            // focus goes to the row as it is now, else a neighbor, else the month's heading.
+            const target =
+              rows.current.get(after.id) ??
+              (after.neighbor ? rows.current.get(after.neighbor) : undefined) ??
+              heading.current;
+            target?.focus();
+            announce(after.message);
           }}
           onDelete={deleteRow}
         />
@@ -200,7 +218,7 @@ type ExpenseRowProps = {
 /** One expense: what, amount (and "≈ S/" for USD), method; the whole row opens its edit sheet. */
 function ExpenseRow({ expense, onOpen, ref }: ExpenseRowProps) {
   const text = expenseRowText(expense);
-  const spoken = [text.amount, text.converted, ...text.meta].filter(Boolean).join(", ");
+  const spoken = [text.spoken, ...text.meta].join(", ");
   return (
     <button
       ref={ref}

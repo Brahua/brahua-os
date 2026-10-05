@@ -106,8 +106,8 @@ function expense(values: Partial<ExpenseItem> = {}): ExpenseItem {
 }
 
 /** The amount field and the rest, by their labels. */
-const amountField = () => screen.getByRole("textbox", { name: "Monto" });
-const normalize = (text: string | null) => (text ?? "").replace(/\s/g, " ");
+/** "Monto en soles" or "Monto en dólares": the label says the currency. */
+const amountField = () => screen.getByRole("textbox", { name: /^Monto en/ });
 
 beforeEach(() => {
   window.matchMedia = vi.fn((query: string) => ({
@@ -174,10 +174,10 @@ describe("ExpenseSheet (new)", () => {
     expect(amountField()).toHaveFocus();
     expect(onSaved).toHaveBeenCalledWith(saved);
     const confirmation = document.querySelector("[data-expense-saved]")!;
-    expect(normalize(confirmation.textContent)).toContain("Registrado: S/ 12.50.");
+    expect(confirmation.textContent).toContain("Registrado: 12.50 soles.");
     await waitFor(() =>
-      expect(normalize(document.querySelector("[data-expense-status]")!.textContent)).toBe(
-        "Registrado: S/ 12.50.",
+      expect(document.querySelector("[data-expense-status]")).toHaveTextContent(
+        "Registrado: 12.50 soles.",
       ),
     );
 
@@ -227,6 +227,11 @@ describe("ExpenseSheet (new)", () => {
     expect(screen.getByRole("radio", { name: "Soles" })).toHaveAttribute("aria-checked", "true");
     await user.selectOptions(method, "Débito dólares");
     expect(screen.getByRole("radio", { name: "Dólares" })).toHaveAttribute("aria-checked", "true");
+    // The currency shows next to the amount, and the help is tied to the currency picker.
+    expect(screen.getByRole("textbox", { name: "Monto en dólares" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Moneda" })).toHaveAccessibleDescription(
+      "Se guardará con el tipo de cambio de Ajustes: S/ 3.75 por dólar.",
+    );
     expect(document.querySelector("[data-rate-help]")).toHaveTextContent(
       "Se guardará con el tipo de cambio de Ajustes: S/ 3.75 por dólar.",
     );
@@ -253,6 +258,55 @@ describe("ExpenseSheet (new)", () => {
     renderNew(null);
     await user.type(amountField(), "3{Enter}");
     expect(createExpense).toHaveBeenCalledWith({ amount: "3", description: "", categoryId: "" });
+  });
+
+  test("a refused save keeps the amount and says why; a network failure asks to check it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createExpense).mockResolvedValueOnce(fail("No se pudo guardar. Inténtalo de nuevo."));
+    renderNew();
+    await user.type(amountField(), "7{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo guardar. Inténtalo de nuevo.",
+    );
+    expect(amountField()).toHaveValue("7");
+    vi.mocked(createExpense).mockRejectedValueOnce(new Error("offline"));
+    await user.type(amountField(), "{Enter}");
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Revisa tu conexión e inténtalo de nuevo.",
+      ),
+    );
+    expect(amountField()).toHaveValue("7");
+    expect(document.querySelector("[data-expense-saved]")).toBeNull();
+  });
+
+  test("Enter twice while saving sends one expense", async () => {
+    const user = userEvent.setup();
+    let answer: (result: ActionResult<ExpenseItem>) => void = () => {};
+    vi.mocked(createExpense).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    renderNew();
+    await user.type(amountField(), "5{Enter}{Enter}");
+    expect(createExpense).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Guardando…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await act(async () => answer(ok(expense({ amountCents: 500 }))));
+    expect(createExpense).toHaveBeenCalledTimes(1);
+  });
+
+  test("a failed Deshacer keeps the confirmation and says it couldn't undo", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createExpense).mockResolvedValue(ok(expense()));
+    vi.mocked(deleteExpense).mockResolvedValue(fail(EXPENSE_ERRORS.notFound));
+    renderNew();
+    await user.type(amountField(), "12.50{Enter}");
+    const confirmation = await waitFor(() => document.querySelector("[data-expense-saved]")!);
+    await user.click(within(confirmation as HTMLElement).getByRole("button", { name: "Deshacer" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      `No se pudo deshacer. ${EXPENSE_ERRORS.notFound}`,
+    );
+    expect(document.querySelector("[data-expense-saved]")).not.toBeNull();
   });
 });
 
@@ -389,12 +443,12 @@ describe("/finance", () => {
       screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
     ).toEqual(["Hoy", "Ayer", "Jueves 1 de octubre"]);
     const today = screen.getByRole("list", { name: "Hoy" });
-    expect(normalize(within(today).getByRole("button").getAttribute("aria-label"))).toBe(
-      "Editar Café, S/ 12.50, Efectivo",
+    expect(within(today).getByRole("button").getAttribute("aria-label")).toBe(
+      "Editar Café, 12.50 soles, Efectivo",
     );
     const yesterday = screen.getByRole("list", { name: "Ayer" });
-    expect(normalize(within(yesterday).getByRole("button").getAttribute("aria-label"))).toBe(
-      "Editar Comida, USD 95.00, ≈ S/ 356.25",
+    expect(within(yesterday).getByRole("button").getAttribute("aria-label")).toBe(
+      "Editar Comida, 95 dólares, unos 356.25 soles",
     );
   });
 
@@ -432,6 +486,45 @@ describe("/finance", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /^Editar Café/ })).toBeInTheDocument(),
     );
+  });
+});
+
+describe("/finance failures", () => {
+  function renderMonth(expenses: ExpenseItem[]) {
+    return render(
+      <FinanceScreen today={TODAY} catalog={CATALOG}>
+        <MonthView month="2026-10" expenses={expenses} />
+      </FinanceScreen>,
+    );
+  }
+
+  test("a failed restore says so", async () => {
+    const user = userEvent.setup();
+    const cafe = expense({ description: "Café" });
+    vi.mocked(deleteExpense).mockResolvedValue(ok(cafe));
+    vi.mocked(restoreExpense).mockResolvedValue(fail(EXPENSE_ERRORS.notFound));
+    renderMonth([cafe]);
+    await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
+    await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
+    const notices = screen.getByRole("region", { name: "Avisos de Finanzas" });
+    await waitFor(() => expect(within(notices).getByText("Gasto eliminado")).toBeInTheDocument());
+    await user.click(within(notices).getByRole("button", { name: "Deshacer" }));
+    expect(restoreExpense).toHaveBeenCalledWith({ id: cafe.id });
+    await waitFor(() =>
+      expect(within(notices).getByText(/No se pudo deshacer/)).toBeInTheDocument(),
+    );
+  });
+
+  test("a refused edit keeps the sheet open with the reason", async () => {
+    const user = userEvent.setup();
+    const cafe = expense({ description: "Café" });
+    vi.mocked(editExpense).mockResolvedValue(fail(EXPENSE_ERRORS.notFound));
+    renderMonth([cafe]);
+    await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    const sheet = screen.getByRole("dialog", { name: "Editar gasto" });
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(EXPENSE_ERRORS.notFound);
+    expect(screen.getByRole("dialog", { name: "Editar gasto" })).toBeInTheDocument();
   });
 });
 
@@ -499,6 +592,31 @@ describe("Ajustes", () => {
           .map((item) => item.textContent),
       ).toEqual(["Casa", "Comida"]),
     );
+  });
+
+  test("Esc inside an inline edit cancels the edit, not the sheet", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <SettingsSheet
+        open
+        onOpenChange={onOpenChange}
+        returnFocusRef={createRef()}
+        initialCatalog={CATALOG}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Editar «Comida»" }));
+    const name = await screen.findByRole("textbox", { name: "Nombre" });
+    await waitFor(() => expect(name).toHaveFocus());
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Editar «Comida»" })).toHaveFocus(),
+    );
+    expect(screen.queryByRole("textbox", { name: "Nombre" })).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // Positive control: Esc outside an edit closes the sheet.
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   test("the rate: validated in the form, then saved", async () => {

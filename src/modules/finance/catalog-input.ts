@@ -58,14 +58,8 @@ export const updatePaymentMethodInputSchema = z.object({ id, name, currency });
 /** Archive (either list). */
 export const catalogIdInputSchema = z.object({ id });
 
-/**
- * Reactivate: at the end of its list (`end`, "Reactivar") or back in its old place
- * (`original`, the undo of an archive: archiving keeps its `sort_order`).
- */
-export const unarchiveCatalogInputSchema = z.object({
-  id,
-  position: z.enum(["end", "original"]).default("end"),
-});
+/** Reactivate ("Reactivar"): back at the end of its list. */
+export const unarchiveCatalogInputSchema = z.object({ id });
 
 /**
  * Reorder: every visible item's id of one list, in the new order, without repeats. The server
@@ -100,4 +94,3 @@ export type CreateCategoryInput = z.output<typeof createCategoryInputSchema>;
 export type RenameCategoryInput = z.output<typeof renameCategoryInputSchema>;
 export type CreatePaymentMethodInput = z.output<typeof createPaymentMethodInputSchema>;
 export type UpdatePaymentMethodInput = z.output<typeof updatePaymentMethodInputSchema>;
-export type UnarchiveCatalogInput = z.output<typeof unarchiveCatalogInputSchema>;

@@ -30,9 +30,6 @@ import { expectScreenshot } from "./support/screenshots";
 
 const THEMES = ["dark", "light"] as const;
 const today = () => ownerDateKey(new Date());
-/** Intl may put a no-break space after "S/". */
-const money = (text: string) => new RegExp(text.replace(/[.$()]/g, "\\$&").replace(/ /g, "\\s"));
-
 async function setTheme(page: Page, theme: (typeof THEMES)[number]) {
   await page.evaluate((value) => localStorage.setItem("theme", value), theme);
   await page.reload();
@@ -51,7 +48,9 @@ const TODAY_BOARD_HIDDEN_CSS = path.join(__dirname, "support/today-board-hidden.
 
 const switcher = (page: Page) => page.getByRole("radiogroup", { name: "Qué capturar" });
 
-test("phone: an expense from another page in 3 interactions and under 10 s, with Deshacer", async ({
+// The first capture on a device is 4 interactions (key, "Gasto", amount, Enter); once the device
+// remembers "Gasto", 3 (decisión autónoma para revisar con el owner, SPEC-finance "Captura rápida").
+test("phone: with Gasto remembered, an expense in 3 interactions and under 10 s, with Deshacer", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The orange key of the bottom bar");
@@ -73,7 +72,7 @@ test("phone: an expense from another page in 3 interactions and under 10 s, with
   await expect(amountField(page)).toHaveAttribute("inputmode", "decimal");
   await page.keyboard.type("12,50"); // 2
   await page.keyboard.press("Enter"); // 3
-  await expect(expenseStatus(page)).toHaveText(money("Registrado: S/ 12.50."));
+  await expect(expenseStatus(page)).toHaveText("Registrado: 12.50 soles.");
   expect(Date.now() - started).toBeLessThan(10_000);
   // Ready for the next one.
   await expect(amountField(page)).toHaveValue("");
@@ -95,9 +94,10 @@ test("phone: an expense from another page in 3 interactions and under 10 s, with
   await expect.poll(async () => (await readAllExpenses())[0].deletedAt).not.toBeNull();
 
   // Another one, then it is in the month.
+  await expect(amountField(page)).toBeFocused();
   await page.keyboard.type("4.20");
   await amountField(page).press("Enter");
-  await expect(expenseStatus(page)).toHaveText(money("Registrado: S/ 4.20."));
+  await expect(expenseStatus(page)).toHaveText("Registrado: 4.20 soles.");
   await page.keyboard.press("Escape");
   await page.locator(".bo-bottomnav--fixed").getByRole("button", { name: "Más" }).click();
   await page
@@ -106,7 +106,24 @@ test("phone: an expense from another page in 3 interactions and under 10 s, with
     .click();
   await expect(page).toHaveURL("/finance");
   await expect(expenseRow(page, "Sin categoría")).toHaveCount(1);
-  await expect(expenseRow(page, "Sin categoría")).toHaveAccessibleName(money("S/ 4.20"));
+  await expect(expenseRow(page, "Sin categoría")).toHaveAccessibleName(/4\.20 soles/);
+});
+
+test("the switch by keyboard keeps focus on it; Esc after a switch returns focus to the key", async ({
+  page,
+}) => {
+  await insertMethod("Efectivo", "PEN", true);
+  await openReady(page, "/projects");
+  await captureKey(page).click();
+  await expect(page.getByRole("dialog", { name: "Nueva tarea" })).toBeVisible();
+  await switcher(page).getByRole("radio", { name: "Tarea" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(expenseSheet(page)).toBeVisible();
+  // WCAG 3.2.2: the radio group keeps focus (on the new sheet's checked option).
+  await expect(switcher(page).getByRole("radio", { name: "Gasto" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(expenseSheet(page)).toBeHidden();
+  await expect(captureKey(page)).toBeFocused();
 });
 
 test("desktop: C opens the capture; the device remembers Gasto; Más sets category and date", async ({
@@ -122,6 +139,7 @@ test("desktop: C opens the capture; the device remembers Gasto; Más sets catego
   await page.keyboard.press("Escape");
   await expect(expenseSheet(page)).toBeHidden();
 
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
   await page.keyboard.press("c");
   await expect(amountField(page)).toBeFocused();
   await expect(switcher(page).getByRole("radio", { name: "Gasto" })).toHaveAttribute(
@@ -137,7 +155,7 @@ test("desktop: C opens the capture; the device remembers Gasto; Más sets catego
   const yesterday = new Date(Date.now() - 86_400_000);
   await expenseSheet(page).getByLabel("Fecha").fill(ownerDateKey(yesterday));
   await expenseSheet(page).getByRole("button", { name: "Guardar" }).click();
-  await expect(expenseStatus(page)).toHaveText(money("Registrado: S/ 30.00 · Almuerzo."));
+  await expect(expenseStatus(page)).toHaveText("Registrado: 30 soles · Almuerzo.");
   const [saved] = await readExpenses("Almuerzo");
   expect(saved).toMatchObject({ amountCents: 3000, spentOn: ownerDateKey(yesterday) });
   expect(saved.categoryId).not.toBeNull();
@@ -161,7 +179,9 @@ test("edit an expense from the month; delete it and undo", async ({ page }) => {
   });
   await insertExpense({ description: "Pan", amountCents: 450, spentOn: today() });
   await openReady(page, "/finance");
-  await expect(expenseRow(page, "Mercado")).toHaveAccessibleName(money("S/ 80.00, Crédito"));
+  await expect(expenseRow(page, "Mercado")).toHaveAccessibleName(
+    "Editar Mercado, 80 soles, Crédito",
+  );
 
   await expenseRow(page, "Mercado").click();
   const sheet = expenseSheet(page, "Editar gasto");
@@ -170,9 +190,25 @@ test("edit an expense from the month; delete it and undo", async ({ page }) => {
   await sheet.getByRole("textbox", { name: "Descripción (opcional)" }).fill("Mercado central");
   await untilSaved(page, () => sheet.getByRole("button", { name: "Guardar" }).click());
   await expect(sheet).toBeHidden();
-  await expect(expenseRow(page, "Mercado central")).toHaveAccessibleName(money("S/ 85.90"));
+  await expect(expenseRow(page, "Mercado central")).toHaveAccessibleName(/85\.90 soles/);
   await expect(expenseRow(page, "Mercado central")).toBeFocused();
   expect((await readExpenses("Mercado central"))[0].amountCents).toBe(8_590);
+
+  // A new date moves the row to another day (a new element): focus follows it.
+  await expenseRow(page, "Mercado central").click();
+  const yesterday = new Date(Date.now() - 86_400_000);
+  // Only when yesterday is still this month (the row stays on the page).
+  if (ownerDateKey(yesterday).slice(0, 7) === today().slice(0, 7)) {
+    await expenseSheet(page, "Editar gasto").getByLabel("Fecha").fill(ownerDateKey(yesterday));
+    await untilSaved(page, () =>
+      expenseSheet(page, "Editar gasto").getByRole("button", { name: "Guardar" }).click(),
+    );
+    await expect(expenseSheet(page, "Editar gasto")).toBeHidden();
+    await expect(page.getByRole("list", { name: "Ayer" }).getByRole("button")).toHaveCount(1);
+    await expect(expenseRow(page, "Mercado central")).toBeFocused();
+  } else {
+    await page.keyboard.press("Escape");
+  }
 
   // Delete: gone at once, focus on the next row, "Deshacer" brings it back.
   await expenseRow(page, "Mercado central").click();
@@ -222,7 +258,10 @@ test("Ajustes: the rate, a category (new, archived, back) and a method in dollar
     .getByRole("radiogroup", { name: "Moneda por defecto" })
     .getByRole("radio", { name: "Dólares" })
     .click();
-  await sheet.getByRole("button", { name: "Agregar" }).last().click();
+  await sheet
+    .locator('[data-catalog-new="methods"]')
+    .getByRole("button", { name: "Agregar" })
+    .click();
   await expect(sheet.getByRole("list", { name: "Medios de pago" })).toContainText("Débito dólares");
   await page.keyboard.press("Escape");
 
@@ -236,12 +275,13 @@ test("Ajustes: the rate, a category (new, archived, back) and a method in dollar
     "aria-checked",
     "true",
   );
+  await expect(expenseSheet(page).getByRole("textbox", { name: "Monto en dólares" })).toBeVisible();
   await amountField(page).fill("20");
   await amountField(page).press("Enter");
-  await expect(expenseStatus(page)).toHaveText(money("Registrado: USD 20.00."));
+  await expect(expenseStatus(page)).toHaveText("Registrado: 20 dólares, unos 75 soles.");
   await page.keyboard.press("Escape");
   await expect(expenseRow(page, "Sin categoría")).toHaveAccessibleName(
-    money("USD 20.00, ≈ S/ 75.00, Débito dólares"),
+    "Editar Sin categoría, 20 dólares, unos 75 soles, Débito dólares",
   );
   const [saved] = await readAllExpenses();
   expect(saved).toMatchObject({ currency: "USD", exchangeRate: "3.7500" });
@@ -272,8 +312,48 @@ test("at 320 px nothing scrolls sideways (the month, the sheets)", async ({ page
   expect(await settingsBody.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.keyboard.press("Escape");
   await expenseRow(page, "Una descripción larga de un gasto de prueba").click();
-  const body = expenseSheet(page, "Editar gasto").locator(".bo-sheet__body");
+  const edit = expenseSheet(page, "Editar gasto");
+  await expect(edit).toBeVisible();
+  await expect(
+    edit
+      .getByRole("combobox", { name: "Categoría" })
+      .getByRole("option", { name: "Una categoría con un nombre largo" }),
+  ).toBeAttached();
+  await animationsSettled(page);
+  const body = edit.locator(".bo-sheet__body");
   expect(await body.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(edit).toBeHidden();
+
+  // The capture's Gasto with "Más" open.
+  await page.evaluate(() => localStorage.setItem("bo_capture_kind", "finance"));
+  await captureKey(page).click();
+  await expect(amountField(page)).toBeFocused();
+  await expenseSheet(page).getByRole("button", { name: "Más" }).click();
+  await expect(
+    expenseSheet(page)
+      .getByRole("combobox", { name: "Categoría" })
+      .getByRole("option", { name: "Una categoría con un nombre largo" }),
+  ).toBeAttached();
+  await animationsSettled(page);
+  const captureBody = expenseSheet(page).locator(".bo-sheet__body");
+  expect(await captureBody.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect(await scrollWidth()).toBeLessThanOrEqual(320);
+});
+
+test("with reduced motion the sheet opens without moving", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openReady(page, "/finance");
+  await page.getByRole("button", { name: "Registrar gasto" }).click();
+  await expect(amountField(page)).toBeFocused();
+  // Reduced motion shortens the slide to 1 ms (extensions.css): within a few frames the sheet is
+  // in place; the full slide (--duration-panel / --duration-sheet) would still be moving.
+  await expect
+    .poll(() => expenseSheet(page).evaluate((element) => getComputedStyle(element).transform), {
+      timeout: 120,
+      intervals: [20],
+    })
+    .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
 });
 
 for (const theme of THEMES) {

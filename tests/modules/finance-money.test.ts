@@ -12,6 +12,7 @@ import {
   rateFromDb,
   rateToDb,
   rateToInput,
+  spokenMoney,
   sumInPen,
   toPenCents,
 } from "@/modules/finance/money";
@@ -51,6 +52,9 @@ describe("parseAmount", () => {
     ["S/ 12", "invalid"],
     ["12.505", "decimals"],
     ["12,999", "decimals"],
+    // A thousands separator is not one: "1.000" reads as 1 with 3 decimals, refused.
+    ["1.000", "decimals"],
+    ["1,000", "decimals"],
     ["0", "tooSmall"],
     ["0,00", "tooSmall"],
     ["1000000.01", "tooLarge"],
@@ -162,5 +166,48 @@ describe("conversion to PEN", () => {
       ]),
     ).toEqual({ penCents: 1250 + 35_625 + 3800, unconvertedUsdCents: 500 });
     expect(sumInPen([])).toEqual({ penCents: 0, unconvertedUsdCents: 0 });
+  });
+});
+
+describe("spoken amounts (screen readers)", () => {
+  test.each([
+    [1250, "PEN", null, "12.50 soles"],
+    [100, "PEN", null, "1 sol"],
+    [125_000, "PEN", null, "1,250 soles"],
+    [5, "PEN", null, "0.05 soles"],
+    [100, "USD", null, "1 dólar"],
+    [9500, "USD", null, "95 dólares"],
+    [9500, "USD", 37_500, "95 dólares, unos 356.25 soles"],
+    [1250, "PEN", 37_500, "12.50 soles"],
+  ] as const)("%i %s at %s → %s", (cents, currency, rate, text) => {
+    expect(spokenMoney(cents, currency, rate)).toBe(text);
+  });
+});
+
+describe("round trip (exhaustive)", () => {
+  test("every cent up to S/ 1,000.00 and a spread up to the maximum: edit field ↔ parse", () => {
+    const mismatches: string[] = [];
+    const check = (cents: number) => {
+      const text = centsToInput(cents);
+      const parsed = parseAmount(text);
+      if (!parsed.ok || parsed.value !== cents) mismatches.push(`${cents} → ${text}`);
+      const comma = parseAmount(text.replace(".", ","));
+      if (!comma.ok || comma.value !== cents) mismatches.push(`${cents} → ${text} (coma)`);
+    };
+    for (let cents = 1; cents <= 100_000; cents++) check(cents);
+    for (let cents = 100_001; cents <= 100_000_000; cents += 99_991) check(cents);
+    check(100_000_000);
+    expect(mismatches).toEqual([]);
+  }, 30_000);
+
+  test("rates: every database value from 1.0000 to 10.0000 by 0.0007 reads and writes back", () => {
+    const mismatches: string[] = [];
+    for (let rate = 10_000; rate <= 100_000; rate += 7) {
+      const stored = rateToDb(rate);
+      if (rateFromDb(stored) !== rate) mismatches.push(stored);
+      const parsed = parseRate(rateToInput(rate));
+      if (!parsed.ok || parsed.value !== rate) mismatches.push(`input ${rate}`);
+    }
+    expect(mismatches).toEqual([]);
   });
 });

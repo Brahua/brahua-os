@@ -50,6 +50,9 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
   const providers = use(QuickCaptureContext);
   // The provider picked at the last opening (or switch); null: the first one.
   const [captureKind, setCaptureKind] = useState<string | null>(null);
+  // From the keyboard, focus stays on the switch in the new sheet (WCAG 3.2.2: changing a radio
+  // must not move focus elsewhere); a tap or click goes to the new sheet's first field.
+  const [switchedByKeyboard, setSwitchedByKeyboard] = useState(false);
   const capture = pickCaptureProvider(providers, captureKind);
   const [captureOpen, setCaptureOpen] = useState(false);
   // New sheet per opening (the form starts empty); none mounted until the first one.
@@ -66,6 +69,7 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
         : document.getElementById("content"));
     // The device's last choice, read at each opening (another tab may have changed it).
     setCaptureKind(readCaptureChoice());
+    setSwitchedByKeyboard(false);
     setCaptureOpening((value) => value + 1);
     setCaptureOpen(true);
   }, []);
@@ -74,8 +78,9 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
     for (const provider of providers) provider.preload?.();
   }, [providers]);
   // Another provider picked in the open sheet: its sheet replaces this one (still open).
-  const switchCapture = useCallback((id: string) => {
+  const switchCapture = useCallback((id: string, byKeyboard: boolean) => {
     rememberCaptureChoice(id);
+    setSwitchedByKeyboard(byKeyboard);
     setCaptureKind(id);
   }, []);
 
@@ -176,6 +181,7 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
                 providers={providers}
                 value={capture.id}
                 onValueChange={switchCapture}
+                autoFocus={switchedByKeyboard}
               />
             ) : undefined
           }

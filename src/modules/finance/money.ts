@@ -90,6 +90,38 @@ export function formatMoney(cents: number, currency: Currency): string {
   return MONEY_FORMATS[currency].format(cents / 100);
 }
 
+const SPOKEN_WHOLE = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 0 });
+const SPOKEN_CENTS = new Intl.NumberFormat("es-PE", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const UNITS: Record<Currency, readonly [string, string]> = {
+  PEN: ["sol", "soles"],
+  USD: ["dólar", "dólares"],
+};
+
+/** "12.50 soles", "1 dólar", "1,250 soles": an amount as a screen reader should say it. */
+function spokenAmount(cents: number, currency: Currency): string {
+  const number =
+    cents % 100 === 0 ? SPOKEN_WHOLE.format(cents / 100) : SPOKEN_CENTS.format(cents / 100);
+  const [one, many] = UNITS[currency];
+  return `${number} ${cents === 100 ? one : many}`;
+}
+
+/**
+ * An amount for screen readers ("S/" reads badly): "12.50 soles", "95 dólares"; a USD amount
+ * with its stored rate adds its value in PEN: "95 dólares, unos 356.25 soles".
+ */
+export function spokenMoney(
+  cents: number,
+  currency: Currency,
+  rateE4: number | null = null,
+): string {
+  const spoken = spokenAmount(cents, currency);
+  const pen = currency === "USD" ? toPenCents(cents, currency, rateE4) : null;
+  return pen === null ? spoken : `${spoken}, unos ${spokenAmount(pen, "PEN")}`;
+}
+
 export type RateError = "required" | "invalid" | "decimals" | "outOfRange";
 
 /** A rate typed by the owner ("3.75", "3,7512"): 4 decimals at most, between 1 and 10. */

@@ -3,7 +3,7 @@
 // validate first. Locks: see catalog.ts (expense writes take no advisory lock; they read the
 // category and method FOR SHARE).
 import "server-only";
-import { and, desc, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { readSettingsIn, rememberPaymentMethod, type Tx } from "./catalog";
 import { financeCategories, financeExpenses, financePaymentMethods } from "./db/schema";
@@ -213,10 +213,15 @@ export async function updateExpense(
     ) {
       return "methodUnavailable";
     }
+    // USD: a new currency or amount takes the current rate; otherwise the stored one stays. A
+    // stored rate is never replaced by "none", and an expense saved without one adopts the
+    // current rate once it exists (decisión autónoma: it can then be converted).
     let exchangeRate: string | null = null;
     if (input.currency === "USD") {
       const changed = existing.currency !== "USD" || existing.amountCents !== input.amount;
-      exchangeRate = changed ? (await readSettingsIn(tx)).usdToPen : existing.exchangeRate;
+      const stored = existing.currency === "USD" ? existing.exchangeRate : null;
+      const current = changed || stored === null ? (await readSettingsIn(tx)).usdToPen : null;
+      exchangeRate = changed ? (current ?? stored) : (stored ?? current);
     }
     await tx
       .update(financeExpenses)
@@ -234,29 +239,46 @@ export async function updateExpense(
   });
 }
 
+/** An expense by id, deleted or not (what a delete returns for its "Deshacer" notice). */
+async function selectAnyExpenseById(db: Reader, id: string): Promise<ExpenseItem | null> {
+  const [item] = await selectItems(db, eq(financeExpenses.id, id));
+  return item ?? null;
+}
+
 /**
- * Soft delete ("Deshacer" restores it). Returns the expense as it was, or null when it doesn't
- * exist or is already deleted.
+ * Soft delete ("Deshacer" restores it). Only a visible expense changes (one atomic UPDATE …
+ * WHERE deleted_at IS NULL): a second delete, or one racing it, changes nothing and returns null,
+ * so there is never a second "Deshacer". Returns the expense as it was.
+ *
+ * F2 slot: a paid expense of a recurring payment also removes its settlement (the period is
+ * pending again). Order, so the advisory lock stays the first lock of the transaction: read the
+ * expense without a lock (its `recurring_payment_id`), then `lockRecurring(tx, id)`, then re-read
+ * it FOR UPDATE and check it is still visible and still that payment's, then update both.
  */
 export async function softDeleteExpense(db: Database, id: string): Promise<ExpenseItem | null> {
   return db.transaction(async (tx) => {
-    const item = await selectExpenseById(tx, id);
-    if (!item) return null;
-    await tx
+    const [deleted] = await tx
       .update(financeExpenses)
       .set({ deletedAt: sql`now()` })
-      .where(and(eq(financeExpenses.id, id), visibleExpense));
-    // F2 slot: a paid expense of a recurring payment also removes its settlement (the period is
-    // pending again), under the payment's lock, taken first.
-    return item;
+      .where(and(eq(financeExpenses.id, id), visibleExpense))
+      .returning({ id: financeExpenses.id });
+    if (!deleted) return null;
+    return selectAnyExpenseById(tx, id);
   });
 }
 
-/** Undo of a delete: visible again, as it was. Restoring twice is fine. Null when it doesn't exist. */
+/**
+ * Undo of a delete: visible again, as it was. Only a deleted expense changes (UPDATE … WHERE
+ * deleted_at IS NOT NULL); restoring a visible one is fine and returns it. Null when it doesn't
+ * exist. F2 slot: restoring a paid expense puts its settlement back if the period is still free
+ * (same lock order as the delete).
+ */
 export async function restoreExpense(db: Database, id: string): Promise<ExpenseItem | null> {
   return db.transaction(async (tx) => {
-    await tx.update(financeExpenses).set({ deletedAt: null }).where(eq(financeExpenses.id, id));
-    // F2 slot: restoring a paid expense puts its settlement back (if the period is still free).
+    await tx
+      .update(financeExpenses)
+      .set({ deletedAt: null })
+      .where(and(eq(financeExpenses.id, id), isNotNull(financeExpenses.deletedAt)));
     return selectExpenseById(tx, id);
   });
 }

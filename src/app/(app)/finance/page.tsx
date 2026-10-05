@@ -47,8 +47,16 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
         <FinanceViews
           initialView={view}
           month={<MonthView month={month} expenses={expenses} />}
-          // F2 slot: the "Pagos" view (pendientes, este mes, todos, archivados).
-          payments={null}
+          // F2 slot: the "Pagos" view (pendientes, este mes, todos, archivados) replaces this
+          // calm empty state.
+          payments={
+            <p
+              className="bo-card bo-text-body-sm max-w-160 text-text-secondary"
+              data-payments-empty=""
+            >
+              {FINANCE_COPY.paymentsEmpty}
+            </p>
+          }
         />
       </div>
     </FinanceScreen>

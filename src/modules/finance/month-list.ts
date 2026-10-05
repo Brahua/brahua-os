@@ -2,7 +2,7 @@
 import type { ExpenseItem } from "./expense-input";
 import { expenseLabel } from "./expense-form";
 import { FINANCE_COPY } from "./finance-copy";
-import { formatMoney, toPenCents } from "./money";
+import { formatMoney, spokenMoney, toPenCents } from "./money";
 
 export type DayGroup = { day: string; expenses: ExpenseItem[] };
 
@@ -26,6 +26,8 @@ export type ExpenseRowText = {
   converted: string | null;
   /** Method, the category (when the label is the description) and "Recurrente". */
   meta: string[];
+  /** The amount for screen readers: "12.50 soles", "95 dólares, unos 356.25 soles". */
+  spoken: string;
 };
 
 /** What a row of the month shows of an expense. */
@@ -45,5 +47,10 @@ export function expenseRowText(expense: ExpenseItem): ExpenseRowText {
     amount: formatMoney(expense.amountCents, expense.currency),
     converted,
     meta,
+    spoken:
+      spokenMoney(expense.amountCents, expense.currency, expense.exchangeRateE4) +
+      (expense.currency === "USD" && expense.exchangeRateE4 === null
+        ? `, ${FINANCE_COPY.unconverted}`
+        : ""),
   };
 }

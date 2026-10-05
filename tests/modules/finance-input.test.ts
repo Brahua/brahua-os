@@ -182,7 +182,8 @@ describe("catalog inputs", () => {
         CATALOG_ERRORS.order,
       );
     }
-    expect(unarchiveCatalogInputSchema.parse({ id: ID })).toEqual({ id: ID, position: "end" });
+    // Reactivating always goes to the end (no "original" position: there is no archive undo).
+    expect(unarchiveCatalogInputSchema.parse({ id: ID, position: "original" })).toEqual({ id: ID });
     expect(catalogIdInputSchema.safeParse({ id: "x" }).error?.issues[0].message).toBe(
       CATALOG_ERRORS.notFound,
     );
@@ -312,6 +313,7 @@ describe("the month's list", () => {
       amount: "S/ 12.50",
       converted: null,
       meta: ["Crédito", "Comida"],
+      spoken: "12.50 soles",
     });
 
     const usd = expenseRowText(
@@ -325,9 +327,10 @@ describe("the month's list", () => {
     expect(usd.amount.replace(/\s/g, " ")).toBe("USD 95.00");
     expect(usd.converted?.replace(/\s/g, " ")).toBe("≈ S/ 356.25");
     expect(usd.meta).toEqual(["Recurrente"]);
+    expect(usd.spoken).toBe("95 dólares, unos 356.25 soles");
 
-    expect(expenseRowText(expense({ currency: "USD", exchangeRateE4: null })).converted).toBe(
-      "sin convertir",
-    );
+    const unconverted = expenseRowText(expense({ currency: "USD", exchangeRateE4: null }));
+    expect(unconverted.converted).toBe("sin convertir");
+    expect(unconverted.spoken).toBe("12.50 dólares, sin convertir");
   });
 });

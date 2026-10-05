@@ -77,7 +77,7 @@ test("edit every field in place; each survives a reload", async ({ page }, testI
   // Dates: the end before the start is refused on the end's field, then fixed.
   await page.getByRole("button", { name: "Editar fechas" }).click();
   const start = page.getByLabel("Inicio");
-  const due = page.getByLabel("Fin");
+  const due = page.getByLabel("Fin", { exact: true });
   await start.fill(limaDay(2));
   await due.fill(limaDay(1));
   await save(page).click();

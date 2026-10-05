@@ -442,6 +442,22 @@ describe("AppNav quick capture with several providers (Tarea · Gasto, SPEC-fina
     expect(screen.getByRole("dialog", { name: "Hoja Gasto" })).toBeInTheDocument();
   });
 
+  test("switching by keyboard keeps focus on the switch (the checked option of the new sheet)", async () => {
+    renderWith([provider("tasks", "Tarea"), provider("finance", "Gasto")]);
+    openCapture();
+    const tarea = screen.getByRole("radio", { name: "Tarea" });
+    act(() => tarea.focus());
+    fireEvent.keyDown(tarea, { key: "ArrowRight" });
+    expect(screen.getByRole("dialog", { name: "Hoja Gasto" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Gasto" })).toHaveFocus());
+    // A click (positive control) doesn't pull focus back to the switch.
+    fireEvent.pointerDown(screen.getByRole("radio", { name: "Tarea" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Tarea" }));
+    expect(screen.getByRole("dialog", { name: "Hoja Tarea" })).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.getByRole("radio", { name: "Tarea" })).not.toHaveFocus();
+  });
+
   test("an opening reads the device's choice; an unknown one falls back to the first", () => {
     localStorage.setItem("bo_capture_kind", "finance");
     const { unmount } = renderWith([provider("tasks", "Tarea"), provider("finance", "Gasto")]);

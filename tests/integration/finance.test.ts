@@ -123,7 +123,7 @@ describe("catalog", () => {
     catalog = await catalogAfter(reorderCategories({ ids: [salud.id, comida.id, casa.id] }));
     expect(catalog.categories.map((item) => item.name)).toEqual(["Salud", "Comida", "Hogar"]);
 
-    // Archived: out of the list, its place kept; the undo ("original") puts it back there.
+    // Archived: out of the list, its slot kept (the order stays contiguous).
     catalog = await catalogAfter(archiveCategory({ id: comida.id }));
     expect(catalog.categories.map((item) => item.name)).toEqual(["Salud", "Hogar"]);
     expect(catalog.archivedCategories.map((item) => item.name)).toEqual(["Comida"]);
@@ -134,13 +134,12 @@ describe("catalog", () => {
       ["Comida", 1],
       ["Salud", 2],
     ]);
+    // "Reactivar" puts it at the end (an old "position" field is ignored: there is no undo).
     catalog = await catalogAfter(unarchiveCategory({ id: comida.id, position: "original" }));
-    expect(catalog.categories.map((item) => item.name)).toEqual(["Hogar", "Comida", "Salud"]);
-
-    // "Reactivar" puts it at the end.
+    expect(catalog.categories.map((item) => item.name)).toEqual(["Hogar", "Salud", "Comida"]);
     await catalogAfter(archiveCategory({ id: casa.id }));
     catalog = await catalogAfter(unarchiveCategory({ id: casa.id }));
-    expect(catalog.categories.map((item) => item.name)).toEqual(["Comida", "Salud", "Hogar"]);
+    expect(catalog.categories.map((item) => item.name)).toEqual(["Salud", "Comida", "Hogar"]);
     // Twice is fine.
     expect((await archiveCategory({ id: salud.id })).ok).toBe(true);
     expect((await archiveCategory({ id: salud.id })).ok).toBe(true);
@@ -229,7 +228,7 @@ describe("catalog", () => {
     expect(await testDb.$count(financeSettings)).toBe(1);
   });
 
-  test("create waits for its list's lock; the other list's lock doesn't stop it", async () => {
+  test("create and archive wait for their list's lock; the other list's lock doesn't stop them", async () => {
     const holder = await testDb.$client.connect();
     try {
       await holder.query("begin");
@@ -240,19 +239,68 @@ describe("catalog", () => {
       // Positive control: the methods' lock is free, so a method goes through.
       expect((await createPaymentMethod({ name: "Yape", currency: "PEN" })).ok).toBe(true);
       const creating = createCategory({ name: "Comida" });
-      const reordering = archiveCategory({ id: MISSING });
+      const archiving = archiveCategory({ id: MISSING });
       await waitForLockWaiters(FINANCE_CATEGORIES_KEY, 2);
       expect(await testDb.$count(financeCategories)).toBe(0);
       await holder.query("commit");
       expect((await creating).ok).toBe(true);
-      expect((await reordering).ok).toBe(false);
+      expect((await archiving).ok).toBe(false);
     } finally {
       holder.release();
     }
     expect(await testDb.$count(financeCategories)).toBe(1);
   });
 
-  test("two creates at the same time get positions 0 and 1 (never the same)", async () => {
+  test.each([
+    ["categories", FINANCE_CATEGORIES_KEY],
+    ["methods", FINANCE_METHODS_KEY],
+  ] as const)(
+    "%s: rename, reorder and reactivate wait for the list's lock too",
+    async (kind, key) => {
+      const isCategories = kind === "categories";
+      const a = isCategories ? await newCategory("A") : await newMethod("A");
+      const b = isCategories ? await newCategory("B") : await newMethod("B");
+      const c = isCategories ? await newCategory("C") : await newMethod("C");
+      await catalogAfter(
+        isCategories ? archiveCategory({ id: c.id }) : archivePaymentMethod({ id: c.id }),
+      );
+      const holder = await testDb.$client.connect();
+      try {
+        await holder.query("begin");
+        await holder.query("select pg_advisory_xact_lock($1, hashtext($2))", [
+          FINANCE_ADVISORY_SPACE,
+          key,
+        ]);
+        const pending = isCategories
+          ? [
+              renameCategory({ id: a.id, name: "A2" }),
+              reorderCategories({ ids: [b.id, a.id] }),
+              unarchiveCategory({ id: c.id }),
+            ]
+          : [
+              updatePaymentMethod({ id: a.id, name: "A2", currency: "USD" }),
+              reorderPaymentMethods({ ids: [b.id, a.id] }),
+              unarchivePaymentMethod({ id: c.id }),
+            ];
+        await waitForLockWaiters(key, 3);
+        const table = isCategories ? financeCategories : financePaymentMethods;
+        expect((await orders(table)).map((row) => row.name)).toEqual(["A", "B", "C"]);
+        await holder.query("commit");
+        const [renamed, reordered, reactivated] = await Promise.all(pending);
+        expect(renamed.ok).toBe(true);
+        expect(reactivated.ok).toBe(true);
+        // The waiters run in any order: after the reactivation the reorder's list is stale.
+        expect(reordered).toSatisfy(
+          (result: { ok: boolean; error?: string }) =>
+            result.ok || result.error === CATALOG_ERRORS.staleOrder,
+        );
+      } finally {
+        holder.release();
+      }
+    },
+  );
+
+  test("three creates at the same time get positions 0, 1 and 2 (never the same)", async () => {
     await Promise.all([newMethod("A"), newMethod("B"), newMethod("C")]);
     const rows = await orders(financePaymentMethods);
     expect(rows.map((row) => row.sortOrder)).toEqual([0, 1, 2]);
@@ -409,6 +457,46 @@ describe("expenses", () => {
       ok: false,
       error: EXPENSE_ERRORS.notFound,
     });
+  });
+
+  test("a USD expense saved without a rate adopts the current one on edit; a stored rate is never dropped", async () => {
+    const created = await expense({ amount: "20", currency: "USD" });
+    expect(created.exchangeRateE4).toBeNull();
+    const base = {
+      id: created.id,
+      amount: "20",
+      description: null,
+      currency: "USD",
+      categoryId: null,
+      paymentMethodId: null,
+      spentOn: today(),
+    };
+    // Still no rate: nothing to adopt.
+    expect(await editExpense(base)).toMatchObject({ ok: true, data: { exchangeRateE4: null } });
+    await catalogAfter(setExchangeRate({ rate: "3.80" }));
+    expect(await editExpense(base)).toMatchObject({ ok: true, data: { exchangeRateE4: 38_000 } });
+    // The rate is cleared in Ajustes: a new amount keeps the stored one.
+    await catalogAfter(setExchangeRate({ rate: "" }));
+    expect(await editExpense({ ...base, amount: "25" })).toMatchObject({
+      ok: true,
+      data: { amountCents: 2_500, exchangeRateE4: 38_000 },
+    });
+  });
+
+  test("two deletes at the same time: one wins, the other changes nothing (one Deshacer)", async () => {
+    const created = await expense({ amount: "9" });
+    const results = await Promise.all([
+      deleteExpense({ id: created.id }),
+      deleteExpense({ id: created.id }),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toEqual([
+      { ok: false, error: EXPENSE_ERRORS.notFound },
+    ]);
+    const deletedAt = (await stored(created.id)).deletedAt;
+    // A later delete doesn't move the deletion time either.
+    expect(await deleteExpense({ id: created.id })).toMatchObject({ ok: false });
+    expect((await stored(created.id)).deletedAt).toEqual(deletedAt);
   });
 
   test("delete is logical and undone with restore; deleted ones are out of the month", async () => {

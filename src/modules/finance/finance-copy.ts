@@ -18,6 +18,8 @@ export const FINANCE_COPY = {
   viewsLabel: "Vista de Finanzas",
   viewMonth: "Mes",
   viewPayments: "Pagos",
+  /** F2 replaces it with the recurring payments. */
+  paymentsEmpty: "Aquí verás tus pagos recurrentes.",
 
   // "Mes"
   monthHeading: (month: string) => `Gastos de ${month}`,
@@ -37,8 +39,10 @@ export const FINANCE_COPY = {
   // Expense sheet (create, edit; also the quick capture's "Gasto")
   newExpense: "Nuevo gasto",
   editTitle: "Editar gasto",
-  amountLabel: "Monto",
-  amountHelp: "Con coma o punto para los decimales: 12,50.",
+  /** The currency shows in the label: the default comes from the method, under "Más". */
+  amountLabel: (currency: "PEN" | "USD") =>
+    currency === "USD" ? "Monto en dólares" : "Monto en soles",
+  amountHelp: "Con punto o coma para los decimales: 12.50 o 12,50.",
   descriptionLabel: "Descripción (opcional)",
   descriptionHelp: "Por ejemplo, «Café» o «Mercado».",
   more: "Más",
@@ -57,7 +61,6 @@ export const FINANCE_COPY = {
   usdNoRate:
     "Sin tipo de cambio: este gasto se sumará aparte, sin convertir. Puedes fijarlo en Finanzas → Ajustes.",
   usdStoredRate: (rate: string) => `Guardado con S/ ${rate} por dólar.`,
-  usdStoredNoRate: "Guardado sin tipo de cambio: se suma aparte, sin convertir.",
   /** In the capture sheet, which stays open for the next one. */
   savedInSheet: (text: string) => `Registrado: ${text}.`,
   save: "Guardar",
@@ -84,7 +87,7 @@ export const FINANCE_COPY = {
   rateHeading: "Tipo de cambio",
   rateLabel: "Soles por 1 dólar",
   rateHelp:
-    "Cada gasto en dólares guarda el tipo vigente al registrarlo: cambiarlo no reescribe meses pasados.",
+    "Cada gasto en dólares guarda el tipo vigente al registrarlo: cambiarlo no reescribe meses pasados. Déjalo vacío para quitarlo.",
   rateNotSet: "Sin fijar: los gastos en dólares se suman aparte, sin convertir.",
   rateSave: "Guardar tipo de cambio",
   rateSaved: (rate: string) => `Tipo de cambio guardado: S/ ${rate} por dólar.`,
@@ -108,12 +111,12 @@ export const FINANCE_COPY = {
   cancel: "Cancelar",
   archivedCategories: (count: number) => `Archivadas (${count})`,
   archivedMethods: (count: number) => `Archivados (${count})`,
-  created: (name: string) => `«${name}» agregado.`,
-  renamed: (name: string) => `«${name}» guardado.`,
-  archived: (name: string) => `«${name}» archivado. Puedes reactivarlo desde «Archivados».`,
-  unarchived: (name: string) => `«${name}» reactivado, al final de la lista.`,
+  created: (name: string) => `Se agregó «${name}».`,
+  renamed: (name: string) => `Se guardó «${name}».`,
+  archived: (name: string, list: string) => `Se archivó «${name}». Está en ${list}.`,
+  unarchived: (name: string) => `Se reactivó «${name}», al final de la lista.`,
   moved: (name: string, position: number, total: number) =>
-    `«${name}» ahora es el ${position} de ${total}.`,
+    `«${name}» ahora está en el puesto ${position} de ${total}.`,
 } as const;
 
 /** Lowercase in Spanish ("setiembre", es-PE), read in UTC so a YYYY-MM never shifts. */

@@ -23,7 +23,6 @@ import type {
   FinanceCatalog,
   PaymentMethodItem,
   RenameCategoryInput,
-  UnarchiveCatalogInput,
   UpdatePaymentMethodInput,
 } from "./catalog-input";
 import { financeCategories, financePaymentMethods, financeSettings } from "./db/schema";
@@ -229,8 +228,8 @@ export async function updatePaymentMethod(
 }
 
 /**
- * Puts the visible items of a list in the order of `ids`. Archived items keep their slots (so
- * the undo of an archive puts one back in place) and every item gets a position: `sort_order`
+ * Puts the visible items of a list in the order of `ids`. Archived items keep their slots (as
+ * the areas of `core` do) and every item gets a position: `sort_order`
  * ends up contiguous (0…n-1). "staleOrder", writing nothing, when `ids` isn't exactly the visible
  * items (a stale list on screen, or a tampered request).
  */
@@ -297,14 +296,13 @@ export async function archiveCatalogItem(
 }
 
 /**
- * Reactivates an archived item: at the end of its list (`end`) or in its old place (`original`,
- * the undo of an archive). "nameTaken" when a visible item took its name meanwhile (rename one of
- * them first). Twice is fine.
+ * Reactivates an archived item at the end of its list. "nameTaken" when a visible item took its
+ * name meanwhile (rename one of them first). Twice is fine.
  */
 export async function unarchiveCatalogItem(
   db: Database,
   kind: CatalogKind,
-  { id, position }: UnarchiveCatalogInput,
+  id: string,
 ): Promise<true | CatalogFailure> {
   const table = tableOf(kind);
   return db.transaction(async (tx) => {
@@ -318,10 +316,7 @@ export async function unarchiveCatalogItem(
     if (await nameTaken(tx, kind, existing.name, id)) return "nameTaken";
     await tx
       .update(table)
-      .set({
-        archivedAt: null,
-        ...(position === "end" ? { sortOrder: nextSortOrder(kind) } : {}),
-      })
+      .set({ archivedAt: null, sortOrder: nextSortOrder(kind) })
       .where(eq(table.id, id));
     return true;
   });

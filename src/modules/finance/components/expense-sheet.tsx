@@ -24,7 +24,7 @@ import {
 } from "../expense-form";
 import type { Currency } from "../finance-constants";
 import { FINANCE_COPY } from "../finance-copy";
-import { centsToInput, formatMoney, formatRate, parseAmount } from "../money";
+import { centsToInput, formatRate, parseAmount, spokenMoney } from "../money";
 import { SelectField } from "./select-field";
 
 type Errors = Partial<Record<ExpenseField, string>>;
@@ -272,24 +272,26 @@ export function ExpenseSheet({
     event.currentTarget.form?.requestSubmit();
   };
 
+  // The rate a USD expense will be saved with (the same rule as `updateExpense`): a new one, or a
+  // new currency or amount, takes the current rate of Ajustes; otherwise the stored one stays; a
+  // stored rate is never dropped, and one saved without a rate adopts the current one.
   const parsedAmount = parseAmount(amount);
-  const usesCurrentRate =
+  const storedRate = editing && expense.currency === "USD" ? expense.exchangeRateE4 : null;
+  const changed =
     !editing ||
     expense.currency !== "USD" ||
     !parsedAmount.ok ||
     parsedAmount.value !== expense.amountCents;
+  const currentRate = catalog?.usdToPenE4 ?? null;
+  const rateUsed = changed ? (currentRate ?? storedRate) : (storedRate ?? currentRate);
   const rateHelp =
-    currency !== "USD"
+    currency !== "USD" || (!catalog && storedRate === null)
       ? undefined
-      : usesCurrentRate
-        ? catalog?.usdToPenE4
-          ? FINANCE_COPY.usdRate(formatRate(catalog.usdToPenE4))
-          : catalog
-            ? FINANCE_COPY.usdNoRate
-            : undefined
-        : expense.exchangeRateE4
-          ? FINANCE_COPY.usdStoredRate(formatRate(expense.exchangeRateE4))
-          : FINANCE_COPY.usdStoredNoRate;
+      : rateUsed === null
+        ? FINANCE_COPY.usdNoRate
+        : rateUsed === storedRate
+          ? FINANCE_COPY.usdStoredRate(formatRate(rateUsed))
+          : FINANCE_COPY.usdRate(formatRate(rateUsed));
 
   return (
     <Sheet
@@ -337,7 +339,7 @@ export function ExpenseSheet({
         <TextField
           ref={amountInput}
           id={`${ids}-amount`}
-          label={FINANCE_COPY.amountLabel}
+          label={FINANCE_COPY.amountLabel(currency)}
           name="amount"
           value={amount}
           inputMode="decimal"
@@ -378,7 +380,8 @@ export function ExpenseSheet({
             data-expense-saved=""
           >
             <p className="bo-text-body-sm">{FINANCE_COPY.savedInSheet(savedText(saved))}</p>
-            <Key size="sm" variant="ghost" aria-disabled={busy || undefined} onClick={undoSaved}>
+            {/* 48 px (a touch key), like every key on the phone. */}
+            <Key variant="ghost" aria-disabled={busy || undefined} onClick={undoSaved}>
               {FINANCE_COPY.undo}
             </Key>
           </div>
@@ -433,6 +436,13 @@ export function ExpenseSheet({
                 touch
                 label={FINANCE_COPY.currencyLabel}
                 aria-labelledby={currencyLabelId}
+                aria-describedby={
+                  errors.currency
+                    ? `${currencyLabelId}-error`
+                    : rateHelp
+                      ? `${currencyLabelId}-help`
+                      : undefined
+                }
                 options={[
                   { value: "PEN", label: FINANCE_COPY.currencyPEN },
                   { value: "USD", label: FINANCE_COPY.currencyUSD },
@@ -444,12 +454,12 @@ export function ExpenseSheet({
                 }}
               />
               {errors.currency ? (
-                <span className="bo-field__error">
+                <span id={`${currencyLabelId}-error`} className="bo-field__error">
                   <Icon icon={TriangleAlert} size="sm" />
                   {errors.currency}
                 </span>
               ) : rateHelp ? (
-                <span className="bo-field__help" data-rate-help="">
+                <span id={`${currencyLabelId}-help`} className="bo-field__help" data-rate-help="">
                   {rateHelp}
                 </span>
               ) : null}
@@ -507,10 +517,13 @@ export function ExpenseSheet({
   );
 }
 
-/** "S/ 12.50 · Café" for the confirmation of a saved expense. */
+/** "12.50 soles · Café" for the confirmation of a saved expense (read aloud too). */
 function savedText(item: ExpenseItem): string {
   const what = item.description ?? item.category?.name ?? null;
-  return FINANCE_COPY.savedText(formatMoney(item.amountCents, item.currency), what);
+  return FINANCE_COPY.savedText(
+    spokenMoney(item.amountCents, item.currency, item.exchangeRateE4),
+    what,
+  );
 }
 
 /** Under the category: loading, failed, or nothing. */
