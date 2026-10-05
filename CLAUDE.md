@@ -121,3 +121,18 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **Shortcuts registered in effects:** a key handler for something that appears after a Server Action must
   be registered in `useLayoutEffect` (or earlier); with `useEffect` a fast key press is lost (it was the
   real cause of the `areas-order` flake, #65).
+
+## Lessons from `today` (retrospective, 2026-10-05)
+
+- **Slots stay mounted:** a board slot renders its content whenever the slot exists; the section decides
+  whether it shows. Unmounting on a server count of 0 killed the optimistic "Deshacer" of the last row (D2).
+- **Aggregating screens share data in E2E:** `/` shows every module's rows, so tests that create or complete
+  tasks due by today carry `@today-tasks` (enforced by the insert helpers and a lint test) and board tests use
+  `boardTest`. Any new module that adds a section to `/` needs the same.
+- **Review before push:** reviewing a parallel slice's local commit while it waits for the rebase saves a CI
+  round; one push per agent still holds.
+- **Never attribute decisions to the owner:** an autonomous choice is "decisión autónoma para revisar con el
+  owner" until the owner says otherwise, in docs and in messages to agents.
+- **Production data scripts:** deterministic ids, one transaction, host + word confirmation, a verified backup
+  first. The agent may run them with `neonctl connection-string` in a shell variable (never printed) when
+  the owner asks; the Neon CLI lives under Node 20, so resolve the URL before `nvm use`.

@@ -40,7 +40,7 @@ brahua-os es mi "segundo cerebro" personal: una sola app (web responsive + PWA) 
 | `tasks` | Tareas sueltas o dentro de un proyecto, bandeja de entrada, prioridad, fecha límite, recurrencia, área de vida, importación de Tareas del Hogar. | core, projects |
 | `today` | Tablero diario: hábitos de hoy, tareas que vencen, proyectos que vencen o están bloqueados y lo que cada módulo exponga como "resumen de hoy". | core, habits, tasks, projects |
 | `reminders` | Motor genérico de avisos (push de la PWA y/o email) al que los módulos le programan recordatorios. Incluye un cron diario y el service worker de la PWA (diferido desde `core`). | core |
-| `finance` | Gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual, importación de Gastos. | core, reminders |
+| `finance` | Gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual, importación de Gastos. | core (avisos con `reminders` después) |
 | `goals` | Metas anuales y trimestrales y objetivo semanal, enlazadas a hábitos y proyectos, con revisión semanal guiada. | habits, projects |
 | `weekly-review` | Ritual guiado para cerrar la semana (hábitos cumplidos, tareas, avance de proyectos y metas) y planear la siguiente con un objetivo semanal. | habits, tasks, projects, goals |
 | `learning` | Cursos, certificaciones y rutas de estudio (p. ej. AWS, Platzi, Career Roadmap) con avance, sesiones de estudio y enlace a metas. | core, goals |
@@ -64,9 +64,10 @@ Ideas guardadas sin spec; se agregan al mapa cuando las pidas:
 ## Orden de construcción
 
 ```
-design-system → core → projects → tasks, habits → today → reminders → finance → goals → weekly-review → learning → notes
+design-system → core → projects → tasks, habits → today → finance → reminders → goals → weekly-review → learning → notes
 ```
 
 - El **MVP usable** llega al terminar `today`: ya puedo gestionar proyectos y registrar tareas y hábitos desde el celular a diario.
 - `finance` va antes que `goals` porque es lo único que hoy usas activamente en Notion y te permitiría dejarlo antes.
+- `finance` va antes que `reminders` (decisión del owner, 2026-10-05): sus vencimientos se ven en la app y en `today`; los avisos push/email llegan con `reminders`.
 - `today` se amplía en cada módulo nuevo: el módulo proveedor define su "resumen de hoy" y `today` lo consume.

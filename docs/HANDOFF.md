@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-03.
+> Última actualización: 2026-10-05.
 
 ## Cómo retomar
 
@@ -42,24 +42,22 @@
   - ✅ P1 (datos, lista y crear): PR #33 integrado. Ver "Cómo funciona projects".
   - P2 (detalle y edición): ✅ PR #36 integrado. Ver "Cómo funciona projects" → "Detalle y edición (P2)", con los puntos de inserción de P3–P5.
   - ✅ P3 (hitos y avance): PR #40 integrado. Ver "Cómo funciona projects" → "Hitos y avance (P3)".
-  - Ajustes del recorrido del owner: PR `fix/projects-checkpoint` (sin merge). Ver "Cómo funciona projects" → "Ajustes del Checkpoint final". **Pendiente del owner:** verificar la barra de estado en el iPhone.
+  - ✅ Ajustes del recorrido del owner: PR #45 integrado. Ver "Cómo funciona projects" → "Ajustes del Checkpoint final". **Pendiente del owner:** verificar la barra de estado en el iPhone.
   - P4 (dependencias): ✅ PR #38 integrado. Ver "Cómo funciona projects" → "Dependencias (P4)".
   - P6 (contratos con otros módulos): ✅ PR #42 integrado. Ver "Cómo funciona projects" → "Contratos (P6)".
   - P5 (notas y enlaces): ✅ PR #41 integrado. Ver "Cómo funciona projects" → "Notas y enlaces (P5)".
 
 - **tasks:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final, recorrido hecho por el agente en producción con el Chrome del owner). Plan y tareas archivados en `tasks/archive/tasks-*.md`. Pendientes en el backlog de `tasks/todo.md`: navegación definitiva (diseño del owner en Claude Design) e hitos en proyectos cerrados. El owner aceptó las decisiones autónomas de abajo.
 - **habits:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner). H1–H6 integrados (#62–#64, #66–#68). Plan y tareas archivados en `tasks/archive/habits-*.md`. El owner aceptó las decisiones autónomas de "Cómo funciona habits". Pendiente en el backlog: navegación definitiva de Tareas y Hábitos (Claude Design), `DayCell` upstream y los demás ítems de H4/H5.
-- **today:** en curso. `SPEC-today.md` **aprobada** por el owner (2026-10-03); plan en `tasks/plan.md` y tareas D1–D4 en `tasks/todo.md`. Ver "Siguiente: today" abajo.
-    - ✅ D1 (tablero con hábitos): PR #71 integrado. Ver "Cómo funciona today" → "D1", con los **slots para D2–D4** y las **decisiones para revisar con el owner**.
-    - ✅ D2 (tareas): PR #72 integrado. Ver "Cómo funciona today" → "D2", con el **candado de tareas de las E2E** y las **decisiones para revisar con el owner**.
-    - ✅ D3 (Proyectos): PR #73 integrado. Ver "Cómo funciona today" → "D3", con sus **decisiones para revisar con el owner**.
-    - D4 (día completo): PR de `feat/today-d4-day-complete`, **sin merge**. Ver "Cómo funciona today" → "D4", con el candado de tareas ampliado a las completadas hoy y las **decisiones para revisar con el owner**.
+- **today:** ✅ cerrado por el owner el 2026-10-05 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner el 2026-10-03; el owner revisó la app con los datos de demo). D1–D4 integrados (#71–#74). Plan y tareas archivados en `tasks/archive/today-*.md`. El owner aceptó todas las decisiones autónomas de "Cómo funciona today" (D1–D4; el color de señal por módulo y el día vacío solo con unitarias incluidos). Pendiente en el backlog: clic perdido tras eliminar, grilla que salta en el iPhone, E2E "Hito" intermitente y el hook único de pads.
+- **Datos de demo en producción** (2026-10-05, a pedido del owner): `pnpm db:demo:replace` borró los proyectos, tareas y hábitos de prueba del owner (respaldo previo comprobado, run 37152739044) y cargó la demo (7 proyectos, 27 tareas, 8 hábitos con 4 semanas de registros), fechada el 2026-10-03. Lo corrió el agente: URL directa con `neonctl connection-string` en una variable (nunca impresa) y las confirmaciones con `expect`. Ver "Datos de demo". Quitarla antes de usar la app con datos reales (`db:demo:remove`).
+- **finance:** siguiente módulo, **sin empezar** (el owner lo eligió antes que `reminders`, 2026-10-05). Ver "Siguiente: finance" abajo.
   - ✅ H1 (datos, crear, registrar con un toque y eliminar): PR #62 integrado. Ver "Cómo funciona habits" → "H1", con los slots para H2 y H3 y las **decisiones para revisar con el owner**.
   - ✅ H2 (frecuencias y agenda): PR #63 integrado. Ver "Cómo funciona habits" → "H2", con lo que H3 debe mirar al rebasar y las **decisiones para revisar con el owner**.
   - ✅ H3 (cantidad, varias veces al día y a evitar): PR #64 integrado. Ver "Cómo funciona habits" → "H3", con sus **decisiones para revisar con el owner**.
   - ✅ H4 (rachas y pausas): PR #66 integrado. Ver "Cómo funciona habits" → "H4", con los puntos de extensión para H5 y sus **decisiones para revisar con el owner**.
   - ✅ H5 (historial: Semana, página del hábito, "Más detalles"): PR #67 integrado. Ver "Cómo funciona habits" → "H5", con sus **decisiones para revisar con el owner**.
-  - H6, parte del contrato (`getHabitsTodaySummary`, `getHabitsWeekSummary`, registrar desde otra pantalla): PR de `feat/habits-h6-today-contract`, **sin merge**. Ver "Cómo funciona habits" → "H6", con sus **decisiones para revisar con el owner**. La navegación definitiva espera el diseño del owner en Claude Design (backlog técnico).
+  - ✅ H6, parte del contrato (`getHabitsTodaySummary`, `getHabitsWeekSummary`, registrar desde otra pantalla): PR #68 integrado. Ver "Cómo funciona habits" → "H6", con sus **decisiones para revisar con el owner**. La navegación definitiva espera el diseño del owner en Claude Design (backlog técnico).
   - ✅ T1 (datos, captura rápida y bandeja): PR #49 integrado. Ver "Cómo funciona tasks", con los puntos de extensión para T2–T4.
   - ✅ T3 (recurrencia): PR #52 integrado. Ver "Cómo funciona tasks" → "T3: recurrencia".
   - ✅ T2 (vistas y detalle): PR #53 integrado. Ver "Cómo funciona tasks" → "T2: vistas y detalle".
@@ -71,24 +69,19 @@
   - ✅ Arreglo: los anuncios de `tasks` usan `useAnnouncer` de core (PR #56): un temporizador sin limpiar dejó `main` en rojo tras T5.
   - ✅ T6, parte del contrato (`getTasksTodaySummary`): PR #55 integrado. Ver "Cómo funciona tasks" → "T6: contrato con `today`", con sus decisiones para revisar con el owner. La navegación definitiva de T6 espera el diseño del owner en Claude Design.
 
-## Siguiente: today
+## Siguiente: finance
 
-Punto de partida para la próxima sesión (el owner pidió empezar `today` en una sesión nueva, 2026-10-02).
+Punto de partida para la próxima sesión (el owner eligió `finance` antes que `reminders`, 2026-10-05).
 
-- **Qué es** (`CAPABILITY-MAP.md`): el tablero diario en `/` con los hábitos de hoy, las tareas que vencen y lo que cada módulo exponga como "resumen de hoy". Con `today` llega el **MVP usable**. Depende de `core`, `habits` y `tasks`.
-- **Cómo empezar:** skill `spec-driven-development` → borrador de `SPEC-today.md` en español con el formato de `SPEC-habits.md`/`SPEC-tasks.md`, supuestos y preguntas para el owner (con `AskUserQuestion`); con la spec aprobada, plan en `tasks/plan.md` y tareas en `tasks/todo.md`. El owner trabaja en modo autónomo hasta el Checkpoint final (memoria `modo-autonomo`).
-- **Lo que ya existe y `today` reutiliza:**
-  - Portada provisional: `src/app/(app)/page.tsx` (saludo y fecha) y el ítem "Hoy" del manifiesto de `core` (`src/modules/core/module.ts`, `href: "/"`, atajo 1). `today` toma la portada (hecho en D1: ver "Cómo funciona today").
-  - Tareas: `getTasksTodaySummary(now)` (`@/modules/tasks/contracts`, T6): retrasadas y de hoy, mismo orden que la vista Hoy; enlazar con `taskPath(id)`.
-  - Hábitos: `getHabitsTodaySummary(now)` (DTO) y `getHabitsDueToday(now)` (`HabitItem` para pads) en `@/modules/habits/contracts` (H6); registrar desde la portada con `ScreenServicesProvider` → `HabitsScreenWithin` → `useDayLog`/`useQuantityLog` + `HabitPad` (ver "H6"). `revalidateHabitScreens()` ya revalida `/`.
-  - `getHabitsWeekSummary` existe para `weekly-review` (no para `today`).
-  - Servicios de pantalla (`src/modules/core/components/screen-services.tsx`): cola, avisos y anunciador del anfitrión; una sola zona de avisos por pantalla.
-  - Regla de límites (`eslint.config.mjs`): `core`, `projects` y `tasks` no importan `habits`; la portada (`src/app`) sí puede importar los contratos.
-- **Decisiones abiertas probables para la spec:** qué secciones y en qué orden (hábitos pendientes primero, tareas retrasadas y de hoy, próximas acciones de proyectos), tope de elementos, saludo y fecha, captura rápida desde la portada, estado vacío y "día completo", y la navegación definitiva (Hoy, Tareas, Hábitos) que el owner itera en Claude Design.
+- **Qué es** (`CAPABILITY-MAP.md`): gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual e importación de Gastos desde Notion. Es lo único que el owner usa hoy en Notion: con este módulo puede dejarlo.
+- **Dependencia con `reminders`:** el mapa dice que `finance` depende de `reminders` (avisos de vencimiento). Como va antes, la spec debe resolverlo sin push: vencimientos visibles en la app y una sección en la portada (`today`) con los pagos que vencen; los avisos push/email se agregan cuando llegue `reminders` (contrato a definir en la spec).
+- **Cómo empezar:** skill `spec-driven-development` → borrador de `SPEC-finance.md` con el formato de `SPEC-habits.md`/`SPEC-today.md`, supuestos y preguntas con `AskUserQuestion` (categorías, medios de pago, tipo de cambio PEN/USD, ciclos de pago, qué importar de Notion y cómo leerlo: el MCP de Notion está disponible, solo lectura). Con la spec aprobada, plan en `tasks/plan.md` y tareas en `tasks/todo.md`. Modo autónomo hasta el Checkpoint final (memoria `modo-autonomo`).
+- **Lo que reutiliza:** áreas de vida (`core`), `ownerAction`/`requireOwner`, `ScreenServicesProvider` (cola, avisos, anunciador), captura rápida (`src/lib/quick-capture.ts`, un proveedor por módulo), y los slots de `TodayBoard` para una sección "Pagos" (ver "Cómo funciona today": el contenido de un slot se monta siempre y la sección decide si se ve). Patrón de contrato `get<Module>TodaySummary(now)` como `tasks`/`projects`.
+- **Datos de demo:** si la demo debe incluir finanzas, extender `scripts/demo-data.ts` (ids deterministas, `replace` con las tablas nuevas).
 - **Operación:**
-  - Repo **público** hasta que se renueven los minutos de Actions (~2026-11-01); después vuelve a privado (recordárselo al owner y bajar el consumo antes: backlog "Minutos de CI").
-  - Antes de `gh`: `gh api user -q .login` debe decir `Brahua` (la cuenta activa puede cambiar sola a `jbrahua`).
-  - Checkpoint final: el agente lo recorre en producción con Claude in Chrome en el perfil **personal** del owner (memoria `qa-en-chrome`).
+  - Repo **público** hasta ~2026-11-01; antes de volver a privado, bajar el consumo de CI (backlog "Minutos de CI").
+  - Antes de `gh`: `gh api user -q .login` debe decir `Brahua`.
+  - Checkpoint final en producción con Claude in Chrome en el perfil personal del owner (memoria `qa-en-chrome`).
 
 ## C2a: pasos del usuario (en orden)
 
