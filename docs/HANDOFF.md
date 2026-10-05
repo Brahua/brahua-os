@@ -5,7 +5,7 @@
 
 ## Cómo retomar
 
-1. Leer este archivo (sobre todo "Siguiente: today"), `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-today.md` cuando exista).
+1. Leer este archivo (sobre todo "Siguiente: finance"), `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-finance.md`).
 2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
@@ -51,7 +51,7 @@
 - **habits:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner). H1–H6 integrados (#62–#64, #66–#68). Plan y tareas archivados en `tasks/archive/habits-*.md`. El owner aceptó las decisiones autónomas de "Cómo funciona habits". Pendiente en el backlog: navegación definitiva de Tareas y Hábitos (Claude Design), `DayCell` upstream y los demás ítems de H4/H5.
 - **today:** ✅ cerrado por el owner el 2026-10-05 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner el 2026-10-03; el owner revisó la app con los datos de demo). D1–D4 integrados (#71–#74). Plan y tareas archivados en `tasks/archive/today-*.md`. El owner aceptó todas las decisiones autónomas de "Cómo funciona today" (D1–D4; el color de señal por módulo y el día vacío solo con unitarias incluidos). Pendiente en el backlog: clic perdido tras eliminar, grilla que salta en el iPhone, E2E "Hito" intermitente y el hook único de pads.
 - **Datos de demo en producción** (2026-10-05, a pedido del owner): `pnpm db:demo:replace` borró los proyectos, tareas y hábitos de prueba del owner (respaldo previo comprobado, run 37152739044) y cargó la demo (7 proyectos, 27 tareas, 8 hábitos con 4 semanas de registros), fechada el 2026-10-03. Lo corrió el agente: URL directa con `neonctl connection-string` en una variable (nunca impresa) y las confirmaciones con `expect`. Ver "Datos de demo". Quitarla antes de usar la app con datos reales (`db:demo:remove`).
-- **finance:** siguiente módulo, **sin empezar** (el owner lo eligió antes que `reminders`, 2026-10-05). Ver "Siguiente: finance" abajo.
+- **finance:** en curso. Spec **aprobada** por el owner el 2026-10-05 (`SPEC-finance.md`), plan en `tasks/plan.md` y tareas F1–F5 en `tasks/todo.md`. Autónomo hasta el Checkpoint final. Decisiones autónomas para revisar con el owner: tabla "Autónomas" de la spec.
   - ✅ H1 (datos, crear, registrar con un toque y eliminar): PR #62 integrado. Ver "Cómo funciona habits" → "H1", con los slots para H2 y H3 y las **decisiones para revisar con el owner**.
   - ✅ H2 (frecuencias y agenda): PR #63 integrado. Ver "Cómo funciona habits" → "H2", con lo que H3 debe mirar al rebasar y las **decisiones para revisar con el owner**.
   - ✅ H3 (cantidad, varias veces al día y a evitar): PR #64 integrado. Ver "Cómo funciona habits" → "H3", con sus **decisiones para revisar con el owner**.

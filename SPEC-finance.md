@@ -1,6 +1,6 @@
 # Spec: finance
 
-> Módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` (avisos push/email con `reminders` después) · `today` lo consume · Estado: **BORRADOR v1** (2026-10-05), pendiente de aprobación del owner.
+> Módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` (avisos push/email con `reminders` después) · `today` lo consume · Estado: **APROBADO v1** (2026-10-05).
 
 ## Objetivo
 
@@ -226,4 +226,4 @@ F2 y F3 pueden ir en paralelo sobre los slots de F1 (cada uno con su `TEST_DB_PO
 
 ## Preguntas abiertas
 
-Ninguna bloqueante: las del borrador las respondió el owner (2026-10-05). Quedan las decisiones de la tabla "Autónomas, para revisar con el owner"; las más visibles son el selector "Tarea · Gasto" en la tecla de captura, la ventana de 60 días para vencidos y que los activos importados empiecen sin vencidos.
+Ninguna bloqueante: las del borrador las respondió el owner y aprobó la spec (2026-10-05). Quedan las decisiones de la tabla "Autónomas, para revisar con el owner"; las más visibles son el selector "Tarea · Gasto" en la tecla de captura, la ventana de 60 días para vencidos y que los activos importados empiecen sin vencidos.
