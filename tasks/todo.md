@@ -1,6 +1,32 @@
 # Tareas
 
-> Siguiente módulo: **`finance`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: finance"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Módulo en curso: **`finance`** · Plan: [`plan.md`](plan.md) · Spec: [`SPEC-finance.md`](../SPEC-finance.md)
+> Cada tarea termina con lint, typecheck, unitarias, integración y build en verde, E2E nativa de lo tocado, un PR con los 3 checks verdes y el deploy con smoke test. Commits en inglés (`feat(finance): …`).
+> Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Fase 1 — Base
+
+- [ ] **F1: Datos y gastos sueltos** — migración con las seis tablas (`CHECK`, índices), locks `FINANCE_ADVISORY_SPACE = 5000`, exportación; `money.ts`; catálogo (categorías y medios: crear, renombrar, ordenar, archivar) y tipo de cambio en la hoja "Ajustes"; `/finance` → Mes con la lista de gastos del mes; hoja "Gasto" (crear, editar, eliminar con "Deshacer"); captura rápida con selector "Tarea · Gasto"; manifiesto "Finanzas" (atajo 5) y regla de límites. Slots para Pagos, resumen y "Pendiente de pagar".
+  - Verificar: unitarias de `money.ts` y Zod; integración de `CHECK`, catálogo con lock y tipo de cambio guardado; E2E capturar un gasto en ≤ 3 interacciones (celular), editar, eliminar y deshacer, captura de tareas intacta, axe en ambos temas, 320 px.
+
+## Fase 2 — Recurrentes y resumen *(F2 y F3 en paralelo)*
+
+- [ ] **F2: Pagos recurrentes** — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
+  - Verificar: tablas de casos de `schedule.ts`; integración de pagar dos veces a la vez (un solo gasto), omitir, deshacer y eliminar el gasto pagado; E2E pagar, pago variable, omitir.
+- [ ] **F3: Resumen mensual** — `summary.ts`; total en PEN (`NumberFlow`), barras por categoría (filtran la lista), por medio, recurrente vs suelto, USD sin convertir, "Pendiente de pagar"; navegación de meses.
+  - Verificar: tablas de casos de `summary.ts`; E2E resumen con un gasto en USD y navegación de meses; barras accesibles.
+
+## Fase 3 — Portada e importación
+
+- [ ] **F4: Pagos en la portada** — `getFinanceTodaySummary(now)`; sección "Pagos" en `today` entre Tareas y Proyectos con "Pagado"; "Día completo" con pagos vencidos o de hoy; `finance` revalida `/`.
+  - Verificar: integración del contrato (número fijo de consultas, autorización); tablas de casos de `today-board.ts`; E2E pagar desde `/` y deshacer.
+- [ ] **F5: Importación desde Notion** — lectura con el MCP a un JSON fuera del repo; `scripts/finance-import.ts` (`pnpm db:finance:import`), ids deterministas, idempotente, confirmación y respaldo; corrida en producción.
+  - Verificar: integración contra la base desechable con un JSON ficticio (mapeo, archivados, variable, idempotencia); en producción, 33 recurrentes, 13 categorías y 9 medios, sin vencidos el primer día.
+
+### Checkpoint final
+- [ ] Recorrido completo en producción con el Chrome personal del owner (datos `[QA]` borrados después).
+- [ ] Se cumplen los criterios de éxito de `SPEC-finance.md`.
+- [ ] Revisión con el owner: cierre del módulo y decisiones autónomas.
 
 ## Backlog técnico
 
