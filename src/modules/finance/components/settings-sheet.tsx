@@ -10,7 +10,7 @@ import {
   Settings2,
   TriangleAlert,
 } from "lucide-react";
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Icon, IconKey, Key, SegmentedControl, Sheet, TextField } from "@/design-system";
 import { fail, type ActionResult } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
@@ -41,7 +41,7 @@ import {
 import type { Currency } from "../finance-constants";
 import { FINANCE_COPY } from "../finance-copy";
 import { formatRate, rateToInput } from "../money";
-import { useFinanceScreen } from "./finance-screen";
+import { useFinanceScreen, useRegisterSettings } from "./finance-screen";
 
 type Result = ActionResult<FinanceCatalog>;
 
@@ -67,10 +67,24 @@ async function call(action: (input: unknown) => Promise<Result>, input: unknown)
  */
 export function FinanceSettings() {
   const { catalog } = useFinanceScreen();
+  const register = useRegisterSettings();
   const [open, setOpen] = useState(false);
   // A new sheet per opening (it starts from the page's catalog).
   const [opening, setOpening] = useState(0);
   const trigger = useRef<HTMLButtonElement>(null);
+  // Where focus returns: this key, or what opened the sheet from elsewhere (F3's "Fijar tipo de
+  // cambio" in the month's header).
+  const returnFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    register((returnTo) => {
+      returnFocus.current = returnTo ?? trigger.current;
+      setOpening((value) => value + 1);
+      setOpen(true);
+    });
+    return () => register(null);
+  }, [register]);
+
   return (
     <>
       <Key
@@ -79,6 +93,7 @@ export function FinanceSettings() {
         icon={Settings2}
         aria-haspopup="dialog"
         onClick={() => {
+          returnFocus.current = trigger.current;
           setOpening((value) => value + 1);
           setOpen(true);
         }}
@@ -89,8 +104,13 @@ export function FinanceSettings() {
         <SettingsSheet
           key={opening}
           open={open}
-          onOpenChange={setOpen}
-          returnFocusRef={trigger}
+          onOpenChange={(next) => {
+            // Setting the rate removes "Fijar tipo de cambio" behind the sheet: focus then
+            // returns to this key.
+            if (!next && !returnFocus.current?.isConnected) returnFocus.current = trigger.current;
+            setOpen(next);
+          }}
+          returnFocusRef={returnFocus}
           initialCatalog={catalog}
         />
       ) : null}

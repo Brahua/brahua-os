@@ -247,3 +247,27 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 .bo-row.bo-row--static:hover, .bo-row.bo-row--static:active { background: var(--color-surface); }
 /* The name link inside such a row: a taller target than the text line. */
 .bo-row-link { display: inline-block; padding-block: 4px; }
+/* Finance (F3): the month's summary. The total is a StatNumber that shrinks on phones (a long
+   amount fits 320 px). Category rows are toggles (filter the list): name and figures on a line,
+   then a horizontal CSS bar (decorative; the row's name carries the numbers). The pressed row is
+   sunk like a selected row and adds a check, so it is never told by color alone. Method rows are
+   read-only. Not a synced component: no PENDING UPSTREAM. */
+.bo-month-total .bo-stat__value { --_fs: 26px; overflow-wrap: anywhere; }
+@media (min-width: 640px) { .bo-month-total .bo-stat__value { --_fs: 40px; } }
+.bo-key.bo-month-arrow { box-shadow: none; }
+.bo-summary-row { flex-direction: column; align-items: stretch; gap: 8px; min-height: 64px; }
+.bo-summary-row[aria-pressed="true"] { background: var(--color-key); box-shadow: inset 0 0 0 1.5px var(--color-text); }
+.bo-summary-row__line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.bo-summary-row__figures { display: inline-flex; align-items: baseline; gap: 8px; flex: none; }
+.bo-summary-row__percent { min-width: 4ch; text-align: right; color: var(--color-text-secondary); }
+.bo-summary-bar { display: block; height: 6px; border-radius: var(--radius-xs); background: var(--color-divider); overflow: hidden; }
+.bo-summary-bar__fill { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--color-text-secondary); }
+.bo-summary-row[aria-pressed="true"] .bo-summary-bar__fill { background: var(--color-text); }
+.bo-split-swatch { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-full); flex: none; }
+.bo-split-swatch--recurring { background: var(--color-text-secondary); }
+.bo-split-swatch--one-off { background: var(--color-divider); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+/* Method rows use F2's .bo-row--static (read-only rows). */
+@media (forced-colors: active) {
+  .bo-summary-bar, .bo-split-swatch { forced-color-adjust: none; background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; }
+  .bo-summary-bar__fill, .bo-split-swatch--recurring { forced-color-adjust: none; background: CanvasText; }
+}

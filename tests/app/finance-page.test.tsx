@@ -28,7 +28,7 @@ import { MonthView } from "@/modules/finance/components/month-view";
 import { SettingsSheet } from "@/modules/finance/components/settings-sheet";
 import type { ExpenseItem } from "@/modules/finance/expense-input";
 import { CATALOG_ERRORS, EXPENSE_ERRORS } from "@/modules/finance/finance-copy";
-import { getPaymentsView } from "@/modules/finance/payment-queries";
+import { getPaymentsView, getPendingForMonth } from "@/modules/finance/payment-queries";
 import { getFinanceCatalog, listMonthExpenses } from "@/modules/finance/queries";
 
 const cookieJar = vi.hoisted(() => ({ value: undefined as string | undefined }));
@@ -40,12 +40,15 @@ vi.mock("next/navigation", async (importOriginal) => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// The month's total (F3): NumberFlow's custom element doesn't run in jsdom.
+vi.mock("@number-flow/react", () => ({ default: ({ value }: { value: number }) => <>{value}</> }));
 vi.mock("@/modules/finance/queries", () => ({
   getFinanceCatalog: vi.fn(),
   listMonthExpenses: vi.fn(),
 }));
 vi.mock("@/modules/finance/payment-queries", () => ({
   getPaymentsView: vi.fn(),
+  getPendingForMonth: vi.fn(),
   getDeletedRecurringName: vi.fn(),
 }));
 vi.mock("@/modules/finance/payment-actions", () => ({}));
@@ -421,6 +424,12 @@ describe("/finance", () => {
       active: [],
       archived: [],
     });
+    vi.mocked(getPendingForMonth).mockResolvedValue({
+      count: 2,
+      totalPenCents: 5000,
+      unconvertedUsdCents: 0,
+      variableCount: 1,
+    });
     cookieJar.value = "payments";
     render(await FinancePage({ searchParams: Promise.resolve({ mes: "2026-09" }) }));
     expect(requireOwner).toHaveBeenCalled();
@@ -440,6 +449,13 @@ describe("/finance", () => {
     expect(document.cookie).toContain("bo_finance_view=month");
     expect(screen.getByRole("heading", { level: 2, name: "Setiembre 2026" })).toBeVisible();
     expect(screen.getByText("Sin gastos este mes")).toBeVisible();
+    // F3: the month's "Pendiente de pagar", from F2's getPendingForMonth.
+    expect(getPendingForMonth).toHaveBeenCalledWith("2026-09", TODAY);
+    expect(
+      screen.getByRole("button", {
+        name: "Pendiente de pagar: 50 soles, y 1 de monto variable, 2 pagos. Ver en Pagos",
+      }),
+    ).toHaveTextContent("S/ 50.00 + 1 de monto variable");
   });
 
   test("the month's expenses by day, the most recent first, with USD converted", () => {
@@ -456,7 +472,7 @@ describe("/finance", () => {
     ]);
     expect(screen.getByRole("heading", { level: 2, name: "Octubre 2026" })).toBeInTheDocument();
     expect(
-      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
+      screen.getAllByRole("heading", { level: 4 }).map((heading) => heading.textContent),
     ).toEqual(["Hoy", "Ayer", "Jueves 1 de octubre"]);
     const today = screen.getByRole("list", { name: "Hoy" });
     expect(within(today).getByRole("button").getAttribute("aria-label")).toBe(

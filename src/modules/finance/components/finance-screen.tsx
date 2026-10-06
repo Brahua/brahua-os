@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, use, useMemo } from "react";
+import { createContext, use, useCallback, useMemo, useRef } from "react";
 import {
   ScreenServicesProvider,
   useRequiredScreenServices,
@@ -18,10 +18,20 @@ type FinanceScreenData = {
   catalog: FinanceCatalog;
 };
 
+/** Opens "Ajustes"; focus returns to `returnTo` when it closes (the header key without one). */
+export type OpenSettings = (returnTo?: HTMLElement | null) => void;
+
+type FinanceScreenContextValue = FinanceScreenData & {
+  openSettings: OpenSettings;
+  /** `FinanceSettings` (the header key) registers how to open its sheet; null when it unmounts. */
+  registerSettings: (open: OpenSettings | null) => void;
+};
+
 export type FinanceScreenValue = FinanceScreenData &
+  Pick<FinanceScreenContextValue, "openSettings"> &
   Pick<ScreenServices, "enqueue" | "toaster" | "announce">;
 
-const FinanceScreenContext = createContext<FinanceScreenData | null>(null);
+const FinanceScreenContext = createContext<FinanceScreenContextValue | null>(null);
 
 /**
  * The screen's day and catalog, with its save queue, notices and announcer (one of each per
@@ -34,7 +44,15 @@ export function useFinanceScreen(): FinanceScreenValue {
   const data = use(FinanceScreenContext);
   const { enqueue, toaster, announce } = useRequiredScreenServices();
   if (!data) throw new Error("useFinanceScreen must be used inside FinanceScreen");
-  return { ...data, enqueue, toaster, announce };
+  const { today, catalog, openSettings } = data;
+  return { today, catalog, openSettings, enqueue, toaster, announce };
+}
+
+/** For `FinanceSettings` only: registers the opener of its sheet (F3's "Fijar tipo de cambio"). */
+export function useRegisterSettings(): (open: OpenSettings | null) => void {
+  const data = use(FinanceScreenContext);
+  if (!data) throw new Error("useRegisterSettings must be used inside FinanceScreen");
+  return data.registerSettings;
 }
 
 type FinanceScreenProps = FinanceScreenData & { children: React.ReactNode };
@@ -44,7 +62,15 @@ type FinanceScreenProps = FinanceScreenData & { children: React.ReactNode };
  * it. It watches Lima's day: left open past midnight, the page is read again (today moves on).
  */
 export function FinanceScreen({ today, catalog, children }: FinanceScreenProps) {
-  const value = useMemo(() => ({ today, catalog }), [today, catalog]);
+  const settings = useRef<OpenSettings | null>(null);
+  const registerSettings = useCallback((open: OpenSettings | null) => {
+    settings.current = open;
+  }, []);
+  const openSettings = useCallback<OpenSettings>((returnTo) => settings.current?.(returnTo), []);
+  const value = useMemo(
+    () => ({ today, catalog, openSettings, registerSettings }),
+    [today, catalog, openSettings, registerSettings],
+  );
   return (
     <ScreenServicesProvider
       label={FINANCE_COPY.noticesLabel}
