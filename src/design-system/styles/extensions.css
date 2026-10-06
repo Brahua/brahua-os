@@ -233,3 +233,8 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 /* Finance (F1): amounts are data, in IBM Plex Mono with tabular figures (SPEC-finance
    "Pantallas"): the amount field and the amounts of the month's list. Not a synced component. */
 .bo-amount-field .bo-field__control, .bo-amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Finance (F2): a pending payment's row. On narrow phones its keys ("Pagado", more) wrap under the
+   name instead of squeezing it. */
+.bo-payment-row { flex-wrap: wrap; }
+.bo-payment-row .bo-row__body { min-width: 11rem; }

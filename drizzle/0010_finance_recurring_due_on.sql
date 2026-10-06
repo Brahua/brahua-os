@@ -1,0 +1,2 @@
+ALTER TABLE "finance_expenses" ADD COLUMN "recurring_due_on" date;--> statement-breakpoint
+ALTER TABLE "finance_expenses" ADD CONSTRAINT "finance_expenses_recurring_period_check" CHECK (("finance_expenses"."recurring_payment_id" is null) = ("finance_expenses"."recurring_due_on" is null));

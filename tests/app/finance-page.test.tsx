@@ -28,6 +28,7 @@ import { MonthView } from "@/modules/finance/components/month-view";
 import { SettingsSheet } from "@/modules/finance/components/settings-sheet";
 import type { ExpenseItem } from "@/modules/finance/expense-input";
 import { CATALOG_ERRORS, EXPENSE_ERRORS } from "@/modules/finance/finance-copy";
+import { getPaymentsView } from "@/modules/finance/payment-queries";
 import { getFinanceCatalog, listMonthExpenses } from "@/modules/finance/queries";
 
 const cookieJar = vi.hoisted(() => ({ value: undefined as string | undefined }));
@@ -43,6 +44,11 @@ vi.mock("@/modules/finance/queries", () => ({
   getFinanceCatalog: vi.fn(),
   listMonthExpenses: vi.fn(),
 }));
+vi.mock("@/modules/finance/payment-queries", () => ({
+  getPaymentsView: vi.fn(),
+  getDeletedRecurringName: vi.fn(),
+}));
+vi.mock("@/modules/finance/payment-actions", () => ({}));
 vi.mock("@/modules/finance/actions", () => ({
   createExpense: vi.fn(),
   editExpense: vi.fn(),
@@ -408,6 +414,13 @@ describe("/finance", () => {
   test("the page checks the owner, reads the month and remembers the view", async () => {
     vi.mocked(getFinanceCatalog).mockResolvedValue(CATALOG);
     vi.mocked(listMonthExpenses).mockResolvedValue([]);
+    vi.mocked(getPaymentsView).mockResolvedValue({
+      today: TODAY,
+      pending: [],
+      thisMonth: [],
+      active: [],
+      archived: [],
+    });
     cookieJar.value = "payments";
     render(await FinancePage({ searchParams: Promise.resolve({ mes: "2026-09" }) }));
     expect(requireOwner).toHaveBeenCalled();
@@ -419,6 +432,9 @@ describe("/finance", () => {
       "true",
     );
     expect(document.querySelector('[data-finance-view="month"]')).toHaveAttribute("hidden");
+    // F2: "Pagos" shows its sections.
+    expect(getPaymentsView).toHaveBeenCalledWith(TODAY);
+    expect(screen.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
     // Switching writes the cookie.
     await userEvent.setup().click(within(tabs).getByRole("tab", { name: "Mes" }));
     expect(document.cookie).toContain("bo_finance_view=month");

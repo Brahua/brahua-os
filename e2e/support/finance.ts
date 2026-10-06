@@ -3,11 +3,14 @@ import { eq, sql } from "drizzle-orm";
 import { expect, test as base, type Page } from "@playwright/test";
 import { Client } from "pg";
 import { createDb } from "@/lib/db";
+import { ownerDateKey } from "@/lib/time";
 import {
   financeCategories,
   financeExpenses,
   financePaymentMethods,
+  financeRecurringPayments,
   financeSettings,
+  financeSettlements,
 } from "@/modules/finance/db/schema";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 
@@ -143,3 +146,78 @@ export const expenseRow = (page: Page, label: string) =>
 /** The capture key that is on screen (bottom bar on the phone, sidebar on the desktop). */
 export const captureKey = (page: Page) =>
   page.getByRole("button", { name: "Capturar" }).filter({ visible: true });
+
+type NewRecurring = {
+  name: string;
+  /** Null: "Monto variable". */
+  amountCents?: number | null;
+  currency?: "PEN" | "USD";
+  cycle?: "weekly" | "monthly" | "every_n_months" | "yearly";
+  weekday?: number | null;
+  /** Today's day of the month (Lima) by default: a monthly payment due today. */
+  dayOfMonth?: number | null;
+  intervalMonths?: number | null;
+  anchorMonth?: number | null;
+  startDate?: string;
+  paymentMethodId?: string;
+  archived?: boolean;
+};
+
+/** A recurring payment straight in the database (monthly, due today from today, S/ 50 by default). */
+export function insertRecurring({ archived, ...values }: NewRecurring) {
+  return withDb(async (db) => {
+    const [row] = await db
+      .insert(financeRecurringPayments)
+      .values({
+        amountCents: 5_000,
+        currency: "PEN",
+        cycle: "monthly",
+        dayOfMonth: Number(ownerDateKey(new Date()).slice(8, 10)),
+        // From today: nothing overdue from earlier months.
+        startDate: ownerDateKey(new Date()),
+        ...values,
+        archivedAt: archived ? new Date() : null,
+      })
+      .returning({ id: financeRecurringPayments.id });
+    return row.id;
+  });
+}
+
+/** A recurring payment as stored, by name (deleted ones too). */
+export function readRecurring(name: string) {
+  return withDb(async (db) => {
+    const [row] = await db
+      .select()
+      .from(financeRecurringPayments)
+      .where(eq(financeRecurringPayments.name, name));
+    return row ?? null;
+  });
+}
+
+/** The settled periods of a recurring payment. */
+export function readSettlements(recurringId: string) {
+  return withDb((db) =>
+    db
+      .select()
+      .from(financeSettlements)
+      .where(eq(financeSettlements.recurringPaymentId, recurringId)),
+  );
+}
+
+/** The expenses that paid periods of a recurring payment (deleted ones too). */
+export function readRecurringExpenses(recurringId: string) {
+  return withDb((db) =>
+    db.select().from(financeExpenses).where(eq(financeExpenses.recurringPaymentId, recurringId)),
+  );
+}
+
+/** Opens /finance on "Pagos" (the switch remembers it on the device). */
+export async function openPayments(page: Page) {
+  await openReady(page, "/finance");
+  await page.getByRole("tab", { name: "Pagos" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
+}
+
+/** A pending row's "Pagado" key (one tap) or "Pagado…" (variable), by the payment's name. */
+export const payKey = (page: Page, name: string) =>
+  page.getByRole("button", { name: new RegExp(`^Pagado(…)?: ${name},`) });

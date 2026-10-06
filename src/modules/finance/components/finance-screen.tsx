@@ -26,7 +26,8 @@ const FinanceScreenContext = createContext<FinanceScreenData | null>(null);
 /**
  * The screen's day and catalog, with its save queue, notices and announcer (one of each per
  * screen, from `ScreenServicesProvider`). Queue keys in use: `expense-delete:<id>` (delete and its
- * undo). F2 and F3 use their own (`payment-paid:<id>:<due>`…) and keep their own useOptimistic;
+ * undo); F2: `payment-period:<id>:<due>` (pay, skip and their undo), `payment-archive:<id>`,
+ * `payment-delete:<id>`. F3 uses its own and keeps its own useOptimistic;
  * call `enqueue` inside startTransition.
  */
 export function useFinanceScreen(): FinanceScreenValue {

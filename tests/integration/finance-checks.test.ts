@@ -182,7 +182,12 @@ describe("expenses", () => {
   test("foreign keys restrict: a category, method or recurring payment in use can't go", async () => {
     await testDb
       .update(financeExpenses)
-      .set({ categoryId, paymentMethodId: methodId, recurringPaymentId: recurringId })
+      .set({
+        categoryId,
+        paymentMethodId: methodId,
+        recurringPaymentId: recurringId,
+        recurringDueOn: "2026-10-08",
+      })
       .where(eq(financeExpenses.id, expenseId));
     for (const statement of [
       sql`delete from finance_categories where id = ${categoryId}`,
@@ -278,6 +283,19 @@ describe("recurring payments (F2's table)", () => {
     expect(await violation(recurring({ currency: "EUR" }))).toEqual(
       check("finance_recurring_payments_currency_check"),
     );
+  });
+});
+
+describe("expenses of recurring payments (F2)", () => {
+  test("the payment and its period go together", async () => {
+    const rule = check("finance_expenses_recurring_period_check");
+    expect(await violation(expense({ recurringPaymentId: recurringId }))).toEqual(rule);
+    expect(await violation(expense({ recurringDueOn: "2026-10-08" }))).toEqual(rule);
+    // Positive controls: both, or neither.
+    expect(
+      await violation(expense({ recurringPaymentId: recurringId, recurringDueOn: "2026-10-08" })),
+    ).toBeNull();
+    expect(await violation(expense({}))).toBeNull();
   });
 });
 

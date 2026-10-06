@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, Trash2, TriangleAlert } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Icon, Key, SegmentedControl, Sheet, TextField } from "@/design-system";
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
@@ -25,6 +26,8 @@ import {
 import type { Currency } from "../finance-constants";
 import { FINANCE_COPY } from "../finance-copy";
 import { centsToInput, formatRate, parseAmount, spokenMoney } from "../money";
+import { PAYMENTS_COPY } from "../payments-copy";
+import { recurringPaymentPath } from "../routes";
 import { SelectField } from "./select-field";
 
 type Errors = Partial<Record<ExpenseField, string>>;
@@ -480,6 +483,17 @@ export function ExpenseSheet({
             />
           </div>
         </div>
+
+        {editing && expense.recurringPaymentId ? (
+          // F2: the expense paid a period of a recurring payment ("Recurrente" in its row).
+          <Link
+            href={recurringPaymentPath(expense.recurringPaymentId)}
+            className="bo-task-title bo-text-body-sm w-fit font-semibold"
+            data-recurring-link=""
+          >
+            {PAYMENTS_COPY.viewPayment}
+          </Link>
+        ) : null}
 
         {editing && onDelete ? (
           <div className="flex flex-col gap-2 border-t border-border pt-5">

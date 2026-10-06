@@ -10,7 +10,7 @@ type FinanceViewsProps = {
   initialView: FinanceView;
   /** "Mes": the month's expenses (F3 adds the summary). */
   month: React.ReactNode;
-  /** "Pagos": F2 slot (the recurring payments). */
+  /** "Pagos": the recurring payments (F2). */
   payments: React.ReactNode;
 };
 
@@ -66,7 +66,6 @@ export function FinanceViews({ initialView, month, payments }: FinanceViewsProps
           data-finance-view={value}
           className="flex flex-col gap-6"
         >
-          {/* F2 slot (Pagos): pendientes, este mes, todos, archivados. */}
           {value === "month" ? month : payments}
         </div>
       ))}

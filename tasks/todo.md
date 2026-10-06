@@ -6,12 +6,12 @@
 
 ## Fase 1 — Base
 
-- [ ] **F1: Datos y gastos sueltos** (PR #78, sin merge) — migración con las seis tablas (`CHECK`, índices), locks `FINANCE_ADVISORY_SPACE = 5000`, exportación; `money.ts`; catálogo (categorías y medios: crear, renombrar, ordenar, archivar) y tipo de cambio en la hoja "Ajustes"; `/finance` → Mes con la lista de gastos del mes; hoja "Gasto" (crear, editar, eliminar con "Deshacer"); captura rápida con selector "Tarea · Gasto"; manifiesto "Finanzas" (atajo 5) y regla de límites. Slots para Pagos, resumen y "Pendiente de pagar".
+- [x] **F1: Datos y gastos sueltos** — Integrado en PR #78 — migración con las seis tablas (`CHECK`, índices), locks `FINANCE_ADVISORY_SPACE = 5000`, exportación; `money.ts`; catálogo (categorías y medios: crear, renombrar, ordenar, archivar) y tipo de cambio en la hoja "Ajustes"; `/finance` → Mes con la lista de gastos del mes; hoja "Gasto" (crear, editar, eliminar con "Deshacer"); captura rápida con selector "Tarea · Gasto"; manifiesto "Finanzas" (atajo 5) y regla de límites. Slots para Pagos, resumen y "Pendiente de pagar".
   - Verificar: unitarias de `money.ts` y Zod; integración de `CHECK`, catálogo con lock y tipo de cambio guardado; E2E capturar un gasto en ≤ 3 interacciones (celular), editar, eliminar y deshacer, captura de tareas intacta, axe en ambos temas, 320 px.
 
 ## Fase 2 — Recurrentes y resumen *(F2 y F3 en paralelo)*
 
-- [ ] **F2: Pagos recurrentes** — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
+- [ ] **F2: Pagos recurrentes** (PR de la rama `feat/finance-f2`, sin merge) — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
   - Verificar: tablas de casos de `schedule.ts`; integración de pagar dos veces a la vez (un solo gasto), omitir, deshacer y eliminar el gasto pagado; E2E pagar, pago variable, omitir.
 - [ ] **F3: Resumen mensual** — `summary.ts`; total en PEN (`NumberFlow`), barras por categoría (filtran la lista), por medio, recurrente vs suelto, USD sin convertir, "Pendiente de pagar"; navegación de meses.
   - Verificar: tablas de casos de `summary.ts`; E2E resumen con un gasto en USD y navegación de meses; barras accesibles.
