@@ -130,3 +130,42 @@ export const plan = planReorder;
 `;
   expect(await restricted(code, "src/modules/finance/catalog.ts")).toEqual([]);
 });
+
+// F4 (SPEC-finance "Con `today`"): `today` is the one module that reads `finance`, and only
+// through what finance offers the home page; the others still can't (above).
+test.each([
+  `import { getFinanceTodaySummary } from "@/modules/finance/contracts";\nexport const x = getFinanceTodaySummary;\n`,
+  `import type { FinanceTodayItem } from "@/modules/finance/today-summary";\nexport type X = FinanceTodayItem;\n`,
+  `import { paymentCompletion } from "@/modules/finance/payment-completion";\nexport const x = paymentCompletion;\n`,
+  `import { FINANCE_PATH } from "@/modules/finance/routes";\nexport const x = FINANCE_PATH;\n`,
+  `import { PaymentTodayRow } from "@/modules/finance/components/payment-today-row";\nexport const x = PaymentTodayRow;\n`,
+  `import { TodayPaySheet } from "@/modules/finance/components/today-pay-sheet";\nexport const x = TodayPaySheet;\n`,
+])("today may read finance's home-page parts (positive control) %#", async (code) => {
+  expect(await restricted(code, "src/modules/today/components/today-payments.tsx")).toEqual([]);
+});
+
+test.each([
+  `import { selectPendingPeriods } from "@/modules/finance/recurring";\nexport const x = selectPendingPeriods;\n`,
+  `import { markPaid } from "@/modules/finance/payment-actions";\nexport const x = markPaid;\n`,
+  `import { PaymentsView } from "@/modules/finance/components/payments-view";\nexport const x = PaymentsView;\n`,
+  `import { financeExpenses } from "@/modules/finance/db/schema";\nexport const x = financeExpenses;\n`,
+  `import * as finance from "@/modules/finance";\nexport const x = finance;\n`,
+])("today cannot reach finance's internals %#", async (code) => {
+  const messages = await restricted(code, "src/modules/today/today-board.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`today` lee `finance` solo por lo que expone para la portada");
+});
+
+test("the finance contract stays closed to the other modules", async () => {
+  const code = `import { getFinanceTodaySummary } from "@/modules/finance/contracts";\nexport const x = getFinanceTodaySummary;\n`;
+  for (const file of [
+    "src/modules/core/components/app-nav.tsx",
+    "src/modules/projects/projects.ts",
+    "src/modules/tasks/tasks.ts",
+    "src/modules/habits/habits.ts",
+  ]) {
+    expect(await restricted(code, file)).toHaveLength(1);
+  }
+  // The home page reads it (positive control).
+  expect(await restricted(code, "src/app/(app)/page.tsx")).toEqual([]);
+});

@@ -17,9 +17,16 @@
 //   (`requireTodayTasksTag`): an untagged test that leaves a pending task due today or before, or a
 //   done one, fails at once. A test that completes a task through the UI tags itself.
 //
+// - Since F4 "/" also shows `finance`'s pending payments ("Pagos", which keep "Día completo" away).
+//   A board test also holds the finance lock (`holdFinanceLock`, e2e/support/finance.ts: the same
+//   one every finance test holds) and starts from empty finance tables, so no finance test runs
+//   next to it and the only payments on "/" are its own (`insertRecurring` refuses to write
+//   without that lock).
+//
 // Lock order: a board test takes the habits lock first, then the tasks lock (the fixture depends
-// on `habitsLock`); a tagged test only takes the tasks lock. No test waits for the habits lock
-// while holding the tasks one, so they never deadlock.
+// on `habitsLock`), then the finance lock; a tagged test only takes the tasks lock and a finance
+// test only the finance lock. No test waits for an earlier lock while holding a later one, so
+// they never deadlock.
 import { eq } from "drizzle-orm";
 import { test as base, test } from "@playwright/test";
 import { Client } from "pg";
@@ -32,6 +39,7 @@ import type { TaskPriority } from "@/modules/tasks/task-constants";
 import type { TaskRecurrence } from "@/modules/tasks/task-input";
 import { ownerDateKey } from "@/lib/time";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
+import { clearFinance, holdFinanceLock, releaseFinanceLock } from "./finance";
 import { test as habitsTest } from "./habits";
 import { limaDay } from "./projects";
 
@@ -114,10 +122,11 @@ const boardProjects: string[] = [];
 
 /**
  * `test` for the tests that look at "/": the habits lock and an empty board (no habits, see
- * `habits.ts`), and the tasks lock (exclusive) with every pending task due today or before, and
+ * `habits.ts`), the tasks lock (exclusive) with every pending task due today or before, and
  * every task completed today (Lima), parked (`deleted_at` = `PARKED_AT`, back at the end, even
- * after a failure). Raw SQL (not Drizzle): parking must not touch `updated_at` (T3 keeps an
- * edited next occurrence).
+ * after a failure), and the finance lock with empty finance tables (F4: no payments but the
+ * test's). Raw SQL (not Drizzle): parking must not touch `updated_at` (T3 keeps an edited next
+ * occurrence).
  */
 export const boardTest = habitsTest.extend<{ boardTasks: void }>({
   boardTasks: [
@@ -137,9 +146,14 @@ export const boardTest = habitsTest.extend<{ boardTasks: void }>({
                or (done_at at time zone 'America/Lima')::date = $2::date)`,
           [PARKED_AT, limaDay(0)],
         );
+        // The finance lock last (see the lock order above), on the same session.
+        await holdFinanceLock(client);
         try {
           await provide();
         } finally {
+          // Its payments never outlive it (a test of "/" without the lock would see them).
+          await clearFinance();
+          releaseFinanceLock();
           const projectIds = boardProjects.splice(0);
           if (projectIds.length > 0) {
             await client.query(

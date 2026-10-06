@@ -99,34 +99,49 @@ export function longDay(day: string): string {
   );
 }
 
-export type DueState =
-  | { kind: "overdue"; days: number; label: string }
-  | { kind: "today"; days: 0; label: string }
-  | { kind: "soon"; days: number; label: string }
-  | { kind: "later"; days: number; label: string };
+export type DueState = {
+  kind: "overdue" | "today" | "soon" | "later";
+  /** Days to the due date (overdue: days since it). */
+  days: number;
+  /** What the row shows: "Vence el jue 9". */
+  label: string;
+  /** The same in words, for screen readers: "Vence el jueves 9". */
+  spoken: string;
+};
 
 /**
  * A due date as the lists say it, by Lima's day: "Venció hace 3 días", "Venció ayer", "Vence
- * hoy", "Vence mañana", "Vence el jue 9" (within a week) or "Vence el 23 mar".
+ * hoy", "Vence mañana", "Vence el jue 9" (within a week) or "Vence el 23 mar"; `spoken` says the
+ * short ones in full ("Vence el jueves 9", "Vence el 23 de marzo").
  */
 export function dueState(dueOn: string, today: string): DueState {
   const left = daysBetween(today, dueOn);
-  if (left < -1) return { kind: "overdue", days: -left, label: `Venció hace ${-left} días` };
-  if (left === -1) return { kind: "overdue", days: 1, label: "Venció ayer" };
-  if (left === 0) return { kind: "today", days: 0, label: "Vence hoy" };
-  if (left === 1) return { kind: "soon", days: 1, label: "Vence mañana" };
+  const plain = (kind: DueState["kind"], days: number, text: string): DueState => ({
+    kind,
+    days,
+    label: text,
+    spoken: text,
+  });
+  if (left < -1) return plain("overdue", -left, `Venció hace ${-left} días`);
+  if (left === -1) return plain("overdue", 1, "Venció ayer");
+  if (left === 0) return plain("today", 0, "Vence hoy");
+  if (left === 1) return plain("soon", 1, "Vence mañana");
   const day = Number(dueOn.slice(8, 10));
+  const weekday = isoWeekday(dueOn);
   if (left <= UPCOMING_DAYS) {
     return {
       kind: "soon",
       days: left,
-      label: `Vence el ${WEEKDAY_SHORT[isoWeekday(dueOn)]} ${day}`,
+      label: `Vence el ${WEEKDAY_SHORT[weekday]} ${day}`,
+      spoken: `Vence el ${WEEKDAY_NAMES[weekday]} ${day}`,
     };
   }
+  const month = Number(dueOn.slice(5, 7));
   return {
     kind: "later",
     days: left,
-    label: `Vence el ${day} ${MONTH_SHORT[Number(dueOn.slice(5, 7))]}`,
+    label: `Vence el ${day} ${MONTH_SHORT[month]}`,
+    spoken: `Vence el ${day} de ${MONTH_NAMES[month]}`,
   };
 }
 

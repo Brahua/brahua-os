@@ -237,16 +237,16 @@ describe("copy", () => {
   });
 
   test.each([
-    ["2026-10-02", "Venció hace 3 días", "overdue", true],
-    ["2026-10-04", "Venció ayer", "overdue", true],
-    ["2026-10-05", "Vence hoy", "today", true],
-    ["2026-10-06", "Vence mañana", "soon", false],
-    ["2026-10-08", "Vence el jue 8", "soon", false],
-    ["2026-10-12", "Vence el lun 12", "soon", false],
-    ["2027-03-23", "Vence el 23 mar", "later", false],
-  ])("due %s: %s", (due, label, kind, urgent) => {
+    ["2026-10-02", "Venció hace 3 días", "Venció hace 3 días", "overdue", true],
+    ["2026-10-04", "Venció ayer", "Venció ayer", "overdue", true],
+    ["2026-10-05", "Vence hoy", "Vence hoy", "today", true],
+    ["2026-10-06", "Vence mañana", "Vence mañana", "soon", false],
+    ["2026-10-08", "Vence el jue 8", "Vence el jueves 8", "soon", false],
+    ["2026-10-12", "Vence el lun 12", "Vence el lunes 12", "soon", false],
+    ["2027-03-23", "Vence el 23 mar", "Vence el 23 de marzo", "later", false],
+  ])("due %s: %s", (due, label, spoken, kind, urgent) => {
     const state = dueState(due, "2026-10-05");
-    expect(state).toMatchObject({ label, kind });
+    expect(state).toMatchObject({ label, spoken, kind });
     expect(isUrgent(state)).toBe(urgent);
   });
 

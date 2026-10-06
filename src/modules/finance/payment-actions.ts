@@ -3,9 +3,10 @@
 // Server Actions of recurring payments (F2): create, edit, archive, reactivate, delete, restore,
 // and the periods: pay ("Pagado" / "Pagado…"), skip, and their undo. Each one goes through
 // ownerAction(): owner check first, Zod, then an ActionResult. Reachable by any POST, so input is
-// `unknown`. A write revalidates /finance (the payment pages are under it) when it changed
-// something, or when it was refused because the page is out of date (paid, deleted or archived
-// elsewhere; a category or method archived); never for a refusal of the input itself.
+// `unknown`. A write revalidates /finance (the payment pages are under it) and the home page
+// ("Pagos", F4) when it changed something, or when it was refused because the page is out of date
+// (paid, deleted or archived elsewhere; a category or method archived); never for a refusal of the
+// input itself.
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
@@ -33,7 +34,7 @@ import {
   updateRecurringInputSchema,
   type RecurringItem,
 } from "./recurring-input";
-import { revalidateFinanceScreens } from "./revalidate";
+import { revalidateFinanceAndHome } from "./revalidate";
 
 /** Refusals that belong to a field of the sheets. */
 const ON_FIELD: Partial<Record<RecurringFailure, string>> = {
@@ -61,7 +62,7 @@ const today = () => ownerDateKey(new Date());
 const INPUT_ONLY: ReadonlySet<RecurringFailure> = new Set(["variableNeedsAmount"]);
 
 function settle<T extends object>(result: T | RecurringFailure): ActionResult<T> {
-  if (typeof result !== "string" || !INPUT_ONLY.has(result)) revalidateFinanceScreens();
+  if (typeof result !== "string" || !INPUT_ONLY.has(result)) revalidateFinanceAndHome();
   return typeof result === "string" ? refused<T>(result) : ok(result);
 }
 
