@@ -93,6 +93,8 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
 
   // Another month arrived (the arrows, or back/forward): say which and its total, once.
   const shownMonth = useRef(month);
+  // The month an arrow is already going to: fast clicks add up instead of repeating one step.
+  const pendingMonth = useRef<string | null>(null);
   const monthMessage = SUMMARY_COPY.monthShown(
     monthTitle(month),
     spokenTotal(summary.total.penCents, summary.total.unconvertedUsdCents),
@@ -100,10 +102,39 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
   useEffect(() => {
     if (shownMonth.current === month) return;
     shownMonth.current = month;
+    if (pendingMonth.current === month) pendingMonth.current = null;
     announce(monthMessage);
   }, [month, monthMessage, announce]);
 
-  function goToMonth(target: string) {
+  // A filter never hides what the month has: it goes away when its category has nothing left
+  // (the last one deleted or moved), and when an expense of another category arrives (a new one,
+  // from the sheet or the quick capture), saying why. Adjusted while rendering (React's
+  // "storing information from previous renders"), not in an effect; only the saying is one.
+  const [seenExpenses, setSeenExpenses] = useState(expenses);
+  const [filterNotice, setFilterNotice] = useState<{ text: string } | null>(null);
+  if (active && listed.length === 0) {
+    setFilter(null);
+    setFilterNotice({ text: SUMMARY_COPY.emptyFiltered(active.name) });
+  }
+  if (seenExpenses !== expenses) {
+    setSeenExpenses(expenses);
+    const seen = new Set(seenExpenses.map((expense) => expense.id));
+    const outside = expenses.some(
+      (expense) => !seen.has(expense.id) && expenseCategoryKey(expense) !== active?.key,
+    );
+    if (active && outside) {
+      setFilter(null);
+      setFilterNotice({ text: SUMMARY_COPY.filterClearedByNew(active.name, expenses.length) });
+    }
+  }
+  useEffect(() => {
+    if (filterNotice) announce(filterNotice.text);
+  }, [filterNotice, announce]);
+
+  function goBy(delta: number) {
+    const target = shiftMonth(pendingMonth.current ?? month, delta);
+    if (target < FIRST_MONTH || target > currentMonth) return;
+    pendingMonth.current = target;
     startNavigation(() => {
       router.push(monthHref(target, currentMonth), { scroll: false });
     });
@@ -213,7 +244,7 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
             <MonthArrow
               direction="previous"
               targetTitle={previous ? monthTitle(previous) : null}
-              onGo={() => previous && goToMonth(previous)}
+              onGo={() => goBy(-1)}
             />
             <h2
               ref={heading}
@@ -226,7 +257,7 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
             <MonthArrow
               direction="next"
               targetTitle={next ? monthTitle(next) : null}
-              onGo={() => next && goToMonth(next)}
+              onGo={() => goBy(1)}
             />
           </div>
           <MonthTotal
@@ -283,7 +314,7 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
                 <p className="bo-text-body-sm text-text-secondary">
                   {`${SUMMARY_COPY.filteredBy(active.name)} · ${SUMMARY_COPY.expenses(listed.length)}`}
                 </p>
-                <Key variant="ghost" size="sm" icon={X} onClick={clearFilter}>
+                <Key variant="ghost" icon={X} onClick={clearFilter}>
                   {SUMMARY_COPY.clearFilter}
                 </Key>
               </div>

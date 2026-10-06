@@ -2,10 +2,11 @@
 // and reduced motion, USD without a rate and "Fijar tipo de cambio", the category bars as text and
 // as a filter with focus and announcements, the methods, recurring and one-off), the month's
 // arrows and the "Pendiente de pagar" strip. Made-up names and amounts only.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { deleteExpense } from "@/modules/finance/actions";
+import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { deleteExpense, editExpense, restoreExpense } from "@/modules/finance/actions";
 import type { FinanceCatalog } from "@/modules/finance/catalog-input";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { FinanceViews } from "@/modules/finance/components/finance-views";
@@ -81,7 +82,13 @@ function expense(values: Partial<ExpenseItem> = {}): ExpenseItem {
   };
 }
 
+/** A delete that waits (the optimistic state shows); settled after each test. */
+const hanging: ((result: ActionResult<ExpenseItem>) => void)[] = [];
+const hang = () => new Promise<ActionResult<ExpenseItem>>((resolve) => hanging.push(resolve));
+
 const announcer = () => document.querySelector("[data-screen-announcer]");
+/** What the (mocked) NumberFlow shows now. */
+const flowValue = () => document.querySelector("[data-number-flow]")?.textContent;
 
 type RenderOptions = {
   month?: string;
@@ -119,8 +126,16 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-10-05T15:00:00.000Z"));
   router.push.mockReset();
   vi.mocked(deleteExpense).mockReset();
+  vi.mocked(editExpense).mockReset();
+  vi.mocked(restoreExpense).mockReset();
   numberFlow.props = [];
-  return () => vi.useRealTimers();
+  return async () => {
+    // React entangles async transitions: one left pending would hold back every later rollback.
+    await act(async () => {
+      for (const settle of hanging.splice(0)) settle(ok(expense()));
+    });
+    vi.useRealTimers();
+  };
 });
 
 describe("the month's total", () => {
@@ -166,7 +181,7 @@ describe("the month's total", () => {
 
   test("an empty month: S/ 0.00, no blocks, the calm empty state", () => {
     renderMonth([]);
-    expect(numberFlow.props.at(-1)).toMatchObject({ value: 0 });
+    expect(flowValue()).toBe("0");
     expect(document.querySelector("[data-month-summary]")).toBeNull();
     expect(screen.getByText("Sin gastos este mes")).toBeInTheDocument();
   });
@@ -174,12 +189,12 @@ describe("the month's total", () => {
   test("a delete takes its amount out of the total at once (optimistic)", async () => {
     const user = userEvent.setup();
     const cafe = expense({ description: "Café", amountCents: 1250 });
-    vi.mocked(deleteExpense).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(deleteExpense).mockImplementation(hang);
     renderMonth([cafe, expense({ amountCents: 500 })]);
-    expect(numberFlow.props.at(-1)).toMatchObject({ value: 17.5 });
+    expect(flowValue()).toBe("17.5");
     await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
     await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
-    await waitFor(() => expect(numberFlow.props.at(-1)).toMatchObject({ value: 5 }));
+    await waitFor(() => expect(flowValue()).toBe("5"));
   });
 });
 
@@ -353,5 +368,158 @@ describe("Pendiente de pagar", () => {
     expect(
       screen.getByRole("button", { name: "Pendiente de pagar: 50 soles, 1 pago. Ver en Pagos" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("the summary follows deletes, undo and the filter", () => {
+  const notices = () => screen.getByRole("region", { name: "Avisos de Finanzas" });
+  const barLabels = () =>
+    within(screen.getByRole("list", { name: "Por categoría" }))
+      .getAllByRole("button")
+      .map((bar) => bar.getAttribute("aria-label"));
+
+  test("a refused delete rolls the total and the bars back", async () => {
+    const user = userEvent.setup();
+    const cafe = expense({ description: "Café", amountCents: 1250, category: COMIDA });
+    const pan = expense({ description: "Pan", amountCents: 500, category: CASA });
+    vi.mocked(deleteExpense).mockResolvedValue(fail("Este gasto ya no existe (se eliminó)."));
+    renderMonth([cafe, pan]);
+    await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
+    await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
+    await waitFor(() => expect(within(notices()).getByText("Sin guardar")).toBeInTheDocument());
+    // The notice can render before useOptimistic rolls back: the rolled-back state in waitFor.
+    await waitFor(() => {
+      expect(screen.getByText(/^Total del mes:/)).toHaveTextContent("Total del mes: 17.50 soles");
+      expect(flowValue()).toBe("17.5");
+      expect(barLabels()).toEqual([
+        "Comida, 12.50 soles, 71 por ciento",
+        "Casa, 5 soles, 29 por ciento",
+      ]);
+    });
+  });
+
+  test("Deshacer brings the total and the bars back", async () => {
+    const user = userEvent.setup();
+    const cafe = expense({ description: "Café", amountCents: 1250, category: COMIDA });
+    const pan = expense({ description: "Pan", amountCents: 500, category: CASA });
+    vi.mocked(deleteExpense).mockResolvedValue(ok(cafe));
+    vi.mocked(restoreExpense).mockResolvedValue(ok(cafe));
+    const { rerenderWith } = renderMonth([cafe, pan]);
+    await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
+    await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
+    await waitFor(() => expect(within(notices()).getByText("Gasto eliminado")).toBeInTheDocument());
+    // The server's revalidation without it.
+    rerenderWith([pan], "2026-10");
+    await waitFor(() => expect(flowValue()).toBe("5"));
+    expect(barLabels()).toEqual(["Casa, 5 soles, 100 por ciento"]);
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(restoreExpense).toHaveBeenCalledWith({ id: cafe.id }));
+    // And with it again, once restored.
+    rerenderWith([cafe, pan], "2026-10");
+    await waitFor(() => expect(flowValue()).toBe("17.5"));
+    expect(barLabels()).toEqual([
+      "Comida, 12.50 soles, 71 por ciento",
+      "Casa, 5 soles, 29 por ciento",
+    ]);
+  });
+
+  test("deleting the last expense of the filtered category takes the filter away, said", async () => {
+    const user = userEvent.setup();
+    const cafe = expense({ description: "Café", category: COMIDA });
+    const pan = expense({ description: "Pan", category: CASA });
+    vi.mocked(deleteExpense).mockImplementation(hang);
+    renderMonth([cafe, pan]);
+    await user.click(screen.getByRole("button", { name: /^Comida,/ }));
+    expect(screen.queryByRole("button", { name: /^Editar Pan/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
+    await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
+    expect(screen.getByRole("button", { name: /^Editar Pan/ })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(announcer()).toHaveTextContent(
+        "Ya no quedan gastos de Comida este mes: se quitó el filtro.",
+      ),
+    );
+  });
+
+  test("a new expense of another category takes the filter away; one of the same keeps it", async () => {
+    const user = userEvent.setup();
+    const cafe = expense({ description: "Café", category: COMIDA });
+    const pan = expense({ description: "Pan", category: CASA });
+    const { rerenderWith } = renderMonth([cafe, pan]);
+    await user.click(screen.getByRole("button", { name: /^Comida,/ }));
+    // Positive control: a new one in the filtered category keeps the filter.
+    const mercado = expense({ description: "Mercado", category: COMIDA });
+    rerenderWith([mercado, cafe, pan], "2026-10");
+    expect(screen.getByRole("button", { name: "Quitar filtro" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2);
+    // A new one elsewhere (the sheet or the quick capture): the whole month shows, said once.
+    const agua = expense({ description: "Agua", category: CASA });
+    rerenderWith([agua, mercado, cafe, pan], "2026-10");
+    expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4);
+    await waitFor(() =>
+      expect(announcer()).toHaveTextContent(
+        "Se quitó el filtro de Comida para mostrar el gasto nuevo: 4 gastos del mes.",
+      ),
+    );
+  });
+
+  test("with a filter, a delete sends focus to the next row of the filtered list", async () => {
+    const user = userEvent.setup();
+    const mercado = expense({ description: "Mercado", category: COMIDA });
+    const luz = expense({ description: "Luz", category: CASA });
+    const cafe = expense({ description: "Café", category: COMIDA, spentOn: "2026-10-04" });
+    vi.mocked(deleteExpense).mockImplementation(hang);
+    renderMonth([mercado, luz, cafe]);
+    await user.click(screen.getByRole("button", { name: /^Comida,/ }));
+    await user.click(screen.getByRole("button", { name: /^Editar Mercado/ }));
+    await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Editar Café/ })).toHaveFocus());
+    expect(screen.queryByRole("button", { name: /^Editar Luz/ })).toBeNull();
+  });
+
+  test("with a filter, an edit returns focus to its row", async () => {
+    const user = userEvent.setup();
+    const mercado = expense({ description: "Mercado", category: COMIDA });
+    const luz = expense({ description: "Luz", category: CASA });
+    vi.mocked(editExpense).mockResolvedValue(ok({ ...mercado, amountCents: 7000 }));
+    renderMonth([mercado, luz]);
+    await user.click(screen.getByRole("button", { name: /^Comida,/ }));
+    await user.click(screen.getByRole("button", { name: /^Editar Mercado/ }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Editar Mercado/ })).toHaveFocus(),
+    );
+    expect(screen.getByRole("button", { name: "Quitar filtro" })).toBeInTheDocument();
+  });
+
+  test("each bar is described by the hint; a bar with nothing in PEN draws no fill", () => {
+    renderMonth([
+      expense({ amountCents: 500, category: CASA }),
+      expense({ currency: "USD", amountCents: 900, category: COMIDA }),
+    ]);
+    const casa = screen.getByRole("button", { name: /^Casa,/ });
+    const comida = screen.getByRole("button", { name: /^Comida,/ });
+    expect(casa).toHaveAccessibleDescription("Toca una categoría para ver solo sus gastos.");
+    expect(screen.getByRole("list", { name: "Por categoría" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+    expect(casa.querySelector(".bo-summary-bar__fill")).not.toBeNull();
+    expect(comida.querySelector(".bo-summary-bar")).not.toBeNull();
+    expect(comida.querySelector(".bo-summary-bar__fill")).toBeNull();
+  });
+
+  test("fast arrow clicks add up: two clicks go two months back", async () => {
+    const user = userEvent.setup();
+    renderMonth([]);
+    const previous = screen.getByRole("button", { name: "Mes anterior, Setiembre 2026" });
+    await user.click(previous);
+    await act(async () => {});
+    await user.click(previous);
+    expect(router.push.mock.calls.map(([href]) => href)).toEqual([
+      "/finance?mes=2026-09",
+      "/finance?mes=2026-08",
+    ]);
   });
 });

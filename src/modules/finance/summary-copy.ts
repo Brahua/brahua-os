@@ -51,7 +51,11 @@ export const SUMMARY_COPY = {
   filterOn: (name: string, count: number) =>
     `Lista filtrada por ${name}: ${plural(count, "gasto", "gastos")}.`,
   filterOff: (count: number) => `Sin filtro: ${plural(count, "gasto", "gastos")} del mes.`,
-  emptyFiltered: (name: string) => `Ya no quedan gastos de ${name} este mes.`,
+  /** Said when the filter goes away because its category has nothing left this month. */
+  emptyFiltered: (name: string) => `Ya no quedan gastos de ${name} este mes: se quitó el filtro.`,
+  /** Said when an expense of another category arrives while the list is filtered. */
+  filterClearedByNew: (name: string, count: number) =>
+    `Se quitó el filtro de ${name} para mostrar el gasto nuevo: ${plural(count, "gasto", "gastos")} del mes.`,
 } as const;
 
 /** "S/ 1,250.00" plus, if any, the unconverted USD: what a total shows. */

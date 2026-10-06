@@ -184,9 +184,13 @@ test("the total's digits roll, but never with reduced motion", async ({ page }) 
   await insertExpense({ amountCents: 3_000, spentOn: `${previous}-15` });
   await insertExpense({ amountCents: 500, spentOn: today() });
 
-  // Positive control: with motion, changing the month animates the total.
+  const total = page.locator("[data-month-total]");
+  // Positive control: with motion, changing the month animates the total. Sampling starts once
+  // the new total is rendered (data-month-total holds its PEN cents), when NumberFlow animates.
   await openReady(page, "/finance");
+  await expect(total).toHaveAttribute("data-month-total", "500");
   await page.locator('[data-month-arrow="previous"]').click();
+  await expect(total).toHaveAttribute("data-month-total", "3000");
   await expect
     .poll(() => numberFlowAnimations(page), { timeout: 3_000, intervals: [20] })
     .toBeGreaterThan(0);
@@ -194,8 +198,9 @@ test("the total's digits roll, but never with reduced motion", async ({ page }) 
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openReady(page, "/finance");
+  await expect(total).toHaveAttribute("data-month-total", "500");
   await page.locator('[data-month-arrow="previous"]').click();
-  await expect(totalText(page)).toHaveText("Total del mes: 30 soles");
+  await expect(total).toHaveAttribute("data-month-total", "3000");
   // Sampled for a while after the change: nothing moves.
   const samples: number[] = [];
   for (let index = 0; index < 10; index += 1) {

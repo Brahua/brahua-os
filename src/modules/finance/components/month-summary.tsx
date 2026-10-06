@@ -101,7 +101,6 @@ export function MonthTotal({ total, rateSet, onSetRate }: MonthTotalProps) {
           {rateSet ? null : (
             <Key
               variant="ghost"
-              size="sm"
               aria-haspopup="dialog"
               onClick={(event) => onSetRate(event.currentTarget)}
             >
@@ -197,7 +196,7 @@ export function CategoryBars({
           {SUMMARY_COPY.categoryHint}
         </p>
       </div>
-      <ul className="bo-list" aria-labelledby={`${ids}-heading`} aria-describedby={`${ids}-hint`}>
+      <ul className="bo-list" aria-labelledby={`${ids}-heading`}>
         {categories.map((group) => {
           const key = groupKey(group);
           const pressed = activeKey === key;
@@ -209,6 +208,7 @@ export function CategoryBars({
                 type="button"
                 aria-pressed={pressed}
                 aria-label={spokenGroup(group, SUMMARY_COPY.uncategorized)}
+                aria-describedby={`${ids}-hint`}
                 onClick={() => onToggle(group)}
                 className="bo-row bo-summary-row"
                 data-category-bar={key}
@@ -235,10 +235,13 @@ export function CategoryBars({
                   </span>
                 ) : null}
                 <span className="bo-summary-bar" aria-hidden>
-                  <span
-                    className="bo-summary-bar__fill"
-                    style={{ width: `${(group.share * 100).toFixed(2)}%` }}
-                  />
+                  {/* Nothing in PEN (only USD without a rate): an empty track, no sliver. */}
+                  {group.share > 0 ? (
+                    <span
+                      className="bo-summary-bar__fill"
+                      style={{ width: `${(group.share * 100).toFixed(2)}%` }}
+                    />
+                  ) : null}
                 </span>
               </button>
             </li>
@@ -326,10 +329,12 @@ export function RecurringSplit({ summary }: { summary: MonthSummary }) {
         </dl>
         {total > 0 ? (
           <span className="bo-summary-bar bo-summary-bar--split" aria-hidden>
-            <span
-              className="bo-summary-bar__fill"
-              style={{ width: `${((summary.recurring.penCents / total) * 100).toFixed(2)}%` }}
-            />
+            {summary.recurring.penCents > 0 ? (
+              <span
+                className="bo-summary-bar__fill"
+                style={{ width: `${((summary.recurring.penCents / total) * 100).toFixed(2)}%` }}
+              />
+            ) : null}
           </span>
         ) : null}
       </div>
