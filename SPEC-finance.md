@@ -1,6 +1,6 @@
 # Spec: finance
 
-> Módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` (avisos push/email con `reminders` después) · `today` lo consume · Estado: **APROBADO v1** (2026-10-05).
+> Módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` (avisos push/email con `reminders` después) · `today` lo consume · Estado: **APROBADO v1** (2026-10-05) · **Cerrado** el 2026-10-06 (el owner aceptó las decisiones autónomas).
 
 ## Objetivo
 

@@ -1,33 +1,6 @@
 # Tareas
 
-> Módulo en curso: **`finance`** · Plan: [`plan.md`](plan.md) · Spec: [`SPEC-finance.md`](../SPEC-finance.md)
-> Cada tarea termina con lint, typecheck, unitarias, integración y build en verde, E2E nativa de lo tocado, un PR con los 3 checks verdes y el deploy con smoke test. Commits en inglés (`feat(finance): …`).
-> Planes y tareas de módulos cerrados en [`archive/`](archive/).
-
-## Fase 1 — Base
-
-- [x] **F1: Datos y gastos sueltos** — Integrado en PR #78 — migración con las seis tablas (`CHECK`, índices), locks `FINANCE_ADVISORY_SPACE = 5000`, exportación; `money.ts`; catálogo (categorías y medios: crear, renombrar, ordenar, archivar) y tipo de cambio en la hoja "Ajustes"; `/finance` → Mes con la lista de gastos del mes; hoja "Gasto" (crear, editar, eliminar con "Deshacer"); captura rápida con selector "Tarea · Gasto"; manifiesto "Finanzas" (atajo 5) y regla de límites. Slots para Pagos, resumen y "Pendiente de pagar".
-  - Verificar: unitarias de `money.ts` y Zod; integración de `CHECK`, catálogo con lock y tipo de cambio guardado; E2E capturar un gasto en ≤ 3 interacciones (celular), editar, eliminar y deshacer, captura de tareas intacta, axe en ambos temas, 320 px.
-
-## Fase 2 — Recurrentes y resumen *(F2 y F3 en paralelo)*
-
-- [x] **F2: Pagos recurrentes** — Integrado en PR #79 — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
-  - Verificar: tablas de casos de `schedule.ts`; integración de pagar dos veces a la vez (un solo gasto), omitir, deshacer y eliminar el gasto pagado; E2E pagar, pago variable, omitir.
-- [x] **F3: Resumen mensual** — Integrado en PR #80 — `summary.ts`; total en PEN (`NumberFlow`), barras por categoría (filtran la lista), por medio, recurrente vs suelto, USD sin convertir, "Pendiente de pagar"; navegación de meses.
-  - Verificar: tablas de casos de `summary.ts`; E2E resumen con un gasto en USD y navegación de meses; barras accesibles.
-
-## Fase 3 — Portada e importación
-
-- [x] **F4: Pagos en la portada** (Integrado en PR #82) — `getFinanceTodaySummary(now)`; sección "Pagos" en `today` entre Tareas y Proyectos con "Pagado"; "Día completo" con pagos vencidos o de hoy; `finance` revalida `/`.
-  - Verificar: integración del contrato (número fijo de consultas, autorización); tablas de casos de `today-board.ts`; E2E pagar desde `/` y deshacer.
-- [x] **F5: Importación desde Notion** — Integrado en PR #81; importación en producción hecha el 2026-10-05 — lectura con el MCP a un JSON fuera del repo; `scripts/finance-import.ts` (`pnpm db:finance:import`), ids deterministas, idempotente, confirmación y respaldo; corrida en producción.
-  - Verificar: integración contra la base desechable con un JSON ficticio (mapeo, archivados, variable, idempotencia); en producción, 33 recurrentes, 13 categorías y 9 medios, sin vencidos el primer día.
-  - Script y pruebas: PR de `feat/finance-f5`, sin merge. Pendiente: lectura de Notion al JSON (fuera del repo) y corrida en producción (paso aparte del orquestador).
-
-### Checkpoint final
-- [x] Recorrido completo en producción (2026-10-05, ~23:30 Lima): el agente lo hizo en el Chrome personal del owner. Captura rápida "Gasto" (`[QA] Café` 12,50 con coma, "Registrado…" + "Deshacer", resumen al instante), pestaña Pagos (Pendientes jue 8 / lun 12 con "Pagado" discreto, "Este mes", "Todos" con los 16 activos, "Archivados (17)"), pagar Netflix y "Deshacer" (vuelve a pendiente), "Pendiente de pagar: 13 pagos, S/ 8,226.00" (cuadra con los vencimientos de octubre importados), portada con "Pagos" entre Tareas y Proyectos (3 filas). Gasto `[QA]` eliminado. El ancho de celular, el tema claro y axe quedan cubiertos por las E2E. Visto: el primer clic en "Pagos" justo tras cerrar la hoja de captura no cambió de pestaña (mismo síntoma que "Clic perdido tras eliminar" del backlog).
-- [x] Se cumplen los criterios de éxito de `SPEC-finance.md` (criterio 1: 4 interacciones la primera vez en un dispositivo, 3 después; decisión para revisar con el owner).
-- [ ] Revisión con el owner: cierre del módulo y decisiones autónomas.
+> Siguiente módulo: **`reminders`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: reminders"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Backlog técnico
 
@@ -53,3 +26,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Grilla de hábitos que salta en el iPhone** (de D4): al cumplirse un hábito de cantidad su tarjeta crece y "Día completo" aparece arriba y empuja la grilla bajo el dedo. Si molesta en el uso diario: reservar alto o no empujar en vivo (opciones en HANDOFF → D4).
 - [ ] **E2E intermitente "Hito"** (`e2e/task-views.spec.ts`, escritorio; visto en local durante D4): tras elegir "Sin hito", `milestoneId` no vuelve a `null` en 5 s en corridas conjuntas. Estabilizar.
 - [ ] **Datos de demo que envejecen:** las fechas se calculan el día en que se cargan (2026-10-03). Para refrescarlas: `pnpm db:demo:remove` y `pnpm db:demo` (ver HANDOFF → "Datos de demo"). Quitarlos antes de usar la app con datos reales.
+- [ ] **Texto perdido al cambiar "Tarea · Gasto"** (de F1): cambiar de tipo en la hoja de captura monta la otra hoja y se pierde lo ya escrito. Conservarlo (o no desmontar la hoja).
+- [ ] **`Key` con `aria-disabled` en Claude Design** (de F4): el estilo de una tecla en espera vive en `overrides.css` (`PENDING UPSTREAM`); aplicarlo en Claude Design y vaciar el override.
+- [ ] **Moneda de los recurrentes importados** (de F5): ChatGPT, DevTalles y Claude se pagan con un medio en USD pero entraron en PEN; el owner los corrige en la app si son en dólares.
+- [ ] **Flakes vistos durante `finance`:** `e2e/habits.spec.ts:97` (timeout de 30 s una vez en CI, PR #79) y `tests/app/project-notes-links.test.tsx` ("a refused reorder goes back", falló una vez en la suite completa). Vigilar; estabilizar si se repiten.

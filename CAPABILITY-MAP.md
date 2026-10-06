@@ -69,5 +69,5 @@ design-system → core → projects → tasks, habits → today → finance → 
 
 - El **MVP usable** llega al terminar `today`: ya puedo gestionar proyectos y registrar tareas y hábitos desde el celular a diario.
 - `finance` va antes que `goals` porque es lo único que hoy usas activamente en Notion y te permitiría dejarlo antes.
-- `finance` va antes que `reminders` (decisión del owner, 2026-10-05): sus vencimientos se ven en la app y en `today`; los avisos push/email llegan con `reminders`.
+- `finance` va antes que `reminders` (decisión del owner, 2026-10-05): sus vencimientos se ven en la app y en `today`; los avisos push/email llegan con `reminders`. `finance` quedó cerrado el 2026-10-06.
 - `today` se amplía en cada módulo nuevo: el módulo proveedor define su "resumen de hoy" y `today` lo consume.

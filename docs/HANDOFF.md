@@ -1,11 +1,11 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-05.
+> Última actualización: 2026-10-06.
 
 ## Cómo retomar
 
-1. Leer este archivo (sobre todo "Siguiente: finance"), `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-finance.md`).
+1. Leer este archivo (sobre todo "Siguiente: reminders"), `CLAUDE.md`, `tasks/todo.md` y la spec del módulo en curso (`SPEC-reminders.md` cuando exista).
 2. Ejecutar `gh auth switch -u Brahua`: en la sesión, RTK llama al binario `gh` sin el wrapper del `~/.zshrc` del usuario, así que manda la cuenta activa del llavero. No tocar el `.zshrc`.
 3. Seguir el flujo autónomo acordado (ver memoria `modo-autonomo`):
    - Implementador (subagente, worktree) → PR.
@@ -52,7 +52,8 @@
 - **habits:** ✅ cerrado por el owner el 2026-10-02 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner). H1–H6 integrados (#62–#64, #66–#68). Plan y tareas archivados en `tasks/archive/habits-*.md`. El owner aceptó las decisiones autónomas de "Cómo funciona habits". Pendiente en el backlog: navegación definitiva de Tareas y Hábitos (Claude Design), `DayCell` upstream y los demás ítems de H4/H5.
 - **today:** ✅ cerrado por el owner el 2026-10-05 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner el 2026-10-03; el owner revisó la app con los datos de demo). D1–D4 integrados (#71–#74). Plan y tareas archivados en `tasks/archive/today-*.md`. El owner aceptó todas las decisiones autónomas de "Cómo funciona today" (D1–D4; el color de señal por módulo y el día vacío solo con unitarias incluidos). Pendiente en el backlog: clic perdido tras eliminar, grilla que salta en el iPhone, E2E "Hito" intermitente y el hook único de pads.
 - **Datos de demo en producción** (2026-10-05, a pedido del owner): `pnpm db:demo:replace` borró los proyectos, tareas y hábitos de prueba del owner (respaldo previo comprobado, run 37152739044) y cargó la demo (7 proyectos, 27 tareas, 8 hábitos con 4 semanas de registros), fechada el 2026-10-03. Lo corrió el agente: URL directa con `neonctl connection-string` en una variable (nunca impresa) y las confirmaciones con `expect`. Ver "Datos de demo". Quitarla antes de usar la app con datos reales (`db:demo:remove`).
-- **finance:** F1–F5 integrados y en producción; **Checkpoint final hecho por el agente** (2026-10-05, Chrome personal del owner; detalle en `tasks/todo.md`). **Pendiente del owner:** revisar y cerrar el módulo, aceptar o cambiar las decisiones autónomas, corregir la moneda de ChatGPT, DevTalles y Claude si son en USD, y probar la captura de un gasto en el iPhone. Spec aprobada el 2026-10-05 (`SPEC-finance.md`), plan en `tasks/plan.md`. Decisiones autónomas para revisar con el owner: tabla "Autónomas" de la spec.
+- **finance:** ✅ cerrado por el owner el 2026-10-06 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner el 2026-10-05; detalle en `tasks/archive/finance-todo.md`). F1–F5 integrados (#78–#82). Plan y tareas archivados en `tasks/archive/finance-*.md`. El owner aceptó todas las decisiones autónomas (tabla "Autónomas" de `SPEC-finance.md` y "Cómo funciona finance" F1–F5). Importación desde Notion hecha en producción el 2026-10-05. Pendientes en el backlog: texto perdido al cambiar "Tarea · Gasto", `Key` con `aria-disabled` upstream, moneda de 3 recurrentes importados (la corrige el owner) y el clic perdido tras cerrar una hoja.
+- **reminders:** siguiente módulo, **sin empezar**. Ver "Siguiente: reminders" abajo.
   - ✅ F1 (datos, gastos sueltos, captura "Tarea · Gasto", Ajustes): PR #78 integrado. Ver "Cómo funciona finance" → "F1", con los slots para F2 y F3 y sus **decisiones para revisar con el owner**.
   - ✅ F2 (pagos recurrentes: `schedule.ts`, pestaña Pagos, "Pagado", omitir, página del pago): PR #79 integrado. Ver "Cómo funciona finance" → "F2", con el contrato `getPendingForMonth` para F3, las notas para F4 y sus **decisiones para revisar con el owner**.
   - ✅ F3 (resumen mensual: total, barras que filtran, medios, recurrente/suelto, flechas de mes, "Pendiente de pagar"): PR #80 integrado. Ver "Cómo funciona finance" → "F3", con sus **decisiones para revisar con el owner**.
@@ -75,18 +76,22 @@
   - ✅ Arreglo: los anuncios de `tasks` usan `useAnnouncer` de core (PR #56): un temporizador sin limpiar dejó `main` en rojo tras T5.
   - ✅ T6, parte del contrato (`getTasksTodaySummary`): PR #55 integrado. Ver "Cómo funciona tasks" → "T6: contrato con `today`", con sus decisiones para revisar con el owner. La navegación definitiva de T6 espera el diseño del owner en Claude Design.
 
-## Siguiente: finance
+## Siguiente: reminders
 
-Punto de partida para la próxima sesión (el owner eligió `finance` antes que `reminders`, 2026-10-05).
+Punto de partida para la próxima sesión (orden del mapa: `finance` → **`reminders`** → `goals`).
 
-- **Qué es** (`CAPABILITY-MAP.md`): gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual e importación de Gastos desde Notion. Es lo único que el owner usa hoy en Notion: con este módulo puede dejarlo.
-- **Dependencia con `reminders`:** el mapa dice que `finance` depende de `reminders` (avisos de vencimiento). Como va antes, la spec debe resolverlo sin push: vencimientos visibles en la app y una sección en la portada (`today`) con los pagos que vencen; los avisos push/email se agregan cuando llegue `reminders` (contrato a definir en la spec).
-- **Cómo empezar:** skill `spec-driven-development` → borrador de `SPEC-finance.md` con el formato de `SPEC-habits.md`/`SPEC-today.md`, supuestos y preguntas con `AskUserQuestion` (categorías, medios de pago, tipo de cambio PEN/USD, ciclos de pago, qué importar de Notion y cómo leerlo: el MCP de Notion está disponible, solo lectura). Con la spec aprobada, plan en `tasks/plan.md` y tareas en `tasks/todo.md`. Modo autónomo hasta el Checkpoint final (memoria `modo-autonomo`).
-- **Lo que reutiliza:** áreas de vida (`core`), `ownerAction`/`requireOwner`, `ScreenServicesProvider` (cola, avisos, anunciador), captura rápida (`src/lib/quick-capture.ts`, un proveedor por módulo), y los slots de `TodayBoard` para una sección "Pagos" (ver "Cómo funciona today": el contenido de un slot se monta siempre y la sección decide si se ve). Patrón de contrato `get<Module>TodaySummary(now)` como `tasks`/`projects`.
-- **Datos de demo:** si la demo debe incluir finanzas, extender `scripts/demo-data.ts` (ids deterministas, `replace` con las tablas nuevas).
+- **Qué es** (`CAPABILITY-MAP.md`): motor genérico de avisos (push de la PWA y/o email) al que los módulos le programan recordatorios. Incluye un cron diario y el **service worker** de la PWA, diferido desde `core` (SPEC-core "PWA", ADR 004: sin service worker hasta `reminders`; ver "Cómo funciona la PWA (C7)").
+- **Quiénes lo esperan** (cada spec lo dejó fuera y apunta aquí):
+  - `finance`: vencimientos de pagos recurrentes. Contrato previsto en `SPEC-finance.md` → Contratos: `getUpcomingPayments(from, to)` sobre `schedule.ts` (puro); hoy los pendientes salen de `pendingPeriodsOf`/`selectPendingPeriods` (`src/modules/finance/recurring.ts`).
+  - `habits`: hora y aviso del "momento" (`cue`), franjas mañana/noche de "varias veces al día" (SPEC-habits, Decisiones).
+  - `tasks`: hora en la fecha límite si hace falta (SPEC-tasks, "Fecha límite"); `projects`: recordatorios por push o email (SPEC-projects, fuera de alcance).
+- **Preguntas para la spec** (con `AskUserQuestion`, una tanda corta): canal (push web, email o ambos; en iPhone el push web solo llega a la **PWA instalada**, iOS 16.4+, y pide permiso desde un gesto del usuario), proveedor de email si aplica (dependencia/servicio nuevo: pide OK; mirar el Marketplace de Vercel), qué avisos en v1 (pagos que vencen, hábitos a su hora, tareas del día, resumen diario), horario y silencio, cron (Vercel Cron vs GitHub Actions; minutos de CI finitos), contrato de registro de fuentes (patrón `registerProgressSource`, sin imports en la dirección equivocada), y si `today` muestra los avisos pendientes.
+- **Riesgos ya conocidos:** las claves VAPID y cualquier secreto de email los pone el owner (lección de secretos: nunca pegados en la sesión; `gh secret set`/Vercel en su terminal); el service worker cambia el cacheo de la app (cuidado con servir HTML viejo tras un deploy); la verificación del push en el iPhone real es del owner (lección "iPhone is the source of truth for PWA chrome").
+- **Cómo empezar:** skill `spec-driven-development` → borrador de `SPEC-reminders.md` con el formato de `SPEC-finance.md`, supuestos y preguntas; con la spec aprobada, plan en `tasks/plan.md` y tareas en `tasks/todo.md`. Al arrancar, preguntar al owner si va autónomo hasta el Checkpoint final como `today` y `finance` (memoria `modo-autonomo`).
 - **Operación:**
   - Repo **público** hasta ~2026-11-01; antes de volver a privado, bajar el consumo de CI (backlog "Minutos de CI").
   - Antes de `gh`: `gh api user -q .login` debe decir `Brahua`.
+  - Disco del Mac casi lleno durante `finance` (98 %, ~9 GB libres tras limpiar la caché de npm): revisar `df -h` antes de lanzar agentes en paralelo.
   - Checkpoint final en producción con Claude in Chrome en el perfil personal del owner (memoria `qa-en-chrome`).
 
 ## C2a: pasos del usuario (en orden)
