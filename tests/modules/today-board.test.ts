@@ -8,6 +8,7 @@ import {
   habitsProgress,
   habitsTally,
   isDayComplete,
+  paymentsTally,
   taskFold,
   todaySections,
   TODAY_TASKS_VISIBLE,
@@ -56,33 +57,52 @@ describe("todaySections", () => {
     [
       "nothing at all: an empty day",
       { habits: 0 },
-      { habits: false, tasks: false, projects: false, empty: true },
+      { habits: false, tasks: false, payments: false, projects: false, empty: true },
     ],
     [
       "slots given with nothing in them: still an empty day",
       { habits: 0, tasks: 0, projects: 0 },
-      { habits: false, tasks: false, projects: false, empty: true },
+      { habits: false, tasks: false, payments: false, projects: false, empty: true },
     ],
-    ["only habits", { habits: 3 }, { habits: true, tasks: false, projects: false, empty: false }],
+    [
+      "only habits",
+      { habits: 3 },
+      { habits: true, tasks: false, payments: false, projects: false, empty: false },
+    ],
     [
       "only tasks (D2): habits hidden, not empty",
       { habits: 0, tasks: 2 },
-      { habits: false, tasks: true, projects: false, empty: false },
+      { habits: false, tasks: true, payments: false, projects: false, empty: false },
     ],
     [
       "only projects (D3): not empty",
       { habits: 0, tasks: 0, projects: 1 },
-      { habits: false, tasks: false, projects: true, empty: false },
+      { habits: false, tasks: false, payments: false, projects: true, empty: false },
     ],
     [
       "only Día completo (D4, e.g. every task done and gone): not the empty day too",
       { habits: 0, tasks: 0, projects: 0, dayComplete: true },
-      { habits: false, tasks: false, projects: false, empty: false },
+      { habits: false, tasks: false, payments: false, projects: false, empty: false },
     ],
     [
       "everything",
-      { habits: 1, tasks: 9, projects: 2 },
-      { habits: true, tasks: true, projects: true, empty: false },
+      { habits: 1, tasks: 9, payments: 2, projects: 2 },
+      { habits: true, tasks: true, payments: true, projects: true, empty: false },
+    ],
+    [
+      "only payments (F4): not empty",
+      { habits: 0, tasks: 0, payments: 1, projects: 0 },
+      { habits: false, tasks: false, payments: true, projects: false, empty: false },
+    ],
+    [
+      "payments slot with no rows: still an empty day",
+      { habits: 0, tasks: 0, payments: 0, projects: 0 },
+      { habits: false, tasks: false, payments: false, projects: false, empty: true },
+    ],
+    [
+      "only upcoming payments (none due yet): the section shows, so the day isn't empty",
+      { habits: 0, payments: 2, dayComplete: false },
+      { habits: false, tasks: false, payments: true, projects: false, empty: false },
     ],
   ])("%s", (_, counts, expected) => {
     expect(todaySections(counts)).toEqual(expected);
@@ -248,6 +268,33 @@ describe("isDayComplete", () => {
       { habits: habits({ done: 2, total: 2, active: 0 }), tasks: tasks(0, 1) },
       true,
     ],
+    [
+      "everything done and a payment overdue (F4): not complete",
+      {
+        habits: habits({ done: 2, total: 2, active: 2 }),
+        tasks: tasks(0, 1),
+        payments: { blocking: 1 },
+      },
+      false,
+    ],
+    [
+      "everything done, no payment overdue or due today (upcoming ones don't count): complete",
+      {
+        habits: habits({ done: 2, total: 2, active: 2 }),
+        tasks: tasks(0, 1),
+        payments: { blocking: 0 },
+      },
+      true,
+    ],
+    [
+      "no payment pending is not activity: nothing done, not complete",
+      {
+        habits: habits({ done: 0, total: 0, active: 0 }),
+        tasks: tasks(0, 0),
+        payments: { blocking: 0 },
+      },
+      false,
+    ],
   ])("%s", (_, tally, expected) => {
     expect(isDayComplete(tally)).toBe(expected);
   });
@@ -284,5 +331,30 @@ describe("variantForDay (the closing line: stable all day, varied across days)",
 
   test("no variants: 0", () => {
     expect(variantForDay("2026-10-02", 0)).toBe(0);
+  });
+});
+
+describe("paymentsTally (F4: which payments keep the day open)", () => {
+  test.each<[string, string[], number]>([
+    ["no payments", [], 0],
+    ["due today", [TODAY], 1],
+    ["overdue yesterday and 60 days ago", ["2026-10-01", "2026-08-03"], 2],
+    ["due tomorrow and in 7 days: upcoming, never blocking", ["2026-10-03", "2026-10-09"], 0],
+    ["a mix: only overdue and today count", ["2026-09-30", TODAY, "2026-10-03"], 2],
+  ])("%s", (_, dues, blocking) => {
+    expect(
+      paymentsTally(
+        dues.map((dueOn) => ({ dueOn })),
+        TODAY,
+      ),
+    ).toEqual({ blocking });
+  });
+
+  test("a board with an overdue payment is not complete; paid (gone), it is (positive control)", () => {
+    const done = { habits: { done: 1, total: 1, active: 1 }, tasks: { pending: 0, doneToday: 0 } };
+    expect(
+      isDayComplete({ ...done, payments: paymentsTally([{ dueOn: "2026-09-28" }], TODAY) }),
+    ).toBe(false);
+    expect(isDayComplete({ ...done, payments: paymentsTally([], TODAY) })).toBe(true);
   });
 });

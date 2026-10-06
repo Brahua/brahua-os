@@ -9,27 +9,39 @@ import type { FinanceCatalog } from "../catalog-input";
 import { methodOptions } from "../expense-form";
 import { centsToInput } from "../money";
 import { PAYMENTS_COPY, spokenDay } from "../payments-copy";
-import { PAY_FIELDS, payInputSchema, type PayField } from "../recurring-input";
-import type { PendingPeriod } from "../payments-view";
+import { PAY_FIELDS, payInputSchema, type PayField, type RecurringItem } from "../recurring-input";
 import { SelectField } from "./select-field";
 
 /** What "Registrar pago" hands to the host (validated with the same schema as the server). */
 export type PayOverrides = { amount: string; spentOn: string; paymentMethodId: string };
 
+/** The period the sheet pays: a pending period of "Pagos", or a row of the home page (F4). */
+export type PaySheetPeriod = {
+  recurring: Pick<RecurringItem, "id" | "name" | "amountCents" | "currency" | "paymentMethod">;
+  dueOn: string;
+};
+
 type PaySheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The period to pay (or skip). */
-  period: PendingPeriod;
-  catalog: FinanceCatalog;
+  period: PaySheetPeriod;
+  /**
+   * The method options. Null while a host that has no catalog reads it (the home page): the
+   * payment's own method is offered meanwhile, and the sheet can be saved.
+   */
+  catalog: FinanceCatalog | null;
   /** Lima's today: the date by default and the field's maximum. */
   today: string;
   /** Where focus goes when the sheet closes (the host points it at a neighbor after a save). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
   /** "Registrar pago": the host closes the sheet and saves (optimistic, with "Deshacer"). */
   onPay: (overrides: PayOverrides) => void;
-  /** "Omitir este período": the host closes the sheet and saves. */
-  onSkip: () => void;
+  /**
+   * "Omitir este período": the host closes the sheet and saves. Without it the sheet has no skip
+   * (the home page only pays, F4).
+   */
+  onSkip?: () => void;
 };
 
 /**
@@ -169,20 +181,22 @@ export function PaySheet({
             setErrors((previous) => ({ ...previous, paymentMethodId: undefined }));
           }}
         />
-        <div className="flex flex-col gap-2 border-t border-border pt-5">
-          <Key
-            variant="ghost"
-            icon={EyeOff}
-            className="w-fit"
-            aria-describedby={`${ids}-skip-help`}
-            onClick={onSkip}
-          >
-            {PAYMENTS_COPY.skip}
-          </Key>
-          <span id={`${ids}-skip-help`} className="bo-field__help">
-            {PAYMENTS_COPY.skipHelp}
-          </span>
-        </div>
+        {onSkip ? (
+          <div className="flex flex-col gap-2 border-t border-border pt-5">
+            <Key
+              variant="ghost"
+              icon={EyeOff}
+              className="w-fit"
+              aria-describedby={`${ids}-skip-help`}
+              onClick={onSkip}
+            >
+              {PAYMENTS_COPY.skip}
+            </Key>
+            <span id={`${ids}-skip-help`} className="bo-field__help">
+              {PAYMENTS_COPY.skipHelp}
+            </span>
+          </div>
+        ) : null}
       </form>
     </Sheet>
   );

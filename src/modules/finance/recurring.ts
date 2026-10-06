@@ -32,9 +32,11 @@ import {
   buildPaymentsView,
   pendingForMonth,
   pendingMonthRange,
+  pendingPeriodsOf,
   settlementRange,
   type PaymentsViewData,
   type PendingForMonth,
+  type PendingPeriod,
 } from "./payments-view";
 import type {
   CreateRecurringInput,
@@ -136,7 +138,11 @@ function toItem(row: ItemRow): RecurringItem {
 }
 
 /** Visible recurring payments (archived ones too) with their category and method, by name. */
-async function selectItems(db: Reader, onlyId?: string): Promise<RecurringItem[]> {
+async function selectItems(
+  db: Reader,
+  onlyId?: string,
+  { activeOnly = false }: { activeOnly?: boolean } = {},
+): Promise<RecurringItem[]> {
   const rows = await db
     .select(ITEM)
     .from(financeRecurringPayments)
@@ -146,9 +152,11 @@ async function selectItems(db: Reader, onlyId?: string): Promise<RecurringItem[]
       eq(financePaymentMethods.id, financeRecurringPayments.paymentMethodId),
     )
     .where(
-      onlyId === undefined
-        ? visibleRecurring
-        : and(visibleRecurring, eq(financeRecurringPayments.id, onlyId)),
+      and(
+        visibleRecurring,
+        onlyId === undefined ? undefined : eq(financeRecurringPayments.id, onlyId),
+        activeOnly ? isNull(financeRecurringPayments.archivedAt) : undefined,
+      ),
     )
     .orderBy(asc(financeRecurringPayments.name), asc(financeRecurringPayments.id));
   return rows.map(toItem);
@@ -230,6 +238,19 @@ export async function selectPaymentsView(db: Reader, today: string): Promise<Pay
     selectSettlements(db, settlementRange(today)),
   ]);
   return buildPaymentsView(items, settlements, today);
+}
+
+/**
+ * The pending periods of the active payments for Lima's `today` (F4's home section, the same
+ * list as "Pendientes"): two queries in parallel, the active payments and the settlements of the
+ * pending window. The schedule rules are `schedule.ts`'s (`pendingPeriodsOf`).
+ */
+export async function selectPendingPeriods(db: Reader, today: string): Promise<PendingPeriod[]> {
+  const [items, settlements] = await Promise.all([
+    selectItems(db, undefined, { activeOnly: true }),
+    selectSettlements(db, pendingWindow(today)),
+  ]);
+  return pendingPeriodsOf(items, settlements, today);
 }
 
 /** What is left to pay in `month` (F3's "Pendiente de pagar"). Three small queries. */

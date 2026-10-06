@@ -2,19 +2,21 @@
 
 import { ChevronDown, Ellipsis, Plus } from "lucide-react";
 import Link from "next/link";
-import { useId, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Icon, IconKey, Key, Led } from "@/design-system";
-import type { ActionResult } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
 import { monthTitle } from "../finance-copy";
 import { formatMoney, spokenMoney } from "../money";
-import {
-  markPaid,
-  skipPeriod,
-  undoPaid,
-  undoSkipped,
-  unarchiveRecurringPayment,
-} from "../payment-actions";
+import { skipPeriod, undoSkipped, unarchiveRecurringPayment } from "../payment-actions";
+import { failureText, paymentCompletion, type PayablePeriod } from "../payment-completion";
 import {
   cycleSummary,
   dueState,
@@ -49,11 +51,12 @@ export function spokenExpected(recurring: RecurringItem): string {
     : spokenMoney(recurring.amountCents, recurring.currency);
 }
 
-/** Why a save failed, for its notice. */
-function reason(result: { kind: string; value?: ActionResult<unknown> }): string {
-  if (result.kind === "done" && result.value && !result.value.ok) return result.value.error;
-  return PAYMENTS_COPY.checkConnection;
-}
+/** What `paymentCompletion` needs of a pending period. */
+const payable = ({ recurring, dueOn }: PendingPeriod): PayablePeriod => ({
+  recurringId: recurring.id,
+  name: recurring.name,
+  dueOn,
+});
 
 type SheetState =
   | { key: number; open: boolean; kind: "pay"; period: PendingPeriod }
@@ -73,6 +76,10 @@ type Settled = "paid" | "skipped";
  */
 export function PaymentsView({ data }: { data: PaymentsViewData }) {
   const { today, catalog, enqueue, toaster, announce } = useFinanceScreen();
+  const completion = useMemo(
+    () => paymentCompletion({ enqueue, toaster, announce }),
+    [enqueue, toaster, announce],
+  );
   const ids = useId();
   const [settled, settle] = useOptimistic(
     new Map<string, Settled>(),
@@ -124,60 +131,37 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
     return next ? periodKey(next) : null;
   }
 
-  function undo(period: PendingPeriod, kind: Settled, expenseId?: string) {
+  function undoPay(period: PendingPeriod, expenseId: string) {
+    startSaving(async () => {
+      await completion.undo(payable(period), expenseId);
+    });
+  }
+
+  function undoSkip(period: PendingPeriod) {
     const { recurring, dueOn } = period;
     startSaving(async () => {
       const result = await enqueue(`payment-period:${periodKey(period)}`, () =>
-        kind === "paid" && expenseId
-          ? undoPaid({ id: recurring.id, dueOn, expenseId })
-          : undoSkipped({ id: recurring.id, dueOn }),
+        undoSkipped({ id: recurring.id, dueOn }),
       );
       if (result.kind === "skipped") return;
       if (result.kind === "done" && result.value.ok) {
-        announce(
-          kind === "paid"
-            ? PAYMENTS_COPY.undonePaid(recurring.name)
-            : PAYMENTS_COPY.undoneSkip(recurring.name),
-        );
+        announce(PAYMENTS_COPY.undoneSkip(recurring.name));
         return;
       }
       toaster.push({
         title: PAYMENTS_COPY.notSavedTitle,
-        text: `${PAYMENTS_COPY.notUndone} ${reason(result)}`,
+        text: `${PAYMENTS_COPY.notUndone} ${failureText(result)}`,
         tone: "error",
       });
     });
   }
 
   function pay(period: PendingPeriod, overrides: PayOverrides | null) {
-    const key = periodKey(period);
-    const { recurring, dueOn } = period;
     startSaving(async () => {
-      settle([key, "paid"]);
-      const result = await enqueue(`payment-period:${key}`, () =>
-        markPaid({ id: recurring.id, dueOn, ...(overrides ?? {}) }),
-      );
-      if (result.kind === "skipped") return;
-      if (result.kind === "done" && result.value.ok) {
-        const { expense } = result.value.data;
-        toaster.push({
-          title: PAYMENTS_COPY.paidTitle,
-          text: PAYMENTS_COPY.paidText(
-            recurring.name,
-            spokenMoney(expense.amountCents, expense.currency, expense.exchangeRateE4),
-          ),
-          // The undo names this pay's expense: never a later pay of the same period.
-          action: { label: PAYMENTS_COPY.undo, run: () => undo(period, "paid", expense.id) },
-        });
-        return;
-      }
-      // Back in the list (the optimistic removal ends with the transition), unless it was
-      // already paid: the page's new data leaves it out.
-      toaster.push({
-        title: PAYMENTS_COPY.notSavedTitle,
-        text: `${PAYMENTS_COPY.notPaid} ${reason(result)}`,
-        tone: "error",
-      });
+      settle([periodKey(period), "paid"]);
+      // A failure puts it back in the list (the optimistic removal ends with the transition),
+      // unless it was already paid: the page's new data leaves it out.
+      await completion.pay(payable(period), overrides, (expenseId) => undoPay(period, expenseId));
     });
   }
 
@@ -194,13 +178,13 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
         toaster.push({
           title: PAYMENTS_COPY.skippedTitle,
           text: PAYMENTS_COPY.skippedText(recurring.name, spokenDay(dueOn)),
-          action: { label: PAYMENTS_COPY.undo, run: () => undo(period, "skipped") },
+          action: { label: PAYMENTS_COPY.undo, run: () => undoSkip(period) },
         });
         return;
       }
       toaster.push({
         title: PAYMENTS_COPY.notSavedTitle,
-        text: `${PAYMENTS_COPY.notSkipped} ${reason(result)}`,
+        text: `${PAYMENTS_COPY.notSkipped} ${failureText(result)}`,
         tone: "error",
       });
     });
@@ -251,7 +235,7 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
       }
       toaster.push({
         title: PAYMENTS_COPY.notSavedTitle,
-        text: `${PAYMENTS_COPY.notUndone} ${reason(result)}`,
+        text: `${PAYMENTS_COPY.notUndone} ${failureText(result)}`,
         tone: "error",
       });
     });

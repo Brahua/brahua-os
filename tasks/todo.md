@@ -13,14 +13,14 @@
 
 - [x] **F2: Pagos recurrentes** — Integrado en PR #79 — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
   - Verificar: tablas de casos de `schedule.ts`; integración de pagar dos veces a la vez (un solo gasto), omitir, deshacer y eliminar el gasto pagado; E2E pagar, pago variable, omitir.
-- [ ] **F3: Resumen mensual** (PR #80, sin merge) — `summary.ts`; total en PEN (`NumberFlow`), barras por categoría (filtran la lista), por medio, recurrente vs suelto, USD sin convertir, "Pendiente de pagar"; navegación de meses.
+- [x] **F3: Resumen mensual** — Integrado en PR #80 — `summary.ts`; total en PEN (`NumberFlow`), barras por categoría (filtran la lista), por medio, recurrente vs suelto, USD sin convertir, "Pendiente de pagar"; navegación de meses.
   - Verificar: tablas de casos de `summary.ts`; E2E resumen con un gasto en USD y navegación de meses; barras accesibles.
 
 ## Fase 3 — Portada e importación
 
-- [ ] **F4: Pagos en la portada** — `getFinanceTodaySummary(now)`; sección "Pagos" en `today` entre Tareas y Proyectos con "Pagado"; "Día completo" con pagos vencidos o de hoy; `finance` revalida `/`.
+- [ ] **F4: Pagos en la portada** (PR #82, sin merge) — `getFinanceTodaySummary(now)`; sección "Pagos" en `today` entre Tareas y Proyectos con "Pagado"; "Día completo" con pagos vencidos o de hoy; `finance` revalida `/`.
   - Verificar: integración del contrato (número fijo de consultas, autorización); tablas de casos de `today-board.ts`; E2E pagar desde `/` y deshacer.
-- [ ] **F5: Importación desde Notion** — lectura con el MCP a un JSON fuera del repo; `scripts/finance-import.ts` (`pnpm db:finance:import`), ids deterministas, idempotente, confirmación y respaldo; corrida en producción.
+- [x] **F5: Importación desde Notion** — Integrado en PR #81; importación en producción hecha el 2026-10-05 — lectura con el MCP a un JSON fuera del repo; `scripts/finance-import.ts` (`pnpm db:finance:import`), ids deterministas, idempotente, confirmación y respaldo; corrida en producción.
   - Verificar: integración contra la base desechable con un JSON ficticio (mapeo, archivados, variable, idempotencia); en producción, 33 recurrentes, 13 categorías y 9 medios, sin vencidos el primer día.
   - Script y pruebas: PR de `feat/finance-f5`, sin merge. Pendiente: lectura de Notion al JSON (fuera del repo) y corrida en producción (paso aparte del orquestador).
 

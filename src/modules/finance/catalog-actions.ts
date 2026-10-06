@@ -32,13 +32,15 @@ import {
   type FinanceCatalog,
 } from "./catalog-input";
 import { catalogRefused } from "./failures";
-import { revalidateFinanceScreens } from "./revalidate";
+import { revalidateFinanceAndHome, revalidateFinanceScreens } from "./revalidate";
 
 type Result = ActionResult<FinanceCatalog>;
 
 /** Runs a write of one list, revalidates and answers with the fresh catalog (or why not). */
 async function afterWrite(kind: CatalogKind, outcome: unknown): Promise<Result> {
-  revalidateFinanceScreens();
+  // A method's name shows in the home page's "Pagos" rows (F4); categories don't.
+  if (kind === "methods") revalidateFinanceAndHome();
+  else revalidateFinanceScreens();
   if (typeof outcome === "string") return catalogRefused(kind, outcome as CatalogFailure);
   return ok(await selectCatalog(getDb()));
 }

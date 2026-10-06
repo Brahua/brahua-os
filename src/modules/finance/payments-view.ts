@@ -70,6 +70,39 @@ export function settlementRange(today: string): { from: string; to: string } {
   };
 }
 
+function pendingOf(
+  active: readonly RecurringItem[],
+  settledOf: (recurringId: string) => Map<string, SettlementItem>,
+  today: string,
+): PendingPeriod[] {
+  return active
+    .flatMap((recurring) =>
+      pendingPeriods(recurring, new Set(settledOf(recurring.id).keys()), today).map((dueOn) => ({
+        recurring,
+        dueOn,
+      })),
+    )
+    .sort((a, b) => a.dueOn.localeCompare(b.dueOn) || byName(a.recurring, b.recurring));
+}
+
+/**
+ * The pending periods of the active payments (SPEC-finance "Pendientes"): overdue up to 60 days
+ * and due within the next 7, with no settlement, by due date then name. The same list as
+ * "Pendientes" of "Pagos" (`buildPaymentsView(...).pending`) and the home page's "Pagos" (F4,
+ * `getFinanceTodaySummary`). `settlements` must cover `pendingWindow(today)`.
+ */
+export function pendingPeriodsOf(
+  items: readonly RecurringItem[],
+  settlements: readonly SettlementItem[],
+  today: string,
+): PendingPeriod[] {
+  return pendingOf(
+    items.filter((item) => !item.archived),
+    index(settlements),
+    today,
+  );
+}
+
 /** The "Pagos" view: pending, this month, all active by next due date, archived. */
 export function buildPaymentsView(
   items: readonly RecurringItem[],
@@ -79,15 +112,7 @@ export function buildPaymentsView(
   const settledOf = index(settlements);
   const active = items.filter((item) => !item.archived);
   const month = monthRange(monthOfDay(today));
-
-  const pending: PendingPeriod[] = active
-    .flatMap((recurring) =>
-      pendingPeriods(recurring, new Set(settledOf(recurring.id).keys()), today).map((dueOn) => ({
-        recurring,
-        dueOn,
-      })),
-    )
-    .sort((a, b) => a.dueOn.localeCompare(b.dueOn) || byName(a.recurring, b.recurring));
+  const pending = pendingOf(active, settledOf, today);
 
   const due: MonthEntry[] = [];
   const none: MonthEntry[] = [];

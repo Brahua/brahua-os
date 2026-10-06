@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import Home from "@/app/(app)/page";
 import { ok } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
+import { getFinanceTodaySummary, type FinanceTodayItem } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { setHabitDone } from "@/modules/habits/log-actions";
@@ -25,6 +26,9 @@ vi.mock("@/modules/tasks/recurrence-actions", () => ({
   reopenTaskWithSpawn: vi.fn(),
 }));
 vi.mock("@/modules/projects/contracts", () => ({ getProjectsTodaySummary: vi.fn() }));
+vi.mock("@/modules/finance/contracts", () => ({ getFinanceTodaySummary: vi.fn() }));
+vi.mock("@/modules/finance/payment-actions", () => ({ markPaid: vi.fn(), undoPaid: vi.fn() }));
+vi.mock("@/modules/finance/catalog-actions", () => ({ readFinanceCatalog: vi.fn() }));
 vi.mock("@/modules/habits/log-actions", () => ({
   setHabitDone: vi.fn(),
   logHabit: vi.fn(),
@@ -48,6 +52,8 @@ beforeEach(() => {
   vi.mocked(getProjectsTodaySummary).mockResolvedValue([]);
   vi.mocked(getTasksDoneTodayCount).mockReset();
   vi.mocked(getTasksDoneTodayCount).mockResolvedValue(0);
+  vi.mocked(getFinanceTodaySummary).mockReset();
+  vi.mocked(getFinanceTodaySummary).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -82,6 +88,7 @@ test("home page does not render without the owner (requireOwner redirects)", asy
   expect(getTasksTodaySummary).not.toHaveBeenCalled();
   expect(getProjectsTodaySummary).not.toHaveBeenCalled();
   expect(getTasksDoneTodayCount).not.toHaveBeenCalled();
+  expect(getFinanceTodaySummary).not.toHaveBeenCalled();
 });
 
 test("home page reads the projects summary at the same instant and shows Proyectos (D3)", async () => {
@@ -203,4 +210,80 @@ test("nothing pending and nothing done today: the empty day, never “Día compl
   render(await Home());
   expect(screen.queryByRole("region", { name: "Día completo" })).toBeNull();
   expect(screen.getByRole("heading", { name: "Nada programado para hoy" })).toBeInTheDocument();
+});
+
+const payment = (values: Partial<FinanceTodayItem> = {}): FinanceTodayItem => ({
+  recurringId: "00000000-0000-4000-8000-0000000000f1",
+  name: "Internet",
+  dueOn: "2026-09-30",
+  amountCents: 5_000,
+  currency: "PEN",
+  paymentMethod: { id: "00000000-0000-4000-8000-0000000000f2", name: "Crédito" },
+  ...values,
+});
+
+test("home page reads the payments at the same instant and shows Pagos between Tareas and Proyectos (F4)", async () => {
+  vi.mocked(getFinanceTodaySummary).mockResolvedValue([payment()]);
+  vi.mocked(getTasksTodaySummary).mockResolvedValue([
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      title: "Enviar informe",
+      priority: "medium",
+      dueDate: "2026-09-30",
+      due: { kind: "today", days: 0, label: "Vence hoy" },
+      area: null,
+      project: null,
+      isNextAction: false,
+    },
+  ]);
+  vi.mocked(getProjectsTodaySummary).mockResolvedValue([
+    {
+      id: "00000000-0000-4000-8000-0000000000aa",
+      name: "Renovar pasaporte",
+      area: { id: "a1", slug: "travel", name: "Planes y Viajes", icon: "plane", color: "travel" },
+      status: "active",
+      priority: "medium",
+      dueDate: "2026-10-03",
+      due: { kind: "soon", days: 3, label: "Vence en 3 días" },
+      blockedBy: [],
+    },
+  ]);
+  render(await Home());
+
+  expect(getFinanceTodaySummary).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(getFinanceTodaySummary).mock.calls[0][0]).toBe(
+    vi.mocked(getHabitsDueToday).mock.calls[0][0],
+  );
+  const sections = screen
+    .getAllByRole("region")
+    .map((region) => region.getAttribute("aria-labelledby"))
+    .filter((id) => id?.startsWith("today-"));
+  expect(sections).toEqual(["today-tasks-title", "today-payments-title", "today-projects-title"]);
+  const pagos = screen.getByRole("region", { name: "Pagos" });
+  expect(within(pagos).getByRole("link", { name: "Internet" })).toHaveAccessibleDescription(
+    "Vence hoy, 50 soles, Crédito",
+  );
+});
+
+test("an overdue payment keeps “Día completo” away; an upcoming one doesn't (F4)", async () => {
+  vi.mocked(getTasksDoneTodayCount).mockResolvedValue(2);
+  vi.mocked(getFinanceTodaySummary).mockResolvedValue([payment({ dueOn: "2026-09-28" })]);
+  const { unmount } = render(await Home());
+  expect(screen.queryByRole("region", { name: "Día completo" })).toBeNull();
+  expect(screen.getByRole("region", { name: "Pagos" })).toBeInTheDocument();
+  unmount();
+
+  // Positive control: the same day with the payment due in 3 days is complete, Pagos still shows.
+  vi.mocked(getFinanceTodaySummary).mockResolvedValue([payment({ dueOn: "2026-10-03" })]);
+  render(await Home());
+  expect(screen.getByRole("region", { name: "Día completo" })).toHaveTextContent("2 tareas");
+  expect(screen.getByRole("region", { name: "Pagos" })).toBeInTheDocument();
+});
+
+test("only an upcoming payment: Pagos shows, never the empty day (F4)", async () => {
+  vi.mocked(getFinanceTodaySummary).mockResolvedValue([payment({ dueOn: "2026-10-05" })]);
+  render(await Home());
+  expect(screen.getByRole("region", { name: "Pagos" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
+  expect(screen.queryByRole("region", { name: "Día completo" })).toBeNull();
 });

@@ -77,7 +77,7 @@ const TODAY_IMPORT = {
     "`today` es una hoja: ningún módulo lo importa (expón un contrato en tu módulo y que `today` lo lea).",
 };
 // `finance` depends on `core` only (SPEC-finance "Contratos"); none of the others imports it but
-// `today` (F4). It imports no module but `core` either.
+// `today` (F4, through FINANCE_FOR_TODAY). It imports no module but `core` either.
 const FINANCE_IMPORT = {
   group: ["@/modules/finance", "@/modules/finance/*"],
   message:
@@ -94,7 +94,38 @@ const FINANCE_ONLY_CORE = {
   ],
   message: "`finance` solo depende de `core`: no importa otros módulos.",
 };
+// `today` reads `finance` (F4) only through what finance offers the home page: the contract, its
+// rows' type, paying (`paymentCompletion`), the row and the sheet, and the routes. Never its data
+// layer, actions or screens.
+const FINANCE_FOR_TODAY = {
+  // Gitignore-style: a file can only be let back in when its folder isn't left out, so the barrel
+  // is an exact path (FINANCE_BARREL_FOR_TODAY) and `components` is let in before its files.
+  group: [
+    "@/modules/finance/*",
+    "!@/modules/finance/contracts",
+    "!@/modules/finance/today-summary",
+    "!@/modules/finance/payment-completion",
+    "!@/modules/finance/routes",
+    "!@/modules/finance/components",
+    "@/modules/finance/components/*",
+    "!@/modules/finance/components/payment-today-row",
+    "!@/modules/finance/components/today-pay-sheet",
+  ],
+  message:
+    "`today` lee `finance` solo por lo que expone para la portada: contracts, today-summary, payment-completion, routes y los componentes payment-today-row y today-pay-sheet.",
+};
+// An exact path (a pattern would match everything under it).
+const FINANCE_BARREL_FOR_TODAY = { name: "@/modules/finance", message: FINANCE_FOR_TODAY.message };
 const moduleBoundaries = [
+  {
+    files: ["src/modules/today/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [FINANCE_BARREL_FOR_TODAY], patterns: [FINANCE_FOR_TODAY] },
+      ],
+    },
+  },
   {
     files: ["src/modules/finance/**/*.{ts,tsx}"],
     rules: { "no-restricted-imports": ["error", { patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT] }] },

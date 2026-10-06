@@ -23,7 +23,7 @@ import {
 import { expenseRefused } from "./failures";
 import { EXPENSE_ERRORS } from "./finance-copy";
 import { RECURRING_ERRORS } from "./payments-copy";
-import { revalidateFinanceScreens } from "./revalidate";
+import { revalidateFinanceAndHome, revalidateFinanceScreens } from "./revalidate";
 
 const create = ownerAction(
   createExpenseInputSchema,
@@ -63,7 +63,8 @@ const remove = ownerAction(
   expenseIdInputSchema,
   async ({ id }) => {
     const deleted = await softDeleteExpense(getDb(), id);
-    revalidateFinanceScreens();
+    // A paid period's expense frees its period: pending again on the home page too (F4).
+    revalidateFinanceAndHome();
     return deleted ? ok(deleted) : fail<ExpenseItem>(EXPENSE_ERRORS.notFound);
   },
   { name: "deleteExpense" },
@@ -81,7 +82,7 @@ const restore = ownerAction(
   expenseIdInputSchema,
   async ({ id }) => {
     const expense = await restoreById(getDb(), id);
-    revalidateFinanceScreens();
+    revalidateFinanceAndHome();
     if (expense === "notFound") return fail<ExpenseItem>(EXPENSE_ERRORS.notFound);
     // A recurring payment's period was paid or skipped again meanwhile (F2).
     if (expense === "periodTaken") return fail<ExpenseItem>(RECURRING_ERRORS.periodTaken);

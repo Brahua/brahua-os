@@ -57,6 +57,11 @@ export const TODAY_COPY = {
   emptyHabits: "Ir a Hábitos",
   emptyTasks: "Ir a Tareas",
 
+  // ── Pagos (F4 de finance) ──
+  paymentsTitle: "Pagos",
+  paymentsList: "Pagos vencidos y de los próximos 7 días",
+  seePayments: "Ver pagos",
+
   // ── Proyectos (D3) ──
   projectsTitle: "Proyectos",
   projectsList: "Proyectos que vencen pronto o están bloqueados",

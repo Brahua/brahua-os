@@ -38,6 +38,14 @@ export type TodaySlot = {
  * (`DayComplete`) is the board's: it follows the sections' live progress
  * (`TodayProgressProvider`), so it shows the moment the last thing is done.
  */
+export type PaymentsSlot = TodaySlot & {
+  /**
+   * How many of its rows keep "Día completo" away by the server's read: overdue or due today
+   * (`paymentsTally`). The section publishes the live number (`useReportPayments`).
+   */
+  blocking: number;
+};
+
 export type DayCompleteSlot = {
   /** `getTasksDoneTodayCount(now)`: tasks completed today (Lima), whatever their due date. */
   tasksDoneToday: number;
@@ -56,26 +64,40 @@ export type TodayBoardProps = {
   dayComplete?: DayCompleteSlot;
   /** Slot D2, "Tareas": after "Hábitos". */
   tasks?: TodaySlot;
+  /**
+   * Slot F4 (`finance`), "Pagos": after "Tareas", before "Proyectos". Its overdue and due-today
+   * rows keep "Día completo" away (the upcoming ones don't).
+   */
+  payments?: PaymentsSlot;
   /** Slot D3, "Proyectos": last. */
   projects?: TodaySlot;
 };
 
 /**
  * The daily board (SPEC-today "Pantalla"): "Día completo" (D4) → "Hábitos" → "Tareas" (D2) →
- * "Proyectos" (D3); a section without items is left out, and with nothing at all a calm empty
+ * "Pagos" (F4 of `finance`) → "Proyectos" (D3); a section without items is left out, and with nothing at all a calm empty
  * day. One `ScreenServicesProvider` for everything on it: one save queue, one notice viewport,
  * one announcer, and one watch of Lima's day (the page is read again once when it changes, the
  * empty day included). A Server Component: only the provider and the sections are client parts.
  */
-export function TodayBoard({ today, habits, dayComplete, tasks, projects }: TodayBoardProps) {
+export function TodayBoard({
+  today,
+  habits,
+  dayComplete,
+  tasks,
+  payments,
+  projects,
+}: TodayBoardProps) {
   // The server's tally: the base of the live one (`TodayProgressProvider`).
   const tally: DayTally = {
     habits: habitsTally(habits, today),
     tasks: { pending: tasks?.count ?? 0, doneToday: dayComplete?.tasksDoneToday ?? 0 },
+    payments: { blocking: payments?.blocking ?? 0 },
   };
   const sections = todaySections({
     habits: habits.length,
     tasks: tasks?.count,
+    payments: payments?.count,
     projects: projects?.count,
     dayComplete: dayComplete !== undefined && isDayComplete(tally),
   });
@@ -93,6 +115,7 @@ export function TodayBoard({ today, habits, dayComplete, tasks, projects }: Toda
           {sections.habits ? <TodayHabits today={today} habits={habits} /> : null}
           {/* Mounted whenever the slot is given, even at 0: see `TodaySlot`. */}
           {tasks ? tasks.content : null}
+          {payments ? payments.content : null}
           {projects ? projects.content : null}
         </div>
       </TodayProgressProvider>

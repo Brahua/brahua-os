@@ -1,6 +1,7 @@
 // What the daily board shows (SPEC-today "Pantalla"), pure and client-safe. It combines what the
 // provider modules say, never decides their rules: whether a habit counts as done is `habits`'
 // `todayCount` (the same "N de M" as /habits), never a copy of it.
+import { blocksDay, type FinanceTodayItem } from "@/modules/finance/today-summary";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { dueOn, isDayDone, todayCount } from "@/modules/habits/habit-status";
 
@@ -19,6 +20,8 @@ export const TODAY_HEADING_ID = "today-title";
 export type TodayCounts = {
   habits: number;
   tasks?: number;
+  /** F4 of `finance` (`getFinanceTodaySummary`): every pending period shown, upcoming included. */
+  payments?: number;
   projects?: number;
   /** D4: "Día completo" is shown. Never next to the empty day (it only shows after activity). */
   dayComplete?: boolean;
@@ -28,6 +31,7 @@ export type TodayCounts = {
 export type TodaySections = {
   habits: boolean;
   tasks: boolean;
+  payments: boolean;
   projects: boolean;
   /** Nothing at all today: the calm "Nada programado para hoy" instead of the sections. */
   empty: boolean;
@@ -36,16 +40,27 @@ export type TodaySections = {
 /**
  * A section without items is not shown; with none at all (and no "Día completo") the day is
  * empty (principle 13). "Día completo" and the empty day never show together. The board uses
- * `habits` and `empty`; the slots' sections (tasks, projects) stay mounted and hide themselves
- * when they have no rows (`TodaySlot`), so `tasks` and `projects` here only say whether they have
- * items according to the server's read.
+ * `habits` and `empty`; the slots' sections (tasks, payments, projects) stay mounted and hide
+ * themselves when they have no rows (`TodaySlot`), so `tasks`, `payments` and `projects` here only
+ * say whether they have items according to the server's read.
+ *
+ * Payments (F4): a day whose only rows are upcoming payments (due within 7 days, nothing overdue
+ * or due today) is not empty, because "Pagos" shows them: the empty day never sits next to a
+ * section with rows (decision to review with the owner: the conservative reading).
  */
 export function todaySections(counts: TodayCounts): TodaySections {
   const habits = counts.habits > 0;
   const tasks = (counts.tasks ?? 0) > 0;
+  const payments = (counts.payments ?? 0) > 0;
   const projects = (counts.projects ?? 0) > 0;
   const dayComplete = counts.dayComplete ?? false;
-  return { habits, tasks, projects, empty: !habits && !tasks && !projects && !dayComplete };
+  return {
+    habits,
+    tasks,
+    payments,
+    projects,
+    empty: !habits && !tasks && !payments && !projects && !dayComplete,
+  };
 }
 
 /**
@@ -131,18 +146,38 @@ export function habitsTally(habits: readonly HabitItem[], today: string): Habits
 /** What "Tareas" says about closing the day: still to do, and completed today (Lima). */
 export type TasksTally = { pending: number; doneToday: number };
 
-/** Everything "Día completo" looks at. Projects never count toward closing the day. */
-export type DayTally = { habits: HabitsTally; tasks: TasksTally };
+/**
+ * What "Pagos" (F4) says about closing the day: how many pending periods are overdue or due today
+ * (`blocking`). The upcoming ones (due within 7 days) never keep the day open.
+ */
+export type PaymentsTally = { blocking: number };
+
+/** The periods of "Pagos" that keep the day open (`finance`'s rule, `blocksDay`). */
+export function paymentsTally(
+  items: readonly Pick<FinanceTodayItem, "dueOn">[],
+  today: string,
+): PaymentsTally {
+  return { blocking: items.filter((item) => blocksDay(item, today)).length };
+}
+
+/**
+ * Everything "Día completo" looks at. Projects never count toward closing the day; payments
+ * (F4, optional: nothing pending without them) only keep it open.
+ */
+export type DayTally = { habits: HabitsTally; tasks: TasksTally; payments?: PaymentsTally };
 
 /**
  * "Día completo" (SPEC-today, principle 8): every habit due today counts as done (`habits`'
- * rule), no overdue or due-today task is left, and something was done today (a habit done today
- * or a task completed today), so an empty day is never celebrated.
+ * rule), no overdue or due-today task is left, no overdue or due-today payment is left (F4), and
+ * something was done today (a habit done today or a task completed today), so an empty day is
+ * never celebrated. Paying is not activity on its own (decision to review with the owner: "Día
+ * completo" celebrates habits and tasks; a payment only keeps the day open while it is due).
  */
-export function isDayComplete({ habits, tasks }: DayTally): boolean {
+export function isDayComplete({ habits, tasks, payments }: DayTally): boolean {
   const habitsDone = habits.done >= habits.total;
   const activity = habits.active > 0 || tasks.doneToday > 0;
-  return habitsDone && tasks.pending === 0 && activity;
+  const paymentsDone = (payments?.blocking ?? 0) === 0;
+  return habitsDone && tasks.pending === 0 && paymentsDone && activity;
 }
 
 /**

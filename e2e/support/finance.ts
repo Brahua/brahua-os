@@ -15,10 +15,41 @@ import {
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 
 /**
+ * Whether the running test holds the finance lock (a finance spec, or a board test of "/", which
+ * shows "Pagos" since F4). The insert helpers refuse to write without it: another test could
+ * truncate the tables under them, and the payments would show on a board test's "/".
+ */
+let financeLockHeld = false;
+
+function requireFinanceLock() {
+  if (!financeLockHeld) {
+    throw new Error(
+      'Finance data needs the finance lock: use `test` from e2e/support/finance.ts, or `boardTest` (e2e/support/today-tasks.ts) for "/".',
+    );
+  }
+}
+
+/**
+ * Takes the finance lock on `client` (its session holds it until it ends) and starts from empty
+ * finance tables. For the finance specs and for `boardTest`: "/" shows the pending payments
+ * (F4), so a board test must not run next to a finance test (nor see its payments).
+ */
+export async function holdFinanceLock(client: Client): Promise<void> {
+  await client.query("select pg_advisory_lock(hashtext('e2e_finance'))");
+  await clearFinance();
+  financeLockHeld = true;
+}
+
+/** The lock is about to be released (the fixture's teardown). */
+export function releaseFinanceLock() {
+  financeLockHeld = false;
+}
+
+/**
  * `test` for every finance spec. The month's list, the last method used (the next expense's
  * default) and the rate are shared by every test, so these tests can't run in parallel with each
  * other: each one holds a Postgres advisory lock, on a connection of its own, for the whole test,
- * and starts from empty finance tables (`clearFinance`).
+ * and starts from empty finance tables (`clearFinance`). Board tests of "/" take the same lock.
  */
 export const test = base.extend<{ financeLock: void }>({
   financeLock: [
@@ -26,11 +57,14 @@ export const test = base.extend<{ financeLock: void }>({
     async ({}, provide) => {
       const client = new Client({ connectionString: testDatabaseUrl() });
       await client.connect();
-      await client.query("select pg_advisory_lock(hashtext('e2e_finance'))");
-      await clearFinance();
+      await holdFinanceLock(client);
       // Fixture teardown runs after a failed test too; ending the session releases the lock.
-      await provide();
-      await client.end();
+      try {
+        await provide();
+      } finally {
+        releaseFinanceLock();
+        await client.end();
+      }
     },
     // Waiting for the lock is not the test's time.
     { auto: true, timeout: 240_000 },
@@ -60,6 +94,7 @@ export function clearFinance() {
 
 /** A payment method; `last`: the default of the next expense. Returns its id. */
 export function insertMethod(name: string, currency: "PEN" | "USD" = "PEN", last = false) {
+  requireFinanceLock();
   return withDb(async (db) => {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -80,6 +115,7 @@ export function insertMethod(name: string, currency: "PEN" | "USD" = "PEN", last
 
 /** A category at the end. Returns its id. */
 export function insertCategory(name: string) {
+  requireFinanceLock();
   return withDb(async (db) => {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -105,6 +141,7 @@ type NewExpense = {
 
 /** An expense straight in the database. Returns its id. */
 export function insertExpense(expense: NewExpense) {
+  requireFinanceLock();
   return withDb(async (db) => {
     const [row] = await db
       .insert(financeExpenses)
@@ -165,6 +202,7 @@ type NewRecurring = {
 
 /** A recurring payment straight in the database (monthly, due today from today, S/ 50 by default). */
 export function insertRecurring({ archived, ...values }: NewRecurring) {
+  requireFinanceLock();
   return withDb(async (db) => {
     const [row] = await db
       .insert(financeRecurringPayments)
