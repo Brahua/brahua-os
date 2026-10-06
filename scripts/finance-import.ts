@@ -22,7 +22,9 @@
 //       "category": "<a category's notionId>"  or null
 //     }]
 //   }
-// Methods are keyed by name: Notion's select options have no stable page id.
+// Methods are keyed by name: Notion's select options have no stable page id. So a method's id comes
+// from its normalized name: renaming a method in the app and running the import again creates a
+// second method with the old name (acceptable for a one-off import).
 //
 // Mapping: monthly cycle on `dayOfMonth`, currency PEN, amount null → variable, active=false →
 // archived (archived_at = the run's instant). Every recurring payment starts at its next due date
@@ -147,8 +149,11 @@ export const importFileSchema = z
         amount,
         dayOfMonth: z.number().int().min(1).max(31),
         active: z.boolean(),
-        paymentMethod: z.string().nullable(),
-        category: z.string().nullable(),
+        paymentMethod: z
+          .string()
+          .refine((value) => !hasInvisibleCharacters(value), "Name with invisible characters")
+          .nullable(),
+        category: notionId.nullable(),
       }),
     ),
   })
@@ -246,21 +251,35 @@ export function planImport(file: ImportFile, today: string): ImportPlan {
     return { id: importMethodId(method.name), name: method.name, currency: method.currency };
   });
   const methodIds = new Set(methods.map((method) => method.id));
+  const usdMethodIds = new Set(
+    methods.filter((method) => method.currency === "USD").map((method) => method.id),
+  );
 
   const recurring = file.recurring.map((item) => {
     let categoryId: string | null = null;
     if (item.category !== null) {
       const id = importCategoryId(item.category);
       if (categoryIds.has(id)) categoryId = id;
-      else warnings.push(`"${item.name}": unknown category ${item.category} (left without one).`);
+      else {
+        warnings.push(
+          `"${item.name}": unknown category ${JSON.stringify(item.category)} (left without one).`,
+        );
+      }
     }
     let paymentMethodId: string | null = null;
     if (item.paymentMethod !== null) {
       const id = importMethodId(item.paymentMethod);
-      if (methodIds.has(id)) paymentMethodId = id;
-      else {
+      if (methodIds.has(id)) {
+        paymentMethodId = id;
+        // Amounts come in PEN as in Notion (SPEC-finance); the owner fixes the currency in the app.
+        if (usdMethodIds.has(id)) {
+          warnings.push(
+            `«${item.name}»: se paga con un medio en USD; se importa en PEN (revísalo en la app)`,
+          );
+        }
+      } else {
         warnings.push(
-          `"${item.name}": unknown payment method "${item.paymentMethod}" (left without one).`,
+          `"${item.name}": unknown payment method ${JSON.stringify(item.paymentMethod)} (left without one).`,
         );
       }
     }
@@ -291,6 +310,8 @@ export type Counts = { inserted: number; skipped: number };
 export type ImportReport = {
   dryRun: boolean;
   today: string;
+  /** The file's `exportedAt`, shown in the plan. */
+  exportedAt: string;
   categories: Counts;
   methods: Counts;
   recurring: Counts & { active: number; archived: number; variable: number };
@@ -456,6 +477,7 @@ export async function importFinance(
     return {
       dryRun,
       today,
+      exportedAt: file.exportedAt,
       categories: {
         inserted: insertedCategories,
         skipped: plan.categories.length - insertedCategories,
@@ -595,7 +617,7 @@ export function formatReport(report: ImportReport): string {
   const counts = (label: string, c: Counts) =>
     `  ${label}: ${verb} ${c.inserted}, already there (left as they are) ${c.skipped}`;
   const lines = [
-    `${report.dryRun ? "Plan (dry run, nothing written)" : "Imported"} for ${report.today} (Lima):`,
+    `${report.dryRun ? "Plan (dry run, nothing written)" : "Imported"} for ${report.today} (Lima), Notion export of ${report.exportedAt}:`,
     counts("categories", report.categories),
     counts("payment methods", report.methods),
     counts("recurring payments", report.recurring),

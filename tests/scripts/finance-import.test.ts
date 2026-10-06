@@ -67,6 +67,20 @@ describe("file schema", () => {
     expect(issues((f) => (f.categories[0].notionId = "abc"))).toEqual(["categories.0.notionId"]);
   });
 
+  test("references: a category is a Notion id or null; a method name has no invisible characters", () => {
+    expect(issues((f) => (f.recurring[0].category = "Servicios"))).toEqual([
+      "recurring.0.category",
+    ]);
+    expect(issues((f) => (f.recurring[0].category = null as never))).toEqual([]);
+    expect(issues((f) => (f.recurring[0].paymentMethod = "Tarjeta\u200bX"))).toEqual([
+      "recurring.0.paymentMethod",
+    ]);
+    expect(issues((f) => (f.recurring[0].paymentMethod = "Tarjeta\u0000X"))).toEqual([
+      "recurring.0.paymentMethod",
+    ]);
+    expect(issues((f) => (f.recurring[0].paymentMethod = null as never))).toEqual([]);
+  });
+
   test("amounts: > 0, ≤ 1 000 000, at most 2 decimals", () => {
     for (const bad of [0, -5, 12.345, 1_000_000.01, 0.1 + 0.2]) {
       expect(issues((f) => (f.recurring[0].amount = bad))).toEqual(["recurring.0.amount"]);
@@ -145,22 +159,41 @@ describe("plan", () => {
     expect(plan.recurring[1]).toMatchObject({ amountCents: null, active: false });
     expect(plan.warnings).toEqual([
       'Method "Tarjeta USD" looks like USD but the file says PEN (kept PEN).',
-      `"Servicio A": unknown category ${N2} (left without one).`,
+      `"Servicio A": unknown category "${N2}" (left without one).`,
       '"Servicio A": unknown payment method "Tarjeta X" (left without one).',
       '"Servicio A": unknown payment method "Tarjeta X" (left without one).',
     ]);
+  });
+
+  test("a payment with a USD method is imported in PEN, with a warning (name only)", () => {
+    const file = importFileSchema.parse({
+      ...valid(),
+      recurring: [{ ...valid().recurring[0], paymentMethod: "débito DÓLARES" }],
+    });
+    const plan = planImport(file, "2026-10-05");
+    expect(plan.recurring[0]).toMatchObject({
+      amountCents: 4990,
+      paymentMethodId: importMethodId("Débito dólares"),
+    });
+    expect(plan.warnings).toEqual([
+      "«Servicio A»: se paga con un medio en USD; se importa en PEN (revísalo en la app)",
+    ]);
+    // Positive control: a PEN method warns nothing.
+    expect(planImport(importFileSchema.parse(valid()), "2026-10-05").warnings).toEqual([]);
   });
 
   test("the summary never prints amounts", () => {
     const text = formatReport({
       dryRun: true,
       today: "2026-10-05",
+      exportedAt: "2026-10-04T09:00:00-05:00",
       categories: { inserted: 1, skipped: 0 },
       methods: { inserted: 2, skipped: 0 },
       recurring: { inserted: 1, skipped: 0, active: 1, archived: 0, variable: 0 },
       warnings: [],
     });
     expect(text).toContain("would insert");
+    expect(text).toContain("Notion export of 2026-10-04T09:00:00-05:00");
     expect(text).not.toMatch(/49|4990/);
   });
 });

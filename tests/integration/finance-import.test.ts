@@ -140,10 +140,14 @@ describe("mapping", () => {
     expect(report).toEqual({
       dryRun: false,
       today: TODAY,
+      exportedAt: "2026-02-27T12:00:00-05:00",
       categories: { inserted: 2, skipped: 0 },
       methods: { inserted: 2, skipped: 0 },
       recurring: { inserted: 4, skipped: 0, active: 3, archived: 1, variable: 1 },
-      warnings: [],
+      // Imported in PEN as in Notion, with the USD method: the owner checks it in the app.
+      warnings: [
+        "«Streaming B»: se paga con un medio en USD; se importa en PEN (revísalo en la app)",
+      ],
     });
 
     const a = await recurringRow(ID.a);
@@ -164,6 +168,7 @@ describe("mapping", () => {
     });
     expect(await recurringRow(ID.b)).toMatchObject({
       amountCents: 1200,
+      currency: "PEN",
       startDate: "2026-03-10",
       paymentMethodId: importMethodId("débito dólares"),
       categoryId: importCategoryId(ID.leisure),
@@ -213,10 +218,48 @@ describe("mapping", () => {
     file.recurring[0] = { ...file.recurring[0], paymentMethod: "Billetera Z", category: ID.e };
     const report = await importFinance(testDb, file, new Date(), { dryRun: false });
     expect(report.warnings).toEqual([
-      `"Servicio A": unknown category ${ID.e} (left without one).`,
+      `"Servicio A": unknown category "${ID.e}" (left without one).`,
       `"Servicio A": unknown payment method "Billetera Z" (left without one).`,
+      "«Streaming B»: se paga con un medio en USD; se importa en PEN (revísalo en la app)",
     ]);
     expect(await recurringRow(ID.a)).toMatchObject({ categoryId: null, paymentMethodId: null });
+  });
+});
+
+describe("locks", () => {
+  test("the catalog lock comes first: a holder blocks the import until it releases", async () => {
+    const holder = await testDb.$client.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("select pg_advisory_xact_lock(5000, hashtext('finance:categories'))");
+      let done = false;
+      const run = importFinance(testDb, fixture(), new Date(), { dryRun: false }).then((r) => {
+        done = true;
+        return r;
+      });
+      // Wait until the import's backend is waiting on that advisory lock (not just slow).
+      await vi.waitFor(
+        async () => {
+          const waiting = await testDb.execute<{ count: number }>(
+            sql`select count(*)::int as count from pg_locks
+                where locktype = 'advisory' and not granted and classid = 5000`,
+          );
+          expect(Number(waiting.rows[0].count)).toBe(1);
+        },
+        { timeout: 5_000, interval: 50 },
+      );
+      expect(done).toBe(false);
+      expect((await snapshot()).finance_categories).toEqual([]);
+
+      await holder.query("commit");
+      // Positive control: once released, the import completes.
+      const report = await run;
+      expect(done).toBe(true);
+      expect(report.categories.inserted).toBe(2);
+    } finally {
+      await holder.query("rollback").catch(() => {});
+      holder.release();
+    }
   });
 });
 
