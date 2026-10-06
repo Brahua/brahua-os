@@ -22,6 +22,7 @@ import {
 } from "./expenses";
 import { expenseRefused } from "./failures";
 import { EXPENSE_ERRORS } from "./finance-copy";
+import { RECURRING_ERRORS } from "./payments-copy";
 import { revalidateFinanceScreens } from "./revalidate";
 
 const create = ownerAction(
@@ -68,7 +69,10 @@ const remove = ownerAction(
   { name: "deleteExpense" },
 );
 
-/** Soft delete (SPEC-finance "Eliminar"): out of the month, back with "Deshacer". */
+/**
+ * Soft delete (SPEC-finance "Eliminar"): out of the month, back with "Deshacer". A recurring
+ * payment's expense frees its period (pending again).
+ */
 export async function deleteExpense(input: unknown): Promise<ActionResult<ExpenseItem>> {
   return remove(input);
 }
@@ -78,12 +82,18 @@ const restore = ownerAction(
   async ({ id }) => {
     const expense = await restoreById(getDb(), id);
     revalidateFinanceScreens();
-    return expense ? ok(expense) : fail<ExpenseItem>(EXPENSE_ERRORS.notFound);
+    if (expense === "notFound") return fail<ExpenseItem>(EXPENSE_ERRORS.notFound);
+    // A recurring payment's period was paid or skipped again meanwhile (F2).
+    if (expense === "periodTaken") return fail<ExpenseItem>(RECURRING_ERRORS.periodTaken);
+    return ok(expense);
   },
   { name: "restoreExpense" },
 );
 
-/** "Deshacer" of a delete: the expense is back as it was. Twice is fine. */
+/**
+ * "Deshacer" of a delete: the expense is back as it was. Twice is fine. A recurring payment's
+ * expense is refused when its period was paid or skipped again meanwhile.
+ */
 export async function restoreExpense(input: unknown): Promise<ActionResult<ExpenseItem>> {
   return restore(input);
 }

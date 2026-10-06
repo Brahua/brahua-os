@@ -5,8 +5,12 @@ import { ownerDateKey } from "@/lib/time";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { FinanceViews } from "@/modules/finance/components/finance-views";
 import { MonthView } from "@/modules/finance/components/month-view";
+import { PaymentsDeletedNotice } from "@/modules/finance/components/payments-deleted-notice";
+import { PaymentsView } from "@/modules/finance/components/payments-view";
 import { FinanceSettings } from "@/modules/finance/components/settings-sheet";
 import { FINANCE_COPY } from "@/modules/finance/finance-copy";
+import { getDeletedRecurringName, getPaymentsView } from "@/modules/finance/payment-queries";
+import { DELETED_PAYMENT_PARAM } from "@/modules/finance/payment-routes";
 import { getFinanceCatalog, listMonthExpenses } from "@/modules/finance/queries";
 import {
   FINANCE_VIEW_COOKIE,
@@ -24,7 +28,8 @@ type FinancePageProps = {
 /**
  * Finanzas (SPEC-finance "Pantallas"): "Mes · Pagos" (the switch is remembered per device, in a
  * cookie read here so the first paint is right) and "Ajustes" in the header. F1: the month's
- * expenses. Slots: F2 fills "Pagos"; F3 adds the summary, its arrows and "Pendiente de pagar".
+ * expenses; F2: "Pagos" (recurring payments). Slots: F3 adds the summary, its arrows and
+ * "Pendiente de pagar" (`getPendingForMonth`, payment-queries.ts).
  */
 export default async function FinancePage({ searchParams }: FinancePageProps) {
   await requireOwner();
@@ -32,8 +37,18 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
   // One instant for the whole page.
   const today = ownerDateKey(new Date());
   const month = parseMonth(search[MONTH_PARAM], today.slice(0, 7));
-  const view = parseFinanceView((await cookies()).get(FINANCE_VIEW_COOKIE)?.value);
-  const [catalog, expenses] = await Promise.all([getFinanceCatalog(), listMonthExpenses(month)]);
+  const deletedId = search[DELETED_PAYMENT_PARAM];
+  const [catalog, expenses, payments, deletedName] = await Promise.all([
+    getFinanceCatalog(),
+    listMonthExpenses(month),
+    getPaymentsView(today),
+    typeof deletedId === "string" ? getDeletedRecurringName(deletedId) : null,
+  ]);
+  // Back from deleting a payment on its page: "Pagos", with its "Deshacer" notice.
+  const view =
+    deletedName !== null
+      ? "payments"
+      : parseFinanceView((await cookies()).get(FINANCE_VIEW_COOKIE)?.value);
 
   return (
     <FinanceScreen today={today} catalog={catalog}>
@@ -47,18 +62,12 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
         <FinanceViews
           initialView={view}
           month={<MonthView month={month} expenses={expenses} />}
-          // F2 slot: the "Pagos" view (pendientes, este mes, todos, archivados) replaces this
-          // calm empty state.
-          payments={
-            <p
-              className="bo-card bo-text-body-sm max-w-160 text-text-secondary"
-              data-payments-empty=""
-            >
-              {FINANCE_COPY.paymentsEmpty}
-            </p>
-          }
+          payments={<PaymentsView data={payments} />}
         />
       </div>
+      <PaymentsDeletedNotice
+        deleted={deletedName !== null ? { id: String(deletedId), name: deletedName } : null}
+      />
     </FinanceScreen>
   );
 }

@@ -25,7 +25,10 @@
 @keyframes bo-slide-out-down { to { transform: translateY(105%); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .bo-sheet-overlay, .bo-sheet-position--side, .bo-sheet-position--bottom { animation-duration: 1ms !important; }
+  /* The sheet appears in place, not even one frame off-screen (a 1 ms slide still drew its first
+     frame at 105%); the scrim keeps a 1 ms fade. */
+  .bo-sheet-overlay { animation-duration: 1ms !important; }
+  .bo-sheet-position--side, .bo-sheet-position--bottom { animation: none !important; }
 }
 
 /*
@@ -233,3 +236,14 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 /* Finance (F1): amounts are data, in IBM Plex Mono with tabular figures (SPEC-finance
    "Pantallas"): the amount field and the amounts of the month's list. Not a synced component. */
 .bo-amount-field .bo-field__control, .bo-amount { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Finance (F2): a pending payment's row. On narrow phones its keys ("Pagado", more) wrap under the
+   name instead of squeezing it. */
+.bo-payment-row { flex-wrap: wrap; }
+.bo-payment-row .bo-row__body { min-width: 11rem; }
+/* Finance (F2): rows that are not buttons themselves (their name is a link, their keys act):
+   no pointer, no hover or pressed background on the whole row. */
+.bo-row.bo-row--static { cursor: default; }
+.bo-row.bo-row--static:hover, .bo-row.bo-row--static:active { background: var(--color-surface); }
+/* The name link inside such a row: a taller target than the text line. */
+.bo-row-link { display: inline-block; padding-block: 4px; }

@@ -1,0 +1,3 @@
+ALTER TABLE "finance_expenses" ADD COLUMN "recurring_due_on" date;--> statement-breakpoint
+CREATE UNIQUE INDEX "finance_expenses_recurring_period_unique" ON "finance_expenses" USING btree ("recurring_payment_id","recurring_due_on") WHERE "finance_expenses"."deleted_at" is null and "finance_expenses"."recurring_payment_id" is not null;--> statement-breakpoint
+ALTER TABLE "finance_expenses" ADD CONSTRAINT "finance_expenses_recurring_period_check" CHECK (("finance_expenses"."recurring_payment_id" is null) = ("finance_expenses"."recurring_due_on" is null));

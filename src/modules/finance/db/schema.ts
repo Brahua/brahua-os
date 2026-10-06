@@ -204,6 +204,10 @@ export const financeExpenses = pgTable(
     recurringPaymentId: uuid("recurring_payment_id").references(() => financeRecurringPayments.id, {
       onDelete: "restrict",
     }),
+    // F2: the due date of the period this expense paid (with `recurring_payment_id`, never apart).
+    // Deleting the expense frees the period (its settlement row goes); restoring it needs to know
+    // which period to settle again.
+    recurringDueOn: date("recurring_due_on"),
     // Soft delete with "Deshacer" (`visibleExpense`).
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -232,6 +236,11 @@ export const financeExpenses = pgTable(
         and (${table.exchangeRate} is null or ${table.exchangeRate} between 1 and 10)
       ), false)`,
     ),
+    // A recurring payment's expense knows its period; a loose expense has neither.
+    check(
+      "finance_expenses_recurring_period_check",
+      sql`(${table.recurringPaymentId} is null) = (${table.recurringDueOn} is null)`,
+    ),
     // The month's list and summary.
     index("finance_expenses_spent_on_idx")
       .on(table.spentOn)
@@ -240,6 +249,11 @@ export const financeExpenses = pgTable(
     index("finance_expenses_recurring_idx")
       .on(table.recurringPaymentId)
       .where(sql`${table.deletedAt} is null`),
+    // F2: at most one live expense per period of a recurring payment (behind the payment's lock
+    // and the settlements' primary key).
+    uniqueIndex("finance_expenses_recurring_period_unique")
+      .on(table.recurringPaymentId, table.recurringDueOn)
+      .where(sql`${table.deletedAt} is null and ${table.recurringPaymentId} is not null`),
   ],
 );
 

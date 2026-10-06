@@ -5,8 +5,14 @@
 import "server-only";
 import { and, desc, eq, gte, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { readSettingsIn, rememberPaymentMethod, type Tx } from "./catalog";
-import { financeCategories, financeExpenses, financePaymentMethods } from "./db/schema";
+import { lockRecurring, readSettingsIn, rememberPaymentMethod, type Tx } from "./catalog";
+import { isUniqueViolation, PeriodTaken } from "./period-errors";
+import {
+  financeCategories,
+  financeExpenses,
+  financePaymentMethods,
+  financeSettlements,
+} from "./db/schema";
 import type { CreateExpenseInput, ExpenseItem, UpdateExpenseInput } from "./expense-input";
 import type { Currency } from "./finance-constants";
 import { rateFromDb } from "./money";
@@ -113,7 +119,7 @@ export async function selectMonthExpenses(db: Reader, month: string): Promise<Ex
 }
 
 /** A category still visible, locked FOR SHARE (an archive at the same time waits). */
-async function activeCategory(tx: Tx, id: string) {
+export async function activeCategory(tx: Tx, id: string) {
   const [row] = await tx
     .select({ id: financeCategories.id })
     .from(financeCategories)
@@ -123,7 +129,7 @@ async function activeCategory(tx: Tx, id: string) {
 }
 
 /** A payment method still visible, with its currency, locked FOR SHARE. */
-async function activeMethod(tx: Tx, id: string) {
+export async function activeMethod(tx: Tx, id: string) {
   const [row] = await tx
     .select({ id: financePaymentMethods.id, currency: financePaymentMethods.currency })
     .from(financePaymentMethods)
@@ -245,40 +251,85 @@ async function selectAnyExpenseById(db: Reader, id: string): Promise<ExpenseItem
   return item ?? null;
 }
 
+/** The recurring payment (and period) an expense paid, read without a lock, or null. */
+async function peekRecurring(tx: Tx, id: string) {
+  const [row] = await tx
+    .select({
+      recurringPaymentId: financeExpenses.recurringPaymentId,
+      recurringDueOn: financeExpenses.recurringDueOn,
+    })
+    .from(financeExpenses)
+    .where(eq(financeExpenses.id, id));
+  return row ?? null;
+}
+
 /**
  * Soft delete ("Deshacer" restores it). Only a visible expense changes (one atomic UPDATE …
  * WHERE deleted_at IS NULL): a second delete, or one racing it, changes nothing and returns null,
  * so there is never a second "Deshacer". Returns the expense as it was.
  *
- * F2 slot: a paid expense of a recurring payment also removes its settlement (the period is
- * pending again). Order, so the advisory lock stays the first lock of the transaction: read the
- * expense without a lock (its `recurring_payment_id`), then `lockRecurring(tx, id)`, then re-read
- * it FOR UPDATE and check it is still visible and still that payment's, then update both.
+ * A paid expense of a recurring payment also removes its settlement: the period is pending again
+ * (F2). Order, so the advisory lock stays the first lock of the transaction: read the expense
+ * without a lock (its `recurring_payment_id`, which never changes), then `lockRecurring`, then the
+ * UPDATE (which locks the row and re-checks it is still visible), then the settlement.
  */
 export async function softDeleteExpense(db: Database, id: string): Promise<ExpenseItem | null> {
   return db.transaction(async (tx) => {
+    const peeked = await peekRecurring(tx, id);
+    if (!peeked) return null;
+    if (peeked.recurringPaymentId) await lockRecurring(tx, peeked.recurringPaymentId);
     const [deleted] = await tx
       .update(financeExpenses)
       .set({ deletedAt: sql`now()` })
       .where(and(eq(financeExpenses.id, id), visibleExpense))
       .returning({ id: financeExpenses.id });
     if (!deleted) return null;
+    if (peeked.recurringPaymentId) {
+      // The documented physical delete (a period's state, not the owner's data).
+      await tx.delete(financeSettlements).where(eq(financeSettlements.expenseId, id));
+    }
     return selectAnyExpenseById(tx, id);
   });
 }
 
 /**
  * Undo of a delete: visible again, as it was. Only a deleted expense changes (UPDATE … WHERE
- * deleted_at IS NOT NULL); restoring a visible one is fine and returns it. Null when it doesn't
- * exist. F2 slot: restoring a paid expense puts its settlement back if the period is still free
- * (same lock order as the delete).
+ * deleted_at IS NOT NULL); restoring a visible one is fine and returns it. "notFound" when it
+ * doesn't exist. A paid expense of a recurring payment settles its period again, under the
+ * payment's lock (same order as the delete), only if the period is still free: when it was paid
+ * or skipped again meanwhile, nothing changes and the answer is "periodTaken" (never two expenses
+ * for one period). The payment's state doesn't matter: an expense of an archived or deleted
+ * payment is restored and settles its period the same way (its history stays whole).
  */
-export async function restoreExpense(db: Database, id: string): Promise<ExpenseItem | null> {
-  return db.transaction(async (tx) => {
-    await tx
-      .update(financeExpenses)
-      .set({ deletedAt: null })
-      .where(and(eq(financeExpenses.id, id), isNotNull(financeExpenses.deletedAt)));
-    return selectExpenseById(tx, id);
-  });
+export async function restoreExpense(
+  db: Database,
+  id: string,
+): Promise<ExpenseItem | "notFound" | "periodTaken"> {
+  try {
+    return await db.transaction(async (tx) => {
+      const peeked = await peekRecurring(tx, id);
+      if (!peeked) return "notFound";
+      const { recurringPaymentId, recurringDueOn } = peeked;
+      if (recurringPaymentId) await lockRecurring(tx, recurringPaymentId);
+      const [restored] = await tx
+        .update(financeExpenses)
+        .set({ deletedAt: null })
+        .where(and(eq(financeExpenses.id, id), isNotNull(financeExpenses.deletedAt)))
+        .returning({ id: financeExpenses.id });
+      if (restored && recurringPaymentId && recurringDueOn) {
+        const settled = await tx
+          .insert(financeSettlements)
+          .values({ recurringPaymentId, dueOn: recurringDueOn, status: "paid", expenseId: id })
+          .onConflictDoNothing()
+          .returning({ dueOn: financeSettlements.dueOn });
+        // Paid or skipped again meanwhile: roll everything back (the expense stays deleted).
+        if (settled.length === 0) throw new PeriodTaken();
+      }
+      return (await selectExpenseById(tx, id)) ?? "notFound";
+    });
+  } catch (error) {
+    // The settlement's key, or the one-live-expense-per-period index behind it.
+    if (error instanceof PeriodTaken || isUniqueViolation(error)) return "periodTaken";
+    throw error;
+  }
 }

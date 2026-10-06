@@ -55,7 +55,7 @@ const description = z
   );
 
 /** A category or method: an id, or "" / null for none. */
-const optionalRef = (message: string) =>
+export const optionalRef = (message: string) =>
   z
     .union([z.uuid({ error: message }), z.literal(""), z.null()], { error: message })
     .transform((value) => (value === "" ? null : value));
@@ -63,7 +63,7 @@ const optionalRef = (message: string) =>
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A real calendar day (YYYY-MM-DD): "2026-02-30" is not one. */
-function isCalendarDay(value: string): boolean {
+export function isCalendarDay(value: string): boolean {
   if (!DAY.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
