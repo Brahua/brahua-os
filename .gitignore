@@ -36,3 +36,6 @@ next-env.d.ts
 
 # throwaway test Postgres (pnpm db:test:start)
 /.pgdata/
+
+# local data files (e.g. the Notion export for db:finance:import); never committed
+/.data/

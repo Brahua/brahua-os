@@ -16,7 +16,6 @@
 // twice adds nothing and `remove` deletes exactly those rows. Dates are relative to Lima's day of
 // the run (`ownerDateKey`), so "Hoy" always has something due. Life areas are read by slug (the
 // seed's); `core` (areas, settings, auth) is never written.
-import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { and, inArray, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
@@ -48,6 +47,9 @@ import {
 import type { ProjectStatus } from "@/modules/projects/project-constants";
 import { TASKS_ADVISORY_SPACE } from "@/modules/tasks/lock-keys";
 import { CANCELLED, prompt } from "./terminal-prompt";
+import { uuidV5 } from "./uuid-v5";
+
+export { uuidV5 } from "./uuid-v5";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -55,17 +57,6 @@ type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Fixed namespace of this script: every demo id is UUID v5(key, DEMO_NAMESPACE). Never change. */
 export const DEMO_NAMESPACE = "6f3c2a9e-4b1d-4e8a-9c57-2d0b7e5a1f43";
-
-/** RFC 4122 UUID version 5 (SHA-1, name-based). */
-export function uuidV5(name: string, namespace: string): string {
-  const ns = Buffer.from(namespace.replace(/-/g, ""), "hex");
-  const hash = createHash("sha1").update(ns).update(name, "utf8").digest();
-  const bytes = hash.subarray(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x50;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = bytes.toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 /** The id of a demo row, e.g. `demoId("project:aws")`. */
 export const demoId = (key: string) => uuidV5(key, DEMO_NAMESPACE);
