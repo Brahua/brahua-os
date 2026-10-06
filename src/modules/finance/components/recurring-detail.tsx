@@ -6,17 +6,17 @@ import { useId, useOptimistic, useRef, useState, useTransition } from "react";
 import { Key } from "@/design-system";
 import type { ActionResult } from "@/lib/action-result";
 import { financeViewCookie, FINANCE_PATH } from "../routes";
-import { formatMoney } from "../money";
+import { formatMoney, spokenMoney } from "../money";
 import {
   archiveRecurringPayment,
   deleteRecurringPayment,
   unarchiveRecurringPayment,
 } from "../payment-actions";
 import { DELETED_PAYMENT_PARAM } from "../payment-routes";
-import { cycleSummary, longDay, PAYMENTS_COPY, shortDay } from "../payments-copy";
+import { cycleSummary, longDay, PAYMENTS_COPY, shortDay, spokenDay } from "../payments-copy";
 import type { RecurringItem, SettlementItem } from "../recurring-input";
 import { useFinanceScreen } from "./finance-screen";
-import { expectedAmount } from "./payments-view";
+import { expectedAmount, spokenExpected } from "./payments-view";
 import { RecurringSheet } from "./recurring-sheet";
 
 type RecurringDetailProps = {
@@ -100,9 +100,10 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
     });
   }
 
-  const facts: [string, string][] = [
+  // [label, visible value, spoken value when it reads badly ("S/")]
+  const facts: [string, string, string?][] = [
     [PAYMENTS_COPY.cycleFact, cycleSummary(item)],
-    [PAYMENTS_COPY.amountFact, expectedAmount(item)],
+    [PAYMENTS_COPY.amountFact, expectedAmount(item), spokenExpected(item)],
     [PAYMENTS_COPY.methodFact, item.paymentMethod?.name ?? PAYMENTS_COPY.noMethod],
     [PAYMENTS_COPY.categoryFact, item.category?.name ?? PAYMENTS_COPY.noCategory],
     [PAYMENTS_COPY.startFact, longDay(item.startDate)],
@@ -132,17 +133,24 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
           {PAYMENTS_COPY.facts}
         </h2>
         <dl className="bo-card grid grid-cols-1 gap-3 sm:grid-cols-[auto_1fr] sm:gap-x-6">
-          {facts.map(([label, value]) => (
+          {facts.map(([label, value, spoken]) => (
             <div key={label} className="contents">
               <dt className="bo-text-body-sm text-text-secondary">{label}</dt>
               <dd
                 className={
-                  label === PAYMENTS_COPY.amountFact
+                  spoken
                     ? "bo-amount bo-text-body"
                     : "bo-text-body whitespace-pre-wrap [overflow-wrap:anywhere]"
                 }
               >
-                {value}
+                {spoken ? (
+                  <>
+                    <span aria-hidden>{value}</span>
+                    <span className="sr-only">{spoken}</span>
+                  </>
+                ) : (
+                  value
+                )}
               </dd>
             </div>
           ))}
@@ -155,7 +163,7 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
         </h2>
         <ul aria-labelledby={`${ids}-next`} className="bo-list" data-next-dues="">
           {nextDues.map((due) => (
-            <li key={due} className="bo-row bo-row--compact">
+            <li key={due} className="bo-row bo-row--compact bo-row--static">
               <span className="bo-row__body">
                 <span className="bo-row__title">
                   <time dateTime={due}>{longDay(due)}</time>
@@ -177,18 +185,46 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
         ) : (
           <ul aria-labelledby={`${ids}-history`} className="bo-list" data-history="">
             {history.map((settlement) => (
-              <li key={settlement.dueOn} className="bo-row" data-history-row={settlement.status}>
+              <li
+                key={settlement.dueOn}
+                className="bo-row bo-row--static"
+                data-history-row={settlement.status}
+              >
                 <span className="bo-row__body">
                   <span className="bo-row__title">
-                    {settlement.expense
-                      ? PAYMENTS_COPY.historyPaid(
-                          formatMoney(settlement.expense.amountCents, settlement.expense.currency),
-                          shortDay(settlement.expense.spentOn),
-                        )
-                      : PAYMENTS_COPY.historySkipped}
+                    {settlement.expense ? (
+                      <>
+                        <span aria-hidden>
+                          {PAYMENTS_COPY.historyPaid(
+                            formatMoney(
+                              settlement.expense.amountCents,
+                              settlement.expense.currency,
+                            ),
+                            shortDay(settlement.expense.spentOn),
+                          )}
+                        </span>
+                        <span className="sr-only">
+                          {PAYMENTS_COPY.historyPaidSpoken(
+                            spokenMoney(
+                              settlement.expense.amountCents,
+                              settlement.expense.currency,
+                              settlement.expense.exchangeRateE4,
+                            ),
+                            spokenDay(settlement.expense.spentOn),
+                          )}
+                        </span>
+                      </>
+                    ) : (
+                      PAYMENTS_COPY.historySkipped
+                    )}
                   </span>
                   <span className="bo-row__subtitle">
-                    {PAYMENTS_COPY.historyDue(shortDay(settlement.dueOn))}
+                    <time dateTime={settlement.dueOn} aria-hidden>
+                      {PAYMENTS_COPY.historyDue(shortDay(settlement.dueOn))}
+                    </time>
+                    <span className="sr-only">
+                      {PAYMENTS_COPY.historyDueSpoken(spokenDay(settlement.dueOn))}
+                    </span>
                   </span>
                 </span>
               </li>

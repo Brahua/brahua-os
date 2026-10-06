@@ -25,7 +25,10 @@
 @keyframes bo-slide-out-down { to { transform: translateY(105%); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .bo-sheet-overlay, .bo-sheet-position--side, .bo-sheet-position--bottom { animation-duration: 1ms !important; }
+  /* The sheet appears in place, not even one frame off-screen (a 1 ms slide still drew its first
+     frame at 105%); the scrim keeps a 1 ms fade. */
+  .bo-sheet-overlay { animation-duration: 1ms !important; }
+  .bo-sheet-position--side, .bo-sheet-position--bottom { animation: none !important; }
 }
 
 /*
@@ -238,3 +241,9 @@ html { scroll-padding-top: env(safe-area-inset-top); }
    name instead of squeezing it. */
 .bo-payment-row { flex-wrap: wrap; }
 .bo-payment-row .bo-row__body { min-width: 11rem; }
+/* Finance (F2): rows that are not buttons themselves (their name is a link, their keys act):
+   no pointer, no hover or pressed background on the whole row. */
+.bo-row.bo-row--static { cursor: default; }
+.bo-row.bo-row--static:hover, .bo-row.bo-row--static:active { background: var(--color-surface); }
+/* The name link inside such a row: a taller target than the text line. */
+.bo-row-link { display: inline-block; padding-block: 4px; }

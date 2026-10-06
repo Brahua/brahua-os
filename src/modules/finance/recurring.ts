@@ -27,6 +27,7 @@ import type { ExpenseItem } from "./expense-input";
 import { activeCategory, activeMethod, selectExpenseById, visibleExpense } from "./expenses";
 import type { Currency, PaymentCycle, SettlementStatus } from "./finance-constants";
 import { rateFromDb } from "./money";
+import { isUniqueViolation, PeriodTaken } from "./period-errors";
 import {
   buildPaymentsView,
   pendingForMonth,
@@ -40,10 +41,19 @@ import type {
   PayInput,
   PeriodInput,
   RecurringItem,
+  UndoPaidInput,
   SettlementItem,
   UpdateRecurringInput,
 } from "./recurring-input";
-import { isDueDate, nextDueDates, pendingWindow } from "./schedule";
+import {
+  addDays,
+  isDueDate,
+  nextDueDate,
+  nextOpenDue,
+  pendingWindow,
+  startFrom,
+  type Schedule,
+} from "./schedule";
 
 type Reader = Database | Tx;
 
@@ -163,6 +173,7 @@ async function selectSettlements(
   db: Reader,
   range: { from?: string; to?: string; recurringId?: string },
   order: "asc" | "desc" = "asc",
+  limit?: number,
 ): Promise<SettlementItem[]> {
   const rows = await db
     .select({
@@ -189,7 +200,8 @@ async function selectSettlements(
           : eq(financeSettlements.recurringPaymentId, range.recurringId),
       ),
     )
-    .orderBy(order === "asc" ? asc(financeSettlements.dueOn) : desc(financeSettlements.dueOn));
+    .orderBy(order === "asc" ? asc(financeSettlements.dueOn) : desc(financeSettlements.dueOn))
+    .limit(limit ?? 10_000);
   return rows.map((row) => ({
     recurringId: row.recurringId,
     dueOn: row.dueOn,
@@ -235,7 +247,10 @@ export async function selectPendingForMonth(
   return pendingForMonth(items, settlements, month, today, rateE4);
 }
 
-/** A payment's page: the payment, its next 3 due dates and every settled period (newest first). */
+/** The payment page's history shows the newest settled periods, up to this many. */
+export const HISTORY_LIMIT = 120;
+
+/** A payment's page: the payment, its next 3 due dates and its newest settled periods. */
 export type RecurringDetail = {
   item: RecurringItem;
   nextDues: string[];
@@ -249,10 +264,19 @@ export async function selectRecurringDetail(
 ): Promise<RecurringDetail | null> {
   const [item, history] = await Promise.all([
     selectRecurringById(db, id),
-    selectSettlements(db, { recurringId: id }, "desc"),
+    selectSettlements(db, { recurringId: id }, "desc", HISTORY_LIMIT),
   ]);
   if (!item) return null;
-  return { item, nextDues: nextDueDates(item, today, 3), history };
+  const settled = new Set(history.map((settlement) => settlement.dueOn));
+  // The next due dates still to pay (one paid ahead of time is not "next" any more).
+  const nextDues: string[] = [];
+  let from = today;
+  while (nextDues.length < 3) {
+    const due = nextOpenDue(item, from, settled);
+    nextDues.push(due);
+    from = addDays(due, 1);
+  }
+  return { item, nextDues, history };
 }
 
 /** The payment's row, locked FOR UPDATE (after its advisory lock), if it is visible. */
@@ -318,14 +342,63 @@ export async function insertRecurring(
   });
 }
 
+const SCHEDULE_FIELDS = [
+  "cycle",
+  "weekday",
+  "dayOfMonth",
+  "intervalMonths",
+  "anchorMonth",
+  "startDate",
+] as const;
+
+/** The latest settled due date of a payment (paid or skipped), or null. */
+async function latestSettlement(tx: Tx, id: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ dueOn: financeSettlements.dueOn })
+    .from(financeSettlements)
+    .where(eq(financeSettlements.recurringPaymentId, id))
+    .orderBy(desc(financeSettlements.dueOn))
+    .limit(1);
+  return row?.dueOn ?? null;
+}
+
+/**
+ * The schedule an edit stores when the cycle or the start changed, so that the edit never reopens
+ * a period (SPEC-finance "Pagar": one expense per period):
+ * - what was already covered stays covered: the new first due date comes on or after the old
+ *   cycle's next due date after the latest settlement (paid on the 15th, moved to the 16th: this
+ *   month's 16th is not pending, next month's is the first);
+ * - moving the start earlier never brings back overdue periods: it goes no earlier than the old
+ *   start or today, whichever is earlier (decisión autónoma: an edit adds no new overdue).
+ * `startFrom` keeps the new cycle's dates from there on (and re-anchors every N months).
+ */
+async function editedSchedule<T extends Schedule>(
+  tx: Tx,
+  id: string,
+  existing: Schedule,
+  values: T,
+  today: string,
+): Promise<T> {
+  const oldest = existing.startDate < today ? existing.startDate : today;
+  let from = values.startDate > oldest ? values.startDate : oldest;
+  const latest = await latestSettlement(tx, id);
+  if (latest) {
+    const covered = nextDueDate(existing, addDays(latest, 1));
+    if (covered > from) from = covered;
+  }
+  return startFrom(values, from);
+}
+
 /**
  * Edits a visible payment (the whole sheet), under its lock: a pay or skip at the same time
  * waits, so a period is never settled against a cycle that is changing. Settled periods stay as
- * they are (a due date that no longer fits the new cycle is just history).
+ * they are (a due date that no longer fits the new cycle is just history), and a new cycle or
+ * start never reopens a covered period (`editedSchedule`).
  */
 export async function updateRecurring(
   db: Database,
   input: UpdateRecurringInput,
+  today: string,
 ): Promise<RecurringItem | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
@@ -333,7 +406,9 @@ export async function updateRecurring(
     if (!existing) return "notFound";
     const refused = await checkRefs(tx, input, existing);
     if (refused) return refused;
-    const { id, ...values } = input;
+    const { id, ...chosen } = input;
+    const changed = SCHEDULE_FIELDS.some((field) => existing[field] !== chosen[field]);
+    const values = changed ? await editedSchedule(tx, id, existing, chosen, today) : chosen;
     await tx
       .update(financeRecurringPayments)
       .set(values)
@@ -342,20 +417,30 @@ export async function updateRecurring(
   });
 }
 
-/** Archive ("Archivar") or reactivate ("Reactivar"). Twice is fine. */
+/**
+ * Archive ("Archivar") or reactivate ("Reactivar"). Twice is fine. Reactivating starts again from
+ * today (`startFrom`): the periods due while it was archived never show as overdue.
+ */
 export async function setRecurringArchived(
   db: Database,
   id: string,
   archived: boolean,
+  today: string,
 ): Promise<RecurringItem | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, id);
     const existing = await lockedRow(tx, id);
     if (!existing) return "notFound";
-    if ((existing.archivedAt !== null) !== archived) {
+    if (archived && existing.archivedAt === null) {
       await tx
         .update(financeRecurringPayments)
-        .set({ archivedAt: archived ? sql`now()` : null })
+        .set({ archivedAt: sql`now()` })
+        .where(eq(financeRecurringPayments.id, id));
+    } else if (!archived && existing.archivedAt !== null) {
+      const moved = startFrom(existing, today);
+      await tx
+        .update(financeRecurringPayments)
+        .set({ archivedAt: null, startDate: moved.startDate, anchorMonth: moved.anchorMonth })
         .where(eq(financeRecurringPayments.id, id));
     }
     return (await selectRecurringById(tx, id)) as RecurringItem;
@@ -427,9 +512,6 @@ async function settlementOf(tx: Tx, id: string, dueOn: string) {
 
 const alreadySettled = (status: string): RecurringFailure =>
   status === "paid" ? "alreadyPaid" : "alreadySkipped";
-
-/** Thrown inside a transaction to roll it back when the settlement's key was already taken. */
-class PeriodTaken extends Error {}
 
 export type PaidPeriod = { expense: ExpenseItem; dueOn: string; name: string };
 
@@ -511,7 +593,8 @@ export async function payPeriod(
       };
     });
   } catch (error) {
-    if (error instanceof PeriodTaken) return "alreadyPaid";
+    // The settlement's primary key, or the one-live-expense-per-period index, behind the lock.
+    if (error instanceof PeriodTaken || isUniqueViolation(error)) return "alreadyPaid";
     throw error;
   }
 }
@@ -522,12 +605,16 @@ export async function payPeriod(
  */
 export async function undoPaidPeriod(
   db: Database,
-  input: PeriodInput,
+  input: UndoPaidInput,
 ): Promise<{ dueOn: string } | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
+    // Archived is fine (the undo of a pay right before archiving); deleted is not.
+    if (!(await lockedRow(tx, input.id))) return "notFound";
     const existing = await settlementOf(tx, input.id, input.dueOn);
-    if (!existing || existing.status !== "paid" || !existing.expenseId) return "notSettled";
+    // The undo is of that pay: if the period was freed and paid again meanwhile (another
+    // expense), an old notice's "Deshacer" must not remove the new one.
+    if (existing?.status !== "paid" || existing.expenseId !== input.expenseId) return "notSettled";
     await tx
       .delete(financeSettlements)
       .where(
@@ -539,7 +626,7 @@ export async function undoPaidPeriod(
     await tx
       .update(financeExpenses)
       .set({ deletedAt: sql`now()` })
-      .where(and(eq(financeExpenses.id, existing.expenseId), visibleExpense));
+      .where(and(eq(financeExpenses.id, input.expenseId), visibleExpense));
     return { dueOn: input.dueOn };
   });
 }
@@ -572,6 +659,7 @@ export async function undoSkippedPeriod(
 ): Promise<{ dueOn: string } | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
+    if (!(await lockedRow(tx, input.id))) return "notFound";
     const removed = await tx
       .delete(financeSettlements)
       .where(

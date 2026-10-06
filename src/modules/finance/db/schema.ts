@@ -249,6 +249,11 @@ export const financeExpenses = pgTable(
     index("finance_expenses_recurring_idx")
       .on(table.recurringPaymentId)
       .where(sql`${table.deletedAt} is null`),
+    // F2: at most one live expense per period of a recurring payment (behind the payment's lock
+    // and the settlements' primary key).
+    uniqueIndex("finance_expenses_recurring_period_unique")
+      .on(table.recurringPaymentId, table.recurringDueOn)
+      .where(sql`${table.deletedAt} is null and ${table.recurringPaymentId} is not null`),
   ],
 );
 

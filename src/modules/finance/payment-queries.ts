@@ -1,5 +1,6 @@
 // Reads of recurring payments for Server Components (F2). Each one checks the owner first.
 import "server-only";
+import { cache } from "react";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
@@ -41,14 +42,14 @@ export async function getPendingForMonth(
 }
 
 /** A payment's page (visible, archived included), or null for a 404. */
-export async function getRecurringDetail(
-  id: string,
-  today: string,
-): Promise<RecurringDetail | null> {
-  await requireOwner();
-  if (!isUuid(id)) return null;
-  return selectRecurringDetail(getDb(), id, today);
-}
+// Cached per request: the page and its generateMetadata read it once.
+export const getRecurringDetail = cache(
+  async (id: string, today: string): Promise<RecurringDetail | null> => {
+    await requireOwner();
+    if (!isUuid(id)) return null;
+    return selectRecurringDetail(getDb(), id, today);
+  },
+);
 
 /** The name of a payment deleted from its page, while it is still deleted (its "Deshacer"). */
 export async function getDeletedRecurringName(id: string): Promise<string | null> {

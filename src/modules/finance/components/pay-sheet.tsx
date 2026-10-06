@@ -8,7 +8,7 @@ import { useIsDesktop } from "@/lib/use-is-desktop";
 import type { FinanceCatalog } from "../catalog-input";
 import { methodOptions } from "../expense-form";
 import { centsToInput } from "../money";
-import { longDay, PAYMENTS_COPY } from "../payments-copy";
+import { PAYMENTS_COPY, spokenDay } from "../payments-copy";
 import { PAY_FIELDS, payInputSchema, type PayField } from "../recurring-input";
 import type { PendingPeriod } from "../payments-view";
 import { SelectField } from "./select-field";
@@ -92,7 +92,7 @@ export function PaySheet({
       onOpenChange={onOpenChange}
       variant={isDesktop ? "side" : "bottom"}
       title={PAYMENTS_COPY.paySheetTitle(recurring.name)}
-      description={PAYMENTS_COPY.paySheetDescription(longDay(dueOn))}
+      description={PAYMENTS_COPY.paySheetDescription(spokenDay(dueOn), dueOn < today)}
       returnFocusRef={returnFocusRef}
       initialFocusRef={amountInput}
       footer={

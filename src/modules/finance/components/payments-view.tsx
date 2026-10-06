@@ -15,7 +15,14 @@ import {
   undoSkipped,
   unarchiveRecurringPayment,
 } from "../payment-actions";
-import { cycleSummary, dueState, isUrgent, PAYMENTS_COPY, shortDay } from "../payments-copy";
+import {
+  cycleSummary,
+  dueState,
+  isUrgent,
+  PAYMENTS_COPY,
+  shortDay,
+  spokenDay,
+} from "../payments-copy";
 import type { MonthEntry, PaymentsViewData, PendingPeriod } from "../payments-view";
 import type { RecurringItem } from "../recurring-input";
 import { recurringPaymentPath } from "../routes";
@@ -24,7 +31,7 @@ import { useFinanceScreen } from "./finance-screen";
 import { PaySheet, type PayOverrides } from "./pay-sheet";
 import { RecurringSheet } from "./recurring-sheet";
 
-/** A period's key: the queue key's tail and the optimistic set's member. */
+/** A period's key: the queue key's tail and the optimistic map's key. */
 export const periodKey = (period: { recurring: { id: string }; dueOn: string }) =>
   `${period.recurring.id}:${period.dueOn}`;
 
@@ -35,8 +42,8 @@ export function expectedAmount(recurring: RecurringItem): string {
     : formatMoney(recurring.amountCents, recurring.currency);
 }
 
-/** The same for screen readers. */
-function spokenExpected(recurring: RecurringItem): string {
+/** The same for screen readers ("50 soles"). */
+export function spokenExpected(recurring: RecurringItem): string {
   return recurring.amountCents === null
     ? PAYMENTS_COPY.variable
     : spokenMoney(recurring.amountCents, recurring.currency);
@@ -52,21 +59,24 @@ type SheetState =
   | { key: number; open: boolean; kind: "pay"; period: PendingPeriod }
   | { key: number; open: boolean; kind: "new" };
 
+type Settled = "paid" | "skipped";
+
 /**
  * "Pagos" of /finance (SPEC-finance "Pantallas" → Pagos): Pendientes (overdue ≤ 60 days and due
  * within 7, oldest first) with "Pagado" (one tap; the "Pagado…" sheet for a variable amount), the
  * "Pagado…" / "Omitir este período" sheet and their "Deshacer"; Este mes; Todos with "Nuevo pago
  * recurrente"; Archivados (folded, "Reactivar").
  *
- * Pay and skip are optimistic: the row leaves at once and focus goes to the next row's "Pagado"
- * (or the previous one's, or the section's heading). Queue keys: `payment-period:<id>:<due>`
- * (pay, skip and their undo), `payment-archive:<id>`.
+ * Pay, skip and reactivate are optimistic: the row leaves at once (Este mes shows the new state)
+ * and focus goes to the next row's key (or the previous one's, or the section). Queue keys:
+ * `payment-period:<id>:<due>` (pay, skip and their undo), `payment-archive:<id>`.
  */
 export function PaymentsView({ data }: { data: PaymentsViewData }) {
   const { today, catalog, enqueue, toaster, announce } = useFinanceScreen();
   const ids = useId();
-  const [settled, settle] = useOptimistic(new Set<string>(), (keys, key: string) =>
-    new Set(keys).add(key),
+  const [settled, settle] = useOptimistic(
+    new Map<string, Settled>(),
+    (map, [key, status]: [string, Settled]) => new Map(map).set(key, status),
   );
   const [reactivated, reactivate] = useOptimistic(new Set<string>(), (keys, id: string) =>
     new Set(keys).add(id),
@@ -79,18 +89,32 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
 
   const pendingHeading = useRef<HTMLHeadingElement>(null);
   const newKey = useRef<HTMLButtonElement>(null);
+  const archivedSummary = useRef<HTMLElement>(null);
   const payKeys = useRef(new Map<string, HTMLButtonElement>());
+  const reactivateKeys = useRef(new Map<string, HTMLButtonElement>());
   const returnFocus = useRef<HTMLElement | null>(null);
   const createdName = useRef<string | null>(null);
-  // After a one-tap pay the focused key unmounts: focus goes here once the row is gone.
-  const focusAfter = useRef<{ gone: string; target: string | null } | null>(null);
+  // After a one-tap pay or a reactivation the focused key unmounts: focus goes to a neighbor once
+  // the row is gone.
+  const payFocus = useRef<{ gone: string; target: string | null } | null>(null);
+  const reactivateFocus = useRef<{ gone: string; target: string | null } | null>(null);
 
   useLayoutEffect(() => {
-    const after = focusAfter.current;
-    if (!after || payKeys.current.has(after.gone)) return;
-    focusAfter.current = null;
-    const target = (after.target && payKeys.current.get(after.target)) || pendingHeading.current;
-    target?.focus();
+    const pay = payFocus.current;
+    if (pay && !payKeys.current.has(pay.gone)) {
+      payFocus.current = null;
+      // The heading describes the empty list when it was the last row.
+      ((pay.target && payKeys.current.get(pay.target)) || pendingHeading.current)?.focus();
+    }
+    const back = reactivateFocus.current;
+    if (back && !reactivateKeys.current.has(back.gone)) {
+      reactivateFocus.current = null;
+      (
+        (back.target && reactivateKeys.current.get(back.target)) ||
+        archivedSummary.current ||
+        newKey.current
+      )?.focus();
+    }
   });
 
   /** The key of the row after `key` (or before it), if any: where focus goes when it leaves. */
@@ -100,12 +124,12 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
     return next ? periodKey(next) : null;
   }
 
-  function undo(period: PendingPeriod, kind: "paid" | "skipped") {
+  function undo(period: PendingPeriod, kind: Settled, expenseId?: string) {
     const { recurring, dueOn } = period;
     startSaving(async () => {
       const result = await enqueue(`payment-period:${periodKey(period)}`, () =>
-        kind === "paid"
-          ? undoPaid({ id: recurring.id, dueOn })
+        kind === "paid" && expenseId
+          ? undoPaid({ id: recurring.id, dueOn, expenseId })
           : undoSkipped({ id: recurring.id, dueOn }),
       );
       if (result.kind === "skipped") return;
@@ -129,7 +153,7 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
     const key = periodKey(period);
     const { recurring, dueOn } = period;
     startSaving(async () => {
-      settle(key);
+      settle([key, "paid"]);
       const result = await enqueue(`payment-period:${key}`, () =>
         markPaid({ id: recurring.id, dueOn, ...(overrides ?? {}) }),
       );
@@ -142,7 +166,8 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
             recurring.name,
             spokenMoney(expense.amountCents, expense.currency, expense.exchangeRateE4),
           ),
-          action: { label: PAYMENTS_COPY.undo, run: () => undo(period, "paid") },
+          // The undo names this pay's expense: never a later pay of the same period.
+          action: { label: PAYMENTS_COPY.undo, run: () => undo(period, "paid", expense.id) },
         });
         return;
       }
@@ -160,7 +185,7 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
     const key = periodKey(period);
     const { recurring, dueOn } = period;
     startSaving(async () => {
-      settle(key);
+      settle([key, "skipped"]);
       const result = await enqueue(`payment-period:${key}`, () =>
         skipPeriod({ id: recurring.id, dueOn }),
       );
@@ -168,7 +193,7 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
       if (result.kind === "done" && result.value.ok) {
         toaster.push({
           title: PAYMENTS_COPY.skippedTitle,
-          text: PAYMENTS_COPY.skippedText(recurring.name, shortDay(dueOn)),
+          text: PAYMENTS_COPY.skippedText(recurring.name, spokenDay(dueOn)),
           action: { label: PAYMENTS_COPY.undo, run: () => undo(period, "skipped") },
         });
         return;
@@ -183,7 +208,7 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
 
   function payNow(period: PendingPeriod) {
     const key = periodKey(period);
-    focusAfter.current = { gone: key, target: neighborKey(key) };
+    payFocus.current = { gone: key, target: neighborKey(key) };
     pay(period, null);
   }
 
@@ -211,6 +236,9 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
   }
 
   function reactivateItem(item: RecurringItem) {
+    const index = archived.findIndex((other) => other.id === item.id);
+    const neighbor = archived[index + 1] ?? archived[index - 1];
+    reactivateFocus.current = { gone: item.id, target: neighbor?.id ?? null };
     startSaving(async () => {
       reactivate(item.id);
       const result = await enqueue(`payment-archive:${item.id}`, () =>
@@ -231,8 +259,10 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
 
   const sectionIds = {
     pending: `${ids}-pending`,
+    pendingEmpty: `${ids}-pending-empty`,
     month: `${ids}-month`,
     all: `${ids}-all`,
+    archived: `${ids}-archived`,
   };
 
   return (
@@ -246,12 +276,15 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
           ref={pendingHeading}
           id={sectionIds.pending}
           tabIndex={-1}
+          // When the last row leaves, focus lands here and the empty message is read with it.
+          aria-describedby={pending.length === 0 ? sectionIds.pendingEmpty : undefined}
           className="bo-text-title outline-none"
         >
           {PAYMENTS_COPY.pendingHeading}
         </h2>
         {pending.length === 0 ? (
           <p
+            id={sectionIds.pendingEmpty}
             className="bo-card bo-text-body-sm max-w-160 text-text-secondary"
             data-pending-empty=""
           >
@@ -293,7 +326,14 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
           <ul aria-labelledby={sectionIds.month} className="bo-list" data-month-list="">
             {data.thisMonth.map((entry) => (
               <li key={`${entry.recurring.id}:${entry.dueOn ?? "none"}`}>
-                <MonthRow entry={entry} />
+                <MonthRow
+                  entry={entry}
+                  settledNow={
+                    entry.status === "pending"
+                      ? settled.get(periodKey({ recurring: entry.recurring, dueOn: entry.dueOn }))
+                      : undefined
+                  }
+                />
               </li>
             ))}
           </ul>
@@ -326,9 +366,19 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
                 <Link
                   href={recurringPaymentPath(recurring.id)}
                   className="bo-row"
+                  // Spoken in words: "S/" and "jue 9 oct" read badly.
+                  aria-label={[
+                    recurring.name,
+                    cycleSummary(recurring),
+                    recurring.paymentMethod?.name,
+                    spokenExpected(recurring),
+                    PAYMENTS_COPY.nextDueSpoken(spokenDay(nextDue)),
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
                   data-payment-link={recurring.id}
                 >
-                  <span className="bo-row__body">
+                  <span className="bo-row__body" aria-hidden>
                     <span className="bo-row__title truncate">{recurring.name}</span>
                     <span className="bo-row__subtitle">
                       {[cycleSummary(recurring), recurring.paymentMethod?.name]
@@ -336,7 +386,7 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
                         .join(" · ")}
                     </span>
                   </span>
-                  <span className="bo-row__trail flex-col items-end gap-0.5">
+                  <span className="bo-row__trail flex-col items-end gap-0.5" aria-hidden>
                     <span className="bo-amount bo-text-body text-text">
                       {expectedAmount(recurring)}
                     </span>
@@ -353,23 +403,31 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
 
       {archived.length > 0 ? (
         <details className="group flex flex-col gap-3" data-archived-payments="">
-          <summary className="bo-text-body-sm flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-md font-semibold text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+          <summary
+            ref={archivedSummary}
+            id={sectionIds.archived}
+            className="bo-text-body-sm flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-md font-semibold text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
             <Icon icon={ChevronDown} size="sm" className="group-open:rotate-180" />
             {PAYMENTS_COPY.archivedHeading(archived.length)}
           </summary>
-          <ul className="bo-list mt-3">
+          <ul aria-labelledby={sectionIds.archived} className="bo-list mt-3">
             {archived.map((item) => (
-              <li key={item.id} className="bo-row">
+              <li key={item.id} className="bo-row bo-row--static">
                 <span className="bo-row__body">
                   <Link
                     href={recurringPaymentPath(item.id)}
-                    className="bo-task-title bo-row__title w-fit"
+                    className="bo-task-title bo-row-link bo-row__title w-fit"
                   >
                     {item.name}
                   </Link>
                   <span className="bo-row__subtitle">{cycleSummary(item)}</span>
                 </span>
                 <Key
+                  ref={(element) => {
+                    if (element) reactivateKeys.current.set(item.id, element);
+                    else reactivateKeys.current.delete(item.id);
+                  }}
                   variant="ghost"
                   aria-label={`${PAYMENTS_COPY.reactivate} «${item.name}»`}
                   onClick={() => reactivateItem(item)}
@@ -435,11 +493,11 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
   const variable = recurring.amountCents === null;
   const metaId = useId();
   return (
-    <div className="bo-row bo-payment-row" data-pending-row={periodKey(period)}>
+    <div className="bo-row bo-row--static bo-payment-row" data-pending-row={periodKey(period)}>
       <span className="bo-row__body">
         <Link
           href={recurringPaymentPath(recurring.id)}
-          className="bo-task-title bo-row__title w-fit"
+          className="bo-task-title bo-row-link bo-row__title w-fit"
           aria-describedby={metaId}
         >
           {recurring.name}
@@ -493,42 +551,69 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
   );
 }
 
-/** A row of "Este mes": the period's day and its status. */
-function MonthRow({ entry }: { entry: MonthEntry }) {
+type MonthRowProps = {
+  entry: MonthEntry;
+  /** Paid or skipped just now (optimistic), before the page's new data arrives. */
+  settledNow?: Settled;
+};
+
+/** A row of "Este mes": the period's day and its status (visible short, spoken in words). */
+function MonthRow({ entry, settledNow }: MonthRowProps) {
   const { recurring } = entry;
+  const metaId = useId();
   let status: string;
+  let spoken: string;
   switch (entry.status) {
     case "paid":
       status = PAYMENTS_COPY.statusPaid(
         formatMoney(entry.expense.amountCents, entry.expense.currency),
       );
+      spoken = PAYMENTS_COPY.statusPaidSpoken(
+        spokenMoney(entry.expense.amountCents, entry.expense.currency),
+      );
       break;
     case "skipped":
-      status = PAYMENTS_COPY.statusSkipped;
+      status = spoken = PAYMENTS_COPY.statusSkipped;
       break;
     case "pending":
-      status = PAYMENTS_COPY.statusPending;
+      status = spoken =
+        settledNow === "paid"
+          ? PAYMENTS_COPY.statusPaidNow
+          : settledNow === "skipped"
+            ? PAYMENTS_COPY.statusSkipped
+            : PAYMENTS_COPY.statusPending;
       break;
     case "none":
-      status = PAYMENTS_COPY.statusNotThisMonth;
+      status = spoken = PAYMENTS_COPY.statusNotThisMonth;
       break;
   }
+  const shown = entry.status === "pending" && settledNow ? settledNow : entry.status;
   return (
-    <div className="bo-row" data-month-row={recurring.id} data-status={entry.status}>
+    <div className="bo-row bo-row--static" data-month-row={recurring.id} data-status={shown}>
       <span className="bo-row__body">
         <Link
           href={recurringPaymentPath(recurring.id)}
-          className="bo-task-title bo-row__title w-fit"
+          className="bo-task-title bo-row-link bo-row__title w-fit"
+          aria-describedby={metaId}
         >
           {recurring.name}
         </Link>
-        <span className="bo-row__subtitle">
+        <span id={metaId} hidden>
+          {[
+            entry.status === "none"
+              ? PAYMENTS_COPY.nextDueSpoken(spokenDay(entry.nextDue))
+              : `${PAYMENTS_COPY.dueSpoken(spokenDay(entry.dueOn))}, ${spokenExpected(recurring)}`,
+            spoken,
+          ].join(", ")}
+        </span>
+        <span className="bo-row__subtitle" aria-hidden>
           {entry.status === "none"
             ? PAYMENTS_COPY.nextDue(shortDay(entry.nextDue))
             : `${shortDay(entry.dueOn)} · ${expectedAmount(recurring)}`}
         </span>
       </span>
       <span
+        aria-hidden
         className={cn(
           "bo-row__trail bo-text-body-sm",
           entry.status === "paid" && "bo-amount text-text",

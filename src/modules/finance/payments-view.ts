@@ -7,7 +7,7 @@ import {
   dueDatesBetween,
   monthOfDay,
   monthRange,
-  nextDueDate,
+  nextOpenDue,
   OVERDUE_WINDOW_DAYS,
   addDays,
   pendingPeriods,
@@ -99,7 +99,7 @@ export function buildPaymentsView(
         dueOn: null,
         status: "none",
         expense: null,
-        nextDue: nextDueDate(recurring, today),
+        nextDue: nextOpenDue(recurring, today, new Set(settledOf(recurring.id).keys())),
       });
       continue;
     }
@@ -124,7 +124,10 @@ export function buildPaymentsView(
   none.sort((a, b) => byName(a.recurring, b.recurring));
 
   const activeEntries = active
-    .map((recurring) => ({ recurring, nextDue: nextDueDate(recurring, today) }))
+    .map((recurring) => ({
+      recurring,
+      nextDue: nextOpenDue(recurring, today, new Set(settledOf(recurring.id).keys())),
+    }))
     .sort((a, b) => a.nextDue.localeCompare(b.nextDue) || byName(a.recurring, b.recurring));
 
   return {

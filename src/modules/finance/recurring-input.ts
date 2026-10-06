@@ -195,6 +195,13 @@ const dueOn = z
 /** One period of a payment (skip, and the undo of a pay or a skip). */
 export const periodInputSchema = z.object({ id, dueOn });
 
+/** The undo of a pay names the expense it created: a later pay of the period is never undone. */
+export const undoPaidInputSchema = z.object({
+  id,
+  dueOn,
+  expenseId: z.uuid({ error: RECURRING_ERRORS.notSettled }),
+});
+
 /**
  * "Pagado" (one tap: only the period) or "Pagado…" (the amount, date and method as adjusted).
  * What is left out comes from the payment: its amount (required for a variable one), today in
@@ -220,6 +227,7 @@ export type CreateRecurringInput = z.output<typeof createRecurringInputSchema>;
 export type UpdateRecurringInput = z.output<typeof updateRecurringInputSchema>;
 export type PayInput = z.output<typeof payInputSchema>;
 export type PeriodInput = z.output<typeof periodInputSchema>;
+export type UndoPaidInput = z.output<typeof undoPaidInputSchema>;
 
 /** The sheet's fields in the order they show (focus goes to the first invalid one). */
 export const RECURRING_FIELDS = [

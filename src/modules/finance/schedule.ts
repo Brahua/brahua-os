@@ -6,9 +6,9 @@
 // - weekly: every ISO weekday `weekday` (1 = Monday … 7 = Sunday);
 // - monthly: day `dayOfMonth` (1–31) of every month, clamped to the month's end (31 → Feb 28/29,
 //   Apr 30), like tasks' "el día X del mes" (T3);
-// - every_n_months: day `dayOfMonth` (clamped) every `intervalMonths` (2–12) months, counted from
-//   `anchorMonth` of the start date's year (decisión autónoma: with an interval that doesn't divide
-//   12, e.g. 5, the anchor month alone is ambiguous across years; the start's year fixes it);
+// - every_n_months: day `dayOfMonth` (clamped) every `intervalMonths` (2–12) months. The first due
+//   date is the first one in `anchorMonth` on or after the start date ("desde marzo": the next
+//   March), then every N months from it; nothing is counted back before it;
 // - yearly: day `dayOfMonth` of `anchorMonth` (Feb 29 → Feb 28 in a non-leap year).
 // Only due dates on or after `startDate` count (the first period is the first due date ≥ it).
 import type { PaymentCycle } from "./finance-constants";
@@ -90,8 +90,8 @@ function dueInMonthIndex(schedule: Schedule, index: number): string | null {
       if (interval === null || anchor === null) {
         throw new Error("every_n_months needs intervalMonths and anchorMonth");
       }
-      const anchorIndex = monthIndex(Number(schedule.startDate.slice(0, 4)), anchor - 1);
-      if ((((index - anchorIndex) % interval) + interval) % interval !== 0) return null;
+      const anchorIndex = firstAnchorIndex(schedule.startDate, anchor, day);
+      if (index < anchorIndex || (index - anchorIndex) % interval !== 0) return null;
       break;
     }
     case "yearly":
@@ -101,7 +101,19 @@ function dueInMonthIndex(schedule: Schedule, index: number): string | null {
     case "weekly":
       throw new Error("weekly is not month-based");
   }
+  return clampedDay(year, month0, day);
+}
+
+/** The day `day` (clamped to the month's end) of a month, as a key. */
+function clampedDay(year: number, month0: number, day: number): string {
   return `${year}-${pad(month0 + 1)}-${pad(Math.min(day, daysInMonth(year, month0)))}`;
+}
+
+/** The month (index) of the first due date in `anchor` (1–12) on or after `startDate`. */
+function firstAnchorIndex(startDate: string, anchor: number, day: number): number {
+  const startYear = Number(startDate.slice(0, 4));
+  const year = clampedDay(startYear, anchor - 1, day) >= startDate ? startYear : startYear + 1;
+  return monthIndex(year, anchor - 1);
 }
 
 function indexOfKey(day: string): number {
@@ -185,3 +197,35 @@ export function pendingPeriods(
 
 /** The month (YYYY-MM) of a day. */
 export const monthOfDay = (day: string) => day.slice(0, 7);
+
+/**
+ * The first due date on or after `from` that has no settlement (paid or skipped): the next one
+ * left to pay ("Todos", "No toca este mes"). `settled` only holds past or near dates, so the
+ * search ends after a few steps.
+ */
+export function nextOpenDue(
+  schedule: Schedule,
+  from: string,
+  settled: ReadonlySet<string>,
+): string {
+  let due = nextDueDate(schedule, from);
+  while (settled.has(due)) due = nextDueDate(schedule, addDays(due, 1));
+  return due;
+}
+
+/**
+ * The schedule moved so its first due date is the first one on or after `from`, with the same
+ * dates from there on: the start becomes that due date and, for every N months, the anchor its
+ * month (the counting starts at the anchor). Used when an edit or a reactivation must not reopen
+ * periods before `from`. Unchanged when the start is already on or after `from`.
+ */
+export function startFrom<T extends Schedule>(schedule: T, from: string): T {
+  if (from <= schedule.startDate) return schedule;
+  const first = nextDueDate(schedule, from);
+  return {
+    ...schedule,
+    startDate: first,
+    anchorMonth:
+      schedule.cycle === "every_n_months" ? Number(first.slice(5, 7)) : schedule.anchorMonth,
+  };
+}

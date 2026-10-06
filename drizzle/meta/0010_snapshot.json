@@ -1,5 +1,5 @@
 {
-  "id": "a392cb35-323f-4be7-bec3-1b53786cf019",
+  "id": "a2208ff6-1dc6-4d92-a4b1-a7c565bd1265",
   "prevId": "403f12ac-ac77-4174-b626-fbe6cc7290bc",
   "version": "7",
   "dialect": "postgresql",
@@ -776,6 +776,28 @@
           ],
           "isUnique": false,
           "where": "\"finance_expenses\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "finance_expenses_recurring_period_unique": {
+          "name": "finance_expenses_recurring_period_unique",
+          "columns": [
+            {
+              "expression": "recurring_payment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recurring_due_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"finance_expenses\".\"deleted_at\" is null and \"finance_expenses\".\"recurring_payment_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

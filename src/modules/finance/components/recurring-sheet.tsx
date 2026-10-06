@@ -6,7 +6,6 @@ import { Icon, Key, SegmentedControl, Sheet, Switch, TextArea, TextField } from 
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
 import { useIsDesktop } from "@/lib/use-is-desktop";
-import { useAnnouncer } from "@/modules/core/components/screen-services";
 import type { FinanceCatalog } from "../catalog-input";
 import { categoryOptions, currencyForMethod, methodOptions } from "../expense-form";
 import { PAYMENT_CYCLES, type Currency, type PaymentCycle } from "../finance-constants";
@@ -110,7 +109,6 @@ export function RecurringSheet({
   const [notes, setNotes] = useState(recurring?.notes ?? "");
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [announcement, announce] = useAnnouncer();
   const [pending, startTransition] = useTransition();
   const fields = useRef(new Map<RecurringField, HTMLElement | null>());
   const focusFirstInvalid = useRef(false);
@@ -136,9 +134,9 @@ export function RecurringSheet({
     const next = errorsOf(result.fieldErrors);
     focusFirstInvalid.current = true;
     setErrors(next);
+    // Focus goes to the first invalid field, which reads its own error (aria-describedby): no
+    // announcement on top of it.
     setFormError(Object.keys(next).length > 0 ? null : result.error);
-    const first = RECURRING_FIELDS.map((field) => next[field]).find(Boolean);
-    if (first) announce(first);
   }
 
   function requestOpenChange(next: boolean) {
@@ -252,80 +250,83 @@ export function RecurringSheet({
           }}
         />
 
-        <SelectField
-          ref={fieldRef("cycle")}
-          id={`${ids}-cycle`}
-          label={PAYMENTS_COPY.cycleLabel}
-          value={cycle}
-          options={CYCLE_OPTIONS}
-          error={errors.cycle}
-          onValueChange={(value) => {
-            setCycle(value as PaymentCycle);
-            clear("cycle");
-          }}
-        />
+        <fieldset className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
+          <legend className="sr-only">{PAYMENTS_COPY.dueLegend}</legend>
+          <SelectField
+            ref={fieldRef("cycle")}
+            id={`${ids}-cycle`}
+            label={PAYMENTS_COPY.cycleLabel}
+            value={cycle}
+            options={CYCLE_OPTIONS}
+            error={errors.cycle}
+            onValueChange={(value) => {
+              setCycle(value as PaymentCycle);
+              clear("cycle");
+            }}
+          />
 
-        {cycle === "weekly" ? (
-          <SelectField
-            ref={fieldRef("weekday")}
-            id={`${ids}-weekday`}
-            label={PAYMENTS_COPY.weekdayLabel}
-            value={weekday}
-            options={WEEKDAY_OPTIONS}
-            error={errors.weekday}
-            onValueChange={(value) => {
-              setWeekday(value);
-              clear("weekday");
-            }}
-          />
-        ) : null}
-        {cycle === "every_n_months" ? (
-          <SelectField
-            ref={fieldRef("intervalMonths")}
-            id={`${ids}-interval`}
-            label={PAYMENTS_COPY.intervalLabel}
-            value={intervalMonths}
-            options={INTERVAL_OPTIONS}
-            error={errors.intervalMonths}
-            onValueChange={(value) => {
-              setIntervalMonths(value);
-              clear("intervalMonths");
-            }}
-          />
-        ) : null}
-        {monthBased ? (
-          <div className="grid grid-cols-1 gap-5 min-[360px]:grid-cols-2">
+          {cycle === "weekly" ? (
             <SelectField
-              ref={fieldRef("dayOfMonth")}
-              id={`${ids}-day`}
-              label={PAYMENTS_COPY.dayOfMonthLabel}
-              value={dayOfMonth}
-              options={DAY_OPTIONS}
-              error={errors.dayOfMonth}
-              help={Number(dayOfMonth) >= 29 ? PAYMENTS_COPY.dayOfMonthHelp : undefined}
+              ref={fieldRef("weekday")}
+              id={`${ids}-weekday`}
+              label={PAYMENTS_COPY.weekdayLabel}
+              value={weekday}
+              options={WEEKDAY_OPTIONS}
+              error={errors.weekday}
               onValueChange={(value) => {
-                setDayOfMonth(value);
-                clear("dayOfMonth");
+                setWeekday(value);
+                clear("weekday");
               }}
             />
-            {cycle === "every_n_months" || cycle === "yearly" ? (
+          ) : null}
+          {cycle === "every_n_months" ? (
+            <SelectField
+              ref={fieldRef("intervalMonths")}
+              id={`${ids}-interval`}
+              label={PAYMENTS_COPY.intervalLabel}
+              value={intervalMonths}
+              options={INTERVAL_OPTIONS}
+              error={errors.intervalMonths}
+              onValueChange={(value) => {
+                setIntervalMonths(value);
+                clear("intervalMonths");
+              }}
+            />
+          ) : null}
+          {monthBased ? (
+            <div className="grid grid-cols-1 gap-5 min-[360px]:grid-cols-2">
               <SelectField
-                ref={fieldRef("anchorMonth")}
-                id={`${ids}-month`}
-                label={
-                  cycle === "yearly" ? PAYMENTS_COPY.yearMonthLabel : PAYMENTS_COPY.anchorLabel
-                }
-                value={anchorMonth}
-                options={MONTH_OPTIONS}
-                error={errors.anchorMonth}
+                ref={fieldRef("dayOfMonth")}
+                id={`${ids}-day`}
+                label={PAYMENTS_COPY.dayOfMonthLabel}
+                value={dayOfMonth}
+                options={DAY_OPTIONS}
+                error={errors.dayOfMonth}
+                help={Number(dayOfMonth) >= 29 ? PAYMENTS_COPY.dayOfMonthHelp : undefined}
                 onValueChange={(value) => {
-                  setAnchorMonth(value);
-                  clear("anchorMonth");
+                  setDayOfMonth(value);
+                  clear("dayOfMonth");
                 }}
               />
-            ) : null}
-          </div>
-        ) : null}
+              {cycle === "every_n_months" || cycle === "yearly" ? (
+                <SelectField
+                  ref={fieldRef("anchorMonth")}
+                  id={`${ids}-month`}
+                  label={
+                    cycle === "yearly" ? PAYMENTS_COPY.yearMonthLabel : PAYMENTS_COPY.anchorLabel
+                  }
+                  value={anchorMonth}
+                  options={MONTH_OPTIONS}
+                  error={errors.anchorMonth}
+                  onValueChange={(value) => {
+                    setAnchorMonth(value);
+                    clear("anchorMonth");
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </fieldset>
 
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -450,7 +451,7 @@ export function RecurringSheet({
           </p>
         ) : null}
         <p role="status" className="sr-only" data-recurring-status="">
-          {pending ? PAYMENTS_COPY.savingStatus : announcement}
+          {pending ? PAYMENTS_COPY.savingStatus : ""}
         </p>
       </form>
     </Sheet>

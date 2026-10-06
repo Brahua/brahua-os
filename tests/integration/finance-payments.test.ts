@@ -4,7 +4,7 @@
 // and authorization. Made-up names and amounts only.
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { ownerDateKey } from "@/lib/time";
 import { deleteExpense, restoreExpense } from "@/modules/finance/actions";
@@ -55,8 +55,12 @@ vi.mock("@/lib/db", async (importOriginal) => ({
 
 const ORIGINAL_ENV = { ...process.env };
 const MISSING = "00000000-0000-4000-8000-000000000000";
-/** The actions use Lima's today by the real clock: so do the tests. */
-const today = () => ownerDateKey(new Date());
+/**
+ * The actions use Lima's today by the real clock: so do the tests, read once per test (a test
+ * running across midnight keeps one day). The "fixed clock" block fakes it instead.
+ */
+let currentDay = "";
+const today = () => currentDay;
 /** Today's day of the month: a monthly payment on it is due today. */
 const todayDay = () => Number(today().slice(8, 10));
 
@@ -69,6 +73,7 @@ afterAll(() => {
 });
 
 beforeEach(async () => {
+  currentDay = ownerDateKey(new Date());
   vi.mocked(revalidatePath).mockClear();
   request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
 });
@@ -305,7 +310,7 @@ describe("pay", () => {
     const claude = await payment({ name: "Suscripción", currency: "USD", amount: "20" });
     const first = unwrap(await markPaid({ id: claude.id, dueOn: today() }));
     expect(first.expense).toMatchObject({ currency: "USD", exchangeRateE4: null });
-    await undoPaid({ id: claude.id, dueOn: today() });
+    await undoPaid({ id: claude.id, dueOn: today(), expenseId: first.expense.id });
     await setExchangeRate({ rate: "3.75" });
     const second = unwrap(await markPaid({ id: claude.id, dueOn: today() }));
     expect(second.expense).toMatchObject({ currency: "USD", exchangeRateE4: 37_500 });
@@ -342,13 +347,15 @@ describe("pay", () => {
   test("undo: the expense is deleted (logically), the period is pending again and can be paid", async () => {
     const created = await payment();
     const paid = unwrap(await markPaid({ id: created.id, dueOn: today() }));
-    expect(unwrap(await undoPaid({ id: created.id, dueOn: today() }))).toEqual({ dueOn: today() });
+    expect(
+      unwrap(await undoPaid({ id: created.id, dueOn: today(), expenseId: paid.expense.id })),
+    ).toEqual({ dueOn: today() });
     const [stored] = await expensesOf(created.id);
     expect(stored.id).toBe(paid.expense.id);
     expect(stored.deletedAt).not.toBeNull();
     expect(await settlementsOf(created.id)).toHaveLength(0);
     // Twice: nothing left to undo.
-    expect(await undoPaid({ id: created.id, dueOn: today() })).toEqual({
+    expect(await undoPaid({ id: created.id, dueOn: today(), expenseId: paid.expense.id })).toEqual({
       ok: false,
       error: RECURRING_ERRORS.notSettled,
     });
@@ -378,7 +385,9 @@ describe("skip", () => {
       "skipped",
     );
     // An undo of a skip never removes a payment's settlement.
-    expect(await undoPaid({ id: created.id, dueOn: today() })).toMatchObject({ ok: false });
+    expect(await undoPaid({ id: created.id, dueOn: today(), expenseId: MISSING })).toMatchObject({
+      ok: false,
+    });
     expect(unwrap(await undoSkipped({ id: created.id, dueOn: today() }))).toEqual({
       dueOn: today(),
     });
@@ -423,7 +432,7 @@ describe("a paid expense deleted from Mes", () => {
     expect(old.deletedAt).not.toBeNull();
     expect(await settlementsOf(created.id)).toMatchObject([{ expenseId: again.expense.id }]);
     // Skipped meanwhile: refused too.
-    await undoPaid({ id: created.id, dueOn: today() });
+    await undoPaid({ id: created.id, dueOn: today(), expenseId: again.expense.id });
     await skipPeriod({ id: created.id, dueOn: today() });
     expect(await restoreExpense({ id: expense.id })).toEqual({
       ok: false,
@@ -488,7 +497,12 @@ describe("reads", () => {
     unwrap(await markPaid({ id: weekly.id, dueOn: addDays(today(), -7), amount: "30" }));
     unwrap(await skipPeriod({ id: weekly.id, dueOn: today() }));
     const detail = await getRecurringDetail(weekly.id, today());
-    expect(detail?.nextDues).toEqual([today(), addDays(today(), 7), addDays(today(), 14)]);
+    // Today's period was skipped: the next ones left start a week later.
+    expect(detail?.nextDues).toEqual([
+      addDays(today(), 7),
+      addDays(today(), 14),
+      addDays(today(), 21),
+    ]);
     expect(detail?.history).toMatchObject([
       { dueOn: today(), status: "skipped", expense: null },
       { dueOn: addDays(today(), -7), status: "paid", expense: { amountCents: 3000 } },
@@ -517,6 +531,309 @@ describe("reads", () => {
       unconvertedUsdCents: 0,
       variableCount: 1,
     });
+  });
+});
+
+describe("with a fixed clock (Monday 2026-10-05, 10:00 in Lima)", () => {
+  // Only Date is faked, before the session (like habits' Lima-day tests).
+  const T = "2026-10-05";
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-05T15:00:00.000Z"));
+    currentDay = T;
+    request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const pendingDues = async (id: string) =>
+    (await getPaymentsView(T)).pending
+      .filter((period) => period.recurring.id === id)
+      .map((period) => period.dueOn);
+  const stored = async (id: string) => {
+    const [row] = await testDb
+      .select()
+      .from(financeRecurringPayments)
+      .where(eq(financeRecurringPayments.id, id));
+    return row;
+  };
+
+  describe("editing the cycle or the start never reopens a period", () => {
+    test("paid the 10th ahead of time, moved to the 11th: this month's 11th is not pending", async () => {
+      const created = await payment({ dayOfMonth: 10, startDate: "2026-10-01" });
+      unwrap(await markPaid({ id: created.id, dueOn: "2026-10-10" }));
+      const edited = unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Internet",
+          dayOfMonth: 11,
+          startDate: "2026-10-01",
+        }),
+      );
+      expect(edited.startDate).toBe("2026-11-11");
+      expect(await pendingDues(created.id)).toEqual([]);
+      expect(await markPaid({ id: created.id, dueOn: "2026-10-11" })).toEqual({
+        ok: false,
+        error: RECURRING_ERRORS.notDue,
+      });
+      expect(await expensesOf(created.id)).toHaveLength(1);
+      expect((await getRecurringDetail(created.id, T))?.nextDues[0]).toBe("2026-11-11");
+    });
+
+    test("positive control: without a settlement the new day is pending", async () => {
+      const created = await payment({ dayOfMonth: 10, startDate: "2026-10-01" });
+      unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Internet",
+          dayOfMonth: 11,
+          startDate: "2026-10-01",
+        }),
+      );
+      expect(await pendingDues(created.id)).toEqual(["2026-10-11"]);
+    });
+
+    test("a skipped period counts as covered too; every N months keeps its rhythm", async () => {
+      const created = await payment({
+        cycle: "every_n_months",
+        dayOfMonth: 10,
+        intervalMonths: 3,
+        anchorMonth: 10,
+        startDate: "2026-10-01",
+      });
+      unwrap(await skipPeriod({ id: created.id, dueOn: "2026-10-10" }));
+      const edited = unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Internet",
+          cycle: "every_n_months",
+          dayOfMonth: 12,
+          intervalMonths: 3,
+          anchorMonth: 10,
+          startDate: "2026-10-01",
+        }),
+      );
+      // The old cycle's next due date was Jan 10: the new first one is Jan 12, counted from it.
+      expect(edited).toMatchObject({ startDate: "2027-01-12", anchorMonth: 1 });
+      expect(await pendingDues(created.id)).toEqual([]);
+      expect((await getRecurringDetail(created.id, T))?.nextDues).toEqual([
+        "2027-01-12",
+        "2027-04-12",
+        "2027-07-12",
+      ]);
+    });
+
+    test("moving the start earlier brings back no overdue periods", async () => {
+      const created = await payment({ dayOfMonth: 1, startDate: T });
+      const edited = unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Internet",
+          dayOfMonth: 1,
+          startDate: "2026-08-01",
+        }),
+      );
+      expect(edited.startDate).toBe("2026-11-01");
+      expect(await pendingDues(created.id)).toEqual([]);
+      // Positive control: a later start is kept as chosen.
+      const later = unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Internet",
+          dayOfMonth: 1,
+          startDate: "2026-12-01",
+        }),
+      );
+      expect(later.startDate).toBe("2026-12-01");
+    });
+
+    test("an older start that was already pending stays pending (only new overdue is kept out)", async () => {
+      const created = await payment({ dayOfMonth: 1, startDate: "2026-09-01" });
+      expect(await pendingDues(created.id)).toEqual(["2026-09-01", "2026-10-01"]);
+      unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Internet",
+          dayOfMonth: 1,
+          startDate: "2026-07-01",
+        }),
+      );
+      expect((await stored(created.id)).startDate).toBe("2026-09-01");
+      expect(await pendingDues(created.id)).toEqual(["2026-09-01", "2026-10-01"]);
+    });
+
+    test("editing only the name leaves the schedule alone", async () => {
+      const created = await payment({ dayOfMonth: 10, startDate: "2026-10-01" });
+      unwrap(await markPaid({ id: created.id, dueOn: "2026-10-10" }));
+      const edited = unwrap(
+        await editRecurringPayment({
+          ...FIELDS,
+          id: created.id,
+          name: "Fibra",
+          dayOfMonth: 10,
+          startDate: "2026-10-01",
+        }),
+      );
+      expect(edited).toMatchObject({ name: "Fibra", startDate: "2026-10-01" });
+    });
+  });
+
+  test("reactivating starts again from today: nothing from the archived months is overdue", async () => {
+    const created = await payment({ dayOfMonth: 1, startDate: "2026-08-01" });
+    expect(await pendingDues(created.id)).toEqual(["2026-09-01", "2026-10-01"]);
+    unwrap(await archiveRecurringPayment({ id: created.id }));
+    const back = unwrap(await unarchiveRecurringPayment({ id: created.id }));
+    expect(back.startDate).toBe("2026-11-01");
+    expect(await pendingDues(created.id)).toEqual([]);
+  });
+
+  test("an old Deshacer never removes a later pay of the same period", async () => {
+    const created = await payment({ dayOfMonth: 5, startDate: "2026-10-01" });
+    const first = unwrap(await markPaid({ id: created.id, dueOn: T }));
+    await deleteExpense({ id: first.expense.id });
+    const second = unwrap(await markPaid({ id: created.id, dueOn: T }));
+    expect(await undoPaid({ id: created.id, dueOn: T, expenseId: first.expense.id })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notSettled,
+    });
+    expect(await settlementsOf(created.id)).toMatchObject([{ expenseId: second.expense.id }]);
+    // Positive control: the undo of the second one works.
+    expect((await undoPaid({ id: created.id, dueOn: T, expenseId: second.expense.id })).ok).toBe(
+      true,
+    );
+  });
+
+  test("the undo of a pay or a skip of a deleted payment is refused; an archived one is fine", async () => {
+    const created = await payment({ dayOfMonth: 5, startDate: "2026-10-01" });
+    const paid = unwrap(await markPaid({ id: created.id, dueOn: T }));
+    unwrap(await archiveRecurringPayment({ id: created.id }));
+    expect((await undoPaid({ id: created.id, dueOn: T, expenseId: paid.expense.id })).ok).toBe(
+      true,
+    );
+    const other = await payment({ name: "Agua", dayOfMonth: 5, startDate: "2026-10-01" });
+    const otherPaid = unwrap(await markPaid({ id: other.id, dueOn: T }));
+    unwrap(await deleteRecurringPayment({ id: other.id }));
+    expect(await undoPaid({ id: other.id, dueOn: T, expenseId: otherPaid.expense.id })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notFound,
+    });
+    expect(await undoSkipped({ id: other.id, dueOn: T })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notFound,
+    });
+  });
+
+  test("the window's borders: 7 days ahead and 60 back are payable; 14 ahead and 61 back are not", async () => {
+    const weekly = await payment({ cycle: "weekly", weekday: 1, startDate: "2026-07-01" });
+    expect((await markPaid({ id: weekly.id, dueOn: "2026-10-12" })).ok).toBe(true);
+    expect(await markPaid({ id: weekly.id, dueOn: "2026-10-19" })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notDue,
+    });
+    const sixth = await payment({ name: "Día 6", dayOfMonth: 6, startDate: "2026-01-01" });
+    const fifth = await payment({ name: "Día 5", dayOfMonth: 5, startDate: "2026-01-01" });
+    expect((await markPaid({ id: sixth.id, dueOn: "2026-08-06" })).ok).toBe(true);
+    expect(await markPaid({ id: fifth.id, dueOn: "2026-08-05" })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notDue,
+    });
+  });
+
+  test("refusals: skip outside the window, archived or missing; edit and reactivate a deleted one", async () => {
+    const created = await payment({ dayOfMonth: 5, startDate: "2026-10-01" });
+    expect(await skipPeriod({ id: created.id, dueOn: "2026-10-06" })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notDue,
+    });
+    expect(await skipPeriod({ id: MISSING, dueOn: T })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notFound,
+    });
+    unwrap(await archiveRecurringPayment({ id: created.id }));
+    expect(await skipPeriod({ id: created.id, dueOn: T })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.archived,
+    });
+    unwrap(await deleteRecurringPayment({ id: created.id }));
+    expect(await editRecurringPayment({ ...FIELDS, id: created.id, name: "X" })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notFound,
+    });
+    expect(await unarchiveRecurringPayment({ id: created.id })).toEqual({
+      ok: false,
+      error: RECURRING_ERRORS.notFound,
+    });
+    // Restoring twice is fine.
+    expect((await restoreRecurringPayment({ id: created.id })).ok).toBe(true);
+    expect((await restoreRecurringPayment({ id: created.id })).ok).toBe(true);
+  });
+
+  test("pay and skip of the same period at once: one settlement", async () => {
+    const created = await payment({ dayOfMonth: 5, startDate: "2026-10-01" });
+    const results = await Promise.all([
+      markPaid({ id: created.id, dueOn: T }),
+      skipPeriod({ id: created.id, dueOn: T }),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(await settlementsOf(created.id)).toHaveLength(1);
+    const live = (await expensesOf(created.id)).filter((row) => row.deletedAt === null);
+    expect(live.length).toBe((await settlementsOf(created.id))[0].status === "paid" ? 1 : 0);
+  });
+
+  test("restore and pay of a freed period at once: never two live expenses", async () => {
+    const created = await payment({ dayOfMonth: 5, startDate: "2026-10-01" });
+    const first = unwrap(await markPaid({ id: created.id, dueOn: T }));
+    await deleteExpense({ id: first.expense.id });
+    const [restored, paid] = await Promise.all([
+      restoreExpense({ id: first.expense.id }),
+      markPaid({ id: created.id, dueOn: T }),
+    ]);
+    expect([restored.ok, paid.ok].filter(Boolean)).toHaveLength(1);
+    const live = (await expensesOf(created.id)).filter((row) => row.deletedAt === null);
+    expect(live).toHaveLength(1);
+    expect(await settlementsOf(created.id)).toMatchObject([{ expenseId: live[0].id }]);
+  });
+
+  test("a refusal of the input alone doesn't revalidate; a stale one does", async () => {
+    const luz = await payment({ name: "Luz", variable: true, dayOfMonth: 5 });
+    vi.mocked(revalidatePath).mockClear();
+    expect((await markPaid({ id: luz.id, dueOn: T })).ok).toBe(false);
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect((await markPaid({ id: MISSING, dueOn: T })).ok).toBe(false);
+    expect(revalidatePath).toHaveBeenCalled();
+  });
+});
+
+describe("Lima's midnight", () => {
+  // 23:30 in Lima on Oct 5 is already Oct 6 in UTC. Only Date is faked; set before the session.
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T04:30:00.000Z"));
+    currentDay = "2026-10-05";
+    request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("a pay at 23:30 in Lima is spent on the 5th, and the view's today is the 5th", async () => {
+    const created = await payment({ dayOfMonth: 5, startDate: "2026-10-01" });
+    const view = await getPaymentsView(ownerDateKey(new Date()));
+    expect(view.today).toBe("2026-10-05");
+    expect(view.pending.map((period) => period.dueOn)).toEqual(["2026-10-05"]);
+    const paid = unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" }));
+    expect(paid.expense.spentOn).toBe("2026-10-05");
+    // The 6th is still the future in Lima.
+    expect(
+      await markPaid({ id: created.id, dueOn: "2026-10-05", spentOn: "2026-10-06" }),
+    ).toMatchObject({ ok: false });
   });
 });
 
@@ -561,7 +878,7 @@ describe("authorization", () => {
       () => deleteRecurringPayment({ id: created.id }),
       () => restoreRecurringPayment({ id: created.id }),
       () => markPaid({ id: created.id, dueOn: today() }),
-      () => undoPaid({ id: created.id, dueOn: today() }),
+      () => undoPaid({ id: created.id, dueOn: today(), expenseId: MISSING }),
       () => skipPeriod({ id: created.id, dueOn: today() }),
       () => undoSkipped({ id: created.id, dueOn: today() }),
     ]) {
@@ -575,8 +892,11 @@ describe("authorization", () => {
     expect((await markPaid({ id: created.id, dueOn: today() })).ok).toBe(true);
   });
 
-  test("the reads redirect to /login without a session", async () => {
-    request.headers = new Headers();
+  test.each([
+    ["no session", async () => new Headers()],
+    ["another user", async () => new Headers({ cookie: await sessionCookieFor(OTHER) })],
+  ])("the reads redirect to /login with %s", async (_, headers) => {
+    request.headers = await headers();
     for (const read of [
       () => getPaymentsView(today()),
       () => getPendingForMonth(monthOfDay(today())),

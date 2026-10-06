@@ -221,6 +221,7 @@ describe("expenses", () => {
     expect(result.rows.map((row) => row.indexname)).toEqual([
       "finance_categories_name_unique",
       "finance_expenses_recurring_idx",
+      "finance_expenses_recurring_period_unique",
       "finance_expenses_spent_on_idx",
       "finance_payment_methods_name_unique",
       "finance_recurring_payments_archived_idx",
@@ -296,6 +297,20 @@ describe("expenses of recurring payments (F2)", () => {
       await violation(expense({ recurringPaymentId: recurringId, recurringDueOn: "2026-10-08" })),
     ).toBeNull();
     expect(await violation(expense({}))).toBeNull();
+  });
+
+  test("one live expense per period (deleted ones don't count)", async () => {
+    const period = { recurringPaymentId: recurringId, recurringDueOn: "2026-10-08" };
+    expect(await violation(expense(period))).toBeNull();
+    expect(await violation(expense(period))).toEqual({
+      code: "23505",
+      constraint: "finance_expenses_recurring_period_unique",
+    });
+    // Positive controls: a deleted one, or another period.
+    expect(await violation(expense({ ...period, deletedAt: new Date() }))).toBeNull();
+    expect(
+      await violation(expense({ recurringPaymentId: recurringId, recurringDueOn: "2026-11-08" })),
+    ).toBeNull();
   });
 });
 

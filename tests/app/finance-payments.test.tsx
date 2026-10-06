@@ -10,6 +10,7 @@ import { requireOwner } from "@/lib/auth";
 import type { FinanceCatalog } from "@/modules/finance/catalog-input";
 import { ExpenseSheet } from "@/modules/finance/components/expense-sheet";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
+import { PaymentsDeletedNotice } from "@/modules/finance/components/payments-deleted-notice";
 import { PaymentsView } from "@/modules/finance/components/payments-view";
 import { RecurringDetail } from "@/modules/finance/components/recurring-detail";
 import {
@@ -17,7 +18,9 @@ import {
   createRecurringPayment,
   deleteRecurringPayment,
   markPaid,
+  restoreRecurringPayment,
   skipPeriod,
+  unarchiveRecurringPayment,
   undoPaid,
 } from "@/modules/finance/payment-actions";
 import { getRecurringDetail } from "@/modules/finance/payment-queries";
@@ -119,7 +122,7 @@ function renderView(items: RecurringItem[]) {
 
 const pendingList = () => screen.getByRole("list", { name: "Pendientes" });
 const payKey = (name: string) =>
-  screen.getByRole("button", { name: new RegExp(`^Pagado(…)?: ${name},`) });
+  screen.getByRole("button", { name: new RegExp(`^Pagado(, con monto)?: ${name},`) });
 const notices = () => screen.getByRole("region", { name: "Avisos de Finanzas" });
 
 beforeEach(() => {
@@ -138,6 +141,7 @@ beforeEach(() => {
     createRecurringPayment,
     archiveRecurringPayment,
     deleteRecurringPayment,
+    unarchiveRecurringPayment,
   ]) {
     vi.mocked(action).mockReset();
   }
@@ -201,7 +205,10 @@ describe("Pagos", () => {
     await within(notices()).findByText("Pago registrado");
     expect(within(notices()).getByText("Internet · 50 soles")).toBeInTheDocument();
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
-    await waitFor(() => expect(undoPaid).toHaveBeenCalledWith({ id: internet.id, dueOn: TODAY }));
+    // The undo names this pay's expense.
+    await waitFor(() =>
+      expect(undoPaid).toHaveBeenCalledWith({ id: internet.id, dueOn: TODAY, expenseId: "e1" }),
+    );
   });
 
   test("the last row paid: focus goes to the Pendientes heading", async () => {
@@ -211,8 +218,14 @@ describe("Pagos", () => {
     vi.mocked(markPaid).mockReturnValue(answer.promise);
     renderView([internet]);
     await user.click(payKey("Internet"));
-    await waitFor(() =>
-      expect(screen.getByRole("heading", { level: 2, name: "Pendientes" })).toHaveFocus(),
+    const heading = screen.getByRole("heading", { level: 2, name: "Pendientes" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    // The empty message is read with the heading.
+    expect(heading).toHaveAccessibleDescription(/Nada pendiente/);
+    // "Este mes" already says it was paid.
+    expect(document.querySelector(`[data-month-row="${internet.id}"]`)).toHaveAttribute(
+      "data-status",
+      "paid",
     );
     answer.resolve(fail(RECURRING_ERRORS.alreadyPaid));
     await within(notices()).findByText(/Ya estaba pagado/);
@@ -234,7 +247,7 @@ describe("Pagos", () => {
     vi.mocked(markPaid).mockResolvedValue(fail(RECURRING_ERRORS.notDue));
     renderView([luz]);
     await user.click(payKey("Luz"));
-    const sheet = await screen.findByRole("dialog", { name: "Pagado: Luz" });
+    const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Luz" });
     const amount = within(sheet).getByRole("textbox", { name: "Monto pagado en soles" });
     await waitFor(() => expect(amount).toHaveFocus());
     await user.keyboard("{Enter}");
@@ -254,6 +267,91 @@ describe("Pagos", () => {
       paymentMethodId: YAPE.id,
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // The server refused it: the notice says why and the row is back (after the rollback).
+    await within(notices()).findByText(new RegExp(RECURRING_ERRORS.notDue.slice(0, 20)));
+    await waitFor(() => expect(within(pendingList()).getAllByRole("listitem")).toHaveLength(1));
+  });
+
+  test("a variable amount saved: the notice says the amount paid", async () => {
+    const user = userEvent.setup();
+    const luz = item({ name: "Luz", amountCents: null });
+    vi.mocked(markPaid).mockResolvedValue(
+      ok({
+        dueOn: TODAY,
+        name: "Luz",
+        expense: {
+          id: "e2",
+          description: "Luz",
+          amountCents: 108_050,
+          currency: "PEN",
+          exchangeRateE4: null,
+          spentOn: TODAY,
+          category: null,
+          paymentMethod: null,
+          recurringPaymentId: luz.id,
+        },
+      }),
+    );
+    renderView([luz]);
+    await user.click(payKey("Luz"));
+    const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Luz" });
+    expect(sheet).toHaveAccessibleDescription("Período que vence el lunes 5 de octubre.");
+    await user.type(
+      within(sheet).getByRole("textbox", { name: "Monto pagado en soles" }),
+      "1080,50{Enter}",
+    );
+    await within(notices()).findByText("Luz · 1,080.50 soles");
+  });
+
+  test("a failed skip comes back, with Sin guardar", async () => {
+    const user = userEvent.setup();
+    const internet = item({ name: "Internet" });
+    vi.mocked(skipPeriod).mockResolvedValue(fail(RECURRING_ERRORS.archived));
+    renderView([internet]);
+    await user.click(screen.getByRole("button", { name: "Más acciones de Internet" }));
+    const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Internet" });
+    await user.click(within(sheet).getByRole("button", { name: "Omitir este período" }));
+    await within(notices()).findByText(/No se pudo omitir el período/);
+    await waitFor(() => expect(within(pendingList()).getAllByRole("listitem")).toHaveLength(1));
+    expect(document.querySelector(`[data-month-row="${internet.id}"]`)).toHaveAttribute(
+      "data-status",
+      "pending",
+    );
+  });
+
+  test("the Pagado… sheet of an overdue period speaks in the past tense", async () => {
+    const user = userEvent.setup();
+    renderView([item({ name: "Agua", dayOfMonth: 2 })]);
+    await user.click(screen.getByRole("button", { name: "Más acciones de Agua" }));
+    const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Agua" });
+    expect(sheet).toHaveAccessibleDescription("Período que venció el viernes 2 de octubre.");
+  });
+
+  test("Reactivar: the row leaves and focus goes to the next Reactivar, then to the summary's place", async () => {
+    const user = userEvent.setup();
+    const uno = item({ name: "Uno", archived: true });
+    const dos = item({ name: "Dos", archived: true });
+    const answers = [
+      deferred<Awaited<ReturnType<typeof unarchiveRecurringPayment>>>(),
+      deferred<Awaited<ReturnType<typeof unarchiveRecurringPayment>>>(),
+    ];
+    vi.mocked(unarchiveRecurringPayment)
+      .mockReturnValueOnce(answers[0].promise)
+      .mockReturnValueOnce(answers[1].promise);
+    renderView([uno, dos]);
+    await user.click(screen.getByText("Archivados (2)"));
+    await user.click(screen.getByRole("button", { name: "Reactivar «Dos»" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reactivar «Uno»" })).toHaveFocus(),
+    );
+    await user.click(screen.getByRole("button", { name: "Reactivar «Uno»" }));
+    // No archived left: the list folds away and focus goes to "Nuevo pago recurrente".
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Nuevo pago recurrente" })).toHaveFocus(),
+    );
+    answers[0].resolve(ok({ ...dos, archived: false }));
+    answers[1].resolve(ok({ ...uno, archived: false }));
+    await waitFor(() => expect(unarchiveRecurringPayment).toHaveBeenCalledTimes(2));
   });
 
   test("Omitir este período from the more-actions sheet, with Deshacer", async () => {
@@ -263,7 +361,7 @@ describe("Pagos", () => {
     vi.mocked(skipPeriod).mockReturnValue(answer.promise);
     renderView([internet]);
     await user.click(screen.getByRole("button", { name: "Más acciones de Internet" }));
-    const sheet = await screen.findByRole("dialog", { name: "Pagado: Internet" });
+    const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Internet" });
     await user.click(within(sheet).getByRole("button", { name: "Omitir este período" }));
     expect(skipPeriod).toHaveBeenCalledWith({ id: internet.id, dueOn: TODAY });
     expect(await screen.findByText(/Nada pendiente/)).toBeInTheDocument();
@@ -319,13 +417,6 @@ describe("Pago recurrente sheet", () => {
     await waitFor(() =>
       expect(within(sheet).getByRole("combobox", { name: "Medio de pago" })).toHaveFocus(),
     );
-    console.log(
-      "BUTTONS",
-      screen
-        .getAllByRole("button", { hidden: true })
-        .map((b) => b.textContent + "|" + b.getAttribute("aria-label"))
-        .join(" / "),
-    );
     await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -344,6 +435,38 @@ describe("Pago recurrente sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
     expect(createRecurringPayment).not.toHaveBeenCalled();
     expect(within(sheet).getByText(RECURRING_ERRORS.nameRequired)).toBeInTheDocument();
+  });
+});
+
+describe("back from deleting a payment (?deleted=)", () => {
+  test("the notice offers Deshacer, which restores it", async () => {
+    const user = userEvent.setup();
+    const internet = item({ name: "Internet" });
+    vi.mocked(restoreRecurringPayment).mockResolvedValue(ok(internet));
+    window.history.replaceState(null, "", `/finance?deleted=${internet.id}`);
+    render(
+      <FinanceScreen today={TODAY} catalog={CATALOG}>
+        <PaymentsDeletedNotice deleted={{ id: internet.id, name: "Internet" }} />
+      </FinanceScreen>,
+    );
+    await within(notices()).findByText("Pago recurrente eliminado");
+    // The parameter leaves the URL (a reload doesn't repeat it).
+    expect(window.location.search).toBe("");
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(restoreRecurringPayment).toHaveBeenCalledWith({ id: internet.id }));
+  });
+
+  test("an unknown or restored payment (no name): no notice", async () => {
+    render(
+      <FinanceScreen today={TODAY} catalog={CATALOG}>
+        <PaymentsDeletedNotice deleted={null} />
+        <p>listo</p>
+      </FinanceScreen>,
+    );
+    // Longer than the notice's delay.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(within(notices()).queryByText("Pago recurrente eliminado")).toBeNull();
+    expect(screen.getByText("listo")).toBeInTheDocument();
   });
 });
 
@@ -455,6 +578,23 @@ describe("the payment's page", () => {
     await user.click(screen.getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(`/finance?deleted=${seguro.id}`));
     expect(document.cookie).toContain("bo_finance_view=payments");
+  });
+
+  test("a refused archive comes back: the key says Archivar again and keeps focus", async () => {
+    const user = userEvent.setup();
+    vi.mocked(archiveRecurringPayment).mockResolvedValue(fail(RECURRING_ERRORS.notFound));
+    renderDetail();
+    await user.click(screen.getByRole("button", { name: "Archivar" }));
+    await within(notices()).findByText(RECURRING_ERRORS.notFound);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Archivar" })).toHaveFocus());
+    expect(screen.queryByText("Archivado")).toBeNull();
+  });
+
+  test("amounts and dates are spoken in words", () => {
+    renderDetail();
+    expect(screen.getByText("50 soles")).toHaveClass("sr-only");
+    expect(screen.getByText("Pagado, 1,200 soles, el viernes 20 de marzo")).toHaveClass("sr-only");
+    expect(screen.getByText("período que vencía el lunes 23 de marzo")).toHaveClass("sr-only");
   });
 
   test("the route checks the owner and is a 404 without the payment", async () => {

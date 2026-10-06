@@ -220,4 +220,4 @@ export async function openPayments(page: Page) {
 
 /** A pending row's "Pagado" key (one tap) or "Pagado…" (variable), by the payment's name. */
 export const payKey = (page: Page, name: string) =>
-  page.getByRole("button", { name: new RegExp(`^Pagado(…)?: ${name},`) });
+  page.getByRole("button", { name: new RegExp(`^Pagado(, con monto)?: ${name},`) });

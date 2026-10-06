@@ -86,7 +86,7 @@ test("a variable amount through Pagado…, and the expense shows as Recurrente",
   await openPayments(page);
   await expect(payKey(page, "Luz")).toHaveText("Pagado…");
   await payKey(page, "Luz").click();
-  const sheet = page.getByRole("dialog", { name: "Pagado: Luz" });
+  const sheet = page.getByRole("dialog", { name: "Registrar pago de Luz" });
   const amount = sheet.getByRole("textbox", { name: "Monto pagado en soles" });
   await expect(amount).toBeFocused();
   await amount.press("Enter");
@@ -111,7 +111,7 @@ test("skip a period, and undo it", async ({ page }) => {
   const id = await insertRecurring({ name: "Gimnasio" });
   await openPayments(page);
   await page.getByRole("button", { name: "Más acciones de Gimnasio" }).click();
-  const sheet = page.getByRole("dialog", { name: "Pagado: Gimnasio" });
+  const sheet = page.getByRole("dialog", { name: "Registrar pago de Gimnasio" });
   await untilSaved(page, () => sheet.getByRole("button", { name: "Omitir este período" }).click());
   await expect(sheet).toBeHidden();
   await expect(page.getByText(/Nada pendiente/)).toBeVisible();
@@ -120,7 +120,9 @@ test("skip a period, and undo it", async ({ page }) => {
     .poll(async () => (await readSettlements(id)).map((row) => row.status))
     .toEqual(["skipped"]);
   expect(await readRecurringExpenses(id)).toHaveLength(0);
-  await expect(page.getByRole("list", { name: /^Este mes/ }).getByText("Omitido")).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: /^Este mes/ }).getByText("Omitido", { exact: true }),
+  ).toBeVisible();
   await untilSaved(page, () =>
     financeNotices(page).getByRole("button", { name: "Deshacer" }).click(),
   );
@@ -195,7 +197,7 @@ test("at 320 px nothing scrolls sideways (Pagos, Pagado…, the new payment shee
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const methodId = await insertMethod("Una tarjeta con un nombre bastante largo");
-  await insertRecurring({
+  const id = await insertRecurring({
     name: "Un pago recurrente con un nombre bastante largo para probar",
     amountCents: 99_999_999,
     paymentMethodId: methodId,
@@ -205,7 +207,7 @@ test("at 320 px nothing scrolls sideways (Pagos, Pagado…, the new payment shee
   const scrollWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
   expect(await scrollWidth()).toBeLessThanOrEqual(320);
   await page.getByRole("button", { name: /^Más acciones de Un pago/ }).click();
-  const pay = page.getByRole("dialog", { name: /^Pagado: Un pago/ });
+  const pay = page.getByRole("dialog", { name: /^Registrar pago de Un pago/ });
   await expect(pay).toBeVisible();
   await animationsSettled(page);
   const payBody = pay.locator(".bo-sheet__body");
@@ -219,21 +221,64 @@ test("at 320 px nothing scrolls sideways (Pagos, Pagado…, the new payment shee
   const createBody = create.locator(".bo-sheet__body");
   expect(await createBody.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   expect(await scrollWidth()).toBeLessThanOrEqual(320);
+
+  // The payment's page, and the 404 (with no accessibility violations).
+  await page.keyboard.press("Escape");
+  await openReady(page, `/finance/payments/${id}`);
+  await expect(page.getByRole("list", { name: "Próximos vencimientos" })).toBeVisible();
+  expect(await scrollWidth()).toBeLessThanOrEqual(320);
+  await page.goto("/finance/payments/00000000-0000-4000-8000-000000000000");
+  await expect(page.getByRole("heading", { name: "Este pago recurrente no existe" })).toBeVisible();
+  expect(await scrollWidth()).toBeLessThanOrEqual(320);
+  expect(await axeViolations(page)).toEqual([]);
 });
 
-test("with reduced motion the Pagado… sheet opens without moving", async ({ page }) => {
+/**
+ * Every frame's transform of the sheet for ~300 ms from the click that opens it (the sampling
+ * starts before the click, so the first frames of a slide are caught).
+ */
+async function sheetTransforms(page: Page, open: () => Promise<void>): Promise<string[]> {
+  const sampling = page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const samples: string[] = [];
+        const start = performance.now();
+        const tick = () => {
+          const sheet = document.querySelector('[role="dialog"]');
+          if (sheet) samples.push(getComputedStyle(sheet).transform);
+          if (performance.now() - start < 300) requestAnimationFrame(tick);
+          else resolve(samples);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  await open();
+  return sampling;
+}
+
+const IDENTITY = /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/;
+
+test("with reduced motion the Pagado… sheet opens without moving (positive control: it slides)", async ({
+  page,
+}) => {
   await insertRecurring({ name: "Luz", amountCents: null });
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  // Positive control: without the preference some frame is mid-slide.
   await openPayments(page);
-  await payKey(page, "Luz").click();
-  const sheet = page.getByRole("dialog", { name: "Pagado: Luz" });
-  await expect(sheet.getByRole("textbox", { name: "Monto pagado en soles" })).toBeFocused();
-  await expect
-    .poll(() => sheet.evaluate((element) => getComputedStyle(element).transform), {
-      timeout: 120,
-      intervals: [20],
-    })
-    .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+  const sliding = await sheetTransforms(page, () => payKey(page, "Luz").click());
+  expect(sliding.length).toBeGreaterThan(0);
+  expect(sliding.some((transform) => !IDENTITY.test(transform))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const still = await sheetTransforms(page, () => payKey(page, "Luz").click());
+  await expect(
+    page
+      .getByRole("dialog", { name: "Registrar pago de Luz" })
+      .getByRole("textbox", { name: "Monto pagado en soles" }),
+  ).toBeFocused();
+  expect(still.length).toBeGreaterThan(0);
+  expect(still.filter((transform) => !IDENTITY.test(transform))).toEqual([]);
 });
 
 for (const theme of THEMES) {
@@ -266,7 +311,7 @@ for (const theme of THEMES) {
     await expectScreenshot(pendingList(page), `finance-payments-pending-${theme}.png`);
 
     await page.getByRole("button", { name: "Más acciones de Internet" }).click();
-    await expect(page.getByRole("dialog", { name: "Pagado: Internet" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Registrar pago de Internet" })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");
 

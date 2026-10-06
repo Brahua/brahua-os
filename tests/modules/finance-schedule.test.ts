@@ -11,6 +11,8 @@ import {
   monthRange,
   nextDueDate,
   nextDueDates,
+  nextOpenDue,
+  startFrom,
   pendingPeriods,
   pendingWindow,
   type Schedule,
@@ -117,11 +119,25 @@ describe("due dates by cycle", () => {
       ["2026-03-05", "2026-06-05", "2026-09-05", "2026-12-05", "2027-03-05", "2027-06-05"],
     ],
     [
-      "every 2 months from November (anchor in the start's year)",
+      "every 2 months from November: nothing counted back before the first November",
       everyN(2, 31, 11, "2026-01-01"),
       "2026-01-01",
-      "2026-12-31",
-      ["2026-01-31", "2026-03-31", "2026-05-31", "2026-07-31", "2026-09-30", "2026-11-30"],
+      "2027-05-31",
+      ["2026-11-30", "2027-01-31", "2027-03-31", "2027-05-31"],
+    ],
+    [
+      "every 3 months from March, started after this year's March: the next March",
+      everyN(3, 5, 3, "2026-03-10"),
+      "2026-01-01",
+      "2027-09-30",
+      ["2027-03-05", "2027-06-05", "2027-09-05"],
+    ],
+    [
+      "every 3 months from March, started on that March's due day",
+      everyN(3, 5, 3, "2026-03-05"),
+      "2026-01-01",
+      "2026-09-30",
+      ["2026-03-05", "2026-06-05", "2026-09-05"],
     ],
     [
       "every 5 months from January 2026",
@@ -207,6 +223,30 @@ describe("due dates by cycle", () => {
   });
 });
 
+describe("moving the start and skipping settled dates", () => {
+  test("nextOpenDue skips settled due dates", () => {
+    expect(nextOpenDue(monthly(15), "2026-10-05", new Set())).toBe("2026-10-15");
+    expect(nextOpenDue(monthly(15), "2026-10-05", new Set(["2026-10-15"]))).toBe("2026-11-15");
+    expect(nextOpenDue(monthly(15), "2026-10-05", new Set(["2026-10-15", "2026-11-15"]))).toBe(
+      "2026-12-15",
+    );
+  });
+
+  test("startFrom: the first due date on or after the day, the same dates after it", () => {
+    expect(startFrom(monthly(16, "2026-01-01"), "2026-11-15").startDate).toBe("2026-11-16");
+    // Already later: unchanged.
+    const late = monthly(16, "2027-01-01");
+    expect(startFrom(late, "2026-11-15")).toBe(late);
+    // Every N months keeps its rhythm: the anchor becomes the new first month.
+    const quarterly = everyN(3, 5, 3, "2026-01-01");
+    const moved = startFrom(quarterly, "2026-07-01");
+    expect(moved).toMatchObject({ startDate: "2026-09-05", anchorMonth: 9 });
+    expect(dueDatesBetween(moved, "2026-01-01", "2027-06-30")).toEqual(
+      dueDatesBetween(quarterly, "2026-07-01", "2027-06-30"),
+    );
+  });
+});
+
 describe("pending periods", () => {
   const today = "2026-10-05";
 
@@ -267,11 +307,14 @@ function referenceIsDue(schedule: Schedule, day: string): boolean {
   if (date !== target) return false;
   if (schedule.cycle === "monthly") return true;
   if (schedule.cycle === "yearly") return month === schedule.anchorMonth;
-  const startYear = Number(schedule.startDate.slice(0, 4));
-  const diff = year * 12 + (month - 1) - (startYear * 12 + (schedule.anchorMonth! - 1));
-  return (
-    ((diff % schedule.intervalMonths!) + schedule.intervalMonths!) % schedule.intervalMonths! === 0
-  );
+  // The first due date in the anchor month on or after the start, then every N months.
+  const anchor = schedule.anchorMonth!;
+  let firstYear = Number(schedule.startDate.slice(0, 4));
+  const anchorDay = (y: number) =>
+    `${y}-${String(anchor).padStart(2, "0")}-${String(Math.min(schedule.dayOfMonth!, daysIn(y, anchor))).padStart(2, "0")}`;
+  if (anchorDay(firstYear) < schedule.startDate) firstYear += 1;
+  const diff = year * 12 + (month - 1) - (firstYear * 12 + (anchor - 1));
+  return diff >= 0 && diff % schedule.intervalMonths! === 0;
 }
 
 function allSchedules(): Schedule[] {

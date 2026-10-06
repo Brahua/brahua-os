@@ -6,6 +6,7 @@ import "server-only";
 import { and, desc, eq, gte, isNotNull, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { lockRecurring, readSettingsIn, rememberPaymentMethod, type Tx } from "./catalog";
+import { isUniqueViolation, PeriodTaken } from "./period-errors";
 import {
   financeCategories,
   financeExpenses,
@@ -297,42 +298,38 @@ export async function softDeleteExpense(db: Database, id: string): Promise<Expen
  * doesn't exist. A paid expense of a recurring payment settles its period again, under the
  * payment's lock (same order as the delete), only if the period is still free: when it was paid
  * or skipped again meanwhile, nothing changes and the answer is "periodTaken" (never two expenses
- * for one period).
+ * for one period). The payment's state doesn't matter: an expense of an archived or deleted
+ * payment is restored and settles its period the same way (its history stays whole).
  */
 export async function restoreExpense(
   db: Database,
   id: string,
 ): Promise<ExpenseItem | "notFound" | "periodTaken"> {
-  return db.transaction(async (tx) => {
-    const peeked = await peekRecurring(tx, id);
-    if (!peeked) return "notFound";
-    const { recurringPaymentId, recurringDueOn } = peeked;
-    if (recurringPaymentId) await lockRecurring(tx, recurringPaymentId);
-    const [restored] = await tx
-      .update(financeExpenses)
-      .set({ deletedAt: null })
-      .where(and(eq(financeExpenses.id, id), isNotNull(financeExpenses.deletedAt)))
-      .returning({ id: financeExpenses.id });
-    if (restored && recurringPaymentId && recurringDueOn) {
-      const settled = await tx
-        .insert(financeSettlements)
-        .values({
-          recurringPaymentId,
-          dueOn: recurringDueOn,
-          status: "paid",
-          expenseId: id,
-        })
-        .onConflictDoNothing()
-        .returning({ dueOn: financeSettlements.dueOn });
-      if (settled.length === 0) {
-        // Taken meanwhile: undo the restore (still deleted) and say why.
-        await tx
-          .update(financeExpenses)
-          .set({ deletedAt: sql`now()` })
-          .where(eq(financeExpenses.id, id));
-        return "periodTaken";
+  try {
+    return await db.transaction(async (tx) => {
+      const peeked = await peekRecurring(tx, id);
+      if (!peeked) return "notFound";
+      const { recurringPaymentId, recurringDueOn } = peeked;
+      if (recurringPaymentId) await lockRecurring(tx, recurringPaymentId);
+      const [restored] = await tx
+        .update(financeExpenses)
+        .set({ deletedAt: null })
+        .where(and(eq(financeExpenses.id, id), isNotNull(financeExpenses.deletedAt)))
+        .returning({ id: financeExpenses.id });
+      if (restored && recurringPaymentId && recurringDueOn) {
+        const settled = await tx
+          .insert(financeSettlements)
+          .values({ recurringPaymentId, dueOn: recurringDueOn, status: "paid", expenseId: id })
+          .onConflictDoNothing()
+          .returning({ dueOn: financeSettlements.dueOn });
+        // Paid or skipped again meanwhile: roll everything back (the expense stays deleted).
+        if (settled.length === 0) throw new PeriodTaken();
       }
-    }
-    return (await selectExpenseById(tx, id)) ?? "notFound";
-  });
+      return (await selectExpenseById(tx, id)) ?? "notFound";
+    });
+  } catch (error) {
+    // The settlement's key, or the one-live-expense-per-period index behind it.
+    if (error instanceof PeriodTaken || isUniqueViolation(error)) return "periodTaken";
+    throw error;
+  }
 }

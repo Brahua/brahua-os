@@ -3,7 +3,9 @@
 // Server Actions of recurring payments (F2): create, edit, archive, reactivate, delete, restore,
 // and the periods: pay ("Pagado" / "Pagado…"), skip, and their undo. Each one goes through
 // ownerAction(): owner check first, Zod, then an ActionResult. Reachable by any POST, so input is
-// `unknown`. Every write revalidates /finance (the payment pages are under it).
+// `unknown`. A write revalidates /finance (the payment pages are under it) when it changed
+// something, or when it was refused because the page is out of date (paid, deleted or archived
+// elsewhere; a category or method archived); never for a refusal of the input itself.
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
@@ -27,6 +29,7 @@ import {
   payInputSchema,
   periodInputSchema,
   recurringIdInputSchema,
+  undoPaidInputSchema,
   updateRecurringInputSchema,
   type RecurringItem,
 } from "./recurring-input";
@@ -54,8 +57,11 @@ function refused<T>(failure: RecurringFailure): ActionResult<T> {
 
 const today = () => ownerDateKey(new Date());
 
+/** Refusals of the input alone: the page is not out of date, nothing to read again. */
+const INPUT_ONLY: ReadonlySet<RecurringFailure> = new Set(["variableNeedsAmount"]);
+
 function settle<T extends object>(result: T | RecurringFailure): ActionResult<T> {
-  revalidateFinanceScreens();
+  if (typeof result !== "string" || !INPUT_ONLY.has(result)) revalidateFinanceScreens();
   return typeof result === "string" ? refused<T>(result) : ok(result);
 }
 
@@ -72,7 +78,7 @@ export async function createRecurringPayment(input: unknown): Promise<ActionResu
 
 const update = ownerAction(
   updateRecurringInputSchema,
-  async (data) => settle(await updateRecurring(getDb(), data)),
+  async (data) => settle(await updateRecurring(getDb(), data, today())),
   { name: "editRecurringPayment" },
 );
 
@@ -83,7 +89,7 @@ export async function editRecurringPayment(input: unknown): Promise<ActionResult
 
 const archive = ownerAction(
   recurringIdInputSchema,
-  async ({ id }) => settle(await setRecurringArchived(getDb(), id, true)),
+  async ({ id }) => settle(await setRecurringArchived(getDb(), id, true, today())),
   { name: "archiveRecurringPayment" },
 );
 
@@ -96,7 +102,7 @@ export async function archiveRecurringPayment(
 
 const unarchive = ownerAction(
   recurringIdInputSchema,
-  async ({ id }) => settle(await setRecurringArchived(getDb(), id, false)),
+  async ({ id }) => settle(await setRecurringArchived(getDb(), id, false, today())),
   { name: "unarchiveRecurringPayment" },
 );
 
@@ -147,12 +153,15 @@ export async function markPaid(input: unknown): Promise<ActionResult<PaidPeriod>
 }
 
 const undoPay = ownerAction(
-  periodInputSchema,
+  undoPaidInputSchema,
   async (data) => settle(await undoPaidPeriod(getDb(), data)),
   { name: "undoPaid" },
 );
 
-/** "Deshacer" of a pay: the expense is removed and the period is pending again. */
+/**
+ * "Deshacer" of a pay (`{ id, dueOn, expenseId }`, the expense `markPaid` returned): the expense is
+ * removed and the period is pending again. Refused if the period now holds another expense.
+ */
 export async function undoPaid(input: unknown): Promise<ActionResult<{ dueOn: string }>> {
   return undoPay(input);
 }

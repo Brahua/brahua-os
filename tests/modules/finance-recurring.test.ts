@@ -154,6 +154,22 @@ describe("the recurring payment schema", () => {
   });
 });
 
+describe("Lima's midnight for the date of a pay", () => {
+  afterEach(() => vi.useRealTimers());
+
+  test("at 04:30 UTC it is still the 5th in Lima: the 6th is in the future", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-06T04:30:00Z"));
+    expect(
+      errorsOf({ id: ID, dueOn: "2026-10-05", spentOn: "2026-10-06" }, payInputSchema as never),
+    ).toMatchObject({ spentOn: EXPENSE_ERRORS.dateFuture });
+    vi.setSystemTime(new Date("2026-10-06T05:30:00Z"));
+    expect(
+      payInputSchema.safeParse({ id: ID, dueOn: "2026-10-05", spentOn: "2026-10-06" }).success,
+    ).toBe(true);
+  });
+});
+
 describe("the pay and period schemas", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -311,11 +327,26 @@ describe("buildPaymentsView", () => {
 
     expect(view.active.map((e) => `${e.recurring.name} ${e.nextDue}`)).toEqual([
       "Internet 2026-10-05",
-      "Gimnasio 2026-10-07",
+      // The 7th was skipped: the next one left is the 14th.
+      "Gimnasio 2026-10-14",
       "Luz 2026-10-20",
       "Seguro 2027-03-23",
     ]);
     expect(view.archived.map((a) => a.name)).toEqual(["Viejo"]);
+  });
+
+  test("the next due date skips periods already paid or skipped (paid ahead of time)", () => {
+    const internet = item({ name: "Internet", dayOfMonth: 8 });
+    const seguro = item({ name: "Seguro", cycle: "yearly", dayOfMonth: 9, anchorMonth: 10 });
+    const view = buildPaymentsView(
+      [internet, seguro],
+      [paid(internet, "2026-10-08"), skipped(seguro, "2026-10-09")],
+      today,
+    );
+    expect(view.active.map((entry) => `${entry.recurring.name} ${entry.nextDue}`)).toEqual([
+      "Internet 2026-11-08",
+      "Seguro 2027-10-09",
+    ]);
   });
 
   test("a paid period of this month shows its real amount", () => {

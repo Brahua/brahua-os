@@ -11,7 +11,7 @@
 
 ## Fase 2 — Recurrentes y resumen *(F2 y F3 en paralelo)*
 
-- [ ] **F2: Pagos recurrentes** (PR de la rama `feat/finance-f2`, sin merge) — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
+- [ ] **F2: Pagos recurrentes** (PR #79, sin merge) — `schedule.ts` (cuatro ciclos, pendientes con ventana de 60 días); crear, editar, archivar, reactivar, eliminar; pestaña Pagos (pendientes, este mes, todos, archivados); "Pagado" (un toque o la hoja si es variable), "Pagado…", omitir y deshacer; página `/finance/payments/[id]` con historial.
   - Verificar: tablas de casos de `schedule.ts`; integración de pagar dos veces a la vez (un solo gasto), omitir, deshacer y eliminar el gasto pagado; E2E pagar, pago variable, omitir.
 - [ ] **F3: Resumen mensual** — `summary.ts`; total en PEN (`NumberFlow`), barras por categoría (filtran la lista), por medio, recurrente vs suelto, USD sin convertir, "Pendiente de pagar"; navegación de meses.
   - Verificar: tablas de casos de `summary.ts`; E2E resumen con un gasto en USD y navegación de meses; barras accesibles.

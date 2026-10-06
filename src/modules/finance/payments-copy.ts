@@ -87,6 +87,11 @@ export function shortDay(day: string): string {
   return `${WEEKDAY_SHORT[isoWeekday(day)]} ${Number(day.slice(8, 10))} ${MONTH_SHORT[Number(day.slice(5, 7))]}`;
 }
 
+/** "jueves 9 de octubre" for a YYYY-MM-DD day: a date as screen readers and sentences say it. */
+export function spokenDay(day: string): string {
+  return `${WEEKDAY_NAMES[isoWeekday(day)]} ${Number(day.slice(8, 10))} de ${MONTH_NAMES[Number(day.slice(5, 7))]}`;
+}
+
 /** "Jueves 9 de octubre de 2026" for a YYYY-MM-DD day. */
 export function longDay(day: string): string {
   return capitalize(
@@ -141,9 +146,13 @@ export const PAYMENTS_COPY = {
   variable: "Monto variable",
   noMethod: "Sin medio de pago",
   nextDue: (label: string) => `Próximo: ${label}`,
+  nextDueSpoken: (day: string) => `próximo vencimiento el ${day}`,
+  dueSpoken: (day: string) => `vence el ${day}`,
 
   // "Este mes" statuses
   statusPaid: (amount: string) => `Pagado · ${amount}`,
+  statusPaidSpoken: (amount: string) => `pagado, ${amount}`,
+  statusPaidNow: "Pagado",
   statusPending: "Pendiente",
   statusSkipped: "Omitido",
   statusNotThisMonth: "No toca este mes",
@@ -151,12 +160,14 @@ export const PAYMENTS_COPY = {
   // Pending row
   pay: "Pagado",
   payNamed: (name: string, due: string) => `Pagado: ${name}, ${due}`,
-  payWithAmount: (name: string, due: string) => `Pagado…: ${name}, ${due} (pide el monto)`,
+  payWithAmount: (name: string, due: string) => `Pagado, con monto: ${name}, ${due}`,
   moreActions: (name: string) => `Más acciones de ${name}`,
 
   // "Pagado…" sheet
-  paySheetTitle: (name: string) => `Pagado: ${name}`,
-  paySheetDescription: (due: string) => `Período que vence el ${due}.`,
+  paySheetTitle: (name: string) => `Registrar pago de ${name}`,
+  /** The period, in the tense of its due date: "venció el…" or "vence el…". */
+  paySheetDescription: (day: string, past: boolean) =>
+    past ? `Período que venció el ${day}.` : `Período que vence el ${day}.`,
   amountLabel: (currency: "PEN" | "USD") =>
     currency === "USD" ? "Monto pagado en dólares" : "Monto pagado en soles",
   dateLabel: "Fecha del pago",
@@ -187,6 +198,7 @@ export const PAYMENTS_COPY = {
   editTitle: "Editar pago recurrente",
   nameLabel: "Nombre",
   nameHelp: "Por ejemplo, «Internet» o «Seguro».",
+  dueLegend: "Vencimiento",
   cycleLabel: "Ciclo",
   weekdayLabel: "Día de la semana",
   dayOfMonthLabel: "Día del mes",
@@ -229,6 +241,8 @@ export const PAYMENTS_COPY = {
   historyHeading: "Historial",
   historyEmpty: "Todavía no hay períodos pagados ni omitidos.",
   historyPaid: (amount: string, day: string) => `Pagado ${amount} el ${day}`,
+  historyPaidSpoken: (amount: string, day: string) => `Pagado, ${amount}, el ${day}`,
+  historyDueSpoken: (day: string) => `período que vencía el ${day}`,
   historySkipped: "Omitido",
   historyDue: (day: string) => `Vencía el ${day}`,
   edit: "Editar",
@@ -244,7 +258,7 @@ export const PAYMENTS_COPY = {
   notFoundTitle: "Pago no encontrado · brahua-os",
   notFoundLcd: "SIN PAGO",
   notFoundHeading: "Este pago recurrente no existe",
-  notFoundText: "Puede que se haya eliminado. Vuelve a Pagos para ver los demás.",
+  notFoundText: "Puede que se haya eliminado. Vuelve a Finanzas para ver los demás.",
   viewPayment: "Ver el pago recurrente",
 } as const;
 
