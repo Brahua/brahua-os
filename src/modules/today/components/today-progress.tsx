@@ -8,8 +8,9 @@
 // - What changes before the server answers lives where it already lived: the optimistic lists of
 //   `TodayHabits`, `TodayTasks` and `TodayPayments` (F4). Each section only *publishes* what its
 //   list says (`useReportHabits`, `useReportTasks`, `useReportPayments`) in a layout effect
-//   (before paint, so "Día completo" shows in the same frame as the last tap). This provider holds those last published values,
-//   never a list of its own, and drops them when the section unmounts (back to the server's).
+//   (before paint, so "Día completo" shows in the same frame as the last tap). This provider
+//   holds those last published values, never a list of its own, and drops them when the section
+//   unmounts (back to the server's).
 // - Tasks completed today are the server's count plus what "Tareas" has completed (or undone)
 //   that the server hasn't read yet: the rows its optimistic list is missing against its props
 //   (`doneDelta`, +1 on complete, −1 on undoing a completion the server already counted). Once

@@ -171,7 +171,7 @@ describe("what a row shows", () => {
     expect(soon).toHaveTextContent("Vence el jue 8");
     expect(soon).not.toHaveClass("text-signal-text");
     expect(within(section()).getByRole("link", { name: "Agua" })).toHaveAccessibleDescription(
-      "Vence el jue 8, 50 soles",
+      "Vence el jueves 8, 50 soles",
     );
   });
 
@@ -195,6 +195,59 @@ describe("what a row shows", () => {
   test("with no payments the section renders nothing (the slot stays mounted)", () => {
     render(<Board payments={[]} />);
     expect(screen.queryByRole("region", { name: "Pagos" })).toBeNull();
+  });
+});
+
+describe("calm by default: urgent first, 3 shown, the signal key only when urgent", () => {
+  test("overdue and due today first, then by date; the rest behind Ver N más (this page only)", async () => {
+    const user = userEvent.setup();
+    const list = [
+      payment({ name: "Gimnasio", dueOn: "2026-10-07" }),
+      payment({ name: "Agua", dueOn: "2026-10-03" }),
+      payment({ name: "Netflix" }),
+      payment({ name: "Seguro", dueOn: "2026-10-09" }),
+      payment({ name: "Luz", dueOn: "2026-10-08" }),
+    ];
+    render(<Board payments={list} />);
+    expect(names()).toEqual(["Agua", "Netflix", "Gimnasio"]);
+    const more = within(section()).getByRole("button", { name: "Ver 2 más" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await user.click(more);
+    expect(names()).toEqual(["Agua", "Netflix", "Gimnasio", "Luz", "Seguro"]);
+    const less = within(section()).getByRole("button", { name: "Ver menos" });
+    expect(less).toHaveAttribute("aria-expanded", "true");
+    expect(less).toHaveFocus();
+    await user.click(less);
+    expect(names()).toEqual(["Agua", "Netflix", "Gimnasio"]);
+  });
+
+  test("paying a shown row: the next folded one rises and focus goes to the next key", async () => {
+    const user = userEvent.setup();
+    const list = [payment(), payment(), payment(), payment()];
+    render(<Board payments={list} />);
+    await user.click(payKey(list[0].name));
+    expect(names()).toEqual([list[1].name, list[2].name, list[3].name]);
+    expect(within(section()).queryByRole("button", { name: /^Ver \d+ más$/ })).toBeNull();
+    expect(payKey(list[1].name)).toHaveFocus();
+    await answer(paid(list[0]));
+  });
+
+  test("“Pagado” is the signal key only for overdue and due today; upcoming ones are ghost", () => {
+    render(
+      <Board
+        payments={[
+          payment({ name: "Agua", dueOn: "2026-10-02" }),
+          payment({ name: "Netflix" }),
+          payment({ name: "Gimnasio", dueOn: "2026-10-07" }),
+        ]}
+      />,
+    );
+    expect(payKey("Agua")).toHaveClass("bo-key--signal");
+    expect(payKey("Netflix")).toHaveClass("bo-key--signal");
+    expect(payKey("Gimnasio")).toHaveClass("bo-key--ghost");
+    expect(payKey("Gimnasio")).not.toHaveClass("bo-key--signal");
+    // Spoken in full, never "jue".
+    expect(payKey("Gimnasio")).toHaveAccessibleName("Pagado: Gimnasio, vence el miércoles 7");
   });
 });
 
@@ -415,6 +468,22 @@ describe("a variable amount: the Pagado… sheet", () => {
     // The only row left: focus lands on the board's heading.
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveFocus());
     await answer(paid(luz, 9_000));
+  });
+
+  test("a new Lima day while the sheet is open: it closes without paying, the board is read again", async () => {
+    const user = userEvent.setup();
+    render(<Board payments={[payment({ name: "Luz", amountCents: null })]} />);
+    await user.click(payKey("Luz"));
+    const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Luz" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Monto pagado en soles" }), "90");
+    // Past Lima's midnight.
+    vi.setSystemTime(new Date("2026-10-06T05:00:01.000Z"));
+    await user.click(within(sheet).getByRole("button", { name: "Registrar pago" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(markPaid).not.toHaveBeenCalled();
+    expect(router.refresh).toHaveBeenCalled();
+    expect(rows()).toHaveLength(1);
+    await waitFor(() => expect(payKey("Luz")).toHaveFocus());
   });
 
   test("closing the sheet without paying returns focus to Pagado… and keeps the row", async () => {

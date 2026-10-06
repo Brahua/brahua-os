@@ -145,6 +145,25 @@ test("an overdue payment keeps Día completo away; paid, it shows; an upcoming o
   await expect(row(page, "Gimnasio")).toBeVisible();
 });
 
+test("four payments: the urgent ones first, 3 shown and Ver 1 más; the signal key only when urgent", async ({
+  page,
+}) => {
+  await dueIn(3, { name: "Gimnasio" });
+  await dueIn(-1, { name: "Agua" });
+  await insertRecurring({ name: "Internet" });
+  await dueIn(5, { name: "Seguro" });
+  await openToday(page);
+  const names = () => rows(page).locator("li a").allTextContents();
+  await expect(rows(page).locator("li")).toHaveCount(3);
+  expect(await names()).toEqual(["Agua", "Internet", "Gimnasio"]);
+  await expect(payKey(page, "Agua")).toHaveClass(/bo-key--signal/);
+  await expect(payKey(page, "Gimnasio")).toHaveClass(/bo-key--ghost/);
+  const more = section(page).getByRole("button", { name: "Ver 1 más" });
+  await more.click();
+  await expect(rows(page).locator("li")).toHaveCount(4);
+  await expect(section(page).getByRole("button", { name: "Ver menos" })).toBeFocused();
+});
+
 test("at 320 px the section doesn't scroll sideways", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const methodId = await insertMethod("Una tarjeta con un nombre bastante largo");

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { keyClasses } from "@/design-system";
 import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import {
@@ -16,6 +16,8 @@ import { financeTodayKey, type FinanceTodayItem } from "@/modules/finance/today-
 import {
   applyTodayTaskChange,
   focusAfterTaskLeaves,
+  paymentsFold,
+  paymentsOrder,
   paymentsTally,
   TODAY_HEADING_ID,
   type TodayTaskChange,
@@ -42,19 +44,20 @@ type TodayPaymentsProps = {
 
 /**
  * "Pagos" on the board (F4 of `finance`, SPEC-finance "Con `today`"): the pending periods of the
- * recurring payments, overdue or due within 7 days, by date, with no fold (the list is short by
- * nature). "Pagado" pays with one tap with `finance`'s own rule (`paymentCompletion`: the
- * expected amount, today, the payment's method; its notice and "Deshacer"); a variable amount
- * opens "Pagado…" (`TodayPaySheet`). Through the board's queue and notices. The row leaves at
- * once; focus goes to the next row's "Pagado", else the previous one's, else the board's heading
- * (the section leaves with its last row). Overdue and due-today rows keep "Día completo" away
- * (`useReportPayments`).
+ * recurring payments, overdue or due within 7 days, the urgent ones (overdue or due today) first
+ * and then by date (`paymentsOrder`); 3 shown and the rest behind "Ver N más", like "Tareas"
+ * (principles 5 and 13; expanded on this page only). "Pagado" pays with one tap with `finance`'s
+ * own rule (`paymentCompletion`: the expected amount, today, the payment's method; its notice and
+ * "Deshacer"); a variable amount opens "Pagado…" (`TodayPaySheet`). Through the board's queue and
+ * notices. The row leaves at once and the next folded one rises; focus goes to the next row's
+ * "Pagado", else the previous one's, else the board's heading (the section leaves with its last
+ * row). Overdue and due-today rows keep "Día completo" away (`useReportPayments`).
  */
 export function TodayPayments({ today, payments }: TodayPaymentsProps) {
   const services = useRequiredScreenServices();
   const { isCurrentDay } = services;
   const completion = useMemo(() => paymentCompletion(services), [services]);
-  const rows = useMemo(() => payments.map(toRow), [payments]);
+  const rows = useMemo(() => paymentsOrder(payments, today).map(toRow), [payments, today]);
   const [view, apply] = useOptimistic(rows, (list: Row[], change: TodayTaskChange<Row>) =>
     applyTodayTaskChange(list, change),
   );
@@ -65,6 +68,9 @@ export function TodayPayments({ today, payments }: TodayPaymentsProps) {
   );
   const [saving, startSaving] = useTransition();
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const fold = paymentsFold(view.length, expanded);
   const returnFocus = useRef<HTMLElement | null>(null);
   // "Día completo" follows this optimistic list: an overdue or due-today row keeps the day open.
   const tally = paymentsTally(view, today);
@@ -138,6 +144,12 @@ export function TodayPayments({ today, payments }: TodayPaymentsProps) {
 
   /** "Registrar pago" in the sheet: focus goes to a neighbor (the row leaves), then it closes. */
   function payFromSheet(row: Row, overrides: PayOverrides) {
+    // A new Lima day while the sheet was open: it closes without paying (the board is being read
+    // again, and says so); focus goes back to "Pagado…".
+    if (isCurrentDay && !isCurrentDay()) {
+      closeSheet();
+      return;
+    }
     returnFocus.current = document.querySelector<HTMLElement>(neighborSelector(row.id));
     closeSheet();
     pay(row, overrides);
@@ -172,8 +184,8 @@ export function TodayPayments({ today, payments }: TodayPaymentsProps) {
             </Link>
           </div>
 
-          <ul aria-label={TODAY_COPY.paymentsList} className="bo-list">
-            {view.map((row) => (
+          <ul id={listId} aria-label={TODAY_COPY.paymentsList} className="bo-list">
+            {view.slice(0, fold.shown).map((row) => (
               <li key={row.id}>
                 <PaymentTodayRow
                   item={row}
@@ -184,6 +196,21 @@ export function TodayPayments({ today, payments }: TodayPaymentsProps) {
               </li>
             ))}
           </ul>
+
+          {fold.toggle ? (
+            <div>
+              <button
+                type="button"
+                aria-expanded={fold.toggle === "less"}
+                aria-controls={listId}
+                className={keyClasses({ variant: "ghost" })}
+                data-today-payments-fold=""
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {fold.toggle === "more" ? TODAY_COPY.tasksMore(fold.hidden) : TODAY_COPY.tasksLess}
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

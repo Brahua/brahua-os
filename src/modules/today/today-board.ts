@@ -87,11 +87,15 @@ export const TODAY_TASKS_VISIBLE = 3;
  */
 export type TaskFold = { shown: number; hidden: number; toggle: "more" | "less" | null };
 
-export function taskFold(total: number, expanded: boolean): TaskFold {
+export function taskFold(
+  total: number,
+  expanded: boolean,
+  visible: number = TODAY_TASKS_VISIBLE,
+): TaskFold {
   const count = Math.max(0, total);
-  if (count <= TODAY_TASKS_VISIBLE) return { shown: count, hidden: 0, toggle: null };
+  if (count <= visible) return { shown: count, hidden: 0, toggle: null };
   if (expanded) return { shown: count, hidden: 0, toggle: "less" };
-  return { shown: TODAY_TASKS_VISIBLE, hidden: count - TODAY_TASKS_VISIBLE, toggle: "more" };
+  return { shown: visible, hidden: count - visible, toggle: "more" };
 }
 
 /**
@@ -158,6 +162,28 @@ export function paymentsTally(
   today: string,
 ): PaymentsTally {
   return { blocking: items.filter((item) => blocksDay(item, today)).length };
+}
+
+/**
+ * How many payments "Pagos" shows before "Ver N más" (principles 5 and 13, "sin abrumar"; the
+ * same 3 as "Tareas"). Decision to review with the owner.
+ */
+export const TODAY_PAYMENTS_VISIBLE = 3;
+
+/** The fold of "Pagos": like "Tareas" (`taskFold`), with its own count. */
+export const paymentsFold = (total: number, expanded: boolean): TaskFold =>
+  taskFold(total, expanded, TODAY_PAYMENTS_VISIBLE);
+
+/**
+ * The order of "Pagos": the ones that call for attention (overdue or due today) first, then by
+ * due date; stable otherwise (the contract's order, by date then name, is kept within each).
+ */
+export function paymentsOrder<T extends Pick<FinanceTodayItem, "dueOn">>(
+  items: readonly T[],
+  today: string,
+): T[] {
+  const urgent = (item: T) => (blocksDay(item, today) ? 0 : 1);
+  return [...items].sort((a, b) => urgent(a) - urgent(b) || a.dueOn.localeCompare(b.dueOn));
 }
 
 /**

@@ -28,14 +28,14 @@ Fuera de este módulo: avisos y horarios (`reminders`), revisión semanal (`week
 
 | Tema | Decisión | Por qué |
 |---|---|---|
-| Secciones y orden | Cabecera (fecha y saludo, la de hoy) → **Hábitos** → **Tareas** → **Proyectos**. Una sección sin elementos no se muestra (salvo el estado vacío del día). | Decisión del owner (2026-10-02). Lo diario y de un toque primero. |
+| Secciones y orden | Cabecera (fecha y saludo, la de hoy) → **Hábitos** → **Tareas** → **Pagos** (de `finance`, desde su F4; ver `SPEC-finance.md` → "Con `today`") → **Proyectos**. Una sección sin elementos no se muestra (salvo el estado vacío del día). | Decisión del owner (2026-10-02). Lo diario y de un toque primero. |
 | Hábitos | Los de `getHabitsDueToday(now)` (los que tocan hoy, no en pausa) como `HabitPad`, en el **orden manual**. Un pad hecho no cambia de lugar al tocarlo. Todos visibles (son compactos): el tope de 3 no aplica. | Decisión del owner (tope solo en tareas). Que no se muevan: **decisión para revisar con el owner** (un objetivo que salta bajo el dedo provoca toques errados). |
 | Registrar hábitos | Igual que en Hábitos: un toque en sí/no, suma el paso en cantidad, recaída en "a evitar", "Ajustar" para el valor exacto, todo con "Deshacer". Reutiliza `HabitPad`, `useDayLog`/`useQuantityLog` y `HabitsScreenWithin` con los servicios de pantalla del anfitrión. | Decisión del owner. Una sola implementación (contrato H6). |
 | Tareas | Las de `getTasksTodaySummary(now)` (retrasadas y de hoy, mismo orden que la vista Hoy de Tareas). Se ven las **3 primeras**; el resto se pliega tras "Ver N más" (despliega en la misma página; el estado plegado no se recuerda). | Decisión del owner (principio 5). |
 | Completar tareas | Casilla en cada fila: completa con "Deshacer" (con la regla de recurrencia de T3: `completeTaskWithNext` y el aviso de la siguiente). La fila sale de la lista y, si había plegadas, sube la siguiente. El título enlaza a su página (`taskPath(id)`). Sin posponer ni editar desde aquí. | Decisión del owner. |
 | Proyectos | Los de `getProjectsTodaySummary(now)`: nombre, área (LED), "Vence en N días" / "Vencido hace N días" y "Bloqueado por …". Solo lectura, cada fila enlaza a su proyecto. Sin tope (suelen ser pocos); **decisión para revisar con el owner** si crecen. | Decisión del owner (sección incluida). |
-| Día completo | Cuando todos los hábitos de hoy están cumplidos (según la regla de `habits`) y no queda ninguna tarea retrasada ni de hoy, y **hubo algo** hoy (al menos un hábito o una tarea completada hoy), un bloque arriba del todo dice "Día completo" con un mensaje variado y lo logrado: hábitos cumplidos y tareas completadas hoy. Sin confeti ni pantalla aparte; aparece con un fundido (nada con movimiento reducido). Se anuncia una vez por el anunciador. | Decisión del owner (principio 8). El "hubo algo" evita celebrar un día vacío. |
-| Día vacío | Sin hábitos que toquen hoy, sin tareas y sin proyectos: un mensaje tranquilo ("Nada programado para hoy") con enlaces a Hábitos y Tareas. | Principio 13; nunca culpa. |
+| Día completo | Cuando todos los hábitos de hoy están cumplidos (según la regla de `habits`) y no queda ninguna tarea retrasada ni de hoy ni ningún pago vencido o de hoy (los próximos no cuentan; `SPEC-finance.md` → "Con `today`"), y **hubo algo** hoy (al menos un hábito o una tarea completada hoy), un bloque arriba del todo dice "Día completo" con un mensaje variado y lo logrado: hábitos cumplidos y tareas completadas hoy. Sin confeti ni pantalla aparte; aparece con un fundido (nada con movimiento reducido). Se anuncia una vez por el anunciador. | Decisión del owner (principio 8). El "hubo algo" evita celebrar un día vacío. |
+| Día vacío | Sin hábitos que toquen hoy, sin tareas, sin pagos (tampoco próximos: si "Pagos" se ve, el día no está vacío; decisión autónoma de F4 de `finance` para revisar con el owner) y sin proyectos: un mensaje tranquilo ("Nada programado para hoy") con enlaces a Hábitos y Tareas. | Principio 13; nunca culpa. |
 | Hábitos "a evitar" y X por semana | Cuentan como cumplidos según `habits` (sin recaída hoy; o semana ya cumplida). | Una sola regla de cumplimiento (SPEC-habits). |
 | Tareas completadas hoy | Nuevo contrato pequeño en `tasks`: `getTasksDoneTodayCount(now)` (tareas visibles con `done_at` en el día de Lima). Solo para "Día completo". | El resumen de T6 solo trae pendientes. |
 | Revalidación | Las acciones de `tasks` y `projects` revalidan también `/` (hoy solo lo hace `habits` con `revalidateHabitScreens`). | Que el tablero no muestre datos viejos al volver. |
@@ -52,10 +52,11 @@ Fuera de este módulo: avisos y horarios (`reminders`), revisión semanal (`week
 2. **Día completo** (condicional), o nada.
 3. **Hábitos** — título de sección con "X de N" cumplidos; grilla de `HabitPad` (2 columnas en celular, más en escritorio, como Hábitos → Hoy); enlace "Ver hábitos" a `/habits`.
 4. **Tareas** — título con el total ("Tareas · 9"); 3 filas (casilla, título, área, proyecto, "Retrasada hace N días" / "Vence hoy", marca de siguiente acción); "Ver 6 más" / "Ver menos"; enlace "Ver tareas".
-5. **Proyectos** — filas compactas con LED de área, nombre, vencimiento y "Bloqueado por …".
-6. **Día vacío** (condicional) en lugar de 3–5.
+5. **Pagos** (de `finance`, `SPEC-finance.md` → "Con `today`") — los vencidos y de hoy primero, luego los próximos 7 días; 3 filas y "Ver N más" / "Ver menos" (nombre, vencimiento, monto, "Pagado"); enlace "Ver pagos".
+6. **Proyectos** — filas compactas con LED de área, nombre, vencimiento y "Bloqueado por …".
+7. **Día vacío** (condicional) en lugar de 3–6.
 
-Una sola zona de avisos (la del anfitrión, `ScreenServicesProvider`) para hábitos y tareas. Ninguna acción primaria compite: la tecla de captura global sigue siendo la única acción destacada.
+Una sola zona de avisos (la del anfitrión, `ScreenServicesProvider`) para hábitos, tareas y pagos. Ninguna acción primaria compite: la tecla de captura global sigue siendo la única acción destacada.
 
 ## Contratos
 

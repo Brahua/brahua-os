@@ -246,7 +246,7 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 .bo-row.bo-row--static { cursor: default; }
 .bo-row.bo-row--static:hover, .bo-row.bo-row--static:active { background: var(--color-surface); }
 /* The name link inside such a row: a taller target than the text line. */
-.bo-row-link { display: inline-block; padding-block: 4px; }
+.bo-row-link { display: inline-flex; align-items: center; min-height: 44px; padding-block: 4px; }
 /* Finance (F3): the month's summary. The total is a StatNumber that shrinks on phones (a long
    amount fits 320 px). Category rows are toggles (filter the list): name and figures on a line,
    then a horizontal CSS bar (decorative; the row's name carries the numbers). The pressed row is

@@ -8,6 +8,8 @@ import {
   habitsProgress,
   habitsTally,
   isDayComplete,
+  paymentsFold,
+  paymentsOrder,
   paymentsTally,
   taskFold,
   todaySections,
@@ -356,5 +358,27 @@ describe("paymentsTally (F4: which payments keep the day open)", () => {
       isDayComplete({ ...done, payments: paymentsTally([{ dueOn: "2026-09-28" }], TODAY) }),
     ).toBe(false);
     expect(isDayComplete({ ...done, payments: paymentsTally([], TODAY) })).toBe(true);
+  });
+});
+
+describe("Pagos: order and fold (F4, sin abrumar)", () => {
+  test("overdue and due today first, then by date; the contract's order kept within", () => {
+    const items = [
+      { dueOn: "2026-10-04", name: "a" },
+      { dueOn: "2026-09-30", name: "b" },
+      { dueOn: TODAY, name: "c" },
+      { dueOn: "2026-10-03", name: "d" },
+      { dueOn: TODAY, name: "e" },
+    ];
+    expect(paymentsOrder(items, TODAY).map((item) => item.name)).toEqual(["b", "c", "e", "d", "a"]);
+  });
+
+  test.each<[number, boolean, TaskFold]>([
+    [0, false, { shown: 0, hidden: 0, toggle: null }],
+    [3, false, { shown: 3, hidden: 0, toggle: null }],
+    [4, false, { shown: 3, hidden: 1, toggle: "more" }],
+    [7, true, { shown: 7, hidden: 0, toggle: "less" }],
+  ])("%i payments, expanded %s", (total, expanded, fold) => {
+    expect(paymentsFold(total, expanded)).toEqual(fold);
   });
 });

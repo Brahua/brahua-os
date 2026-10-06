@@ -487,7 +487,7 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
           {recurring.name}
         </Link>
         <span id={metaId} hidden>
-          {[due.label, spokenExpected(recurring), recurring.paymentMethod?.name]
+          {[due.spoken, spokenExpected(recurring), recurring.paymentMethod?.name]
             .filter(Boolean)
             .join(", ")}
         </span>
@@ -511,12 +511,12 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
       <span className="bo-row__trail">
         <Key
           ref={payRef}
-          variant="signal"
+          variant={urgent ? "signal" : "ghost"}
           aria-haspopup={variable ? "dialog" : undefined}
           aria-label={
             variable
-              ? PAYMENTS_COPY.payWithAmount(recurring.name, due.label.toLowerCase())
-              : PAYMENTS_COPY.payNamed(recurring.name, due.label.toLowerCase())
+              ? PAYMENTS_COPY.payWithAmount(recurring.name, due.spoken.toLowerCase())
+              : PAYMENTS_COPY.payNamed(recurring.name, due.spoken.toLowerCase())
           }
           onClick={(event) => onPay(event.currentTarget)}
           data-pay={periodKey(period)}

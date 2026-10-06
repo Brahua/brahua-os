@@ -67,7 +67,7 @@ export function PaymentTodayRow({ item, today, onPay, busy = false }: PaymentTod
           {item.name}
         </Link>
         <span id={metaId} hidden>
-          {[due.label, spokenAmount, item.paymentMethod?.name].filter(Boolean).join(", ")}
+          {[due.spoken, spokenAmount, item.paymentMethod?.name].filter(Boolean).join(", ")}
         </span>
         <span aria-hidden className="bo-text-body-sm flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
@@ -88,13 +88,14 @@ export function PaymentTodayRow({ item, today, onPay, busy = false }: PaymentTod
       </span>
       <span className="bo-row__trail">
         <Key
-          variant="signal"
+          // The signal key only where attention is due (overdue or today); upcoming ones are calm.
+          variant={urgent ? "signal" : "ghost"}
           aria-haspopup={variable ? "dialog" : undefined}
           aria-disabled={busy || undefined}
           aria-label={
             variable
-              ? PAYMENTS_COPY.payWithAmount(item.name, due.label.toLowerCase())
-              : PAYMENTS_COPY.payNamed(item.name, due.label.toLowerCase())
+              ? PAYMENTS_COPY.payWithAmount(item.name, due.spoken.toLowerCase())
+              : PAYMENTS_COPY.payNamed(item.name, due.spoken.toLowerCase())
           }
           onClick={(event) => {
             if (!busy) onPay(item, event.currentTarget);

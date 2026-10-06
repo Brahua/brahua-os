@@ -33,11 +33,7 @@ export type TodaySlot = {
   content: React.ReactNode;
 };
 
-/**
- * Slot D4, "Día completo": what the board can't read from the other slots. The block itself
- * (`DayComplete`) is the board's: it follows the sections' live progress
- * (`TodayProgressProvider`), so it shows the moment the last thing is done.
- */
+/** Slot F4 (`finance`), "Pagos": a section like the others, plus what it says about the day. */
 export type PaymentsSlot = TodaySlot & {
   /**
    * How many of its rows keep "Día completo" away by the server's read: overdue or due today
@@ -46,6 +42,11 @@ export type PaymentsSlot = TodaySlot & {
   blocking: number;
 };
 
+/**
+ * Slot D4, "Día completo": what the board can't read from the other slots. The block itself
+ * (`DayComplete`) is the board's: it follows the sections' live progress
+ * (`TodayProgressProvider`), so it shows the moment the last thing is done.
+ */
 export type DayCompleteSlot = {
   /** `getTasksDoneTodayCount(now)`: tasks completed today (Lima), whatever their due date. */
   tasksDoneToday: number;
@@ -75,10 +76,11 @@ export type TodayBoardProps = {
 
 /**
  * The daily board (SPEC-today "Pantalla"): "Día completo" (D4) → "Hábitos" → "Tareas" (D2) →
- * "Pagos" (F4 of `finance`) → "Proyectos" (D3); a section without items is left out, and with nothing at all a calm empty
- * day. One `ScreenServicesProvider` for everything on it: one save queue, one notice viewport,
- * one announcer, and one watch of Lima's day (the page is read again once when it changes, the
- * empty day included). A Server Component: only the provider and the sections are client parts.
+ * "Pagos" (F4 of `finance`) → "Proyectos" (D3); a section without items is left out, and with
+ * nothing at all a calm empty day. One `ScreenServicesProvider` for everything on it: one save
+ * queue, one notice viewport, one announcer, and one watch of Lima's day (the page is read again
+ * once when it changes, the empty day included). A Server Component: only the provider and the
+ * sections are client parts.
  */
 export function TodayBoard({
   today,

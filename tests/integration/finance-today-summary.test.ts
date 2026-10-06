@@ -22,9 +22,12 @@ import {
 import {
   archiveRecurringPayment,
   createRecurringPayment,
+  deleteRecurringPayment,
   editRecurringPayment,
   markPaid,
+  restoreRecurringPayment,
   skipPeriod,
+  unarchiveRecurringPayment,
   undoPaid,
   undoSkipped,
 } from "@/modules/finance/payment-actions";
@@ -284,9 +287,14 @@ describe("the home page is revalidated by what changes Pagos", () => {
     );
   }
 
-  test("pay, undo, skip, undo, edit and archive a payment; delete and restore its expense", async () => {
+  test("create, pay, undo, skip, undo, edit, archive, reactivate, delete and restore a payment; delete and restore its expense", async () => {
     const today = ownerDateKey(new Date());
     const item = await dueToday();
+    expect({ name: "createRecurringPayment", home: home() }).toEqual({
+      name: "createRecurringPayment",
+      home: true,
+    });
+    vi.mocked(revalidatePath).mockClear();
     const steps: [string, () => Promise<{ ok: boolean }>][] = [];
     const paid = unwrap(await markPaid({ id: item.id, dueOn: today }));
     expect(home()).toBe(true);
@@ -317,6 +325,9 @@ describe("the home page is revalidated by what changes Pagos", () => {
           }),
       ],
       ["archiveRecurringPayment", () => archiveRecurringPayment({ id: item.id })],
+      ["unarchiveRecurringPayment", () => unarchiveRecurringPayment({ id: item.id })],
+      ["deleteRecurringPayment", () => deleteRecurringPayment({ id: item.id })],
+      ["restoreRecurringPayment", () => restoreRecurringPayment({ id: item.id })],
     );
     for (const [name, run] of steps) {
       vi.mocked(revalidatePath).mockClear();
