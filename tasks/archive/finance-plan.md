@@ -1,7 +1,7 @@
 # Plan de implementación: finance
 
-> Spec: [`SPEC-finance.md`](../SPEC-finance.md) (APROBADO v1, 2026-10-05) · Tareas: [`todo.md`](todo.md)
-> Planes anteriores en [`archive/`](archive/).
+> Spec: [`SPEC-finance.md`](../../SPEC-finance.md) (APROBADO v1, 2026-10-05; cerrado el 2026-10-06) · Tareas: [`finance-todo.md`](finance-todo.md)
+> Planes anteriores en este mismo directorio.
 
 ## Enfoque
 

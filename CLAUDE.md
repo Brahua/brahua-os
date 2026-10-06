@@ -136,3 +136,20 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **Production data scripts:** deterministic ids, one transaction, host + word confirmation, a verified backup
   first. The agent may run them with `neonctl connection-string` in a shell variable (never printed) when
   the owner asks; the Neon CLI lives under Node 20, so resolve the URL before `nvm use`.
+
+## Lessons from `finance` (retrospective, 2026-10-06)
+
+- **Schedules and edits:** anything with due dates must define what an edit, a reactivation or a start-date
+  change does to periods already settled; reviewers found three ways to re-open a paid period (F2). Test each.
+- **Undo targets the exact row:** an undo carries the id it created (`expenseId`), never just the period or
+  slot; toasts don't expire, and a stale "Deshacer" removed a newer payment.
+- **Screenshots cost a CI round:** when a push adds or changes a visual, dispatch `update-screenshots.yml`
+  right after pushing instead of waiting for the PR run to fail on the comparison.
+- **Merge whatever is green first:** if the second parallel slice is ready before the first, merge it and tell
+  the one in flight to rebase before its single push (docs conflicts only) instead of idling.
+- **Real data stays out of the repo:** files with the owner's data live in the session scratchpad (never in
+  the public repo) and are deleted after use; import scripts print counts and names, never amounts.
+- **Tooling quirks:** `neonctl connection-string` needs `--role-name neondb_owner` (two roles exist); RTK
+  rewrites `pnpm` and rejects `-s`, so run scripts with `rtk proxy pnpm …`.
+- **Disk before parallel agents:** check `df -h`; the disk hit 100 % with three worktrees. Remove each worktree
+  as soon as its PR merges.
