@@ -40,6 +40,8 @@ vi.mock("next/navigation", async (importOriginal) => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// The month's total (F3): NumberFlow's custom element doesn't run in jsdom.
+vi.mock("@number-flow/react", () => ({ default: ({ value }: { value: number }) => <>{value}</> }));
 vi.mock("@/modules/finance/queries", () => ({
   getFinanceCatalog: vi.fn(),
   listMonthExpenses: vi.fn(),
@@ -456,7 +458,7 @@ describe("/finance", () => {
     ]);
     expect(screen.getByRole("heading", { level: 2, name: "Octubre 2026" })).toBeInTheDocument();
     expect(
-      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
+      screen.getAllByRole("heading", { level: 4 }).map((heading) => heading.textContent),
     ).toEqual(["Hoy", "Ayer", "Jueves 1 de octubre"]);
     const today = screen.getByRole("list", { name: "Hoy" });
     expect(within(today).getByRole("button").getAttribute("aria-label")).toBe(

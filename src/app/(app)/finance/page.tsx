@@ -27,9 +27,9 @@ type FinancePageProps = {
 
 /**
  * Finanzas (SPEC-finance "Pantallas"): "Mes · Pagos" (the switch is remembered per device, in a
- * cookie read here so the first paint is right) and "Ajustes" in the header. F1: the month's
- * expenses; F2: "Pagos" (recurring payments). Slots: F3 adds the summary, its arrows and
- * "Pendiente de pagar" (`getPendingForMonth`, payment-queries.ts).
+ * cookie read here so the first paint is right) and "Ajustes" in the header. "Mes": the month's
+ * expenses with its summary, arrows and "Pendiente de pagar" (F3); "Pagos": the recurring
+ * payments (F2).
  */
 export default async function FinancePage({ searchParams }: FinancePageProps) {
   await requireOwner();
@@ -61,7 +61,8 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
         </div>
         <FinanceViews
           initialView={view}
-          month={<MonthView month={month} expenses={expenses} />}
+          // The summary is computed from these rows on the client (summary.ts): no extra query.
+          month={<MonthView month={month} expenses={expenses} pending={null} />}
           payments={<PaymentsView data={payments} />}
         />
       </div>
