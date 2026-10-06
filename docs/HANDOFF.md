@@ -55,6 +55,7 @@
   - ✅ F1 (datos, gastos sueltos, captura "Tarea · Gasto", Ajustes): PR #78 integrado. Ver "Cómo funciona finance" → "F1", con los slots para F2 y F3 y sus **decisiones para revisar con el owner**.
   - ✅ F2 (pagos recurrentes: `schedule.ts`, pestaña Pagos, "Pagado", omitir, página del pago): PR #79 integrado. Ver "Cómo funciona finance" → "F2", con el contrato `getPendingForMonth` para F3, las notas para F4 y sus **decisiones para revisar con el owner**.
   - F3 (resumen mensual: total, barras que filtran, medios, recurrente/suelto, flechas de mes, "Pendiente de pagar"): PR #80, sin merge. Ver "Cómo funciona finance" → "F3", con sus **decisiones para revisar con el owner**.
+  - F5 (script de importación desde Notion: `pnpm db:finance:import`, solo script y pruebas): PR de `feat/finance-f5`, sin merge. La lectura de Notion y la corrida en producción (respaldo, `--dry-run`, host + "importar") las hace el orquestador aparte. Ver "Cómo funciona finance" → "F5".
   - ✅ H1 (datos, crear, registrar con un toque y eliminar): PR #62 integrado. Ver "Cómo funciona habits" → "H1", con los slots para H2 y H3 y las **decisiones para revisar con el owner**.
   - ✅ H2 (frecuencias y agenda): PR #63 integrado. Ver "Cómo funciona habits" → "H2", con lo que H3 debe mirar al rebasar y las **decisiones para revisar con el owner**.
   - ✅ H3 (cantidad, varias veces al día y a evitar): PR #64 integrado. Ver "Cómo funciona habits" → "H3", con sus **decisiones para revisar con el owner**.
@@ -1044,6 +1045,46 @@ Solo la parte del contrato (como T6). **La navegación definitiva sigue pendient
   - Las flechas no tienen tooltip y la del mes actual queda visible pero `aria-disabled` (no se oculta).
   - En "Pendiente de pagar", los pagos de monto variable se cuentan aparte ("+ 1 de monto variable"), sin sumar nada.
 
+### F5: importación desde Notion
+
+Script único `scripts/finance-import.ts` (`pnpm db:finance:import <archivo> [--dry-run]`). Importa categorías, medios de pago y pagos recurrentes (activos e inactivos) desde un JSON que vive **fuera del repo** (el repo es público: los datos financieros nunca se versionan; para copias locales, `/.data/` está en `.gitignore` y `.vercelignore`). No crea gastos (los 33 sueltos de Notion no se importan). La lectura de Notion (MCP, solo lectura) y la corrida en producción las hace el orquestador como paso aparte.
+
+- **Formato del JSON** (validado con Zod, claves desconocidas rechazadas; los mensajes de error dan la ruta, nunca el valor):
+
+  ```json
+  {
+    "source": "notion",
+    "exportedAt": "2026-10-05T12:00:00-05:00",
+    "categories": [{ "notionId": "<32 hex, con o sin guiones>", "name": "Servicios" }],
+    "paymentMethods": [{ "name": "Débito dólares", "currency": "USD" }],
+    "recurring": [{
+      "notionId": "<32 hex>", "name": "Servicio A",
+      "amount": 49.9, "dayOfMonth": 15, "active": true,
+      "paymentMethod": "Débito dólares", "category": "<notionId de una categoría>"
+    }]
+  }
+  ```
+
+  `exportedAt`: fecha o fecha-hora ISO. `amount`: PEN como en Notion, > 0, ≤ 1 000 000, máximo 2 decimales; `null` = monto variable (un 0 se rechaza: mapearlo a `null` al armar el JSON). `dayOfMonth` 1–31. `currency` PEN o USD. Nombres normalizados como en la app (1–40 en catálogo, 1–80 en recurrentes, sin caracteres invisibles). Los medios van **por nombre** (las opciones de un select de Notion no tienen id estable) y la referencia `paymentMethod` se compara sin mayúsculas ni espacios de más. Se rechazan ids o nombres repetidos dentro del archivo.
+- **Mapeo:** ciclo mensual con `day_of_month` (31 → último día del mes), moneda PEN, `amount: null` → variable, `active: false` → archivado (`archived_at` = el instante de la corrida). Todos (también los archivados) empiezan en su **próximo vencimiento desde el día de la importación en Lima** (`nextDueDate` de `schedule.ts`): nada aparece vencido el primer día; uno que vence ese mismo día aparece como "Vence hoy" en Pagos y en `/` (comportamiento conocido; decisión autónoma para revisar con el owner). La moneda de cada medio es la del JSON (aviso si el nombre dice "dólar"/"USD" y la moneda es PEN). Un recurrente que se paga con un medio en USD se importa igual en PEN (como en Notion) con el aviso "«X»: se paga con un medio en USD; se importa en PEN (revísalo en la app)" (solo el nombre, nunca el monto). Una referencia a un medio o categoría que no está en el archivo queda en `null`, con un aviso en el resumen (la referencia va entre comillas, con `JSON.stringify`). `category` debe ser un id de Notion válido o `null`, y `paymentMethod` no acepta caracteres invisibles o de control. El plan muestra también el `exportedAt` del archivo.
+- **Ids e idempotencia:** UUID v5 bajo `FINANCE_IMPORT_NAMESPACE` (constante fija, nunca cambiarla): `category:<notionId>`, `recurring:<notionId>` (el id de Notion en minúsculas y sin guiones) y `method:<nombre normalizado en minúsculas>`. Consecuencia aceptada para una importación única: si el owner renombra un medio en la app y se vuelve a correr el script, se crea un segundo medio con el nombre viejo. `uuidV5` pasó a `scripts/uuid-v5.ts` (la demo la reexporta). Cada insert es `ON CONFLICT (id) DO NOTHING`: volver a correrlo no inserta nada, y una fila que el owner editó, archivó o eliminó después **nunca se pisa**. El resumen dice cuántas insertó y cuántas ya estaban, por tabla.
+- **Una transacción, con locks:** primero `(5000, hashtext('finance:categories'))` y luego `(5000, hashtext('finance:methods'))` (regla de dos claves de `catalog.ts`); las filas nuevas del catálogo van después de todas las existentes (`sort_order` contiguo desde `max + 1`, como `insertCategory`). Si un nombre nuevo choca (sin distinguir mayúsculas) con una categoría o medio **visible** de otro id, aborta sin escribir nada y lista los nombres (un archivado con ese nombre no choca, como el índice único).
+- **Seguridad** (como `db:demo`): solo `DATABASE_URL_UNPOOLED`; un host remoto exige `ALLOW_PROD_DB=1` (`VERCEL=1` no cuenta), una terminal interactiva, un **respaldo de producción comprobado** (el último run exitoso de `backup.yml` en `main`, terminado hace ≤ 3 h y con su artefacto; lo consulta con `gh run list` / `gh api`, así que `gh` debe tener sesión), escribir el host y la palabra `importar`. Antes de pedir nada imprime el plan (conteos y avisos). `--dry-run` corre las mismas lecturas en una transacción `READ ONLY` y no pide confirmaciones. Nunca imprime la URL, secretos, montos ni mensajes de Postgres (`describeError`); los nombres sí salen en avisos y choques (terminal del owner).
+- **Cómo correrlo en producción** (orquestador; URL directa de Neon resuelta con `neonctl connection-string` bajo Node 20, en una variable, nunca impresa; luego `nvm use`):
+
+  ```bash
+  gh workflow run backup.yml -R Brahua/brahua-os   # y esperar: gh run watch <id> en verde
+  ALLOW_PROD_DB=1 pnpm db:finance:import ~/ruta/fuera-del-repo/finance-notion.json --dry-run
+  ALLOW_PROD_DB=1 pnpm db:finance:import ~/ruta/fuera-del-repo/finance-notion.json   # host + "importar"
+  unset DATABASE_URL_UNPOOLED
+  ```
+
+  Esperado en producción: 13 categorías, 9 medios, 33 recurrentes (16 activos, 17 archivados), sin vencidos en Pagos.
+- **La demo no toca `finance`:** `MODULE_TABLES` no tiene tablas `finance_*`, y `db:demo`, `db:demo:remove` y `db:demo:replace` dejan las seis tablas como estaban (prueba de integración).
+- **Pruebas (F5):**
+  - Unitarias `tests/scripts/finance-import.test.ts`: esquema (válido y normalizado, claves desconocidas, id de Notion, montos > 0 / 2 decimales / tope / flotantes como `0.1 + 0.2`, día 1–31, moneda, largos, repetidos), ids deterministas (formas del id de Notion, nombre de medio sin mayúsculas), `firstDueFrom` (31 en febrero y abril, bisiesto, hoy, cambio de año), plan con avisos (también el del medio en USD, con control positivo), referencias (`category` id de Notion o `null`, `paymentMethod` sin invisibles), `exportedAt` en el resumen, resumen sin montos, guarda de host remoto (`ALLOW_PROD_DB`, `VERCEL=1` no cuenta), argumentos, `gate` y `assessBackup` (reciente, viejo, fallido, sin artefacto, en el futuro).
+  - Integración `tests/integration/finance-import.test.ts` (con `vi.setSystemTime` el 2026-02-28 en Lima): mapeo completo, Pagos sin vencidos el primer día (con control positivo: el que vence hoy), el 31 en abril, referencias desconocidas → `null` + aviso, segunda corrida inserta 0 y conserva ediciones/archivo/borrado del owner, un recurrente nuevo en el archivo agrega solo ese, `sort_order` contiguo tras filas existentes, el lock del catálogo va primero (una transacción que lo tiene bloquea la importación, que espera en `pg_locks`, y al soltarlo termina: control positivo), choque de nombre aborta sin escribir (control positivo: un archivado no choca), `--dry-run` no escribe (control positivo: la corrida real sí) y también reporta choques, y la demo no toca `finance_*`.
+
 ## Datos de demo
 
 `scripts/demo-data.ts` carga datos realistas para ver todas las pantallas con contenido: 7 proyectos (uno terminado, uno pausado, "Viaje a Europa 2027" bloqueado por "Renovar pasaporte"), 21 hitos, 4 enlaces, 27 tareas (4 en la bandeja, 2 retrasadas, 6 para hoy, 5 en la semana, 4 sin fecha, 6 hechas en días pasados y **ninguna hoy**; 2 recurrentes; etiquetas `casa`, `compras`, `trámites`, `estudio`) y 8 hábitos con ~4 semanas de registros (rachas creíbles, una pausa "Viaje", "Meditar" ya hecho hoy y el resto pendiente). Las fechas se calculan desde el día de Lima en que se corre, así que la portada siempre tiene algo "de hoy". Usa las áreas del seed por slug y nunca toca `core` (áreas, ajustes, cuenta y passkeys).
@@ -1070,6 +1111,7 @@ unset DATABASE_URL_UNPOOLED
 - **`db:demo:replace` (destructivo):** en una sola transacción borra **todas** las filas de `projects`, `project_milestones`, `project_links`, `project_dependencies`, `tasks`, `task_tags`, `task_tag_links`, `habits`, `habit_logs` y `habit_pauses` (también las de borrado lógico) e inserta la demo. Antes muestra cuántas filas borrará por tabla y pide el host y luego la palabra `BORRAR` (siempre en una terminal interactiva, también en local). Si algo falla, la transacción no se confirma: nada queda a medias. Si faltan áreas del seed, falla sin borrar nada. **Antes de correrlo:** lanzar el respaldo (`gh workflow run backup.yml -R Brahua/brahua-os`) y comprobar que terminó bien (`gh run watch <id>` en verde, con su artefacto), como en "Respaldos (C10)".
 - **Si un comando falla:** dice "the transaction was not confirmed"; antes de reintentar, revisar los conteos con `db:demo:remove` (muestra el resumen y se puede cancelar con Ctrl-C al pedir el host).
 - **Respaldos y exportación:** mientras existan, los datos de demo salen en `pnpm db:export` y en el respaldo semanal como cualquier otro dato.
+- **`finance` queda fuera:** ningún modo de la demo toca las tablas `finance_*` (probado en `tests/integration/finance-import.test.ts`).
 - **Pruebas:** `tests/integration/demo-data.test.ts`: insertar dos veces no duplica; los contratos de `today` y las listas leen datos válidos y no sale "Día completo"; los `CHECK` pasan cualquier día de la semana y a fin de mes; fechas coherentes (ocurrencia creada al completar la anterior, proyecto cerrado después de su último hito y tarea); `remove` deja la base igual que antes con control positivo, cuenta y maneja lo que arrastra (ocurrencias editadas o movidas se sueltan) y cierra el orden de hábitos con uno creado después; `replace` deja solo la demo sin tocar áreas ni la cuenta, y una falla después de borrar revierte todo; `gate` (qué confirma cada modo, `replace` sin terminal falla) y los locks con las claves de los módulos.
 
 ## Pruebas E2E

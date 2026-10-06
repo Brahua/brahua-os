@@ -16,3 +16,4 @@
 /e2e/.auth/
 /exports/
 /.pgdata/
+/.data/

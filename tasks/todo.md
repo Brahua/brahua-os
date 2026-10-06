@@ -22,6 +22,7 @@
   - Verificar: integración del contrato (número fijo de consultas, autorización); tablas de casos de `today-board.ts`; E2E pagar desde `/` y deshacer.
 - [ ] **F5: Importación desde Notion** — lectura con el MCP a un JSON fuera del repo; `scripts/finance-import.ts` (`pnpm db:finance:import`), ids deterministas, idempotente, confirmación y respaldo; corrida en producción.
   - Verificar: integración contra la base desechable con un JSON ficticio (mapeo, archivados, variable, idempotencia); en producción, 33 recurrentes, 13 categorías y 9 medios, sin vencidos el primer día.
+  - Script y pruebas: PR de `feat/finance-f5`, sin merge. Pendiente: lectura de Notion al JSON (fuera del repo) y corrida en producción (paso aparte del orquestador).
 
 ### Checkpoint final
 - [ ] Recorrido completo en producción con el Chrome personal del owner (datos `[QA]` borrados después).
