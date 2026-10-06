@@ -18,15 +18,15 @@
 
 ## Fase 3 — Portada e importación
 
-- [ ] **F4: Pagos en la portada** (PR #82, sin merge) — `getFinanceTodaySummary(now)`; sección "Pagos" en `today` entre Tareas y Proyectos con "Pagado"; "Día completo" con pagos vencidos o de hoy; `finance` revalida `/`.
+- [x] **F4: Pagos en la portada** (Integrado en PR #82) — `getFinanceTodaySummary(now)`; sección "Pagos" en `today` entre Tareas y Proyectos con "Pagado"; "Día completo" con pagos vencidos o de hoy; `finance` revalida `/`.
   - Verificar: integración del contrato (número fijo de consultas, autorización); tablas de casos de `today-board.ts`; E2E pagar desde `/` y deshacer.
 - [x] **F5: Importación desde Notion** — Integrado en PR #81; importación en producción hecha el 2026-10-05 — lectura con el MCP a un JSON fuera del repo; `scripts/finance-import.ts` (`pnpm db:finance:import`), ids deterministas, idempotente, confirmación y respaldo; corrida en producción.
   - Verificar: integración contra la base desechable con un JSON ficticio (mapeo, archivados, variable, idempotencia); en producción, 33 recurrentes, 13 categorías y 9 medios, sin vencidos el primer día.
   - Script y pruebas: PR de `feat/finance-f5`, sin merge. Pendiente: lectura de Notion al JSON (fuera del repo) y corrida en producción (paso aparte del orquestador).
 
 ### Checkpoint final
-- [ ] Recorrido completo en producción con el Chrome personal del owner (datos `[QA]` borrados después).
-- [ ] Se cumplen los criterios de éxito de `SPEC-finance.md`.
+- [x] Recorrido completo en producción (2026-10-05, ~23:30 Lima): el agente lo hizo en el Chrome personal del owner. Captura rápida "Gasto" (`[QA] Café` 12,50 con coma, "Registrado…" + "Deshacer", resumen al instante), pestaña Pagos (Pendientes jue 8 / lun 12 con "Pagado" discreto, "Este mes", "Todos" con los 16 activos, "Archivados (17)"), pagar Netflix y "Deshacer" (vuelve a pendiente), "Pendiente de pagar: 13 pagos, S/ 8,226.00" (cuadra con los vencimientos de octubre importados), portada con "Pagos" entre Tareas y Proyectos (3 filas). Gasto `[QA]` eliminado. El ancho de celular, el tema claro y axe quedan cubiertos por las E2E. Visto: el primer clic en "Pagos" justo tras cerrar la hoja de captura no cambió de pestaña (mismo síntoma que "Clic perdido tras eliminar" del backlog).
+- [x] Se cumplen los criterios de éxito de `SPEC-finance.md` (criterio 1: 4 interacciones la primera vez en un dispositivo, 3 después; decisión para revisar con el owner).
 - [ ] Revisión con el owner: cierre del módulo y decisiones autónomas.
 
 ## Backlog técnico
@@ -49,7 +49,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Hook único de pads de hábitos** (de D1): que `habits` exporte `useHabitPadsLog` (o un componente cliente que dibuje la grilla de pads con su registro) y `today` deje de importar `habit-list-optimistic`, `habits-copy` y `useHabitsScreen`, como `tasks` hizo en D2 con `taskCompletion` y `TaskTodayRow`.
 - [ ] **Áreas y la portada** (de D2): renombrar, cambiar el color o archivar un área (`core`) no revalida `/`; las tareas (y los hábitos) de la portada muestran el área vieja hasta la siguiente lectura. `core` no puede importar a `today`: que `core` revalide `/` directamente al cambiar un área.
 - [ ] **Confeti en hitos de racha** (de H4): sin `canvas-confetti` (dependencia nueva, pide OK del owner); hoy solo texto.
-- [ ] **Clic perdido tras eliminar** (del Checkpoint final de `today`, 2026-10-03): justo después de eliminar una tarea o un hábito (aviso con "Deshacer" en pantalla), el primer clic en la página no hace nada y el segundo sí. Pasa en Tareas y en Hábitos. Reproducir con una E2E y corregir (¿foco o capa del visor de avisos?).
+- [ ] **Clic perdido tras eliminar** (del Checkpoint final de `today`, 2026-10-03): justo después de eliminar una tarea o un hábito (aviso con "Deshacer" en pantalla), el primer clic en la página no hace nada y el segundo sí. Pasa en Tareas y en Hábitos, y también tras cerrar la hoja de captura en Finanzas (visto el 2026-10-05). Reproducir con una E2E y corregir (¿foco o capa del visor de avisos?).
 - [ ] **Grilla de hábitos que salta en el iPhone** (de D4): al cumplirse un hábito de cantidad su tarjeta crece y "Día completo" aparece arriba y empuja la grilla bajo el dedo. Si molesta en el uso diario: reservar alto o no empujar en vivo (opciones en HANDOFF → D4).
 - [ ] **E2E intermitente "Hito"** (`e2e/task-views.spec.ts`, escritorio; visto en local durante D4): tras elegir "Sin hito", `milestoneId` no vuelve a `null` en 5 s en corridas conjuntas. Estabilizar.
 - [ ] **Datos de demo que envejecen:** las fechas se calculan el día en que se cargan (2026-10-03). Para refrescarlas: `pnpm db:demo:remove` y `pnpm db:demo` (ver HANDOFF → "Datos de demo"). Quitarlos antes de usar la app con datos reales.
