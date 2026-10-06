@@ -56,6 +56,8 @@ type SheetProps = {
    * Esc and the scrim are up to `onOpenChange`, which should ignore them too.
    */
   closeDisabled?: boolean;
+  /** Esc pressed: call `event.preventDefault()` to keep the sheet open (e.g. cancel an inline edit). */
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
   className?: string;
   /** Classes for the scrolling body (e.g. `scroll-padding` under a sticky header). */
   bodyClassName?: string;
@@ -80,6 +82,7 @@ export function Sheet({
   focusTitleOnOpen = false,
   onClosed,
   closeDisabled = false,
+  onEscapeKeyDown,
   className,
   bodyClassName,
   children,
@@ -96,6 +99,7 @@ export function Sheet({
         <Dialog.Content
           // Without a subtitle or a description there is none; tell Radix so it doesn't warn.
           {...(subtitle || description ? {} : { "aria-describedby": undefined })}
+          onEscapeKeyDown={onEscapeKeyDown}
           onOpenAutoFocus={(event) => {
             returnFocusTo.current = document.activeElement as HTMLElement | null;
             const target = initialFocusRef?.current ?? (focusTitleOnOpen ? titleRef.current : null);

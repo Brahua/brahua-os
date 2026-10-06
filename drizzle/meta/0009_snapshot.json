@@ -1,0 +1,2443 @@
+{
+  "id": "403f12ac-ac77-4174-b626-fbe6cc7290bc",
+  "prevId": "119a5e32-460c-439d-916c-9034059efe10",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.core_life_areas": {
+      "name": "core_life_areas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "core_life_areas_slug_unique": {
+          "name": "core_life_areas_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": ["slug"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "core_life_areas_color_check": {
+          "name": "core_life_areas_color_check",
+          "value": "\"core_life_areas\".\"color\" in ('home', 'health', 'finance', 'learning', 'work', 'relationships', 'travel', 'hobbies')"
+        },
+        "core_life_areas_icon_check": {
+          "name": "core_life_areas_icon_check",
+          "value": "\"core_life_areas\".\"icon\" in ('house', 'heart-pulse', 'wallet', 'graduation-cap', 'briefcase', 'users', 'plane', 'audio-waveform', 'apple', 'baby', 'bike', 'book-open', 'brain', 'calendar', 'camera', 'car', 'cat', 'code', 'coffee', 'dog', 'dumbbell', 'film', 'flower', 'gamepad', 'globe', 'guitar', 'headphones', 'heart', 'landmark', 'laptop', 'leaf', 'lightbulb', 'map', 'mic', 'moon', 'mountain', 'music', 'palette', 'pen-tool', 'piggy-bank', 'pill', 'rocket', 'shield', 'shopping-cart', 'sparkles', 'sprout', 'star', 'stethoscope', 'sun', 'target', 'tent', 'trending-up', 'trophy', 'utensils', 'wrench')"
+        },
+        "core_life_areas_name_length_check": {
+          "name": "core_life_areas_name_length_check",
+          "value": "char_length(\"core_life_areas\".\"name\") between 1 and 60"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.auth_accounts": {
+      "name": "auth_accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token_expires_at": {
+          "name": "access_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_expires_at": {
+          "name": "refresh_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_accounts_user_id_idx": {
+          "name": "auth_accounts_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_accounts_user_id_auth_users_id_fk": {
+          "name": "auth_accounts_user_id_auth_users_id_fk",
+          "tableFrom": "auth_accounts",
+          "tableTo": "auth_users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_passkeys": {
+      "name": "auth_passkeys",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credential_id": {
+          "name": "credential_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "counter": {
+          "name": "counter",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device_type": {
+          "name": "device_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "backed_up": {
+          "name": "backed_up",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transports": {
+          "name": "transports",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aaguid": {
+          "name": "aaguid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_passkeys_user_id_idx": {
+          "name": "auth_passkeys_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_passkeys_user_id_auth_users_id_fk": {
+          "name": "auth_passkeys_user_id_auth_users_id_fk",
+          "tableFrom": "auth_passkeys",
+          "tableTo": "auth_users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_passkeys_credential_id_unique": {
+          "name": "auth_passkeys_credential_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["credential_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_rate_limits": {
+      "name": "auth_rate_limits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_request": {
+          "name": "last_request",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_rate_limits_key_unique": {
+          "name": "auth_rate_limits_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["key"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_sessions": {
+      "name": "auth_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_sessions_user_id_idx": {
+          "name": "auth_sessions_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_sessions_user_id_auth_users_id_fk": {
+          "name": "auth_sessions_user_id_auth_users_id_fk",
+          "tableFrom": "auth_sessions",
+          "tableTo": "auth_users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_sessions_token_unique": {
+          "name": "auth_sessions_token_unique",
+          "nullsNotDistinct": false,
+          "columns": ["token"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_users": {
+      "name": "auth_users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_users_email_unique": {
+          "name": "auth_users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_verifications": {
+      "name": "auth_verifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_verifications_identifier_idx": {
+          "name": "auth_verifications_identifier_idx",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.finance_categories": {
+      "name": "finance_categories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "finance_categories_name_unique": {
+          "name": "finance_categories_name_unique",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"finance_categories\".\"archived_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_categories_name_length_check": {
+          "name": "finance_categories_name_length_check",
+          "value": "char_length(\"finance_categories\".\"name\") between 1 and 40"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_expenses": {
+      "name": "finance_expenses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exchange_rate": {
+          "name": "exchange_rate",
+          "type": "numeric(8, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spent_on": {
+          "name": "spent_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_method_id": {
+          "name": "payment_method_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recurring_payment_id": {
+          "name": "recurring_payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "finance_expenses_spent_on_idx": {
+          "name": "finance_expenses_spent_on_idx",
+          "columns": [
+            {
+              "expression": "spent_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"finance_expenses\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "finance_expenses_recurring_idx": {
+          "name": "finance_expenses_recurring_idx",
+          "columns": [
+            {
+              "expression": "recurring_payment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"finance_expenses\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "finance_expenses_category_id_finance_categories_id_fk": {
+          "name": "finance_expenses_category_id_finance_categories_id_fk",
+          "tableFrom": "finance_expenses",
+          "tableTo": "finance_categories",
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "finance_expenses_payment_method_id_finance_payment_methods_id_fk": {
+          "name": "finance_expenses_payment_method_id_finance_payment_methods_id_fk",
+          "tableFrom": "finance_expenses",
+          "tableTo": "finance_payment_methods",
+          "columnsFrom": ["payment_method_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "finance_expenses_recurring_payment_id_finance_recurring_payments_id_fk": {
+          "name": "finance_expenses_recurring_payment_id_finance_recurring_payments_id_fk",
+          "tableFrom": "finance_expenses",
+          "tableTo": "finance_recurring_payments",
+          "columnsFrom": ["recurring_payment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_expenses_description_length_check": {
+          "name": "finance_expenses_description_length_check",
+          "value": "char_length(\"finance_expenses\".\"description\") between 1 and 80"
+        },
+        "finance_expenses_amount_check": {
+          "name": "finance_expenses_amount_check",
+          "value": "\"finance_expenses\".\"amount_cents\" between 1 and 100000000"
+        },
+        "finance_expenses_currency_check": {
+          "name": "finance_expenses_currency_check",
+          "value": "\"finance_expenses\".\"currency\" in ('PEN', 'USD')"
+        },
+        "finance_expenses_exchange_rate_check": {
+          "name": "finance_expenses_exchange_rate_check",
+          "value": "coalesce((\n        \"finance_expenses\".\"currency\" = 'PEN' and \"finance_expenses\".\"exchange_rate\" is null\n      ) or (\n        \"finance_expenses\".\"currency\" = 'USD'\n        and (\"finance_expenses\".\"exchange_rate\" is null or \"finance_expenses\".\"exchange_rate\" between 1 and 10)\n      ), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_payment_methods": {
+      "name": "finance_payment_methods",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PEN'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "finance_payment_methods_name_unique": {
+          "name": "finance_payment_methods_name_unique",
+          "columns": [
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"finance_payment_methods\".\"archived_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_payment_methods_name_length_check": {
+          "name": "finance_payment_methods_name_length_check",
+          "value": "char_length(\"finance_payment_methods\".\"name\") between 1 and 40"
+        },
+        "finance_payment_methods_currency_check": {
+          "name": "finance_payment_methods_currency_check",
+          "value": "\"finance_payment_methods\".\"currency\" in ('PEN', 'USD')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_recurring_payments": {
+      "name": "finance_recurring_payments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_method_id": {
+          "name": "payment_method_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cycle": {
+          "name": "cycle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weekday": {
+          "name": "weekday",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "day_of_month": {
+          "name": "day_of_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interval_months": {
+          "name": "interval_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anchor_month": {
+          "name": "anchor_month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "finance_recurring_payments_archived_idx": {
+          "name": "finance_recurring_payments_archived_idx",
+          "columns": [
+            {
+              "expression": "archived_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"finance_recurring_payments\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "finance_recurring_payments_category_id_finance_categories_id_fk": {
+          "name": "finance_recurring_payments_category_id_finance_categories_id_fk",
+          "tableFrom": "finance_recurring_payments",
+          "tableTo": "finance_categories",
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "finance_recurring_payments_payment_method_id_finance_payment_methods_id_fk": {
+          "name": "finance_recurring_payments_payment_method_id_finance_payment_methods_id_fk",
+          "tableFrom": "finance_recurring_payments",
+          "tableTo": "finance_payment_methods",
+          "columnsFrom": ["payment_method_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_recurring_payments_name_length_check": {
+          "name": "finance_recurring_payments_name_length_check",
+          "value": "char_length(\"finance_recurring_payments\".\"name\") between 1 and 80"
+        },
+        "finance_recurring_payments_notes_length_check": {
+          "name": "finance_recurring_payments_notes_length_check",
+          "value": "char_length(\"finance_recurring_payments\".\"notes\") between 1 and 500"
+        },
+        "finance_recurring_payments_amount_check": {
+          "name": "finance_recurring_payments_amount_check",
+          "value": "\"finance_recurring_payments\".\"amount_cents\" between 1 and 100000000"
+        },
+        "finance_recurring_payments_currency_check": {
+          "name": "finance_recurring_payments_currency_check",
+          "value": "\"finance_recurring_payments\".\"currency\" in ('PEN', 'USD')"
+        },
+        "finance_recurring_payments_cycle_check": {
+          "name": "finance_recurring_payments_cycle_check",
+          "value": "\"finance_recurring_payments\".\"cycle\" in ('weekly', 'monthly', 'every_n_months', 'yearly')"
+        },
+        "finance_recurring_payments_cycle_rule_check": {
+          "name": "finance_recurring_payments_cycle_rule_check",
+          "value": "coalesce((\n        \"finance_recurring_payments\".\"cycle\" = 'weekly'\n        and \"finance_recurring_payments\".\"weekday\" between 1 and 7\n        and \"finance_recurring_payments\".\"day_of_month\" is null\n        and \"finance_recurring_payments\".\"interval_months\" is null\n        and \"finance_recurring_payments\".\"anchor_month\" is null\n      ) or (\n        \"finance_recurring_payments\".\"cycle\" = 'monthly'\n        and \"finance_recurring_payments\".\"weekday\" is null\n        and \"finance_recurring_payments\".\"day_of_month\" between 1 and 31\n        and \"finance_recurring_payments\".\"interval_months\" is null\n        and \"finance_recurring_payments\".\"anchor_month\" is null\n      ) or (\n        \"finance_recurring_payments\".\"cycle\" = 'every_n_months'\n        and \"finance_recurring_payments\".\"weekday\" is null\n        and \"finance_recurring_payments\".\"day_of_month\" between 1 and 31\n        and \"finance_recurring_payments\".\"interval_months\" between 2 and 12\n        and \"finance_recurring_payments\".\"anchor_month\" between 1 and 12\n      ) or (\n        \"finance_recurring_payments\".\"cycle\" = 'yearly'\n        and \"finance_recurring_payments\".\"weekday\" is null\n        and \"finance_recurring_payments\".\"day_of_month\" between 1 and 31\n        and \"finance_recurring_payments\".\"interval_months\" is null\n        and \"finance_recurring_payments\".\"anchor_month\" between 1 and 12\n      ), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_settings": {
+      "name": "finance_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "usd_to_pen": {
+          "name": "usd_to_pen",
+          "type": "numeric(8, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_payment_method_id": {
+          "name": "last_payment_method_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "finance_settings_last_payment_method_id_finance_payment_methods_id_fk": {
+          "name": "finance_settings_last_payment_method_id_finance_payment_methods_id_fk",
+          "tableFrom": "finance_settings",
+          "tableTo": "finance_payment_methods",
+          "columnsFrom": ["last_payment_method_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_settings_single_row_check": {
+          "name": "finance_settings_single_row_check",
+          "value": "\"finance_settings\".\"id\" = 1"
+        },
+        "finance_settings_usd_to_pen_check": {
+          "name": "finance_settings_usd_to_pen_check",
+          "value": "\"finance_settings\".\"usd_to_pen\" between 1 and 10"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_settlements": {
+      "name": "finance_settlements",
+      "schema": "",
+      "columns": {
+        "recurring_payment_id": {
+          "name": "recurring_payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_on": {
+          "name": "due_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expense_id": {
+          "name": "expense_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "finance_settlements_recurring_payment_id_finance_recurring_payments_id_fk": {
+          "name": "finance_settlements_recurring_payment_id_finance_recurring_payments_id_fk",
+          "tableFrom": "finance_settlements",
+          "tableTo": "finance_recurring_payments",
+          "columnsFrom": ["recurring_payment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "finance_settlements_expense_id_finance_expenses_id_fk": {
+          "name": "finance_settlements_expense_id_finance_expenses_id_fk",
+          "tableFrom": "finance_settlements",
+          "tableTo": "finance_expenses",
+          "columnsFrom": ["expense_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "finance_settlements_recurring_payment_id_due_on_pk": {
+          "name": "finance_settlements_recurring_payment_id_due_on_pk",
+          "columns": ["recurring_payment_id", "due_on"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_settlements_status_check": {
+          "name": "finance_settlements_status_check",
+          "value": "\"finance_settlements\".\"status\" in ('paid', 'skipped')"
+        },
+        "finance_settlements_expense_check": {
+          "name": "finance_settlements_expense_check",
+          "value": "coalesce((\n        \"finance_settlements\".\"status\" = 'paid' and \"finance_settlements\".\"expense_id\" is not null\n      ) or (\n        \"finance_settlements\".\"status\" = 'skipped' and \"finance_settlements\".\"expense_id\" is null\n      ), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.habit_logs": {
+      "name": "habit_logs",
+      "schema": "",
+      "columns": {
+        "habit_id": {
+          "name": "habit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target": {
+          "name": "target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "habit_logs_habit_id_habits_id_fk": {
+          "name": "habit_logs_habit_id_habits_id_fk",
+          "tableFrom": "habit_logs",
+          "tableTo": "habits",
+          "columnsFrom": ["habit_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "habit_logs_habit_id_day_pk": {
+          "name": "habit_logs_habit_id_day_pk",
+          "columns": ["habit_id", "day"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "habit_logs_quantity_check": {
+          "name": "habit_logs_quantity_check",
+          "value": "\"habit_logs\".\"quantity\" between 0 and 99999"
+        },
+        "habit_logs_target_check": {
+          "name": "habit_logs_target_check",
+          "value": "\"habit_logs\".\"target\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.habit_pauses": {
+      "name": "habit_pauses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "habit_id": {
+          "name": "habit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "habit_pauses_habit_start_idx": {
+          "name": "habit_pauses_habit_start_idx",
+          "columns": [
+            {
+              "expression": "habit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "start_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"habit_pauses\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "habit_pauses_habit_id_habits_id_fk": {
+          "name": "habit_pauses_habit_id_habits_id_fk",
+          "tableFrom": "habit_pauses",
+          "tableTo": "habits",
+          "columnsFrom": ["habit_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "habit_pauses_dates_check": {
+          "name": "habit_pauses_dates_check",
+          "value": "\"habit_pauses\".\"end_date\" >= \"habit_pauses\".\"start_date\" and \"habit_pauses\".\"end_date\" - \"habit_pauses\".\"start_date\" < 90"
+        },
+        "habit_pauses_reason_length_check": {
+          "name": "habit_pauses_reason_length_check",
+          "value": "char_length(\"habit_pauses\".\"reason\") between 1 and 60"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.habits": {
+      "name": "habits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "identity": {
+          "name": "identity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cue": {
+          "name": "cue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'build'"
+        },
+        "life_area_id": {
+          "name": "life_area_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "measure": {
+          "name": "measure",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "goal": {
+          "name": "goal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "step": {
+          "name": "step",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weekly_target": {
+          "name": "weekly_target",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weekdays": {
+          "name": "weekdays",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "habits_sort_order_idx": {
+          "name": "habits_sort_order_idx",
+          "columns": [
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"habits\".\"deleted_at\" is null and \"habits\".\"archived_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "habits_life_area_id_core_life_areas_id_fk": {
+          "name": "habits_life_area_id_core_life_areas_id_fk",
+          "tableFrom": "habits",
+          "tableTo": "core_life_areas",
+          "columnsFrom": ["life_area_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "habits_name_length_check": {
+          "name": "habits_name_length_check",
+          "value": "char_length(\"habits\".\"name\") between 1 and 80"
+        },
+        "habits_identity_length_check": {
+          "name": "habits_identity_length_check",
+          "value": "char_length(\"habits\".\"identity\") between 1 and 120"
+        },
+        "habits_cue_length_check": {
+          "name": "habits_cue_length_check",
+          "value": "char_length(\"habits\".\"cue\") between 1 and 60"
+        },
+        "habits_unit_length_check": {
+          "name": "habits_unit_length_check",
+          "value": "char_length(\"habits\".\"unit\") between 1 and 20"
+        },
+        "habits_kind_check": {
+          "name": "habits_kind_check",
+          "value": "\"habits\".\"kind\" in ('build', 'avoid')"
+        },
+        "habits_measure_check": {
+          "name": "habits_measure_check",
+          "value": "\"habits\".\"measure\" in ('check', 'quantity')"
+        },
+        "habits_frequency_check": {
+          "name": "habits_frequency_check",
+          "value": "\"habits\".\"frequency\" in ('daily', 'weekly_count', 'weekdays')"
+        },
+        "habits_avoid_check": {
+          "name": "habits_avoid_check",
+          "value": "coalesce(\"habits\".\"kind\" <> 'avoid' or (\"habits\".\"measure\" = 'check' and \"habits\".\"frequency\" = 'daily'), false)"
+        },
+        "habits_measure_rule_check": {
+          "name": "habits_measure_rule_check",
+          "value": "coalesce((\n        \"habits\".\"measure\" = 'check'\n        and \"habits\".\"goal\" = 1\n        and \"habits\".\"step\" = 1\n        and \"habits\".\"unit\" is null\n      ) or (\n        \"habits\".\"measure\" = 'quantity'\n        and \"habits\".\"unit\" is not null\n        and \"habits\".\"goal\" between 1 and 10000\n        and \"habits\".\"step\" between 1 and \"habits\".\"goal\"\n      ), false)"
+        },
+        "habits_frequency_rule_check": {
+          "name": "habits_frequency_rule_check",
+          "value": "coalesce((\n        \"habits\".\"frequency\" = 'daily'\n        and \"habits\".\"weekly_target\" is null\n        and \"habits\".\"weekdays\" is null\n      ) or (\n        \"habits\".\"frequency\" = 'weekly_count'\n        and \"habits\".\"weekly_target\" between 1 and 6\n        and \"habits\".\"weekdays\" is null\n      ) or (\n        \"habits\".\"frequency\" = 'weekdays'\n        and \"habits\".\"weekly_target\" is null\n        and array_ndims(\"habits\".\"weekdays\") = 1\n        and array_lower(\"habits\".\"weekdays\", 1) = 1\n        and cardinality(\"habits\".\"weekdays\") between 1 and 6\n        and array_position(\"habits\".\"weekdays\", null) is null\n        and \"habits\".\"weekdays\" <@ array[1, 2, 3, 4, 5, 6, 7]\n        and (cardinality(\"habits\".\"weekdays\") < 2 or \"habits\".\"weekdays\"[1] < \"habits\".\"weekdays\"[2])\n        and (cardinality(\"habits\".\"weekdays\") < 3 or \"habits\".\"weekdays\"[2] < \"habits\".\"weekdays\"[3])\n        and (cardinality(\"habits\".\"weekdays\") < 4 or \"habits\".\"weekdays\"[3] < \"habits\".\"weekdays\"[4])\n        and (cardinality(\"habits\".\"weekdays\") < 5 or \"habits\".\"weekdays\"[4] < \"habits\".\"weekdays\"[5])\n        and (cardinality(\"habits\".\"weekdays\") < 6 or \"habits\".\"weekdays\"[5] < \"habits\".\"weekdays\"[6])\n      ), false)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_dependencies": {
+      "name": "project_dependencies",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blocked_by_id": {
+          "name": "blocked_by_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "project_dependencies_blocked_by_id_idx": {
+          "name": "project_dependencies_blocked_by_id_idx",
+          "columns": [
+            {
+              "expression": "blocked_by_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_dependencies_project_id_projects_id_fk": {
+          "name": "project_dependencies_project_id_projects_id_fk",
+          "tableFrom": "project_dependencies",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "project_dependencies_blocked_by_id_projects_id_fk": {
+          "name": "project_dependencies_blocked_by_id_projects_id_fk",
+          "tableFrom": "project_dependencies",
+          "tableTo": "projects",
+          "columnsFrom": ["blocked_by_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_dependencies_project_id_blocked_by_id_pk": {
+          "name": "project_dependencies_project_id_blocked_by_id_pk",
+          "columns": ["project_id", "blocked_by_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_dependencies_self_check": {
+          "name": "project_dependencies_self_check",
+          "value": "\"project_dependencies\".\"project_id\" <> \"project_dependencies\".\"blocked_by_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_links": {
+      "name": "project_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "project_links_project_order_idx": {
+          "name": "project_links_project_order_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_links_project_id_projects_id_fk": {
+          "name": "project_links_project_id_projects_id_fk",
+          "tableFrom": "project_links",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_links_url_check": {
+          "name": "project_links_url_check",
+          "value": "char_length(\"project_links\".\"url\") <= 2048 and \"project_links\".\"url\" ~* '^https?://[^[:space:]]+$'"
+        },
+        "project_links_label_length_check": {
+          "name": "project_links_label_length_check",
+          "value": "char_length(\"project_links\".\"label\") between 1 and 80"
+        },
+        "project_links_sort_order_check": {
+          "name": "project_links_sort_order_check",
+          "value": "\"project_links\".\"sort_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_milestones": {
+      "name": "project_milestones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "project_milestones_project_order_idx": {
+          "name": "project_milestones_project_order_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "project_milestones_project_id_projects_id_fk": {
+          "name": "project_milestones_project_id_projects_id_fk",
+          "tableFrom": "project_milestones",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_milestones_title_length_check": {
+          "name": "project_milestones_title_length_check",
+          "value": "char_length(\"project_milestones\".\"title\") between 1 and 120"
+        },
+        "project_milestones_sort_order_check": {
+          "name": "project_milestones_sort_order_check",
+          "value": "\"project_milestones\".\"sort_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.projects": {
+      "name": "projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "objective": {
+          "name": "objective",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'idea'"
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "life_area_id": {
+          "name": "life_area_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "projects_status_idx": {
+          "name": "projects_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"projects\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "projects_life_area_id_idx": {
+          "name": "projects_life_area_id_idx",
+          "columns": [
+            {
+              "expression": "life_area_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "projects_life_area_id_core_life_areas_id_fk": {
+          "name": "projects_life_area_id_core_life_areas_id_fk",
+          "tableFrom": "projects",
+          "tableTo": "core_life_areas",
+          "columnsFrom": ["life_area_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "projects_status_check": {
+          "name": "projects_status_check",
+          "value": "\"projects\".\"status\" in ('idea', 'active', 'paused', 'maintenance', 'done', 'canceled')"
+        },
+        "projects_priority_check": {
+          "name": "projects_priority_check",
+          "value": "\"projects\".\"priority\" in ('low', 'medium', 'high')"
+        },
+        "projects_name_length_check": {
+          "name": "projects_name_length_check",
+          "value": "char_length(\"projects\".\"name\") between 1 and 80"
+        },
+        "projects_objective_length_check": {
+          "name": "projects_objective_length_check",
+          "value": "char_length(\"projects\".\"objective\") between 1 and 280"
+        },
+        "projects_notes_length_check": {
+          "name": "projects_notes_length_check",
+          "value": "char_length(\"projects\".\"notes\") between 1 and 20000"
+        },
+        "projects_dates_check": {
+          "name": "projects_dates_check",
+          "value": "\"projects\".\"due_date\" >= \"projects\".\"start_date\""
+        },
+        "projects_completed_at_check": {
+          "name": "projects_completed_at_check",
+          "value": "(\"projects\".\"status\" = 'done') = (\"projects\".\"completed_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.task_tag_links": {
+      "name": "task_tag_links",
+      "schema": "",
+      "columns": {
+        "task_id": {
+          "name": "task_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag_id": {
+          "name": "tag_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "task_tag_links_tag_id_idx": {
+          "name": "task_tag_links_tag_id_idx",
+          "columns": [
+            {
+              "expression": "tag_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "task_tag_links_task_id_tasks_id_fk": {
+          "name": "task_tag_links_task_id_tasks_id_fk",
+          "tableFrom": "task_tag_links",
+          "tableTo": "tasks",
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "task_tag_links_tag_id_task_tags_id_fk": {
+          "name": "task_tag_links_tag_id_task_tags_id_fk",
+          "tableFrom": "task_tag_links",
+          "tableTo": "task_tags",
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "task_tag_links_task_id_tag_id_pk": {
+          "name": "task_tag_links_task_id_tag_id_pk",
+          "columns": ["task_id", "tag_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.task_tags": {
+      "name": "task_tags",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "task_tags_name_unique": {
+          "name": "task_tags_name_unique",
+          "nullsNotDistinct": false,
+          "columns": ["name"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "task_tags_name_check": {
+          "name": "task_tags_name_check",
+          "value": "char_length(\"task_tags\".\"name\") between 1 and 30 and \"task_tags\".\"name\" = lower(\"task_tags\".\"name\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.tasks": {
+      "name": "tasks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "life_area_id": {
+          "name": "life_area_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "milestone_id": {
+          "name": "milestone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_next_action": {
+          "name": "is_next_action",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "recurrence_kind": {
+          "name": "recurrence_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recurrence_interval": {
+          "name": "recurrence_interval",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recurrence_weekdays": {
+          "name": "recurrence_weekdays",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recurrence_month_day": {
+          "name": "recurrence_month_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "spawned_from_id": {
+          "name": "spawned_from_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tasks_next_action_unique": {
+          "name": "tasks_next_action_unique",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"tasks\".\"is_next_action\" and \"tasks\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_due_date_idx": {
+          "name": "tasks_due_date_idx",
+          "columns": [
+            {
+              "expression": "due_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"tasks\".\"done_at\" is null and \"tasks\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_project_id_idx": {
+          "name": "tasks_project_id_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_life_area_id_idx": {
+          "name": "tasks_life_area_id_idx",
+          "columns": [
+            {
+              "expression": "life_area_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_milestone_id_idx": {
+          "name": "tasks_milestone_id_idx",
+          "columns": [
+            {
+              "expression": "milestone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_spawned_from_unique": {
+          "name": "tasks_spawned_from_unique",
+          "columns": [
+            {
+              "expression": "spawned_from_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"tasks\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_spawned_from_id_idx": {
+          "name": "tasks_spawned_from_id_idx",
+          "columns": [
+            {
+              "expression": "spawned_from_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tasks_life_area_id_core_life_areas_id_fk": {
+          "name": "tasks_life_area_id_core_life_areas_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "core_life_areas",
+          "columnsFrom": ["life_area_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "tasks_project_id_projects_id_fk": {
+          "name": "tasks_project_id_projects_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "tasks_milestone_id_project_milestones_id_fk": {
+          "name": "tasks_milestone_id_project_milestones_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "project_milestones",
+          "columnsFrom": ["milestone_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "tasks_spawned_from_id_tasks_id_fk": {
+          "name": "tasks_spawned_from_id_tasks_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "tasks",
+          "columnsFrom": ["spawned_from_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "tasks_priority_check": {
+          "name": "tasks_priority_check",
+          "value": "\"tasks\".\"priority\" in ('low', 'medium', 'high')"
+        },
+        "tasks_title_length_check": {
+          "name": "tasks_title_length_check",
+          "value": "char_length(\"tasks\".\"title\") between 1 and 200"
+        },
+        "tasks_notes_length_check": {
+          "name": "tasks_notes_length_check",
+          "value": "char_length(\"tasks\".\"notes\") between 1 and 20000"
+        },
+        "tasks_area_or_project_check": {
+          "name": "tasks_area_or_project_check",
+          "value": "\"tasks\".\"life_area_id\" is null or \"tasks\".\"project_id\" is null"
+        },
+        "tasks_milestone_project_check": {
+          "name": "tasks_milestone_project_check",
+          "value": "\"tasks\".\"milestone_id\" is null or \"tasks\".\"project_id\" is not null"
+        },
+        "tasks_next_action_check": {
+          "name": "tasks_next_action_check",
+          "value": "not \"tasks\".\"is_next_action\" or (\"tasks\".\"project_id\" is not null and \"tasks\".\"done_at\" is null)"
+        },
+        "tasks_spawned_from_check": {
+          "name": "tasks_spawned_from_check",
+          "value": "\"tasks\".\"spawned_from_id\" <> \"tasks\".\"id\""
+        },
+        "tasks_recurrence_kind_check": {
+          "name": "tasks_recurrence_kind_check",
+          "value": "\"tasks\".\"recurrence_kind\" in ('every_days', 'every_weeks', 'every_months', 'weekdays', 'month_day')"
+        },
+        "tasks_recurrence_check": {
+          "name": "tasks_recurrence_check",
+          "value": "coalesce((\n        \"tasks\".\"recurrence_kind\" is null\n        and \"tasks\".\"recurrence_interval\" is null\n        and \"tasks\".\"recurrence_weekdays\" is null\n        and \"tasks\".\"recurrence_month_day\" is null\n      ) or (\n        \"tasks\".\"recurrence_kind\" in ('every_days', 'every_weeks', 'every_months')\n        and \"tasks\".\"recurrence_interval\" between 1 and 365\n        and \"tasks\".\"recurrence_weekdays\" is null\n        and \"tasks\".\"recurrence_month_day\" is null\n      ) or (\n        \"tasks\".\"recurrence_kind\" = 'weekdays'\n        and \"tasks\".\"recurrence_interval\" is null\n        and \"tasks\".\"recurrence_month_day\" is null\n        and array_ndims(\"tasks\".\"recurrence_weekdays\") = 1\n        and array_lower(\"tasks\".\"recurrence_weekdays\", 1) = 1\n        and cardinality(\"tasks\".\"recurrence_weekdays\") between 1 and 7\n        and array_position(\"tasks\".\"recurrence_weekdays\", null) is null\n        and \"tasks\".\"recurrence_weekdays\" <@ array[1, 2, 3, 4, 5, 6, 7]\n        and (cardinality(\"tasks\".\"recurrence_weekdays\") < 2 or \"tasks\".\"recurrence_weekdays\"[1] < \"tasks\".\"recurrence_weekdays\"[2])\n        and (cardinality(\"tasks\".\"recurrence_weekdays\") < 3 or \"tasks\".\"recurrence_weekdays\"[2] < \"tasks\".\"recurrence_weekdays\"[3])\n        and (cardinality(\"tasks\".\"recurrence_weekdays\") < 4 or \"tasks\".\"recurrence_weekdays\"[3] < \"tasks\".\"recurrence_weekdays\"[4])\n        and (cardinality(\"tasks\".\"recurrence_weekdays\") < 5 or \"tasks\".\"recurrence_weekdays\"[4] < \"tasks\".\"recurrence_weekdays\"[5])\n        and (cardinality(\"tasks\".\"recurrence_weekdays\") < 6 or \"tasks\".\"recurrence_weekdays\"[5] < \"tasks\".\"recurrence_weekdays\"[6])\n        and (cardinality(\"tasks\".\"recurrence_weekdays\") < 7 or \"tasks\".\"recurrence_weekdays\"[6] < \"tasks\".\"recurrence_weekdays\"[7])\n      ) or (\n        \"tasks\".\"recurrence_kind\" = 'month_day'\n        and \"tasks\".\"recurrence_interval\" is null\n        and \"tasks\".\"recurrence_weekdays\" is null\n        and \"tasks\".\"recurrence_month_day\" between 1 and 31\n      ), false)"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

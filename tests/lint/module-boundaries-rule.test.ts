@@ -80,3 +80,53 @@ export const read = listLifeAreas;
 `;
   expect(await restricted(code, "src/modules/habits/queries.ts")).toEqual([]);
 });
+
+// SPEC-finance "Contratos": `finance` depends on `core` only; core, projects, tasks and habits never
+// import it, and it imports no module but `core`.
+const IMPORT_FINANCE = `import { FINANCE_PATH } from "@/modules/finance/routes";
+export const path = FINANCE_PATH;
+`;
+const IMPORT_FINANCE_BARREL = `import * as finance from "@/modules/finance";
+export const all = finance;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+])("%s cannot import finance", async (file) => {
+  const messages = await restricted(IMPORT_FINANCE, file);
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`finance` depende de `core`");
+  expect(await restricted(IMPORT_FINANCE_BARREL, file)).toHaveLength(1);
+});
+
+test("finance itself, its page and the composition roots may import it", async () => {
+  expect(await restricted(IMPORT_FINANCE, "src/modules/finance/actions.ts")).toEqual([]);
+  expect(await restricted(IMPORT_FINANCE, "src/app/(app)/finance/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_FINANCE, "src/lib/modules.ts")).toEqual([]);
+  expect(await restricted(IMPORT_FINANCE, "src/lib/capture-providers.tsx")).toEqual([]);
+});
+
+test.each([
+  ["tasks", `import { TASKS_PATH } from "@/modules/tasks/routes";\nexport const x = TASKS_PATH;\n`],
+  [
+    "habits",
+    `import { HABITS_PATH } from "@/modules/habits/routes";\nexport const x = HABITS_PATH;\n`,
+  ],
+  ["projects", `import * as projects from "@/modules/projects";\nexport const x = projects;\n`],
+  [
+    "today",
+    `import { todayModule } from "@/modules/today/module";\nexport const x = todayModule;\n`,
+  ],
+])("finance cannot import %s", async (_module, code) => {
+  expect(await restricted(code, "src/modules/finance/expenses.ts")).toHaveLength(1);
+});
+
+test("finance may import core (positive control)", async () => {
+  const code = `import { planReorder } from "@/modules/core/life-area-order";
+export const plan = planReorder;
+`;
+  expect(await restricted(code, "src/modules/finance/catalog.ts")).toEqual([]);
+});

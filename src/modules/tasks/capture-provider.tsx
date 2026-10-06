@@ -15,6 +15,7 @@ const QuickCaptureSheet = dynamic(() => loadSheet().then((loaded) => loaded.Quic
 
 export const tasksCaptureProvider: CaptureProvider = {
   id: "tasks",
+  label: "Tarea",
   Sheet: QuickCaptureSheet,
   preload: () => void loadSheet(),
 };

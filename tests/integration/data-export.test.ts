@@ -142,6 +142,13 @@ describe("pnpm db:export", () => {
       "habits",
       "habit_logs",
       "habit_pauses",
+      // F1 of finance: all six (filled rows: tests/integration/finance.test.ts → "export").
+      "finance_categories",
+      "finance_payment_methods",
+      "finance_recurring_payments",
+      "finance_expenses",
+      "finance_settlements",
+      "finance_settings",
     ]) {
       expect(data.tables[name]).toEqual({ rowCount: 0, rows: [] });
     }
