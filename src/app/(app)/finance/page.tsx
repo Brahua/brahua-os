@@ -9,7 +9,11 @@ import { PaymentsDeletedNotice } from "@/modules/finance/components/payments-del
 import { PaymentsView } from "@/modules/finance/components/payments-view";
 import { FinanceSettings } from "@/modules/finance/components/settings-sheet";
 import { FINANCE_COPY } from "@/modules/finance/finance-copy";
-import { getDeletedRecurringName, getPaymentsView } from "@/modules/finance/payment-queries";
+import {
+  getDeletedRecurringName,
+  getPaymentsView,
+  getPendingForMonth,
+} from "@/modules/finance/payment-queries";
 import { DELETED_PAYMENT_PARAM } from "@/modules/finance/payment-routes";
 import { getFinanceCatalog, listMonthExpenses } from "@/modules/finance/queries";
 import {
@@ -38,10 +42,11 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
   const today = ownerDateKey(new Date());
   const month = parseMonth(search[MONTH_PARAM], today.slice(0, 7));
   const deletedId = search[DELETED_PAYMENT_PARAM];
-  const [catalog, expenses, payments, deletedName] = await Promise.all([
+  const [catalog, expenses, payments, pending, deletedName] = await Promise.all([
     getFinanceCatalog(),
     listMonthExpenses(month),
     getPaymentsView(today),
+    getPendingForMonth(month, today),
     typeof deletedId === "string" ? getDeletedRecurringName(deletedId) : null,
   ]);
   // Back from deleting a payment on its page: "Pagos", with its "Deshacer" notice.
@@ -62,7 +67,7 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
         <FinanceViews
           initialView={view}
           // The summary is computed from these rows on the client (summary.ts): no extra query.
-          month={<MonthView month={month} expenses={expenses} pending={null} />}
+          month={<MonthView month={month} expenses={expenses} pending={pending} />}
           payments={<PaymentsView data={payments} />}
         />
       </div>

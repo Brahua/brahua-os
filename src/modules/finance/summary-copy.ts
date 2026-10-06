@@ -27,6 +27,11 @@ export const SUMMARY_COPY = {
   pendingCount: (count: number) => plural(count, "pago", "pagos"),
   pendingLabel: (amount: string, count: number) =>
     `Pendiente de pagar: ${amount}, ${plural(count, "pago", "pagos")}. Ver en Pagos`,
+  /** Payments without an amount: counted, never summed ("+ 1 de monto variable"). */
+  pendingVariable: (count: number, afterAmount: boolean) =>
+    `${afterAmount ? "+ " : ""}${count} de monto variable`,
+  pendingVariableSpoken: (count: number, afterAmount: boolean) =>
+    `${afterAmount ? "y " : ""}${count} de monto variable`,
 
   // Blocks
   byCategory: "Por categoría",

@@ -15,6 +15,7 @@
 // all in the month none has one.
 import type { ExpenseItem, ExpenseRef } from "./expense-input";
 import { toPenCents } from "./money";
+import type { PendingForMonth } from "./payments-view";
 
 /** What the summary reads of an expense (an ExpenseItem fits; `deletedAt`, if any, leaves it out). */
 export type SummaryExpense = Pick<
@@ -57,9 +58,10 @@ export type MonthSummary = {
 
 /**
  * "Pendiente de pagar" of a month: the recurring payments still due in it (F2's
- * `getPendingForMonth`), their total in PEN and the USD without a rate apart.
+ * `getPendingForMonth`): how many, their known total in PEN, the USD without a rate apart and how
+ * many have a variable amount (counted, never summed).
  */
-export type MonthPending = { count: number; totalPenCents: number; unconvertedUsdCents: number };
+export type MonthPending = PendingForMonth;
 
 /** The key a category (or none) is filtered by: its id, or "none" for "Sin categoría". */
 export const NO_GROUP_KEY = "none";

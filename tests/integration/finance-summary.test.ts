@@ -118,6 +118,7 @@ describe("the month's summary from the database", () => {
       currency: "PEN",
       spentOn: "2026-09-08",
       recurringPaymentId: recurringId,
+      recurringDueOn: "2026-09-08",
     });
 
     const summary = summarizeMonth("2026-09", await listMonthExpenses("2026-09"));

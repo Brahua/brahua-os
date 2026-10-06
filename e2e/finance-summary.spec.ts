@@ -9,6 +9,7 @@ import {
   insertCategory,
   insertExpense,
   insertMethod,
+  insertRecurring,
   openReady,
   test,
 } from "./support/finance";
@@ -122,6 +123,26 @@ test("the summary: total in PEN with a USD expense, USD without a rate apart, Aj
   await expect(settings).toBeHidden();
   await expect(page.getByRole("button", { name: "Ajustes" })).toBeFocused();
   await expect(unconverted).toContainText("+ USD 10.00 sin convertir");
+});
+
+test("Pendiente de pagar: the month's pending payments, variable ones apart; it opens Pagos", async ({
+  page,
+}) => {
+  // Both due today (the helper's default), neither paid: pending this month.
+  await insertRecurring({ name: "Internet", amountCents: 5_000 });
+  await insertRecurring({ name: "Luz", amountCents: null });
+  await openReady(page, "/finance");
+  const strip = page.getByRole("button", {
+    name: "Pendiente de pagar: 50 soles, y 1 de monto variable, 2 pagos. Ver en Pagos",
+  });
+  await expect(strip).toBeVisible();
+  await expect(strip).toContainText("S/ 50.00 + 1 de monto variable");
+  await strip.click();
+  const tab = page.getByRole("tab", { name: "Pagos" });
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(tab).toBeFocused();
+  await expect(page.locator('[data-finance-view="payments"]')).toBeVisible();
+  await expect(page.locator('[data-finance-view="month"]')).toBeHidden();
 });
 
 test("a category's bar filters the list; Quitar filtro brings the whole month back", async ({

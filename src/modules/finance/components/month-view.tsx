@@ -48,8 +48,8 @@ type MonthViewProps = {
   /** The month's visible expenses, the most recent first. */
   expenses: ExpenseItem[];
   /**
-   * "Pendiente de pagar" of the month (F2's recurring payments still due); null: nothing to show
-   * (F2 slot: the page passes null until `getPendingForMonth` is wired).
+   * "Pendiente de pagar" of the month (F2's `getPendingForMonth`: recurring payments still due);
+   * null or none: nothing to show.
    */
   pending?: MonthPending | null;
 };

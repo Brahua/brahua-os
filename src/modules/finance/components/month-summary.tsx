@@ -122,8 +122,22 @@ export function MonthTotal({ total, rateSet, onSetRate }: MonthTotalProps) {
 export function PendingStrip({ pending }: { pending: MonthPending | null }) {
   const views = useFinanceViews();
   if (!pending || pending.count === 0) return null;
-  const amount = moneyTotalText(pending.totalPenCents, pending.unconvertedUsdCents);
-  const spoken = spokenTotal(pending.totalPenCents, pending.unconvertedUsdCents);
+  // Variable payments have no amount: counted apart ("+ 1 de monto variable"); with only those,
+  // no "S/ 0.00".
+  const known = pending.count > pending.variableCount;
+  const variable = pending.variableCount;
+  const amount = [
+    known ? moneyTotalText(pending.totalPenCents, pending.unconvertedUsdCents) : null,
+    variable > 0 ? SUMMARY_COPY.pendingVariable(variable, known) : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const spoken = [
+    known ? spokenTotal(pending.totalPenCents, pending.unconvertedUsdCents) : null,
+    variable > 0 ? SUMMARY_COPY.pendingVariableSpoken(variable, known) : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
     <ul className="bo-list" aria-label={SUMMARY_COPY.pendingTitle} data-month-pending="">
       <li>

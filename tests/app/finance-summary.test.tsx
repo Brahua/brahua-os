@@ -343,14 +343,16 @@ describe("the month's arrows", () => {
 });
 
 describe("Pendiente de pagar", () => {
-  test("nothing without pending payments (null: F2 not wired yet)", () => {
+  test("nothing without pending payments (null or a count of 0)", () => {
     renderMonth([]);
     expect(document.querySelector("[data-month-pending]")).toBeNull();
   });
 
   test("the strip with amount and count; it shows Pagos and focus goes to its tab", async () => {
     const user = userEvent.setup();
-    renderMonth([], { pending: { count: 2, totalPenCents: 125_000, unconvertedUsdCents: 9500 } });
+    renderMonth([], {
+      pending: { count: 2, totalPenCents: 125_000, unconvertedUsdCents: 9500, variableCount: 0 },
+    });
     const strip = screen.getByRole("button", {
       name: "Pendiente de pagar: 1,250 soles, y 95 dólares sin convertir, 2 pagos. Ver en Pagos",
     });
@@ -364,10 +366,51 @@ describe("Pendiente de pagar", () => {
   });
 
   test("one payment, singular", () => {
-    renderMonth([], { pending: { count: 1, totalPenCents: 5000, unconvertedUsdCents: 0 } });
+    renderMonth([], {
+      pending: { count: 1, totalPenCents: 5000, unconvertedUsdCents: 0, variableCount: 0 },
+    });
     expect(
       screen.getByRole("button", { name: "Pendiente de pagar: 50 soles, 1 pago. Ver en Pagos" }),
     ).toBeInTheDocument();
+  });
+
+  test("variable payments are counted apart, never as S/ 0.00", () => {
+    const { rerender } = render(
+      <FinanceScreen today={TODAY} catalog={CATALOG}>
+        <MonthView
+          month="2026-10"
+          expenses={[]}
+          pending={{ count: 3, totalPenCents: 5000, unconvertedUsdCents: 0, variableCount: 2 }}
+        />
+      </FinanceScreen>,
+    );
+    const mixed = screen.getByRole("button", {
+      name: "Pendiente de pagar: 50 soles, y 2 de monto variable, 3 pagos. Ver en Pagos",
+    });
+    expect(mixed).toHaveTextContent("S/ 50.00 + 2 de monto variable");
+    rerender(
+      <FinanceScreen today={TODAY} catalog={CATALOG}>
+        <MonthView
+          month="2026-10"
+          expenses={[]}
+          pending={{ count: 1, totalPenCents: 0, unconvertedUsdCents: 0, variableCount: 1 }}
+        />
+      </FinanceScreen>,
+    );
+    const onlyVariable = screen.getByRole("button", {
+      name: "Pendiente de pagar: 1 de monto variable, 1 pago. Ver en Pagos",
+    });
+    expect(onlyVariable).not.toHaveTextContent("S/");
+    rerender(
+      <FinanceScreen today={TODAY} catalog={CATALOG}>
+        <MonthView
+          month="2026-10"
+          expenses={[]}
+          pending={{ count: 0, totalPenCents: 0, unconvertedUsdCents: 0, variableCount: 0 }}
+        />
+      </FinanceScreen>,
+    );
+    expect(document.querySelector("[data-month-pending]")).toBeNull();
   });
 });
 
