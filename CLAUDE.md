@@ -14,7 +14,12 @@ Personal "second brain" app (single user). Specs drive the work:
 
 - Code, file names, commits: **English**. UI copy, specs, docs: **Spanish**.
 - Node 24 (`.nvmrc`) + pnpm. Run `nvm use` first.
-- Before committing: `pnpm lint && pnpm typecheck && pnpm build` (plus `pnpm test` once it exists).
+- Before committing (**light local gate**, owner's decision 2026-10-07): `prettier --check`, `eslint` and
+  `pnpm typecheck`, plus only the unit tests you touched (`rtk proxy pnpm vitest run --maxWorkers=2 <files>`).
+  Build, the full unit suite, integration, E2E, axe and screenshots are validated by **CI only**: do not run
+  them locally (they pushed the owner's Mac to a load of 250). Exceptions: reproducing one failing CI spec,
+  or a build when you touch `next.config`, `package.json` or other build configuration. Run one implementer
+  at a time unless the owner asks for more.
 - GitHub: personal account `Brahua` only (`gh auth switch -u Brahua` if `jbrahua` is active).
 
 ## Workflow (trunk-based)
@@ -40,10 +45,10 @@ Personal "second brain" app (single user). Specs drive the work:
 - No Docker. Test database: native Postgres 18 from `embedded-postgres` (`pnpm db:test:start`,
   `db:test:stop`, `db:test:reset`; port 54329, data in `.pgdata/`). `pnpm test:integration` and
   `pnpm test:e2e` default `TEST_DATABASE_URL` to it locally and start it if it is not running.
-- Native, only the specs you touched: `pnpm test:e2e e2e/<spec>.ts`
+- Native E2E is for debugging a failure CI reported, one spec at a time (`--workers=2`): `pnpm test:e2e e2e/<spec>.ts`
   (`pnpm test:e2e:changed` runs the specs changed against `origin/main`). Screenshot comparisons
   are skipped outside the Linux Playwright image and annotated in the report; behaviour and axe run.
-- CI is the full gate (Postgres 18 service containers).
+- CI is the full gate (Postgres 18 service containers): build, unit, integration, E2E, axe and screenshots.
 - Screenshots: always through `expectScreenshot()` (`e2e/support/screenshots.ts`; ESLint enforces it).
   Never commit PNGs made on macOS. To create or refresh references, push the branch and run
   `gh workflow run update-screenshots.yml --ref <branch>`: it commits them as github-actions[bot]
@@ -153,3 +158,25 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   rewrites `pnpm` and rejects `-s`, so run scripts with `rtk proxy pnpm …`.
 - **Disk before parallel agents:** check `df -h`; the disk hit 100 % with three worktrees. Remove each worktree
   as soon as its PR merges.
+
+## Lessons from `polish` (retrospective, 2026-10-07)
+
+- **Heavy checks belong to CI:** the full unit suite (129 jsdom environments), the build, integration with
+  Postgres and E2E with Chromium run in CI. Locally they saturate the machine; see the light local gate in
+  "Rules". After the repo goes private again (~2026-11-01) CI minutes are finite: keep `--only-changed` E2E on
+  PRs and `paths-ignore` for docs-only PRs in the backlog.
+- **Format generated files:** `prettier --check .` also covers `drizzle/meta/*_snapshot.json`; run Prettier on
+  the snapshot right after `pnpm db:generate` (CI rejected an unformatted one).
+- **Rebase on a merged sibling:** two PRs that edit the same HANDOFF status line conflict after the first
+  merges; the second implementer (or the orchestrator) rebases, resolves docs, pushes once and re-dispatches
+  `update-screenshots.yml` (the references change when another PR touched the same screens).
+- **Midnight in Lima breaks date tests:** a run that crosses 00:00 Lima fails any spec that expects "Vence
+  hoy" (seen in `e2e/projects.spec.ts` on the `main` run of 2026-10-07 00:01). Re-run before debugging; fix the
+  spec with a fixed clock if it repeats.
+- **GitHub outages:** when githubstatus.com reports Git Operations, Pull Requests or Actions down, agents keep
+  working locally, commit, try one push and one `gh pr create`, and stop with the branch and SHA; no retry
+  loops and no `--force`. A merge that returns 5xx through `gh pr merge` can be retried through the REST API
+  (`gh api -X PUT repos/Brahua/brahua-os/pulls/<n>/merge -f merge_method=squash -f sha=<head>`); it does not
+  delete the branch.
+- **Confirm the merge before cleaning up:** do not remove a worktree or branch until `gh api
+  repos/Brahua/brahua-os/pulls/<n> -q .merged` says `true`.
