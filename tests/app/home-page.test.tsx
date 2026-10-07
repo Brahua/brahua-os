@@ -219,6 +219,7 @@ const payment = (values: Partial<FinanceTodayItem> = {}): FinanceTodayItem => ({
   amountCents: 5_000,
   currency: "PEN",
   paymentMethod: { id: "00000000-0000-4000-8000-0000000000f2", name: "Crédito" },
+  installment: null,
   ...values,
 });
 

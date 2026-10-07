@@ -13,7 +13,15 @@ import {
   unarchiveRecurringPayment,
 } from "../payment-actions";
 import { DELETED_PAYMENT_PARAM } from "../payment-routes";
-import { cycleSummary, longDay, PAYMENTS_COPY, shortDay, spokenDay } from "../payments-copy";
+import {
+  cycleSummary,
+  installmentLabel,
+  longDay,
+  PAYMENTS_COPY,
+  shortDay,
+  spokenDay,
+} from "../payments-copy";
+import { installmentOf } from "../today-summary";
 import type { RecurringItem, SettlementItem } from "../recurring-input";
 import { useFinanceScreen } from "./finance-screen";
 import { expectedAmount, spokenExpected } from "./payments-view";
@@ -25,6 +33,12 @@ type RecurringDetailProps = {
   history: SettlementItem[];
   headingId: string;
 };
+
+/** " · Cuota 2 de 6" after a settled period's due date (nothing without installments). */
+function historyInstallment(item: RecurringItem, dueOn: string) {
+  const installment = installmentOf(item, dueOn);
+  return installment ? <span>{` · ${installmentLabel(installment)}`}</span> : null;
+}
 
 function reason(result: { kind: string; value?: ActionResult<unknown> }): string {
   if (result.kind === "done" && result.value && !result.value.ok) return result.value.error;
@@ -161,17 +175,31 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
         <h2 id={`${ids}-next`} className="bo-text-title">
           {PAYMENTS_COPY.nextHeading}
         </h2>
-        <ul aria-labelledby={`${ids}-next`} className="bo-list" data-next-dues="">
-          {nextDues.map((due) => (
-            <li key={due} className="bo-row bo-row--compact bo-row--static">
-              <span className="bo-row__body">
-                <span className="bo-row__title">
-                  <time dateTime={due}>{longDay(due)}</time>
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        {nextDues.length === 0 ? (
+          <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary" data-next-empty="">
+            {PAYMENTS_COPY.noMoreDues}
+          </p>
+        ) : (
+          <ul aria-labelledby={`${ids}-next`} className="bo-list" data-next-dues="">
+            {nextDues.map((due) => {
+              const installment = installmentOf(item, due);
+              return (
+                <li key={due} className="bo-row bo-row--compact bo-row--static">
+                  <span className="bo-row__body">
+                    <span className="bo-row__title">
+                      <time dateTime={due}>{longDay(due)}</time>
+                    </span>
+                  </span>
+                  {installment ? (
+                    <span className="bo-row__trail bo-text-body-sm" data-installment="">
+                      {installmentLabel(installment)}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <section aria-labelledby={`${ids}-history`} className="flex flex-col gap-3">
@@ -222,6 +250,7 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
                     <time dateTime={settlement.dueOn} aria-hidden>
                       {PAYMENTS_COPY.historyDue(shortDay(settlement.dueOn))}
                     </time>
+                    {historyInstallment(item, settlement.dueOn)}
                     <span className="sr-only">
                       {PAYMENTS_COPY.historyDueSpoken(spokenDay(settlement.dueOn))}
                     </span>

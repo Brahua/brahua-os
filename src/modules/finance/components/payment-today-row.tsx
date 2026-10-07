@@ -5,7 +5,7 @@ import { useId } from "react";
 import { Key, Led } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatMoney, spokenMoney } from "../money";
-import { dueState, isUrgent, PAYMENTS_COPY } from "../payments-copy";
+import { dueState, installmentLabel, isUrgent, PAYMENTS_COPY } from "../payments-copy";
 import { recurringPaymentPath } from "../routes";
 import { financeTodayKey, type FinanceTodayItem } from "../today-summary";
 
@@ -45,6 +45,7 @@ export function PaymentTodayRow({ item, today, onPay, busy = false }: PaymentTod
   const due = dueState(item.dueOn, today);
   const urgent = isUrgent(due);
   const variable = paysWithSheet(item);
+  const installmentText = item.installment ? installmentLabel(item.installment) : null;
   const key = financeTodayKey(item);
   const amount =
     item.amountCents === null
@@ -67,7 +68,9 @@ export function PaymentTodayRow({ item, today, onPay, busy = false }: PaymentTod
           {item.name}
         </Link>
         <span id={metaId} hidden>
-          {[due.spoken, spokenAmount, item.paymentMethod?.name].filter(Boolean).join(", ")}
+          {[due.spoken, installmentText, spokenAmount, item.paymentMethod?.name]
+            .filter(Boolean)
+            .join(", ")}
         </span>
         <span aria-hidden className="bo-text-body-sm flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
@@ -81,6 +84,11 @@ export function PaymentTodayRow({ item, today, onPay, busy = false }: PaymentTod
             {due.label}
           </span>
           <span className="bo-amount text-text">{amount}</span>
+          {installmentText ? (
+            <span className="text-text-secondary" data-installment="">
+              {installmentText}
+            </span>
+          ) : null}
           {item.paymentMethod ? (
             <span className="text-text-secondary">{item.paymentMethod.name}</span>
           ) : null}

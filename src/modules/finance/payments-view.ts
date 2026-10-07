@@ -5,6 +5,7 @@ import { toPenCents } from "./money";
 import type { RecurringItem, SettlementExpense, SettlementItem } from "./recurring-input";
 import {
   dueDatesBetween,
+  lastInstallmentDue,
   monthOfDay,
   monthRange,
   nextOpenDue,
@@ -26,10 +27,20 @@ export type MonthEntry =
       expense: SettlementExpense;
     }
   | { recurring: RecurringItem; dueOn: string; status: "pending" | "skipped"; expense: null }
-  | { recurring: RecurringItem; dueOn: null; status: "none"; expense: null; nextDue: string };
+  | {
+      recurring: RecurringItem;
+      dueOn: null;
+      status: "none";
+      expense: null;
+      /** Null: a payment with installments that has none left. */
+      nextDue: string | null;
+    };
 
-/** A row of "Todos": an active payment and its next due date (from today). */
-export type ActiveEntry = { recurring: RecurringItem; nextDue: string };
+/**
+ * A row of "Todos": an active payment and its next due date (from today); null when a payment
+ * with installments has none left.
+ */
+export type ActiveEntry = { recurring: RecurringItem; nextDue: string | null };
 
 export type PaymentsViewData = {
   /** Lima's today (YYYY-MM-DD) the view was computed for. */
@@ -40,7 +51,7 @@ export type PaymentsViewData = {
   thisMonth: MonthEntry[];
   /** Todos: the active ones by next due date. */
   active: ActiveEntry[];
-  /** Archivados, by name. */
+  /** Archivados (and plans with installments that ended unsettled), by name. */
   archived: RecurringItem[];
 };
 
@@ -103,6 +114,15 @@ export function pendingPeriodsOf(
   );
 }
 
+/**
+ * Whether a payment with installments has no due date left to show: its last one (the Nth) is
+ * older than the 60-day window, so it can no longer be paid or skipped, whatever its state.
+ */
+export function isEnded(item: RecurringItem, today: string): boolean {
+  const last = lastInstallmentDue(item);
+  return last !== null && last < pendingWindow(today).from;
+}
+
 /** The "Pagos" view: pending, this month, all active by next due date, archived. */
 export function buildPaymentsView(
   items: readonly RecurringItem[],
@@ -110,7 +130,9 @@ export function buildPaymentsView(
   today: string,
 ): PaymentsViewData {
   const settledOf = index(settlements);
-  const active = items.filter((item) => !item.archived);
+  // A plan whose last installment fell out of the 60-day window unsettled is over: it shows in
+  // "Archivados" as "Terminado" (derived here, nothing is written on a read; decisión autónoma).
+  const active = items.filter((item) => !item.archived && !isEnded(item, today));
   const month = monthRange(monthOfDay(today));
   const pending = pendingOf(active, settledOf, today);
 
@@ -153,14 +175,18 @@ export function buildPaymentsView(
       recurring,
       nextDue: nextOpenDue(recurring, today, new Set(settledOf(recurring.id).keys())),
     }))
-    .sort((a, b) => a.nextDue.localeCompare(b.nextDue) || byName(a.recurring, b.recurring));
+    .sort(
+      (a, b) =>
+        (a.nextDue ?? "9999").localeCompare(b.nextDue ?? "9999") ||
+        byName(a.recurring, b.recurring),
+    );
 
   return {
     today,
     pending,
     thisMonth: [...due, ...none],
     active: activeEntries,
-    archived: items.filter((item) => item.archived).sort(byName),
+    archived: items.filter((item) => item.archived || isEnded(item, today)).sort(byName),
   };
 }
 

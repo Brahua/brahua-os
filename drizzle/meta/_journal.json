@@ -78,6 +78,13 @@
       "when": 1791250775375,
       "tag": "0010_finance_recurring_due_on",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791343331302,
+      "tag": "0011_finance_installments",
+      "breakpoints": true
     }
   ]
 }

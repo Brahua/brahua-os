@@ -63,6 +63,7 @@ describe("the recurring payment schema", () => {
       dayOfMonth: 15,
       intervalMonths: null,
       anchorMonth: null,
+      installmentsTotal: null,
       startDate: "2026-10-05",
       notes: "Contrato anual",
     });
@@ -274,6 +275,7 @@ function item(values: Partial<RecurringItem>): RecurringItem {
     intervalMonths: null,
     anchorMonth: null,
     startDate: "2026-01-01",
+    installmentsTotal: null,
     notes: null,
     archived: false,
     ...values,

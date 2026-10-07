@@ -161,6 +161,7 @@ describe("mapping", () => {
       intervalMonths: null,
       anchorMonth: null,
       startDate: TODAY, // the 31st clamps to Feb 28, which is today
+      installmentsTotal: null, // imported payments never end on their own
       archivedAt: null,
       deletedAt: null,
       categoryId: importCategoryId(ID.services),
