@@ -23,6 +23,7 @@ import {
   undoSkippedPeriod,
   updateRecurring,
   type PaidPeriod,
+  type UndoResult,
   type RecurringFailure,
 } from "./recurring";
 import {
@@ -43,6 +44,9 @@ const ON_FIELD: Partial<Record<RecurringFailure, string>> = {
   methodUnavailable: "paymentMethodId",
   variableNeedsAmount: "amount",
   installmentsKeepMonthly: "cycle",
+  // Said under the field to clear (the other message, "installmentsDone", answers a reactivation
+  // button, not a sheet: it stays a notice).
+  installmentsScheduleLocked: "installmentsTotal",
 };
 
 /** A refusal: on its field when it has one (category, method, amount), else the message. */
@@ -180,9 +184,7 @@ const undoPay = ownerAction(
  * `reopenStamp` (the pay closed the payment: its last installment) the payment is reactivated too,
  * only if its archive is still the one that pay made.
  */
-export async function undoPaid(
-  input: unknown,
-): Promise<ActionResult<{ dueOn: string; reopened: boolean }>> {
+export async function undoPaid(input: unknown): Promise<ActionResult<UndoResult>> {
   return undoPay(input);
 }
 
@@ -206,8 +208,6 @@ const undoSkip = ownerAction(
 );
 
 /** "Deshacer" of a skip: the period is pending again. */
-export async function undoSkipped(
-  input: unknown,
-): Promise<ActionResult<{ dueOn: string; reopened: boolean }>> {
+export async function undoSkipped(input: unknown): Promise<ActionResult<UndoResult>> {
   return undoSkip(input);
 }

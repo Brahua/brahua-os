@@ -181,23 +181,57 @@ describe("paying the last installment", () => {
   });
 
   test("a refused pay of the last installment archives nothing", async () => {
-    const created = await plan({ installmentsTotal: 1, startDate: "2026-10-05" });
-    // A variable amount without one is refused before anything is written.
-    const variable = await plan({ name: "Variable", variable: true, installmentsTotal: 1 });
-    expect(await markPaid({ id: variable.id, dueOn: "2026-10-05" })).toMatchObject({ ok: false });
+    // A variable amount without one is refused before anything is written (the period is due).
+    const variable = await plan({
+      name: "Variable",
+      variable: true,
+      installmentsTotal: 1,
+      startDate: "2026-10-05",
+    });
+    expect(await markPaid({ id: variable.id, dueOn: "2026-10-05" })).toEqual({
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { amount: [RECURRING_ERRORS.variableNeedsAmount] },
+    });
     expect((await stored(variable.id)).archivedAt).toBeNull();
     expect(await settlementsOf(variable.id)).toHaveLength(0);
-    // Positive control: with N = 1 the same pay on the other payment closes it.
-    expect(
-      unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" })).closedStamp,
-    ).not.toBeNull();
+    // Positive control: the same plan paid with its amount closes.
+    const paid = unwrap(await markPaid({ id: variable.id, dueOn: "2026-10-05", amount: "80" }));
+    expect(paid.closedStamp).not.toBeNull();
+    expect((await stored(variable.id)).archivedAt).not.toBeNull();
   });
 
-  test("paying the last while an earlier one is unpaid still closes it", async () => {
+  test("the last while an earlier one is still pending in the window does not archive", async () => {
     const created = await plan();
     const last = unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" }));
+    expect(last.closedStamp).toBeNull();
+    expect((await stored(created.id)).archivedAt).toBeNull();
+    // The 1st is still there: in Pagos and on the home page, as "Cuota 1 de 2".
+    expect(await pendingDues(created.id)).toEqual(["2026-09-05"]);
+    const home = await getFinanceTodaySummary(NOW);
+    expect(home.filter((item) => item.name === "Notebook")).toMatchObject([
+      { dueOn: "2026-09-05", installment: { number: 1, total: 2 } },
+    ]);
+    // Settling that last pending one (the 1st, not the Nth) closes the plan.
+    const first = unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
+    expect(first.closedStamp).not.toBeNull();
+    expect((await stored(created.id)).archivedAt).not.toBeNull();
+  });
+
+  test("skipping the last pending one closes it too, even if it is not the Nth", async () => {
+    const created = await plan();
+    expect(unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" })).closedStamp).toBeNull();
+    const skipped = unwrap(await skipPeriod({ id: created.id, dueOn: "2026-09-05" }));
+    expect(skipped.closedStamp).not.toBeNull();
+    expect((await stored(created.id)).archivedAt).not.toBeNull();
+  });
+
+  test("earlier installments out of the 60-day window don't hold the plan open", async () => {
+    // Aug 5 is 61 days back: it is never shown, so the plan closes when the 3rd is paid.
+    const created = await plan({ installmentsTotal: 3, startDate: "2026-08-05" });
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
+    const last = unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" }));
     expect(last.closedStamp).not.toBeNull();
-    expect(await settlementsOf(created.id)).toHaveLength(1);
   });
 
   test("two taps at once on the last one: one expense, one archive", async () => {
@@ -226,10 +260,11 @@ describe("paying the last installment", () => {
 
   test("skipping the last one closes it too (it counts as an installment)", async () => {
     const created = await plan();
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
     const skipped = unwrap(await skipPeriod({ id: created.id, dueOn: "2026-10-05" }));
     expect(skipped.closedStamp).not.toBeNull();
     expect((await stored(created.id)).archivedAt).not.toBeNull();
-    // Skipping an earlier one does not.
+    // Skipping an earlier one while the last is pending does not.
     const other = await plan({ name: "Otro" });
     expect(unwrap(await skipPeriod({ id: other.id, dueOn: "2026-09-05" })).closedStamp).toBeNull();
     expect((await stored(other.id)).archivedAt).toBeNull();
@@ -239,6 +274,7 @@ describe("paying the last installment", () => {
 describe("Deshacer of the last installment", () => {
   async function closed() {
     const created = await plan();
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
     const paid = unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" }));
     return { created, paid, stamp: paid.closedStamp as string };
   }
@@ -253,12 +289,13 @@ describe("Deshacer of the last installment", () => {
         reopenStamp: stamp,
       }),
     );
-    expect(undone).toEqual({ dueOn: "2026-10-05", reopened: true });
+    expect(undone).toEqual({ dueOn: "2026-10-05", reopened: true, stillArchived: false });
     expect((await stored(created.id)).archivedAt).toBeNull();
-    expect(await settlementsOf(created.id)).toHaveLength(0);
-    expect(await pendingDues(created.id)).toEqual(["2026-09-05", "2026-10-05"]);
-    const [expense] = await expensesOf(created.id);
-    expect(expense.deletedAt).not.toBeNull();
+    // The 1st stays paid; the 2nd is pending again.
+    expect(await settlementsOf(created.id)).toHaveLength(1);
+    expect(await pendingDues(created.id)).toEqual(["2026-10-05"]);
+    const expenses = await expensesOf(created.id);
+    expect(expenses.filter((expense) => expense.deletedAt !== null)).toHaveLength(1);
     // Twice: the second finds nothing to undo and touches nothing.
     expect(
       await undoPaid({
@@ -297,8 +334,8 @@ describe("Deshacer of the last installment", () => {
     );
     expect(undone.reopened).toBe(false);
     expect((await stored(created.id)).archivedAt).toEqual(archivedAt);
-    // The pay itself was undone.
-    expect(await settlementsOf(created.id)).toHaveLength(0);
+    // The pay itself was undone (the 1st stays paid).
+    expect(await settlementsOf(created.id)).toHaveLength(1);
   });
 
   test("reactivated by hand in between: nothing to reopen", async () => {
@@ -361,11 +398,12 @@ describe("Deshacer of the last installment", () => {
       }),
     ).toEqual({ ok: false, error: RECURRING_ERRORS.notSettled });
     expect((await stored(created.id)).archivedAt).not.toBeNull();
-    expect(await settlementsOf(created.id)).toHaveLength(1);
+    expect(await settlementsOf(created.id)).toHaveLength(2);
   });
 
   test("the undo of a skip that closed it reopens it the same way", async () => {
     const created = await plan();
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
     const skipped = unwrap(await skipPeriod({ id: created.id, dueOn: "2026-10-05" }));
     const undone = unwrap(
       await undoSkipped({
@@ -374,9 +412,79 @@ describe("Deshacer of the last installment", () => {
         reopenStamp: skipped.closedStamp as string,
       }),
     );
-    expect(undone).toEqual({ dueOn: "2026-10-05", reopened: true });
+    expect(undone).toEqual({ dueOn: "2026-10-05", reopened: true, stillArchived: false });
     expect((await stored(created.id)).archivedAt).toBeNull();
-    expect(await settlementsOf(created.id)).toHaveLength(0);
+    expect(await settlementsOf(created.id)).toHaveLength(1);
+  });
+
+  test("the undo of an earlier installment of an archived plan: it reopens only with its own stamp", async () => {
+    const created = await plan();
+    const later = unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" }));
+    expect(later.closedStamp).toBeNull();
+    const earlier = unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
+    const stamp = earlier.closedStamp as string;
+    expect(stamp).not.toBeNull();
+    // Undoing the 2nd (its pay did not close the plan): the period is pending again, the plan
+    // stays archived and the answer says so (the copy tells the owner to reactivate it).
+    const undone = unwrap(
+      await undoPaid({ id: created.id, dueOn: "2026-10-05", expenseId: later.expense.id }),
+    );
+    expect(undone).toEqual({ dueOn: "2026-10-05", reopened: false, stillArchived: true });
+    expect((await stored(created.id)).archivedAt).not.toBeNull();
+    expect(await settlementsOf(created.id)).toHaveLength(1);
+    // Undoing the pay that closed it, with its stamp, reopens the plan (both are pending again).
+    const reopened = unwrap(
+      await undoPaid({
+        id: created.id,
+        dueOn: "2026-09-05",
+        expenseId: earlier.expense.id,
+        reopenStamp: stamp,
+      }),
+    );
+    expect(reopened).toEqual({ dueOn: "2026-09-05", reopened: true, stillArchived: false });
+    expect((await stored(created.id)).archivedAt).toBeNull();
+    expect(await pendingDues(created.id)).toEqual(["2026-09-05", "2026-10-05"]);
+  });
+
+  test("the undo still works after the paid expense was edited", async () => {
+    const { created, paid, stamp } = await closed();
+    await testDb
+      .update(financeExpenses)
+      .set({ amountCents: 31_000, description: "Notebook (editado)" })
+      .where(eq(financeExpenses.id, paid.expense.id));
+    const undone = unwrap(
+      await undoPaid({
+        id: created.id,
+        dueOn: "2026-10-05",
+        expenseId: paid.expense.id,
+        reopenStamp: stamp,
+      }),
+    );
+    expect(undone.reopened).toBe(true);
+    const [expense] = await testDb
+      .select()
+      .from(financeExpenses)
+      .where(eq(financeExpenses.id, paid.expense.id));
+    expect(expense).toMatchObject({ amountCents: 31_000, deletedAt: expect.any(Date) });
+  });
+
+  test("the undo of a skip after archiving by hand again leaves it archived and says so", async () => {
+    const created = await plan();
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
+    const skipped = unwrap(await skipPeriod({ id: created.id, dueOn: "2026-10-05" }));
+    unwrap(await edit(created.id, { installmentsTotal: 3 }));
+    unwrap(await unarchiveRecurringPayment({ id: created.id }));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    unwrap(await archiveRecurringPayment({ id: created.id }));
+    const undone = unwrap(
+      await undoSkipped({
+        id: created.id,
+        dueOn: "2026-10-05",
+        reopenStamp: skipped.closedStamp as string,
+      }),
+    );
+    expect(undone).toEqual({ dueOn: "2026-10-05", reopened: false, stillArchived: true });
+    expect((await stored(created.id)).archivedAt).not.toBeNull();
   });
 });
 
@@ -435,7 +543,8 @@ describe("editing N and the plan", () => {
     unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
     expect(await edit(created.id, { installmentsTotal: 5, dayOfMonth: 7 })).toEqual({
       ok: false,
-      error: RECURRING_ERRORS.installmentsScheduleLocked,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { installmentsTotal: [RECURRING_ERRORS.installmentsScheduleLocked] },
     });
     expect((await stored(created.id)).dayOfMonth).toBe(5);
     // Without installments after the edit (or without settlements) the day moves as before.
@@ -443,23 +552,8 @@ describe("editing N and the plan", () => {
     expect(unwrap(await edit(free.id, { installmentsTotal: 5, dayOfMonth: 7 })).dayOfMonth).toBe(7);
   });
 
-  test("a payment with installments stays monthly: remove them first", async () => {
+  test("changing the cycle with the installments removed in the same save works", async () => {
     const created = await plan({ installmentsTotal: 5 });
-    expect(
-      await edit(created.id, {
-        installmentsTotal: null,
-        cycle: "weekly",
-        weekday: 1,
-        dayOfMonth: null,
-      }),
-    ).toEqual({
-      ok: false,
-      error: INVALID_FIELDS_MESSAGE,
-      fieldErrors: { cycle: [RECURRING_ERRORS.installmentsKeepMonthly] },
-    });
-    expect((await stored(created.id)).cycle).toBe("monthly");
-    // Two steps work: remove N, then change the cycle.
-    unwrap(await edit(created.id, { installmentsTotal: null }));
     const weekly = unwrap(
       await edit(created.id, {
         installmentsTotal: null,
@@ -469,10 +563,72 @@ describe("editing N and the plan", () => {
       }),
     );
     expect(weekly).toMatchObject({ cycle: "weekly", installmentsTotal: null });
+    expect((await stored(created.id)).installmentsTotal).toBeNull();
+    // Zod and the CHECK still refuse installments on another cycle.
+    expect(
+      await edit(created.id, {
+        installmentsTotal: 3,
+        cycle: "weekly",
+        weekday: 1,
+        dayOfMonth: null,
+      }),
+    ).toEqual({
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { installmentsTotal: [RECURRING_ERRORS.installmentsCycle] },
+    });
+  });
+
+  test("adding N to a payment with history: the day and start stay; N respects what is settled", async () => {
+    const created = await plan({ installmentsTotal: null });
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
+    expect(await edit(created.id, { installmentsTotal: 3, dayOfMonth: 7 })).toEqual({
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { installmentsTotal: [RECURRING_ERRORS.installmentsScheduleLocked] },
+    });
+    // Positive control: with the schedule as it was, N is added.
+    expect(unwrap(await edit(created.id, { installmentsTotal: 3 })).installmentsTotal).toBe(3);
+  });
+
+  test("N = 120 is the top: its first installment is paid; 121 is refused", async () => {
+    const created = await plan({ installmentsTotal: 120 });
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
+    expect((await stored(created.id)).archivedAt).toBeNull();
+    expect(await createRecurringPayment({ ...FIELDS, installmentsTotal: 121 })).toMatchObject({
+      ok: false,
+      fieldErrors: { installmentsTotal: [RECURRING_ERRORS.installmentsRange] },
+    });
+  });
+
+  test("short months and the year change: the 31st clamps and the count stays", async () => {
+    const feb = await plan({
+      name: "Feb",
+      dayOfMonth: 31,
+      startDate: "2026-02-28",
+      installmentsTotal: 3,
+    });
+    expect((await getRecurringDetail(feb.id, "2026-03-01"))?.nextDues).toEqual([
+      "2026-03-31",
+      "2026-04-30",
+    ]);
+    const year = await plan({
+      name: "Año",
+      dayOfMonth: 31,
+      startDate: "2026-12-31",
+      installmentsTotal: 3,
+    });
+    expect((await getRecurringDetail(year.id, "2026-12-31"))?.nextDues).toEqual([
+      "2026-12-31",
+      "2027-01-31",
+      "2027-02-28",
+    ]);
+    expect((await getRecurringDetail(year.id, "2027-02-01"))?.nextDues).toEqual(["2027-02-28"]);
   });
 
   test("reactivating a finished plan is refused until N grows; the start stays", async () => {
     const created = await plan();
+    unwrap(await markPaid({ id: created.id, dueOn: "2026-09-05" }));
     unwrap(await markPaid({ id: created.id, dueOn: "2026-10-05" }));
     expect(await unarchiveRecurringPayment({ id: created.id })).toEqual({
       ok: false,
@@ -510,16 +666,17 @@ describe("the reads", () => {
       "2026-09-05",
       "2026-10-05",
     ]);
-    // After the last one is settled (skipped) there is no next due date.
+    // After the last pending ones are settled (skipped) there is no next due date.
     unwrap(await skipPeriod({ id: created.id, dueOn: "2026-10-05" }));
+    unwrap(await skipPeriod({ id: created.id, dueOn: "2026-09-05" }));
     const detail = await getRecurringDetail(created.id, T);
     expect(detail?.nextDues).toEqual([]);
     expect(detail?.item.archived).toBe(true);
   });
 
-  test("an ended plan that is still active has no next due date (null, never a crash)", async () => {
-    // Installments 1–2 in the far past, never settled and out of the window: nothing to pay, not
-    // archived by anyone.
+  test("a plan whose last installment fell out of the window unsettled shows as Terminado, not in Todos", async () => {
+    // Installments 1–2 in the far past, never settled and out of the window: nothing to pay and
+    // nobody archived it. Derived in the view: nothing is written on a read.
     const [row] = await testDb
       .insert(financeRecurringPayments)
       .values({
@@ -533,22 +690,30 @@ describe("the reads", () => {
       })
       .returning();
     const view = await getPaymentsView(T);
-    expect(view.active.find((entry) => entry.recurring.id === row.id)).toMatchObject({
-      nextDue: null,
+    expect(view.active.some((entry) => entry.recurring.id === row.id)).toBe(false);
+    expect(view.thisMonth.some((entry) => entry.recurring.id === row.id)).toBe(false);
+    expect(view.pending.some((period) => period.recurring.id === row.id)).toBe(false);
+    expect(view.archived.find((item) => item.id === row.id)).toMatchObject({
+      name: "Viejo",
+      archived: false,
     });
-    expect(view.thisMonth.find((entry) => entry.recurring.id === row.id)).toMatchObject({
-      status: "none",
-      nextDue: null,
-    });
+    expect((await stored(row.id)).archivedAt).toBeNull();
     expect((await getRecurringDetail(row.id, T))?.nextDues).toEqual([]);
+    // Positive control: with an installment still inside the window it stays active.
+    const live = await plan({ name: "Vivo", installmentsTotal: 3, startDate: "2026-08-05" });
+    expect((await getPaymentsView(T)).active.map((entry) => entry.recurring.id)).toContain(live.id);
   });
 
-  test("the export has the new column", async () => {
+  test("the export has the new column (null without installments)", async () => {
     const created = await plan({ installmentsTotal: 6 });
+    const plain = await plan({ name: "Sin cuotas", installmentsTotal: null });
     const data = await buildExport(testDb, new Date());
-    expect(data.tables.finance_recurring_payments.rows).toEqual([
-      expect.objectContaining({ id: created.id, installments_total: 6 }),
-    ]);
+    expect(data.tables.finance_recurring_payments.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: created.id, installments_total: 6 }),
+        expect.objectContaining({ id: plain.id, installments_total: null }),
+      ]),
+    );
   });
 });
 

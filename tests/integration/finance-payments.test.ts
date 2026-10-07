@@ -349,7 +349,7 @@ describe("pay", () => {
     const paid = unwrap(await markPaid({ id: created.id, dueOn: today() }));
     expect(
       unwrap(await undoPaid({ id: created.id, dueOn: today(), expenseId: paid.expense.id })),
-    ).toEqual({ dueOn: today(), reopened: false });
+    ).toEqual({ dueOn: today(), reopened: false, stillArchived: false });
     const [stored] = await expensesOf(created.id);
     expect(stored.id).toBe(paid.expense.id);
     expect(stored.deletedAt).not.toBeNull();
@@ -392,6 +392,7 @@ describe("skip", () => {
     expect(unwrap(await undoSkipped({ id: created.id, dueOn: today() }))).toEqual({
       dueOn: today(),
       reopened: false,
+      stillArchived: false,
     });
     expect(await settlementsOf(created.id)).toHaveLength(0);
     expect((await markPaid({ id: created.id, dueOn: today() })).ok).toBe(true);

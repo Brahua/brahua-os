@@ -113,10 +113,13 @@ export function paymentCompletion({
       );
       if (result.kind === "skipped") return "stale";
       if (result.kind === "done" && result.value.ok) {
+        const { reopened, stillArchived } = result.value.data;
         announce(
-          result.value.data.reopened
+          reopened
             ? PAYMENTS_COPY.undonePaidReopened(name)
-            : PAYMENTS_COPY.undonePaid(name),
+            : stillArchived
+              ? PAYMENTS_COPY.undonePaidArchived(name)
+              : PAYMENTS_COPY.undonePaid(name),
         );
         return "saved";
       }

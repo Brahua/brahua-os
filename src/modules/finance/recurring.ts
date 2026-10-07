@@ -50,6 +50,7 @@ import type {
 } from "./recurring-input";
 import {
   addDays,
+  dueDatesBetween,
   isDueDate,
   lastInstallmentDue,
   monthlyPosition,
@@ -76,6 +77,13 @@ export type RecurringFailure =
   | "installmentsScheduleLocked"
   | "installmentsKeepMonthly"
   | "installmentsDone";
+
+/**
+ * What an undo of a pay or a skip answers: `reopened` when it reactivated the payment that pay or
+ * skip had closed; `stillArchived` when the payment stays archived (archived by hand or closed by
+ * another settlement), so the period is pending again but hidden until it is reactivated.
+ */
+export type UndoResult = { dueOn: string; reopened: boolean; stillArchived: boolean };
 
 /** An edit of N below what is already settled: `min` is the lowest N that holds it. */
 export type InstallmentsTooLow = { failure: "installmentsTooLow"; min: number };
@@ -447,24 +455,38 @@ async function settledSummary(
   return { count: row?.count ?? 0, latest: row?.latest ?? null };
 }
 
-/** Whether a period of a payment is settled (paid or skipped). */
-async function isSettled(tx: Tx, id: string, dueOn: string): Promise<boolean> {
-  return (await settlementOf(tx, id, dueOn)) !== null;
+/**
+ * Whether a payment with installments is finished: its last one (the Nth due date) is settled and
+ * no earlier due date is still pending inside the 60-day window (decisión autónoma: nothing
+ * disappears while the owner can still see something to pay; earlier ones out of the window no
+ * longer show, so they don't hold the plan open). A payment without installments never finishes.
+ */
+async function planFinished(tx: Tx, row: Schedule & { id: string }, today: string) {
+  const last = lastInstallmentDue(row);
+  if (last === null) return false;
+  const rows = await tx
+    .select({ dueOn: financeSettlements.dueOn })
+    .from(financeSettlements)
+    .where(
+      and(eq(financeSettlements.recurringPaymentId, row.id), lte(financeSettlements.dueOn, last)),
+    );
+  const settled = new Set(rows.map((settlement) => settlement.dueOn));
+  if (!settled.has(last)) return false;
+  return dueDatesBetween(row, pendingWindow(today).from, last).every((due) => settled.has(due));
 }
 
 /**
- * Archives a payment with installments once its last one (the Nth due date) is settled, in the
- * caller's transaction, under the payment's lock. Returns the archive's stamp when it archived,
- * null when there was nothing to close (not the last installment, or already archived).
+ * Archives a payment with installments once it is finished (`planFinished`), in the caller's
+ * transaction, under the payment's lock: the pay or skip that settles the last pending one, which
+ * is the Nth or an earlier one. Returns the archive's stamp when it archived, null when there was
+ * nothing to close (not finished yet, or already archived).
  */
 async function closeIfFinished(
   tx: Tx,
   row: Schedule & { id: string; archivedAt: Date | null },
+  today: string,
 ): Promise<string | null> {
-  const last = lastInstallmentDue(row);
-  if (last === null || row.archivedAt !== null || !(await isSettled(tx, row.id, last))) {
-    return null;
-  }
+  if (row.archivedAt !== null || !(await planFinished(tx, row, today))) return null;
   const [archived] = await tx
     .update(financeRecurringPayments)
     .set({ archivedAt: sql`now()` })
@@ -513,11 +535,16 @@ export async function updateRecurring(
     const refused = await checkRefs(tx, input, existing);
     if (refused) return refused;
     const { id, ...chosen } = input;
-    // Installments (decisiones autónomas): a payment with them stays monthly (the owner removes
-    // them first), and N never goes below what is settled (F2's lesson: an edit never reopens or
-    // drops a period). With periods settled the count is anchored to the start and the day, so
-    // those two don't move in the same save: a new day would settle the same month twice.
-    if (existing.installmentsTotal !== null && chosen.cycle !== "monthly") {
+    // Installments (decisiones autónomas): they only live on a monthly cycle (Zod and the CHECK
+    // say so; changing the cycle sends N empty, which is fine), and N never goes below what is
+    // settled (F2's lesson: an edit never reopens or drops a period). With periods settled the
+    // count is anchored to the start and the day, so those two don't move in the same save: a new
+    // day would settle the same month twice.
+    if (
+      existing.installmentsTotal !== null &&
+      chosen.installmentsTotal !== null &&
+      chosen.cycle !== "monthly"
+    ) {
       return "installmentsKeepMonthly";
     }
     const changed = SCHEDULE_FIELDS.some((field) => existing[field] !== chosen[field]);
@@ -536,7 +563,8 @@ export async function updateRecurring(
       .set(values)
       .where(eq(financeRecurringPayments.id, id));
     // N equal to what is settled (its last installment already settled) closes the payment.
-    if (values.installmentsTotal !== null) await closeIfFinished(tx, { ...existing, ...values });
+    if (values.installmentsTotal !== null)
+      await closeIfFinished(tx, { ...existing, ...values }, today);
     return (await selectRecurringById(tx, id)) as RecurringItem;
   });
 }
@@ -564,8 +592,7 @@ export async function setRecurringArchived(
       if (existing.installmentsTotal !== null) {
         // With installments the count is anchored to the start: it stays, and the installments
         // left (including a late one) show as pending. One that was paid in full stays closed.
-        const last = lastInstallmentDue(existing);
-        if (last !== null && (await isSettled(tx, id, last))) return "installmentsDone";
+        if (await planFinished(tx, existing, today)) return "installmentsDone";
         await tx
           .update(financeRecurringPayments)
           .set({ archivedAt: null })
@@ -741,7 +768,7 @@ export async function payPeriod(
       // The primary key, behind the lock: never two expenses for one period.
       if (settled.length === 0) throw new PeriodTaken();
       // The last installment archives the payment, in this same transaction.
-      const closedStamp = await closeIfFinished(tx, row);
+      const closedStamp = await closeIfFinished(tx, row, today);
       return {
         expense: (await selectExpenseById(tx, expense.id)) as ExpenseItem,
         dueOn: input.dueOn,
@@ -763,11 +790,12 @@ export async function payPeriod(
 export async function undoPaidPeriod(
   db: Database,
   input: UndoPaidInput,
-): Promise<{ dueOn: string; reopened: boolean } | RecurringFailure> {
+): Promise<UndoResult | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
     // Archived is fine (the undo of a pay right before archiving); deleted is not.
-    if (!(await lockedRow(tx, input.id))) return "notFound";
+    const row = await lockedRow(tx, input.id);
+    if (!row) return "notFound";
     const existing = await settlementOf(tx, input.id, input.dueOn);
     // The undo is of that pay: if the period was freed and paid again meanwhile (another
     // expense), an old notice's "Deshacer" must not remove the new one.
@@ -786,7 +814,7 @@ export async function undoPaidPeriod(
       .where(and(eq(financeExpenses.id, input.expenseId), visibleExpense));
     // The pay that closed the payment: reopen it, only if that archive is still the one in place.
     const reopened = await reopenIfStamped(tx, input.id, input.reopenStamp);
-    return { dueOn: input.dueOn, reopened };
+    return { dueOn: input.dueOn, reopened, stillArchived: !reopened && row.archivedAt !== null };
   });
 }
 
@@ -808,7 +836,7 @@ export async function skipPeriod(
       .insert(financeSettlements)
       .values({ recurringPaymentId: row.id, dueOn: input.dueOn, status: "skipped" });
     // Decisión autónoma: skipping the last installment closes the payment too (it counts as one).
-    const closedStamp = await closeIfFinished(tx, row);
+    const closedStamp = await closeIfFinished(tx, row, today);
     return { dueOn: input.dueOn, name: row.name, closedStamp };
   });
 }
@@ -817,10 +845,11 @@ export async function skipPeriod(
 export async function undoSkippedPeriod(
   db: Database,
   input: UndoSkippedInput,
-): Promise<{ dueOn: string; reopened: boolean } | RecurringFailure> {
+): Promise<UndoResult | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
-    if (!(await lockedRow(tx, input.id))) return "notFound";
+    const row = await lockedRow(tx, input.id);
+    if (!row) return "notFound";
     const removed = await tx
       .delete(financeSettlements)
       .where(
@@ -832,6 +861,7 @@ export async function undoSkippedPeriod(
       )
       .returning({ dueOn: financeSettlements.dueOn });
     if (removed.length === 0) return "notSettled";
-    return { dueOn: input.dueOn, reopened: await reopenIfStamped(tx, input.id, input.reopenStamp) };
+    const reopened = await reopenIfStamped(tx, input.id, input.reopenStamp);
+    return { dueOn: input.dueOn, reopened, stillArchived: !reopened && row.archivedAt !== null };
   });
 }

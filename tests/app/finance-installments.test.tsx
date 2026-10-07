@@ -160,6 +160,21 @@ describe("the sheet's field", () => {
     );
   });
 
+  test("with the field empty it is sent as none (null)", async () => {
+    vi.mocked(createRecurringPayment).mockResolvedValue(
+      ok({ ...NOTEBOOK, installmentsTotal: null }),
+    );
+    const { user, sheet } = await openNew();
+    await user.type(within(sheet).getByRole("textbox", { name: "Nombre" }), "Agua");
+    await user.type(within(sheet).getByRole("textbox", { name: "Monto previsto en soles" }), "40");
+    await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
+    await waitFor(() =>
+      expect(createRecurringPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ cycle: "monthly", installmentsTotal: null }),
+      ),
+    );
+  });
+
   test("text or 0 is refused before the server, on the field", async () => {
     const { user, sheet } = await openNew();
     await user.type(within(sheet).getByRole("textbox", { name: "Nombre" }), "Notebook");
@@ -169,11 +184,17 @@ describe("the sheet's field", () => {
     expect(createRecurringPayment).not.toHaveBeenCalled();
     expect(within(sheet).getByText(RECURRING_ERRORS.installmentsRange)).toBeInTheDocument();
     await waitFor(() => expect(field(sheet)).toHaveFocus());
+    // Typing again clears the error: the second message below is a new one, not the old one.
     await user.clear(field(sheet));
+    await waitFor(() =>
+      expect(within(sheet).queryByText(RECURRING_ERRORS.installmentsRange)).toBeNull(),
+    );
     await user.type(field(sheet), "0");
     await user.click(within(sheet).getByRole("button", { name: "Guardar" }));
     expect(createRecurringPayment).not.toHaveBeenCalled();
-    expect(within(sheet).getByText(RECURRING_ERRORS.installmentsRange)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(sheet).getByText(RECURRING_ERRORS.installmentsRange)).toBeInTheDocument(),
+    );
   });
 
   test("editing: N below what is settled comes back on its field with the lowest N", async () => {
@@ -225,9 +246,11 @@ describe("Cuota 3 de 6", () => {
     expect(screen.queryByText(/Cuota \d+ de/)).toBeNull();
   });
 
-  test("an ended plan with no due dates left says so in Todos", () => {
+  test("a plan that ended unsettled is Terminado in Archivados, with nothing to reactivate", () => {
     renderView([{ ...NOTEBOOK, startDate: "2025-01-05", installmentsTotal: 3 }]);
-    expect(screen.getAllByText(/Ya no quedan vencimientos/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("list", { name: "Todos" })).toBeNull();
+    expect(screen.getByText(/· Terminado/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reactivar/ })).toBeNull();
   });
 
   test("the payment's page: the installment of each next due date, or none left", () => {
@@ -266,7 +289,9 @@ describe("the last installment", () => {
         expense: expense("e-last"),
       }),
     );
-    vi.mocked(undoPaid).mockResolvedValue(ok({ dueOn: TODAY, reopened: true }));
+    vi.mocked(undoPaid).mockResolvedValue(
+      ok({ dueOn: TODAY, reopened: true, stillArchived: false }),
+    );
     renderView([LAST]);
     expect(screen.getByText("Cuota 6 de 6")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Pagado: Notebook,/ }));
@@ -289,7 +314,9 @@ describe("the last installment", () => {
     vi.mocked(markPaid).mockResolvedValue(
       ok({ dueOn: TODAY, name: "Notebook", closedStamp: null, expense: expense("e-5") }),
     );
-    vi.mocked(undoPaid).mockResolvedValue(ok({ dueOn: TODAY, reopened: false }));
+    vi.mocked(undoPaid).mockResolvedValue(
+      ok({ dueOn: TODAY, reopened: false, stillArchived: false }),
+    );
     renderView([NOTEBOOK]);
     await user.click(screen.getByRole("button", { name: /^Pagado: Notebook,/ }));
     expect(await within(notices()).findByText("Notebook · 250 soles")).toBeVisible();
@@ -304,7 +331,9 @@ describe("the last installment", () => {
     vi.mocked(skipPeriod).mockResolvedValue(
       ok({ dueOn: TODAY, name: "Notebook", closedStamp: "2026-10-05T15:00:00.654321Z" }),
     );
-    vi.mocked(undoSkipped).mockResolvedValue(ok({ dueOn: TODAY, reopened: true }));
+    vi.mocked(undoSkipped).mockResolvedValue(
+      ok({ dueOn: TODAY, reopened: true, stillArchived: false }),
+    );
     renderView([LAST]);
     await user.click(screen.getByRole("button", { name: "Más acciones de Notebook" }));
     const sheet = await screen.findByRole("dialog", { name: "Registrar pago de Notebook" });

@@ -214,6 +214,10 @@ export const PAYMENTS_COPY = {
   undonePaid: (name: string) => `Se quitó el pago de ${name}: vuelve a pendientes.`,
   undonePaidReopened: (name: string) =>
     `Se quitó el pago de ${name}: vuelve a pendientes y el pago se reactivó.`,
+  undonePaidArchived: (name: string) =>
+    `Se quitó el pago de ${name}. El pago sigue archivado: reactívalo para verlo en pendientes.`,
+  undoneSkipArchived: (name: string) =>
+    `${name} vuelve a sus cuotas, pero el pago sigue archivado: reactívalo para verlo en pendientes.`,
   undoneSkip: (name: string) => `${name} vuelve a pendientes.`,
   undoneSkipReopened: (name: string) => `${name} vuelve a pendientes y el pago se reactivó.`,
   notPaid: "No se pudo registrar el pago.",
@@ -239,6 +243,7 @@ export const PAYMENTS_COPY = {
   installmentsLabel: "Termina después de N pagos (opcional)",
   installmentsHelp:
     "Para una compra en cuotas. Vacío: no termina. Al pagar la última, el pago se archiva solo.",
+  endedLabel: "Terminado",
   noMoreDues: "Ya no quedan vencimientos: se agotaron las cuotas.",
   amountFieldLabel: (currency: "PEN" | "USD") =>
     currency === "USD" ? "Monto previsto en dólares" : "Monto previsto en soles",
@@ -314,8 +319,7 @@ export const RECURRING_ERRORS = {
     "Con cuotas ya pagadas u omitidas no se puede cambiar el día ni el inicio: quita las cuotas, guarda y cámbialo.",
   installmentsKeepMonthly:
     "Este pago tiene cuotas y solo puede ser mensual: quita las cuotas antes de cambiar el ciclo.",
-  installmentsDone:
-    "Ya se pagaron todas las cuotas de este pago. Sube el número de cuotas para reactivarlo.",
+  installmentsDone: "Ya no quedan cuotas de este pago. Sube el número de cuotas para reactivarlo.",
   startInvalid: "Esa fecha no es válida.",
   startOutOfRange: "La fecha debe estar entre 2000 y 2100.",
   amountRequired: "Escribe el monto o marca «Monto variable».",

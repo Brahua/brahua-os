@@ -149,6 +149,45 @@ test("N below what is settled is refused with the lowest N; equal closes the pla
   expect((await readRecurring("Cuotas de prueba"))?.archivedAt).not.toBeNull();
 });
 
+test("paying the last one while an earlier one is pending does not archive; settling that one does", async ({
+  page,
+}) => {
+  const start = limaDay(-28);
+  const id = await insertRecurring({
+    name: "Cuotas pendientes",
+    dayOfMonth: dayOf(start),
+    startDate: start,
+    installmentsTotal: 2,
+  });
+  await openPayments(page);
+  const rows = pendingList(page).getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1)).toContainText("Cuota 2 de 2");
+  await untilSaved(page, () =>
+    rows
+      .nth(1)
+      .getByRole("button", { name: /^Pagado/ })
+      .click(),
+  );
+  // The 2nd is paid but the 1st is still there to see: nothing disappears, nothing says "Se archiva".
+  await expect(financeNotices(page).getByText("Pago registrado")).toBeVisible();
+  await expect(financeNotices(page).getByText(/Se archiva solo/)).toHaveCount(0);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Cuota 1 de 2");
+  expect((await readRecurring("Cuotas pendientes"))?.archivedAt).toBeNull();
+  expect(await readSettlements(id)).toHaveLength(1);
+
+  // Settling the last pending one (the 1st) closes the plan, and says so.
+  await untilSaved(page, () => payKey(page, "Cuotas pendientes").click());
+  await expect(
+    financeNotices(page).getByText("Última cuota de «Cuotas pendientes». Se archiva solo."),
+  ).toBeVisible();
+  await expect
+    .poll(async () => (await readRecurring("Cuotas pendientes"))?.archivedAt)
+    .not.toBeNull();
+  await expect(page.getByText("Archivados (1)")).toBeVisible();
+});
+
 test("skipping the last installment also archives the plan, and says so", async ({ page }) => {
   const start = limaDay(-28);
   const id = await insertRecurring({

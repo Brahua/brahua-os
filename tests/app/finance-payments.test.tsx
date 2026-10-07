@@ -179,7 +179,9 @@ describe("Pagos", () => {
     const agua = item({ name: "Agua", dayOfMonth: 6 });
     const answer = deferred<Awaited<ReturnType<typeof markPaid>>>();
     vi.mocked(markPaid).mockReturnValue(answer.promise);
-    vi.mocked(undoPaid).mockResolvedValue(ok({ dueOn: TODAY, reopened: false }));
+    vi.mocked(undoPaid).mockResolvedValue(
+      ok({ dueOn: TODAY, reopened: false, stillArchived: false }),
+    );
     renderView([internet, agua]);
     await user.click(payKey("Internet"));
     expect(markPaid).toHaveBeenCalledWith({ id: internet.id, dueOn: TODAY });

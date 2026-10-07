@@ -151,10 +151,13 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
       );
       if (result.kind === "skipped") return;
       if (result.kind === "done" && result.value.ok) {
+        const { reopened, stillArchived } = result.value.data;
         announce(
-          result.value.data.reopened
+          reopened
             ? PAYMENTS_COPY.undoneSkipReopened(recurring.name)
-            : PAYMENTS_COPY.undoneSkip(recurring.name),
+            : stillArchived
+              ? PAYMENTS_COPY.undoneSkipArchived(recurring.name)
+              : PAYMENTS_COPY.undoneSkip(recurring.name),
         );
         return;
       }
@@ -428,19 +431,26 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
                   >
                     {item.name}
                   </Link>
-                  <span className="bo-row__subtitle">{cycleSummary(item)}</span>
+                  <span className="bo-row__subtitle">
+                    {item.archived
+                      ? cycleSummary(item)
+                      : `${cycleSummary(item)} · ${PAYMENTS_COPY.endedLabel}`}
+                  </span>
                 </span>
-                <Key
-                  ref={(element) => {
-                    if (element) reactivateKeys.current.set(item.id, element);
-                    else reactivateKeys.current.delete(item.id);
-                  }}
-                  variant="ghost"
-                  aria-label={`${PAYMENTS_COPY.reactivate} «${item.name}»`}
-                  onClick={() => reactivateItem(item)}
-                >
-                  {PAYMENTS_COPY.reactivate}
-                </Key>
+                {/* A plan that ended unsettled isn't archived: there is nothing to reactivate. */}
+                {item.archived ? (
+                  <Key
+                    ref={(element) => {
+                      if (element) reactivateKeys.current.set(item.id, element);
+                      else reactivateKeys.current.delete(item.id);
+                    }}
+                    variant="ghost"
+                    aria-label={`${PAYMENTS_COPY.reactivate} «${item.name}»`}
+                    onClick={() => reactivateItem(item)}
+                  >
+                    {PAYMENTS_COPY.reactivate}
+                  </Key>
+                ) : null}
               </li>
             ))}
           </ul>

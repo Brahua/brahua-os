@@ -10,6 +10,7 @@ import {
   installmentsCount,
   RECURRING_ERRORS,
 } from "@/modules/finance/payments-copy";
+import { buildPaymentsView, isEnded } from "@/modules/finance/payments-view";
 import {
   createRecurringInputSchema,
   updateRecurringInputSchema,
@@ -235,6 +236,58 @@ describe("the home DTO and the copy", () => {
     expect(RECURRING_ERRORS.installmentsTooLow(4)).toBe(
       "Ya hay 4 cuotas pagadas u omitidas: escribe 4 o más.",
     );
+  });
+});
+
+describe("borders of the count", () => {
+  test("a start on Feb 28 with day 31 and N = 3: Feb 28, Mar 31, Apr 30", () => {
+    expect(dueDatesBetween(monthly(31, "2026-02-28", 3), "2026-01-01", "2026-12-31")).toEqual([
+      "2026-02-28",
+      "2026-03-31",
+      "2026-04-30",
+    ]);
+  });
+
+  test("across the year with day 31 and N = 3: Dec 31, Jan 31, Feb 28", () => {
+    const schedule = monthly(31, "2026-12-31", 3);
+    expect(dueDatesBetween(schedule, "2026-01-01", "2028-01-01")).toEqual([
+      "2026-12-31",
+      "2027-01-31",
+      "2027-02-28",
+    ]);
+    expect(installmentNumber(schedule, "2027-02-28")).toBe(3);
+  });
+});
+
+describe("a plan that ended unsettled shows as Terminado", () => {
+  const today = "2026-10-05"; // the window starts 2026-08-06
+  const item = (values: Partial<RecurringItem>): RecurringItem => ({
+    ...ITEM,
+    ...values,
+  });
+
+  test("its last installment older than the window: ended, in Archivados, not in Todos", () => {
+    const old = item({
+      id: "55555555-5555-4555-8555-0000000000a1",
+      startDate: "2026-01-05",
+      installmentsTotal: 2,
+    });
+    const live = item({ id: "55555555-5555-4555-8555-0000000000a2", name: "Vivo" });
+    expect(isEnded(old, today)).toBe(true);
+    expect(isEnded(live, today)).toBe(false);
+    // Positive control: the last installment on the window's first day is not ended.
+    expect(
+      isEnded(item({ startDate: "2026-07-06", dayOfMonth: 6, installmentsTotal: 2 }), today),
+    ).toBe(false);
+    const view = buildPaymentsView([old, live], [], today);
+    expect(view.active.map((entry) => entry.recurring.name)).toEqual(["Vivo"]);
+    expect(view.thisMonth.map((entry) => entry.recurring.name)).toEqual(["Vivo"]);
+    expect(view.archived.map((entry) => entry.id)).toEqual([old.id]);
+    expect(view.archived[0].archived).toBe(false);
+  });
+
+  test("payments without installments never end", () => {
+    expect(isEnded(item({ installmentsTotal: null, startDate: "2020-01-05" }), today)).toBe(false);
   });
 });
 
