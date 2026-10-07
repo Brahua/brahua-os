@@ -182,6 +182,8 @@ type NewTodayTask = {
   projectId?: string;
   isNextAction?: boolean;
   recurrence?: TaskRecurrence;
+  /** HH:MM (24 h, Lima): polish → task-time. */
+  dueTime?: string;
   /** Minutes after an arbitrary base: orders ties (same day and priority) by creation. */
   createdMinute?: number;
 };
@@ -204,6 +206,7 @@ export async function insertTodayTask(task: NewTodayTask): Promise<string> {
         title: task.title,
         priority: task.priority ?? "medium",
         dueDate: limaDay(task.due),
+        dueTime: task.dueTime ?? null,
         lifeAreaId: area?.id ?? null,
         projectId: task.projectId ?? null,
         isNextAction: task.isNextAction ?? false,

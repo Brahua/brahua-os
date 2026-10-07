@@ -63,7 +63,7 @@ export function useTaskDetail(): TaskDetailValue {
 export type TaskPatch = Partial<
   Pick<
     TaskItem,
-    "title" | "priority" | "dueDate" | "lifeAreaId" | "projectId" | "milestoneId" | "area" | "project"
+    "title" | "priority" | "dueDate" | "dueTime" | "lifeAreaId" | "projectId" | "milestoneId" | "area" | "project"
   >
 >;
 

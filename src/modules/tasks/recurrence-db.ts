@@ -32,6 +32,7 @@ export type CompletedRow = Pick<
   | "notes"
   | "priority"
   | "dueDate"
+  | "dueTime"
   | "doneAt"
   | "lifeAreaId"
   | "projectId"
@@ -49,6 +50,7 @@ export const COMPLETED_COLUMNS = {
   notes: tasks.notes,
   priority: tasks.priority,
   dueDate: tasks.dueDate,
+  dueTime: tasks.dueTime,
   doneAt: tasks.doneAt,
   lifeAreaId: tasks.lifeAreaId,
   projectId: tasks.projectId,
@@ -157,6 +159,8 @@ export async function spawnNextOccurrence(
       notes: completed.notes,
       priority: completed.priority,
       dueDate: nextDueDate(rule, completed.doneAt, completed.dueDate),
+      // polish -> task-time: the next occurrence keeps the hour (the next day is always set).
+      dueTime: completed.dueTime,
       ...placement,
       ...recurrenceColumns(rule),
       spawnedFromId: completed.id,

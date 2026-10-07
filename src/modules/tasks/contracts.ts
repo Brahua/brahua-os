@@ -20,6 +20,7 @@ import { projects } from "@/modules/projects/db/schema";
 import { isClosed } from "@/modules/projects/project-close";
 import { tasks } from "./db/schema";
 import { visibleTask } from "./tasks";
+import { normalizeDueTime } from "./task-time";
 import { limaToday } from "./task-views";
 import { buildTasksTodaySummary, type TaskTodayItem } from "./today-summary";
 
@@ -51,6 +52,7 @@ export async function selectTasksTodaySummary(
       title: tasks.title,
       priority: tasks.priority,
       dueDate: tasks.dueDate,
+      dueTime: tasks.dueTime,
       doneAt: tasks.doneAt,
       createdAt: tasks.createdAt,
       isNextAction: tasks.isNextAction,
@@ -71,6 +73,7 @@ export async function selectTasksTodaySummary(
       title: row.title,
       priority: row.priority,
       dueDate: row.dueDate,
+      dueTime: normalizeDueTime(row.dueTime),
       doneAt: row.doneAt,
       createdAt: row.createdAt,
       // T5's rule: a closed project keeps the mark in the database, but it isn't shown.

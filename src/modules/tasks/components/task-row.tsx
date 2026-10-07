@@ -11,6 +11,7 @@ import { taskPath } from "../routes";
 import { isUrgentDue, taskDueState } from "../task-due";
 import type { TaskItem } from "../task-input";
 import { doneLabel } from "../task-views";
+import { formatDueTime } from "../task-time";
 import { TASKS_COPY } from "../tasks-copy";
 import { TAGS_COPY } from "../tags-copy";
 import { VIEWS_COPY } from "../views-copy";
@@ -69,10 +70,12 @@ export function TaskRow({
   // What the title's description says, in words. The visible metadata is aria-hidden: its flex
   // items would be read run together ("Vence hoyPrioridad alta"). T3 and T4 add their parts here.
   const doneText = task.doneAt ? doneLabel(task.doneAt, now) : null;
+  const time = task.dueTime && !done ? formatDueTime(task.dueTime) : null;
   const description = [
     doneText,
     areaLabel,
     due?.label,
+    time ? TASKS_COPY.atTime(time) : null,
     task.priority === "high" ? TASKS_COPY.highPriority : null,
     task.recurrence ? RECURRENCE_COPY.rowDescription(recurrenceSummary(task.recurrence)) : null,
     task.tags.length > 0 ? TAGS_COPY.rowDescription(task.tags.map((tag) => tag.name)) : null,
@@ -116,6 +119,11 @@ export function TaskRow({
             className="bo-text-body-sm flex flex-wrap items-center gap-x-3 gap-y-1"
           >
             {doneText ? <span className="text-text-secondary">{doneText}</span> : null}
+            {time ? (
+              <span className="font-mono tabular-nums" data-task-time="">
+                {time}
+              </span>
+            ) : null}
             {shownArea ? (
               <AreaTag
                 area={shownArea.color}

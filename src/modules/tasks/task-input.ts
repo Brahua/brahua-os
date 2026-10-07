@@ -13,6 +13,7 @@ import {
   type TaskPriority,
 } from "./task-constants";
 import { taskTagsSchema } from "./task-tags";
+import { DUE_TIME_PATTERN } from "./task-time";
 
 export { TASK_PRIORITIES, TASK_TITLE_MAX_LENGTH, type TaskPriority } from "./task-constants";
 
@@ -31,6 +32,8 @@ export const TASK_ERRORS = {
   milestoneUnavailable: "Ese hito no es de este proyecto o ya no existe.",
   priority: "Elige una prioridad.",
   dateInvalid: "Escribe una fecha válida.",
+  timeInvalid: "Escribe una hora válida (por ejemplo, 10:00).",
+  timeWithoutDate: "Elige primero una fecha para ponerle hora.",
   notFound: "Esta tarea ya no existe (se eliminó).",
 } as const;
 
@@ -65,6 +68,8 @@ export type TaskItem = {
   priority: TaskPriority;
   /** A day in Lima, YYYY-MM-DD. */
   dueDate: string | null;
+  /** HH:MM (24 h, Lima), only with a due date (polish → task-time). */
+  dueTime: string | null;
   doneAt: Date | null;
   createdAt: Date;
   /** The task's own area (only without a project). */
@@ -128,6 +133,25 @@ const day = z.preprocess(
   z.iso.date({ error: TASK_ERRORS.dateInvalid }).nullable(),
 );
 
+/** An optional time (HH:MM, 24 h). "", null or missing clear it. */
+const time = z.preprocess(
+  (value) => (value === "" || value === undefined ? null : value),
+  z
+    .string({ error: TASK_ERRORS.timeInvalid })
+    .regex(DUE_TIME_PATTERN, TASK_ERRORS.timeInvalid)
+    .nullable(),
+);
+
+/** A time needs a day: with no date (null) it can't be set (an edit may keep the stored day). */
+function checkTime(
+  value: { dueDate?: string | null; dueTime?: string | null },
+  context: z.RefinementCtx,
+) {
+  if (value.dueTime != null && value.dueDate === null) {
+    context.addIssue({ code: "custom", message: TASK_ERRORS.timeWithoutDate, path: ["dueTime"] });
+  }
+}
+
 const priority = z.enum(TASK_PRIORITIES, { error: TASK_ERRORS.priority });
 
 /**
@@ -167,12 +191,16 @@ export const createTaskInputSchema = z
     title,
     ...placementShape,
     dueDate: day,
+    // polish -> task-time: optional, only with a date. The quick capture has no field yet
+    // (`capture-nl-dates` fills it).
+    dueTime: time.optional(),
     priority: priority.default("medium"),
     // T3: an optional recurrence rule ("Más detalles"); missing or null: none.
     recurrence: optionalRecurrenceSchema.optional(),
     tags: taskTagsSchema.optional(),
   })
-  .superRefine(checkPlacement);
+  .superRefine(checkPlacement)
+  .superRefine(checkTime);
 
 export type CreateTaskInput = z.output<typeof createTaskInputSchema>;
 
@@ -183,6 +211,7 @@ export const CREATE_TASK_FIELDS = [
   "projectId",
   "milestoneId",
   "dueDate",
+  "dueTime",
   "priority",
   "recurrence",
   "tags",
@@ -192,13 +221,18 @@ export const CREATE_TASK_FIELDS = [
  * An edit of one or more of a task's own fields; what is missing stays as it is. `placement`
  * moves it (all three together: a missing field there means "none").
  */
-export const editTaskInputSchema = z.object({
-  id,
-  title: title.optional(),
-  priority: priority.optional(),
-  dueDate: day.optional(),
-  placement: taskPlacementSchema.optional(),
-});
+export const editTaskInputSchema = z
+  .object({
+    id,
+    title: title.optional(),
+    priority: priority.optional(),
+    dueDate: day.optional(),
+    // Missing: unchanged. A null date clears the time too; a time needs a day (an edit that
+    // leaves the date out uses the stored one: the data layer checks it).
+    dueTime: time.optional(),
+    placement: taskPlacementSchema.optional(),
+  })
+  .superRefine(checkTime);
 
 export type EditTaskInput = z.output<typeof editTaskInputSchema>;
 

@@ -109,6 +109,7 @@ function task(values: Partial<TaskItem>): TaskItem {
     title: `Tarea ${serial}`,
     priority: "medium",
     dueDate: null,
+    dueTime: null,
     doneAt: null,
     createdAt: NOW,
     lifeAreaId: null,
@@ -447,6 +448,7 @@ describe("Clasificar", () => {
       id: PILAS.id,
       placement: { lifeAreaId: null, projectId: null, milestoneId: null },
       dueDate: "2026-09-30",
+      dueTime: null,
     });
     await server.answer();
   });

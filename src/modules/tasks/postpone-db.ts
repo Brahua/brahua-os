@@ -67,7 +67,12 @@ export async function restoreDueDateById(
     if (current.doneAt !== null || current.dueDate !== expected) {
       return { id, dueDate: current.dueDate, restored: false };
     }
-    await tx.update(tasks).set({ dueDate }).where(eq(tasks.id, id));
+    // The hour stays where it was (a postponement only moves the day), except when the task goes
+    // back to no day at all: a time needs a day (`tasks_due_time_check`).
+    await tx
+      .update(tasks)
+      .set(dueDate === null ? { dueDate, dueTime: null } : { dueDate })
+      .where(eq(tasks.id, id));
     return { id, dueDate, restored: true };
   });
 }

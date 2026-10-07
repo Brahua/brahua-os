@@ -51,6 +51,7 @@ function task(values: Partial<TaskItem> = {}): TaskItem {
     title: "regar las plantas",
     priority: "medium",
     dueDate: null,
+    dueTime: null,
     doneAt: null,
     createdAt: NOW,
     lifeAreaId: null,

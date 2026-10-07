@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { PROJECT_TASKS_COPY } from "../project-tasks-copy";
 import { taskPath } from "../routes";
 import { isUrgentDue } from "../task-due";
+import { formatDueTime } from "../task-time";
 import { TASKS_COPY } from "../tasks-copy";
 import type { TaskTodayItem } from "../today-summary";
 import { PostponeKeys, type RowPostpone } from "./postpone-keys";
@@ -44,9 +45,11 @@ export function TaskTodayRow({ task, onComplete, busy = false, postpone }: TaskT
       ? `${task.area.name} · ${task.project.name}`
       : task.area.name
     : null;
+  const time = task.dueTime ? formatDueTime(task.dueTime) : null;
   const description = [
     areaLabel,
     task.due.label,
+    time ? TASKS_COPY.atTime(time) : null,
     task.priority === "high" ? TASKS_COPY.highPriority : null,
     task.isNextAction ? PROJECT_TASKS_COPY.nextLabel : null,
   ]
@@ -83,6 +86,11 @@ export function TaskTodayRow({ task, onComplete, busy = false, postpone }: TaskT
           {description}
         </span>
         <p aria-hidden className="bo-text-body-sm flex flex-wrap items-center gap-x-3 gap-y-1">
+          {time ? (
+            <span className="font-mono tabular-nums" data-task-time="">
+              {time}
+            </span>
+          ) : null}
           {task.area ? (
             <AreaTag
               area={task.area.color}

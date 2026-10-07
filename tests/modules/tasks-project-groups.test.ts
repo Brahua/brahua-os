@@ -25,6 +25,7 @@ function task(values: Partial<TaskItem>): TaskItem {
     title: `Tarea ${serial}`,
     priority: "medium",
     dueDate: null,
+    dueTime: null,
     doneAt: null,
     createdAt: new Date(NOW.getTime() + serial),
     lifeAreaId: null,

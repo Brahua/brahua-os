@@ -33,8 +33,12 @@ function revalidateTask(id: string) {
 }
 
 /** The field a refused placement belongs to, with its message. */
-const PLACEMENT_FIELDS: Record<PlacementFailure, ["lifeAreaId" | "projectId" | "milestoneId", string]> =
+const PLACEMENT_FIELDS: Record<
+  PlacementFailure,
+  ["lifeAreaId" | "projectId" | "milestoneId" | "dueTime", string]
+> =
   {
+    timeWithoutDate: ["dueTime", TASK_ERRORS.timeWithoutDate],
     areaUnavailable: ["lifeAreaId", TASK_ERRORS.areaUnavailable],
     projectUnavailable: ["projectId", TASK_ERRORS.projectUnavailable],
     milestoneUnavailable: ["milestoneId", TASK_ERRORS.milestoneUnavailable],
@@ -42,7 +46,9 @@ const PLACEMENT_FIELDS: Record<PlacementFailure, ["lifeAreaId" | "projectId" | "
 
 function refused<T>(failure: PlacementFailure, prefix = ""): ActionResult<T> {
   const [field, message] = PLACEMENT_FIELDS[failure];
-  return { ok: false, error: INVALID_FIELDS_MESSAGE, fieldErrors: { [prefix + field]: [message] } };
+  // The time belongs to the task, not to its `placement` object.
+  const path = failure === "timeWithoutDate" ? field : prefix + field;
+  return { ok: false, error: INVALID_FIELDS_MESSAGE, fieldErrors: { [path]: [message] } };
 }
 
 const create = ownerAction(

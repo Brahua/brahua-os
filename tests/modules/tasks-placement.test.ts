@@ -29,6 +29,7 @@ const task = (id: string, extra: Partial<TaskItem> = {}): TaskItem => ({
   title: id,
   priority: "medium",
   dueDate: null,
+  dueTime: null,
   doneAt: null,
   createdAt: new Date("2026-10-01T15:00:00Z"),
   lifeAreaId: null,

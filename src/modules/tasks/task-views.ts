@@ -5,6 +5,7 @@
 import { formatDateKey, ownerDateKey } from "@/lib/time";
 import { daysUntil } from "@/modules/projects/progress";
 import type { TaskItem } from "./task-input";
+import { compareDueTime } from "./task-time";
 
 /** "Próximas": due in the next 7 days, today excluded (today is in "Hoy"). */
 export const UPCOMING_DAYS = 7;
@@ -75,13 +76,13 @@ export function isPendingMatching(
 /** High first. */
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
-type SortTask = Pick<TaskItem, "id" | "dueDate" | "priority" | "createdAt">;
+type SortTask = Pick<TaskItem, "id" | "dueDate" | "dueTime" | "priority" | "createdAt">;
 
 const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /**
  * "Hoy", "Próximas" and "Todas": by due date (the oldest first; without a date, last), then
- * priority (Alta first), then creation (the oldest first). The id breaks the last ties, so the
+ * time (the ones with one first, by time), then priority (Alta first), then creation (the oldest first). The id breaks the last ties, so the
  * order never flickers between two loads.
  */
 export function compareByDue(a: SortTask, b: SortTask): number {
@@ -90,6 +91,10 @@ export function compareByDue(a: SortTask, b: SortTask): number {
     if (b.dueDate === null) return -1;
     return a.dueDate < b.dueDate ? -1 : 1;
   }
+  // polish -> task-time: within a day, the ones with a time first, by time (the day, and so the
+  // overdue order, always decides before the hour).
+  const time = compareDueTime(a.dueTime, b.dueTime);
+  if (time !== 0) return time;
   const priority = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
   if (priority !== 0) return priority;
   const created = a.createdAt.getTime() - b.createdAt.getTime();

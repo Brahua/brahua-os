@@ -135,6 +135,7 @@ describe("the tag filter of Todas (?etiqueta=<tagId>)", () => {
     title: id,
     priority: "medium",
     dueDate: null,
+    dueTime: null,
     doneAt: null,
     createdAt: new Date(0),
     lifeAreaId: null,
