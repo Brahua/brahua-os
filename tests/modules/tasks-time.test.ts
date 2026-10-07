@@ -8,6 +8,7 @@ import {
   TASK_ERRORS,
   type TaskItem,
 } from "@/modules/tasks/task-input";
+import { sortByMilestone } from "@/modules/tasks/project-task-groups";
 import { applyTaskListChange } from "@/modules/tasks/task-list-optimistic";
 import {
   compareDueTime,
@@ -189,6 +190,12 @@ describe("compareByDue", () => {
     ).toEqual(["mañana 12:00", "mañana sin hora", "jue 08:00", "jue sin hora"]);
   });
 
+  test("a reschedule to no day clears the time (no day, no time)", () => {
+    const list = [item("a", { dueTime: "09:00" })];
+    const [moved] = applyTaskListChange(list, { type: "reschedule", id: "a", dueDate: null });
+    expect(moved).toMatchObject({ dueDate: null, dueTime: null });
+  });
+
   test("a reschedule keeps the time and places the row by day, then time", () => {
     const list = [
       item("a", { dueTime: "09:00" }),
@@ -198,6 +205,24 @@ describe("compareByDue", () => {
     const moved = applyTaskListChange(list, { type: "reschedule", id: "a", dueDate: "2026-10-03" });
     expect(moved.map((task) => task.title)).toEqual(["b", "a", "c"]);
     expect(moved.find((task) => task.title === "a")?.dueTime).toBe("09:00");
+  });
+});
+
+describe("project tasks", () => {
+  test("a project's pending tasks in a milestone order by day, then time", () => {
+    const milestone = { id: "m1", title: "Planos" };
+    const list = [
+      item("sin hora", { milestoneId: "m1" }),
+      item("13:00", { milestoneId: "m1", dueTime: "13:00" }),
+      item("07:30", { milestoneId: "m1", dueTime: "07:30" }),
+      item("otro hito 06:00", { milestoneId: "m2", dueTime: "06:00" }),
+    ];
+    expect(sortByMilestone(list, [milestone]).map((task) => task.title)).toEqual([
+      "07:30",
+      "13:00",
+      "sin hora",
+      "otro hito 06:00",
+    ]);
   });
 });
 
@@ -247,5 +272,14 @@ describe("buildTasksTodaySummary", () => {
       "15:00",
       null,
     ]);
+  });
+
+  test("the Lima midnight boundary: 00:00 today is due today at 23:59, overdue a minute later", () => {
+    const rows = [row("medianoche", { dueTime: "00:00" })];
+    const lastMinute = buildTasksTodaySummary(rows, new Date("2026-10-03T04:59:00Z"));
+    expect(lastMinute[0]).toMatchObject({ dueTime: "00:00", due: { kind: "today" } });
+    // 2026-10-03T05:00Z is Lima's midnight: the 2nd is now yesterday.
+    const afterMidnight = buildTasksTodaySummary(rows, new Date("2026-10-03T05:00:00Z"));
+    expect(afterMidnight[0].due).toMatchObject({ kind: "overdue", label: "Retrasada hace 1 día" });
   });
 });

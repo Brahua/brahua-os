@@ -2,11 +2,12 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page, TestInfo } from "@playwright/test";
 import { fontsLoaded } from "./support/fonts";
 import { expect } from "./support/habits";
-import { isDesktop } from "./support/projects";
+import { isDesktop, untilSaved } from "./support/projects";
 import { afterSaveSettled } from "./support/saves";
 import { expectScreenshot } from "./support/screenshots";
 import { openReady, readTask } from "./support/tasks";
-import { boardTest as test, insertTodayTask } from "./support/today-tasks";
+import { insertViewTask, ownTitles, viewRow } from "./support/task-views";
+import { boardTest as test, insertTodayTask, tasksTest } from "./support/today-tasks";
 
 // polish → task-time: the optional hour of a task. On "/" (`today`'s "Tareas") the tasks WITH an hour
 // go first, by hour, and show it; the detail saves and removes it. Every test is a `boardTest`
@@ -99,6 +100,51 @@ test("the detail saves the hour and removes it; the hour survives a reload", asy
   expect((await readTask(id)).dueDate).not.toBeNull();
 });
 
+test("emptying one segment of a saved hour saves nothing; completing it saves the new hour; the key clears", async ({
+  page,
+}, testInfo) => {
+  const id = await insertTodayTask({
+    title: unique("Parcial", testInfo),
+    due: 0,
+    dueTime: "09:30",
+  });
+  await openReady(page, `/tasks/${id}`);
+  await expect(timeField(page)).toHaveValue("09:30");
+
+  let posts = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.headers()["next-action"] !== undefined) posts += 1;
+  });
+  // The database never goes through null while the hour is being retyped.
+  const seen: (string | null)[] = [];
+  let sampling = true;
+  const sampler = (async () => {
+    while (sampling) {
+      seen.push((await readTask(id)).dueTime);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+  })();
+
+  // The first segment is the hour: Backspace empties it (the input says "" with a half time).
+  await timeField(page).focus();
+  await page.keyboard.press("Backspace");
+  await afterSaveSettled(page);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  expect(posts).toBe(0);
+  expect((await readTask(id)).dueTime).toBe("09:30:00");
+
+  await untilSavedKeys(page, ["1", "0"]);
+  await expect.poll(async () => (await readTask(id)).dueTime).toBe("10:30:00");
+  sampling = false;
+  await sampler;
+  expect(seen).not.toContain(null);
+  expect(seen).toContain("09:30:00");
+
+  // Positive control: the key does clear it.
+  await clearKey(page).click();
+  await expect.poll(async () => (await readTask(id)).dueTime).toBeNull();
+});
+
 test("taking the day away hides the hour field and clears the hour", async ({ page }, testInfo) => {
   const title = unique("Reunión", testInfo);
   const id = await insertTodayTask({ title, due: 0, dueTime: "09:00" });
@@ -184,3 +230,33 @@ for (const theme of THEMES) {
     await expectScreenshot(section(page), `task-time-today-${theme}.png`);
   });
 }
+
+/** Types keys and waits for the save the last one triggers. */
+async function untilSavedKeys(page: Page, keys: string[]) {
+  const last = keys.pop()!;
+  for (const key of keys) await page.keyboard.press(key);
+  await untilSaved(page, () => page.keyboard.press(last));
+}
+
+tasksTest(
+  "Tareas > Hoy orders by hour too, and shows it @today-tasks",
+  async ({ page }, testInfo) => {
+    // The one without an hour is the oldest and the highest priority: it would be first without hours.
+    const plain = unique("Sin hora", testInfo);
+    const late = unique("Tarde", testInfo);
+    const early = unique("Temprano", testInfo);
+    await insertViewTask({ title: plain, due: 0, priority: "high", createdMinute: 0 });
+    await insertViewTask({ title: late, due: 0, dueTime: "17:45", createdMinute: 1 });
+    await insertViewTask({ title: early, due: 0, dueTime: "06:15", createdMinute: 2 });
+
+    await openReady(page, "/tasks?vista=hoy");
+    await expect(viewRow(page, early)).toBeVisible();
+    expect(await ownTitles(page, "Tareas de hoy", [plain, late, early])).toEqual([
+      early,
+      late,
+      plain,
+    ]);
+    await expect(viewRow(page, early).locator("[data-task-time]")).toHaveText("06:15");
+    await expect(viewRow(page, plain).locator("[data-task-time]")).toHaveCount(0);
+  },
+);

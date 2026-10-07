@@ -61,7 +61,7 @@ export const TASKS_COPY = {
   dueHelp: "Opcional.",
   noDate: "Sin fecha",
   timeLabel: "Hora",
-  timeHelp: "Opcional. Hora de Lima, en formato de 24 horas.",
+  timeHelp: "Opcional. Hora de Lima.",
   noTime: "Sin hora",
   clearTime: "Quitar hora",
   /** What a row says in words ("a las 10:00"); the visible row shows just "10:00". */

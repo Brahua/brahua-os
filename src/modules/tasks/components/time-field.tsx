@@ -1,6 +1,7 @@
 "use client";
 
 import { TriangleAlert, X } from "lucide-react";
+import { useState } from "react";
 import { Icon, Key } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { TASKS_COPY } from "../tasks-copy";
@@ -10,7 +11,7 @@ type TimeFieldProps = {
   label: string;
   /** HH:MM (24 h), or "" for none. */
   value: string;
-  /** The new value: HH:MM, or "" (cleared with the key, or a half-typed time). */
+  /** The new value: HH:MM, or "" (every segment emptied, or the "Quitar hora" key). */
   onChange: (value: string) => void;
   help?: string;
   error?: string;
@@ -18,13 +19,23 @@ type TimeFieldProps = {
 };
 
 /**
- * The optional time of a task (polish → task-time): a native time input (24 h, minute
- * precision) with the design system's look (`TextField` markup), and a "Quitar hora" key beside
- * it once there is one. Like the date field, an empty input shows "Sin hora" over it on iOS,
- * which draws it blank. Clearing never unmounts the focused key before it moves focus back to
- * the input.
+ * The optional time of a task (polish → task-time): a native time input (minute precision) with
+ * the design system's look (`TextField` markup), and a "Quitar hora" key beside it. Like the date
+ * field, an empty input shows "Sin hora" over it on iOS, which draws it blank.
+ *
+ * A half-edited time (one segment emptied) makes the input say `value === ""` with
+ * `validity.badInput`: that is NOT "no time", so it reports nothing and the saved time stays until
+ * the time is complete again (a valid value saves right away) or the key clears it. The input
+ * keeps a draft of its own so React never rewrites what the user is in the middle of typing.
  */
 export function TimeField({ id, label, value, onChange, help, error, ref }: TimeFieldProps) {
+  const [draft, setDraft] = useState(value);
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    // The saved value changed under us (a save, a rollback): it becomes the draft.
+    setSeen(value);
+    setDraft(value);
+  }
   const describedBy = error ? `${id}-error` : help ? `${id}-help` : undefined;
   return (
     <div className={cn("bo-field bo-date-field", error && "is-error")}>
@@ -39,12 +50,17 @@ export function TimeField({ id, label, value, onChange, help, error, ref }: Time
             type="time"
             step={60}
             className="bo-field__control font-mono tabular-nums"
-            value={value}
+            value={draft}
             aria-invalid={Boolean(error)}
             aria-describedby={describedBy}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setDraft(next);
+              if (next === "" && event.target.validity.badInput) return;
+              onChange(next);
+            }}
           />
-          {value === "" ? (
+          {draft === "" ? (
             <span className="bo-date-empty" aria-hidden>
               {TASKS_COPY.noTime}
             </span>
@@ -58,6 +74,7 @@ export function TimeField({ id, label, value, onChange, help, error, ref }: Time
           data-time-clear=""
           onClick={(event) => {
             if (value === "") return;
+            setDraft("");
             onChange("");
             const input = event.currentTarget.parentElement?.querySelector("input");
             input?.focus();

@@ -108,6 +108,32 @@ describe("TimeField", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  test("a half-edited time (one segment emptied: badInput) saves nothing; a complete one saves", () => {
+    const onChange = vi.fn();
+    render(<TimeField id="t" label="Hora" value="09:30" onChange={onChange} />);
+    const input = screen.getByLabelText("Hora") as HTMLInputElement;
+    // jsdom has no time segments: say what Chromium says when one is emptied.
+    Object.defineProperty(input, "validity", {
+      configurable: true,
+      value: { badInput: true },
+    });
+    fireEvent.change(input, { target: { value: "" } });
+    expect(onChange).not.toHaveBeenCalled();
+    // The draft is kept (React doesn't rewrite what is being typed).
+    expect(input).toHaveValue("");
+
+    Object.defineProperty(input, "validity", {
+      configurable: true,
+      value: { badInput: false },
+    });
+    fireEvent.change(input, { target: { value: "10:30" } });
+    expect(onChange).toHaveBeenLastCalledWith("10:30");
+
+    // Positive control: a real empty value (every segment cleared) does clear.
+    fireEvent.change(input, { target: { value: "" } });
+    expect(onChange).toHaveBeenLastCalledWith("");
+  });
+
   test("an error replaces the help and marks the input", () => {
     render(
       <TimeField id="t" label="Hora" value="" onChange={vi.fn()} error="Mala hora" help="x" />,

@@ -82,8 +82,8 @@ const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id 
 
 /**
  * "Hoy", "Próximas" and "Todas": by due date (the oldest first; without a date, last), then
- * time (the ones with one first, by time), then priority (Alta first), then creation (the oldest first). The id breaks the last ties, so the
- * order never flickers between two loads.
+ * time (the ones with one first, by time), then priority (Alta first), then creation (the
+ * oldest first). The id breaks the last ties, so the order never flickers between two loads.
  */
 export function compareByDue(a: SortTask, b: SortTask): number {
   if (a.dueDate !== b.dueDate) {

@@ -32,7 +32,12 @@ export function applyTaskListChange(list: TaskItem[], change: TaskListChange): T
       return list.map((task) => (task.id === change.id ? { ...task, ...change.patch } : task));
     case "reschedule":
       return list
-        .map((task) => (task.id === change.id ? { ...task, dueDate: change.dueDate } : task))
+        .map((task) =>
+          task.id === change.id
+            ? // A time needs a day: no day, no time (the server does the same).
+              { ...task, dueDate: change.dueDate, ...(change.dueDate === null ? { dueTime: null } : {}) }
+            : task,
+        )
         .sort(compareByDue);
   }
 }

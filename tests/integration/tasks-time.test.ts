@@ -16,7 +16,11 @@ import { postponeTask, restoreTaskDueDate } from "@/modules/tasks/postpone-actio
 import { completeTaskWithNext, reopenTaskWithSpawn } from "@/modules/tasks/recurrence-actions";
 import { TASK_ERRORS, type TaskItem } from "@/modules/tasks/task-input";
 import { addDays } from "@/modules/tasks/task-views";
-import { selectTodayTasks, selectUpcomingTasks } from "@/modules/tasks/view-data";
+import {
+  selectPendingTasks,
+  selectTodayTasks,
+  selectUpcomingTasks,
+} from "@/modules/tasks/view-data";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
 
@@ -182,6 +186,21 @@ describe("recurrence", () => {
     const reopened = await reopenTaskWithSpawn({ id: task.id });
     expect(reopened.ok).toBe(true);
     expect(await row(task.id)).toMatchObject({ dueTime: "08:30:00", doneAt: null });
+    // The untouched occurrence went away with the undo.
+    expect((await row(next!.id)).deletedAt).not.toBeNull();
+  });
+
+  test("midnight (00:00) is a time, not 'no time': it is copied too", async () => {
+    const task = await capture({
+      dueDate: day(0),
+      dueTime: "00:00",
+      recurrence: { kind: "every_days", interval: 2 },
+    });
+    expect(task.dueTime).toBe("00:00");
+    const done = await completeTaskWithNext({ id: task.id });
+    if (!done.ok) throw new Error(JSON.stringify(done));
+    expect(done.data.next?.dueTime).toBe("00:00");
+    expect((await row(done.data.next!.id)).dueTime).toBe("00:00:00");
   });
 
   test("a recurring task without a time spawns one without a time (positive control)", async () => {
@@ -284,12 +303,28 @@ describe("order", () => {
     execute.mockRestore();
   });
 
+  test("'Todas' orders the same way, undated tasks last", async () => {
+    await insert({ title: "sin fecha" });
+    await insert({ title: "hoy sin hora", dueDate: "2026-10-02" });
+    await insert({ title: "hoy 18:00", dueDate: "2026-10-02", dueTime: "18:00" });
+    await insert({ title: "hoy 06:00", dueDate: "2026-10-02", dueTime: "06:00" });
+    await insert({ title: "mañana 05:00", dueDate: "2026-10-03", dueTime: "05:00" });
+    expect(titles(await selectPendingTasks(testDb))).toEqual([
+      "hoy 06:00",
+      "hoy 18:00",
+      "hoy sin hora",
+      "mañana 05:00",
+      "sin fecha",
+    ]);
+  });
+
   test("the views 'Hoy' and 'Próximas' order the same way", async () => {
     await insert({ title: "hoy sin hora", dueDate: "2026-10-02" });
     await insert({ title: "hoy 08:00", dueDate: "2026-10-02", dueTime: "08:00" });
+    // Created in the opposite order of the expected one, so creation can't explain it.
     await insert({ title: "mañana sin hora", dueDate: "2026-10-03" });
-    await insert({ title: "mañana 07:30", dueDate: "2026-10-03", dueTime: "07:30" });
     await insert({ title: "mañana 13:00", dueDate: "2026-10-03", dueTime: "13:00" });
+    await insert({ title: "mañana 07:30", dueDate: "2026-10-03", dueTime: "07:30" });
 
     expect(titles(await selectTodayTasks(testDb, NOW))).toEqual(["hoy 08:00", "hoy sin hora"]);
     expect(titles(await selectUpcomingTasks(testDb, NOW))).toEqual([
@@ -300,8 +335,19 @@ describe("order", () => {
   });
 });
 
+describe("Clasificar's undo", () => {
+  test("taking the day away clears the time; sending both back restores them", async () => {
+    const task = await capture({ dueDate: day(1), dueTime: "09:00" });
+    const away = await editTask({ id: task.id, dueDate: null });
+    expect(away).toMatchObject({ ok: true, data: { dueDate: null, dueTime: null } });
+    const back = await editTask({ id: task.id, dueDate: day(1), dueTime: "09:00" });
+    expect(back).toMatchObject({ ok: true, data: { dueDate: day(1), dueTime: "09:00" } });
+    expect(await row(task.id)).toMatchObject({ dueDate: day(1), dueTime: "09:00:00" });
+  });
+});
+
 describe("export", () => {
-  test("carries the due_time column", async () => {
+  test("carries the due_time column, raw as Postgres stores it (HH:MM:SS), unlike the app's DTO (HH:MM)", async () => {
     await testDb.insert(tasks).values([
       {
         title: "con hora",
@@ -316,6 +362,8 @@ describe("export", () => {
       ["con hora", "10:00:00"],
       ["sin hora", null],
     ]);
+    const [shown] = await selectPendingTasks(testDb);
+    expect(shown).toMatchObject({ title: "con hora", dueTime: "10:00" });
   });
 });
 
@@ -328,9 +376,11 @@ describe("authorization", () => {
     ],
     ["another user", async () => new Headers({ cookie: await sessionCookieFor(OTHER) })],
   ])("with %s the time can't be written or read", async (_, headers) => {
-    const task = await capture({ dueDate: day(1), dueTime: "10:00" });
-    // Positive control: the owner reads it.
-    expect(await getTasksTodaySummary(new Date())).toEqual([]);
+    const task = await capture({ dueDate: day(0), dueTime: "10:00" });
+    // Positive control: the owner sees the time.
+    expect(
+      (await getTasksTodaySummary(new Date())).map((item) => [item.title, item.dueTime]),
+    ).toEqual([["dentista", "10:00"]]);
     request.headers = await headers();
     expect(await createTask({ title: "x", dueDate: day(1), dueTime: "10:00" })).toEqual({
       ok: false,

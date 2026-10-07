@@ -68,7 +68,9 @@ export async function restoreDueDateById(
       return { id, dueDate: current.dueDate, restored: false };
     }
     // The hour stays where it was (a postponement only moves the day), except when the task goes
-    // back to no day at all: a time needs a day (`tasks_due_time_check`).
+    // back to no day at all: a time needs a day (`tasks_due_time_check`), so a time added after
+    // the postponement to a task that had no day is lost by this undo (unavoidable).
+    // The guard compares the day only: a time edited meanwhile on the same day is never touched.
     await tx
       .update(tasks)
       .set(dueDate === null ? { dueDate, dueTime: null } : { dueDate })

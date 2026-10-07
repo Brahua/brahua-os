@@ -320,7 +320,14 @@ export async function insertTask(
 /** The columns an edit writes (never `done_at`, `deleted_at` or the timestamps directly). */
 type TaskEdit = Pick<
   PgUpdateSetSource<typeof tasks>,
-  "title" | "priority" | "dueDate" | "dueTime" | "lifeAreaId" | "projectId" | "milestoneId" | "isNextAction"
+  | "title"
+  | "priority"
+  | "dueDate"
+  | "dueTime"
+  | "lifeAreaId"
+  | "projectId"
+  | "milestoneId"
+  | "isNextAction"
 >;
 
 /**

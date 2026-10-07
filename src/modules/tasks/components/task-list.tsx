@@ -413,6 +413,10 @@ export function TaskList({
       dueTime: task.dueTime,
     };
     // Taking the day away takes the time with it (the server too); "Deshacer" puts both back.
+    // Known debt: like the placement it restores, this undo is unconditional (it does not compare
+    // what the task has by now, as `restoreTaskDueDate` does), so an edit made after "Clasificar"
+    // is overwritten. And a time added meanwhile to a task that had no day is lost: it can't
+    // outlive its day (`tasks_due_time_check`).
     const patch = {
       ...placementPatch(targets, value, task),
       dueDate,
