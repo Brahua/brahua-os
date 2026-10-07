@@ -155,8 +155,10 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
     const habit = skipNext.current;
     if (!habit) return;
     skipNext.current = null;
-    focusNeighbor(habit.id);
-    skips.skip(habit);
+    if (skips.skip(habit)) focusNeighbor(habit.id);
+    else if (document.activeElement === document.body || document.activeElement === null) {
+      document.getElementById(TODAY_HABITS_HEADING_ID)?.focus();
+    }
   }
 
   // Nothing due (or all resting): no section, but this component stays mounted (see the board).
@@ -197,8 +199,10 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
               onAdd={quantity.add}
               reserveCorner={adjustable(habit) ? "wide" : canSkipToday(habit, today)}
               // The corner key makes the first row taller: 112 px keeps a pad the same height
-              // when its streak line appears after a tap (nothing moves under the finger).
-              className={canSkipToday(habit, today) ? "min-h-28!" : undefined}
+              // when its streak line appears after a tap (nothing moves under the finger), and
+              // every pad of the grid (a habit to avoid has no key) fills its cell alike. Only
+              // the board's pads: /habits doesn't pass it.
+              className="h-full min-h-28!"
             />
             {/* 4 px from the corner, like the options key on /habits. No tooltip: it would
                 repeat the (possibly long) name over the next column at 320 px. */}

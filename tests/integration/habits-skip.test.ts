@@ -12,8 +12,8 @@ import { selectHabitsDueToday } from "@/modules/habits/contracts";
 import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
 import { HABIT_ERRORS } from "@/modules/habits/habit-input";
 import { selectActiveHabits } from "@/modules/habits/habits";
-import { pauseHabit } from "@/modules/habits/pause-actions";
-import { addDays } from "@/modules/habits/schedule";
+import { pauseHabit, resumeHabit } from "@/modules/habits/pause-actions";
+import { addDays, isoWeekday } from "@/modules/habits/schedule";
 import { skipHabitToday, undoSkipHabit } from "@/modules/habits/skip-actions";
 import { skipHabitDay } from "@/modules/habits/skip";
 import { SKIP_COPY } from "@/modules/habits/skip-copy";
@@ -265,7 +265,7 @@ describe("undoSkipHabit", () => {
       .where(eq(habitPauses.id, pauseId));
     expect(await undoSkipHabit({ id, pauseId })).toMatchObject({
       ok: true,
-      data: { removed: false, habit: { pause: { endDate: day(3) } } },
+      data: { removed: false, reason: "changed", habit: { pause: { endDate: day(3) } } },
     });
     expect(await livePauses(id)).toEqual([expect.objectContaining({ id: pauseId })]);
   });
@@ -276,7 +276,10 @@ describe("undoSkipHabit", () => {
       .update(habitPauses)
       .set({ reason: "Viaje" })
       .where(eq(habitPauses.id, edited.pauseId));
-    expect(await undoSkipHabit(edited)).toMatchObject({ ok: true, data: { removed: false } });
+    expect(await undoSkipHabit(edited)).toMatchObject({
+      ok: true,
+      data: { removed: false, reason: "changed" },
+    });
     expect(await livePauses(edited.id)).toHaveLength(1);
 
     const plain = await skipped(await insertHabit({ name: "Otro" }));
@@ -292,7 +295,7 @@ describe("undoSkipHabit", () => {
     });
     expect(await undoSkipHabit({ id, pauseId })).toMatchObject({
       ok: true,
-      data: { removed: false },
+      data: { removed: false, reason: "gone" },
     });
     expect(await pausesOf(id)).toHaveLength(1);
   });
@@ -302,7 +305,7 @@ describe("undoSkipHabit", () => {
     const other = await skipped(await insertHabit({ name: "Otro" }));
     expect(await undoSkipHabit({ id: mine.id, pauseId: other.pauseId })).toMatchObject({
       ok: true,
-      data: { removed: false },
+      data: { removed: false, reason: "gone" },
     });
     expect(await livePauses(other.id)).toHaveLength(1);
     expect(await livePauses(mine.id)).toHaveLength(1);
@@ -405,5 +408,187 @@ describe("authorization", () => {
     // Positive control: the owner's session works again.
     request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
     expect(await skipHabitToday({ id: other })).toMatchObject({ ok: true });
+  });
+});
+
+describe("the streak across a rested day (the rest must change the answer)", () => {
+  test("done day -2, -1 and +1 with today rested: 3 on day +1; without the rest only 1", async () => {
+    const id = await insertHabit();
+    await mark(id, [day(-2), day(-1), day(1)]);
+    // Positive control: the open day today breaks it, so day +1 counts alone.
+    expect(await streakOf(id, day(1))).toEqual({ count: 1, unit: "days" });
+    expect(await skipHabitToday({ id })).toMatchObject({ ok: true });
+    expect(await streakOf(id, day(1))).toEqual({ count: 3, unit: "days" });
+  });
+
+  test("a partial quantity (3 of 8) stays stored, the streak doesn't move and Deshacer gives it back", async () => {
+    const id = await insertHabit({ measure: "quantity", goal: 8, unit: "vasos" });
+    await mark(id, [day(-1)], 8, 8);
+    await mark(id, [today()], 3, 8);
+    const before = await streakOf(id, today());
+    const skipped = await skipHabitToday({ id });
+    if (!skipped.ok) throw new Error("skip failed");
+    expect(
+      await testDb
+        .select({ quantity: habitLogs.quantity })
+        .from(habitLogs)
+        .where(and(eq(habitLogs.habitId, id), eq(habitLogs.day, today()))),
+    ).toEqual([{ quantity: 3 }]);
+    expect(await streakOf(id, today())).toEqual(before);
+    await undoSkipHabit({ id, pauseId: skipped.data.pause.id });
+    const item = (await selectActiveHabits(testDb, today())).find((entry) => entry.id === id);
+    expect(item).toMatchObject({ quantity: 3, target: 8, pause: null });
+    expect(await streakOf(id, today())).toEqual(before);
+  });
+
+  test("an 'X por semana' habit resting a day loses that available day, nothing done", async () => {
+    const id = await insertHabit({ frequency: "weekly_count", weeklyTarget: 3 });
+    const before = (await selectActiveHabits(testDb, today())).find((entry) => entry.id === id)!;
+    expect(await skipHabitToday({ id })).toMatchObject({ ok: true, data: { changed: true } });
+    const after = (await selectActiveHabits(testDb, today())).find((entry) => entry.id === id)!;
+    expect(after.weekAvailable).toBe(before.weekAvailable - 1);
+    expect(after.weekDoneBefore).toBe(before.weekDoneBefore);
+  });
+});
+
+describe("which habits can rest today", () => {
+  test("fixed days: only on a day it is due; 'X por semana' is due every day (also met)", async () => {
+    const tomorrowOnly = await insertHabit({
+      name: "Mañana",
+      frequency: "weekdays",
+      weekdays: [isoWeekday(day(1))],
+    });
+    expect(await skipHabitToday({ id: tomorrowOnly })).toEqual({
+      ok: false,
+      error: SKIP_COPY.notScheduled,
+    });
+    expect(await testDb.$count(habitPauses)).toBe(0);
+    // Positive controls: due today, and weekly even with its week met.
+    const todayOnly = await insertHabit({
+      name: "Hoy",
+      frequency: "weekdays",
+      weekdays: [isoWeekday(today())],
+    });
+    expect(await skipHabitToday({ id: todayOnly })).toMatchObject({ ok: true });
+    const weekly = await insertHabit({
+      name: "Semanal",
+      frequency: "weekly_count",
+      weeklyTarget: 1,
+    });
+    await mark(weekly, [addDays(today(), 1 - isoWeekday(today()))]);
+    expect(await skipHabitToday({ id: weekly })).toMatchObject({ ok: true });
+  });
+
+  test("a habit that started today can rest", async () => {
+    const id = await insertHabit({}, 0);
+    expect(await skipHabitToday({ id })).toMatchObject({ ok: true, data: { changed: true } });
+  });
+});
+
+describe("skip and the other pause paths", () => {
+  test("a manual pause that overlaps today's rest is refused: one live pause", async () => {
+    const id = await insertHabit();
+    await skipHabitToday({ id });
+    expect(await pauseHabit({ id, startDate: today(), endDate: day(3) })).toMatchObject({
+      ok: false,
+      fieldErrors: { startDate: [PAUSE_ERRORS.overlap] },
+    });
+    expect(await livePauses(id)).toHaveLength(1);
+    // Positive control: tomorrow onwards doesn't overlap.
+    expect(await pauseHabit({ id, startDate: day(1), endDate: day(3) })).toMatchObject({
+      ok: true,
+    });
+  });
+
+  test("«Descanso» is reserved: the manual form refuses it in any spelling, other reasons go in", async () => {
+    const id = await insertHabit();
+    for (const reason of ["Descanso", "  descanso ", "DESCANSÓ"]) {
+      expect(await pauseHabit({ id, startDate: day(1), endDate: day(2), reason })).toMatchObject({
+        ok: false,
+        fieldErrors: { reason: [PAUSE_ERRORS.reasonReserved] },
+      });
+    }
+    expect(await testDb.$count(habitPauses)).toBe(0);
+    expect(
+      await pauseHabit({ id, startDate: day(1), endDate: day(2), reason: "Descanso largo" }),
+    ).toMatchObject({ ok: true });
+  });
+
+  test("a stale Deshacer after the rest was resumed and a new pause made: it stays", async () => {
+    const id = await insertHabit();
+    const skipped = await skipHabitToday({ id });
+    if (!skipped.ok) throw new Error("skip failed");
+    await resumeHabit({ id, pauseId: skipped.data.pause.id });
+    await pauseHabit({ id, startDate: today(), endDate: day(3), reason: "Viaje" });
+    expect(await undoSkipHabit({ id, pauseId: skipped.data.pause.id })).toMatchObject({
+      ok: true,
+      data: { removed: false, reason: "gone", habit: { pause: { reason: "Viaje" } } },
+    });
+    expect((await livePauses(id)).map((pause) => pause.reason)).toEqual(["Viaje"]);
+  });
+
+  test("skip and Reanudar at the same time end coherent: 0 or 1 live pauses, no errors", async () => {
+    const id = await insertHabit();
+    const first = await skipHabitToday({ id });
+    if (!first.ok) throw new Error("skip failed");
+    const results = await Promise.all([
+      skipHabitToday({ id }),
+      resumeHabit({ id, pauseId: first.data.pause.id }),
+    ]);
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect((await livePauses(id)).length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("the window of Deshacer (7 days back)", () => {
+  async function rested(offset: number) {
+    const id = await insertHabit({ name: `h${offset}`, startDate: day(-30) });
+    const [row] = await testDb
+      .insert(habitPauses)
+      .values({ habitId: id, startDate: day(offset), endDate: day(offset), reason: "Descanso" })
+      .returning({ id: habitPauses.id });
+    return { id, pauseId: row.id };
+  }
+
+  test("yesterday's and the edge day (-7) can be undone; 8 days ago is too old", async () => {
+    for (const offset of [-1, -7]) {
+      const target = await rested(offset);
+      expect(await undoSkipHabit(target), String(offset)).toMatchObject({
+        ok: true,
+        data: { removed: true },
+      });
+      expect(await livePauses(target.id)).toEqual([]);
+    }
+    const old = await rested(-8);
+    expect(await undoSkipHabit(old)).toMatchObject({
+      ok: true,
+      data: { removed: false, reason: "old" },
+    });
+    expect(await livePauses(old.id)).toHaveLength(1);
+  });
+});
+
+describe("Lima's midnight through the action (the real clock's day)", () => {
+  test("04:59:59Z rests Friday, 05:00:00Z rests Saturday", async () => {
+    const id = await insertHabit({ startDate: "2026-09-01" });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-10T04:59:59Z"));
+      expect(await skipHabitToday({ id })).toMatchObject({
+        ok: true,
+        data: { pause: { startDate: "2026-10-09" }, changed: true },
+      });
+      vi.setSystemTime(new Date("2026-10-10T05:00:00Z"));
+      expect(await skipHabitToday({ id })).toMatchObject({
+        ok: true,
+        data: { pause: { startDate: "2026-10-10" }, changed: true },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect((await livePauses(id)).map((pause) => pause.startDate)).toEqual([
+      "2026-10-09",
+      "2026-10-10",
+    ]);
   });
 });

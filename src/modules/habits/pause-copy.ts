@@ -43,6 +43,8 @@ export const PAUSE_ERRORS = {
   startBeforeHabit: "La pausa no puede empezar antes que el hábito.",
   startOutOfWindow: `Una pausa empieza desde ${HABIT_LOG_WINDOW_DAYS} días atrás hasta un año adelante.`,
   reasonTooLong: `Usa ${HABIT_PAUSE_REASON_MAX_LENGTH} caracteres como máximo.`,
+  reasonReserved:
+    "«Descanso» lo usa «Saltar hoy». Escribe otro motivo, por ejemplo «Descanso largo».",
   reasonInvisible: "Quita los caracteres invisibles o de control del motivo.",
   overlap: "Esas fechas se cruzan con otra pausa de este hábito. Elige otras.",
   notFound: "Esa pausa ya no existe. Actualiza la página.",

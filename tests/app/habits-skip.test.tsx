@@ -9,6 +9,7 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { HabitsScreen } from "@/modules/habits/components/habits-screen";
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import type { HabitItem } from "@/modules/habits/habit-input";
+import { pauseHabit, resumeHabit } from "@/modules/habits/pause-actions";
 import { skipHabitToday, undoSkipHabit } from "@/modules/habits/skip-actions";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
@@ -44,6 +45,7 @@ vi.mock("@/modules/habits/skip-actions", () => ({
 
 const TODAY = "2026-10-02";
 const NOW = new Date("2026-10-02T15:00:00.000Z");
+let seq = 0;
 const SKIP_PAUSE_ID = "00000000-0000-4000-8000-0000000000cc";
 
 let serial = 0;
@@ -91,6 +93,9 @@ const VIAJE = habit({
   },
 });
 const HABITS = [GYM, LEER, AGUA, FUMAR, VIAJE];
+// 2026-10-02 is a Friday: Saturdays only is not due.
+const SABADO = habit({ name: "Solo sábados", frequency: "weekdays", weekdays: [6] });
+const SEMANAL = habit({ name: "Tres por semana", frequency: "weekly_count", weeklyTarget: 3 });
 
 const server = {
   habits: HABITS,
@@ -150,24 +155,46 @@ beforeEach(() => {
   })) as unknown as typeof window.matchMedia;
   server.habits = HABITS;
   server.pending = [];
+  seq = 0;
   vi.mocked(skipHabitToday)
     .mockReset()
     .mockImplementation(async (input) => {
       const { id } = input as { id: string };
+      // Every skip is a new pause with its own id (like the server's).
+      seq += 1;
+      const made = { ...SKIP, id: `00000000-0000-4000-8000-0000000000c${seq}` };
       return serverChange(
         id,
-        (item) => ({ ...item, pause: SKIP }),
-        (item) => ({ habit: item, pause: SKIP, changed: true }),
+        (item) => ({ ...item, pause: made }),
+        (item) => ({ habit: item, pause: made, changed: true }),
       );
     });
   vi.mocked(undoSkipHabit)
     .mockReset()
     .mockImplementation(async (input) => {
+      const { id, pauseId } = input as { id: string; pauseId: string };
+      let removed = false;
+      return serverChange(
+        id,
+        (item) => {
+          removed = item.pause?.id === pauseId;
+          return removed ? { ...item, pause: null } : item;
+        },
+        (item) =>
+          removed
+            ? { habit: item, removed: true }
+            : { habit: item, removed: false, reason: "gone" },
+      );
+    });
+  vi.mocked(resumeHabit)
+    .mockReset()
+    .mockImplementation(async (input) => {
       const { id } = input as { id: string };
+      const before = server.habits.find((item) => item.id === id)!.pause!;
       return serverChange(
         id,
         (item) => ({ ...item, pause: null }),
-        (item) => ({ habit: item, removed: true }),
+        (item) => ({ habit: item, outcome: "removed" as const, pause: before }),
       );
     });
 });
@@ -255,7 +282,10 @@ describe("skipping today", () => {
     await skip(user, "Gimnasio");
     await server.answer();
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
-    expect(undoSkipHabit).toHaveBeenCalledWith({ id: GYM.id, pauseId: SKIP_PAUSE_ID });
+    expect(undoSkipHabit).toHaveBeenCalledWith({
+      id: GYM.id,
+      pauseId: expect.stringMatching(/c1$/),
+    });
     // At once, before the answer.
     expect(pad("Gimnasio")).toBeVisible();
     expect(count()).toBe("1 de 4 hoy");
@@ -315,7 +345,7 @@ describe("skipping today", () => {
       return serverChange(
         id,
         (item) => item,
-        (item) => ({ habit: item, removed: false }),
+        (item) => ({ habit: item, removed: false, reason: "changed" as const }),
       );
     });
     await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
@@ -323,5 +353,141 @@ describe("skipping today", () => {
     expect(
       await screen.findByText(/ya dura más de un día: se dejó como estaba/),
     ).toBeInTheDocument();
+  });
+});
+
+const announced = () => document.querySelector("[data-habits-announcer]")?.textContent ?? "";
+const undoButtons = () => within(notices()).getAllByRole("button", { name: "Deshacer" });
+
+/** Another tab changes the habit behind the notice's back: the page gets the server's truth. */
+async function changedElsewhere(id: string, pause: HabitItem["pause"]) {
+  server.habits = server.habits.map((item) => (item.id === id ? { ...item, pause } : item));
+  await act(async () => server.render(server.habits));
+}
+
+describe("a notice that outlived what it undoes", () => {
+  test("the rest was already resumed elsewhere: Deshacer says the pad is back and keeps the grid as it is", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await skip(user, "Gimnasio");
+    await server.answer();
+    await changedElsewhere(GYM.id, null);
+    expect(pad("Gimnasio")).toBeVisible();
+    await user.click(undoButtons()[0]);
+    await server.answer();
+    await waitFor(() => expect(announced()).toMatch(/«Gimnasio» volvió a tus hábitos de hoy/));
+    expect(screen.getAllByRole("button", { name: "Gimnasio" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Reanudar «Gimnasio»" })).not.toBeInTheDocument();
+    expect(announced()).not.toMatch(/dejó como estaba/);
+  });
+
+  test("a newer rest (another pause id) holds the habit: the old Deshacer doesn't bring the pad back", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await skip(user, "Gimnasio");
+    await server.answer();
+    await changedElsewhere(GYM.id, { ...SKIP, id: "00000000-0000-4000-8000-0000000000dd" });
+    await user.click(undoButtons()[0]);
+    await server.answer();
+    await waitFor(() => expect(announced()).toMatch(/«Gimnasio» sigue descansando hoy/));
+    expect(screen.getByRole("button", { name: "Reanudar «Gimnasio»" })).toBeVisible();
+    expect(
+      within(screen.getByRole("list", { name: "Hábitos de hoy" })).queryByRole("button", {
+        name: "Gimnasio",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("positive control: with its own pause still resting, Deshacer brings the pad back", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await skip(user, "Gimnasio");
+    await server.answer();
+    await user.click(undoButtons()[0]);
+    await server.answer();
+    await waitFor(() => expect(announced()).toMatch(/volvió a tus hábitos de hoy/));
+    expect(pad("Gimnasio")).toBeVisible();
+  });
+});
+
+describe("failures, double activation and the day", () => {
+  test("a failed Deshacer puts the rest back: 'Sin guardar', the row is there, focus not on <body>", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await skip(user, "Gimnasio");
+    await server.answer();
+    await user.click(undoButtons()[0]);
+    expect(pad("Gimnasio")).toBeVisible();
+    await server.answer(fail("No se pudo."));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reanudar «Gimnasio»" })).toBeVisible(),
+    );
+    expect(within(notices()).getByText("Sin guardar")).toBeVisible();
+    expect(document.body).not.toHaveFocus();
+  });
+
+  test("a double click on Saltar hoy sends one skip; Deshacer twice sends one undo", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "Leer");
+    await user.dblClick(within(options).getByRole("button", { name: "Saltar hoy" }));
+    await server.answer();
+    expect(skipHabitToday).toHaveBeenCalledTimes(1);
+    await user.dblClick(undoButtons()[0]);
+    await server.answer();
+    expect(undoSkipHabit).toHaveBeenCalledTimes(1);
+  });
+
+  test("on another Lima day the skip is not accepted: nothing is sent, 'En pausa' stays shut", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const options = await openOptions(user, "Leer");
+    // The page was left open past midnight: it is the next Lima day now.
+    vi.setSystemTime(new Date("2026-10-03T06:00:00.000Z"));
+    await user.click(within(options).getByRole("button", { name: "Saltar hoy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(skipHabitToday).not.toHaveBeenCalled();
+    expect(pad("Leer")).toBeVisible();
+    // (Correr already rests, so the section exists: it must stay folded.)
+    expect(screen.getByRole("button", { name: /^En pausa\s*1$/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    // The existing notice for a new day is the one that speaks; focus isn't lost to <body>.
+    expect(document.body).not.toHaveFocus();
+  });
+
+  test("not for a habit that isn't due today (fixed days of another day)", async () => {
+    const user = userEvent.setup();
+    server.habits = [...HABITS, SABADO];
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /^No tocan hoy/ }));
+    const options = await openOptions(user, "Solo sábados");
+    expect(within(options).getByRole("button", { name: "Pausar" })).toBeVisible();
+    expect(within(options).queryByRole("button", { name: "Saltar hoy" })).not.toBeInTheDocument();
+  });
+
+  test("a weekly habit (X por semana) is due every day: it can rest", async () => {
+    const user = userEvent.setup();
+    server.habits = [...HABITS, SEMANAL];
+    render(<Harness />);
+    const options = await openOptions(user, "Tres por semana");
+    expect(within(options).getByRole("button", { name: "Saltar hoy" })).toBeVisible();
+  });
+});
+
+describe("Reanudar a rest and undoing that", () => {
+  test("its Deshacer rests it again through Saltar hoy (the manual form refuses «Descanso»)", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await skip(user, "Gimnasio");
+    await server.answer();
+    await user.click(screen.getByRole("button", { name: "Reanudar «Gimnasio»" }));
+    await server.answer();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await server.answer();
+    expect(skipHabitToday).toHaveBeenCalledTimes(2);
+    expect(pauseHabit).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Reanudar «Gimnasio»" })).toBeVisible();
   });
 });

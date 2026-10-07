@@ -12,7 +12,7 @@ import type { HabitItem, HabitPauseSummary } from "./habit-input";
 import { lockHabit, selectHabitItemById, visibleHabit, type HabitFailure } from "./habits";
 import { findPause, pausableHabit } from "./pauses";
 import { pauseStartError, type HabitPauseInput, type SkipHabitInput } from "./pause-input";
-import { logWindowStart } from "./schedule";
+import { isScheduledOn, logWindowStart } from "./schedule";
 import { isSkipPause } from "./skip-day";
 
 /** "Saltar hoy" did (or found) this: the habit as it is now and the pause that covers today. */
@@ -44,7 +44,14 @@ export async function skipHabitDay(
   return db.transaction(async (tx) => {
     await lockHabit(tx, input.id);
     const [target] = await tx
-      .select({ archivedAt: habits.archivedAt, startDate: habits.startDate, kind: habits.kind })
+      .select({
+        archivedAt: habits.archivedAt,
+        startDate: habits.startDate,
+        kind: habits.kind,
+        frequency: habits.frequency,
+        weeklyTarget: habits.weeklyTarget,
+        weekdays: habits.weekdays,
+      })
       .from(habits)
       .where(and(eq(habits.id, input.id), visibleHabit))
       .for("share");
@@ -52,6 +59,8 @@ export async function skipHabitDay(
     if (target.archivedAt !== null) return "archived";
     if (target.kind === "avoid") return "avoidSkip";
     if (pauseStartError(today, today, target.startDate)) return "pauseStartOutOfWindow";
+    // Only a day the habit is due (same rule as the pads: "X por semana" is due every day).
+    if (!isScheduledOn(target, today)) return "notScheduledToday";
     const [covering] = await tx
       .select(pauseColumns)
       .from(habitPauses)
@@ -84,7 +93,16 @@ export async function skipHabitDay(
 }
 
 /** What the "Deshacer" of a skip did: removed the pause, or left it (it is no longer a skip). */
-export type UnskippedHabit = { habit: HabitItem; removed: boolean };
+export type UnskippedHabit = {
+  habit: HabitItem;
+  removed: boolean;
+  /**
+   * Why nothing was removed: `gone` (no live pause with that id: it was resumed or removed),
+   * `changed` (the owner made it longer or edited its reason) or `old` (older than the 7-day
+   * window).
+   */
+  reason?: "gone" | "changed" | "old";
+};
 
 /**
  * The "Deshacer" of "Saltar hoy": soft-removes THAT pause (by id), and only while it is still the
@@ -102,15 +120,17 @@ export async function unskipHabitDay(
     const target = await pausableHabit(tx, input.id);
     if (typeof target === "string") return target;
     const pause = await findPause(tx, input);
-    let removed = false;
-    if (pause && isSkipPause(pause) && pause.endDate >= logWindowStart(today)) {
+    let reason: UnskippedHabit["reason"] = "gone";
+    if (pause && !isSkipPause(pause)) reason = "changed";
+    else if (pause && pause.endDate < logWindowStart(today)) reason = "old";
+    else if (pause) {
       await tx
         .update(habitPauses)
         .set({ deletedAt: sql`now()` })
         .where(eq(habitPauses.id, pause.id));
-      removed = true;
+      reason = undefined;
     }
     const habit = (await selectHabitItemById(tx, input.id, today)) as HabitItem;
-    return { habit, removed };
+    return reason ? { habit, removed: false, reason } : { habit, removed: true };
   });
 }

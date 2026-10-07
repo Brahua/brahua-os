@@ -541,10 +541,14 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
       if (next.kind === "otherDay") quantity.openOtherDay(habit, optionsReturn.current);
       else if (next.kind === "pause") pauses.openPause(habit, optionsReturn.current);
       else if (next.kind === "skip") {
-        skips.skip(habit);
-        // "En pausa" opens with focus on its "Reanudar" (the pad left the grid).
-        setPausedOpen(true);
-        focusWhenReady(resumeSelector(habit.id));
+        // Only if the skip was accepted (not on another Lima day, not while a change of this
+        // habit is on its way): "En pausa" opens with focus on its "Reanudar".
+        if (skips.skip(habit)) {
+          setPausedOpen(true);
+          focusWhenReady(resumeSelector(habit.id));
+        } else if (document.activeElement === document.body || document.activeElement === null) {
+          focusWhenReady(padIn(gridOf(habit), habit.id));
+        }
       } else resumeFrom(habit, false);
       return;
     }

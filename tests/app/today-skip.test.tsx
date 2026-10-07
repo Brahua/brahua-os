@@ -76,6 +76,7 @@ const FUMAR = habit({ name: "No fumar", kind: "avoid" });
 const HABITS = [MEDITAR, LEER, AGUA, FUMAR];
 
 let rested: string[] = [];
+let withDayComplete = false;
 let base = HABITS;
 const server = {
   habits: HABITS,
@@ -123,7 +124,11 @@ function Harness() {
       <h1 id="today-title" tabIndex={-1}>
         Hoy
       </h1>
-      <TodayBoard today={TODAY} habits={habits} />
+      <TodayBoard
+        today={TODAY}
+        habits={habits}
+        dayComplete={withDayComplete ? { tasksDoneToday: 0 } : undefined}
+      />
     </>
   );
 }
@@ -146,6 +151,7 @@ beforeEach(() => {
   server.pending = [];
   rested = [];
   base = HABITS;
+  withDayComplete = false;
   vi.mocked(skipHabitToday)
     .mockReset()
     .mockImplementation(async (input) => {
@@ -273,5 +279,74 @@ describe("skipping from the board", () => {
     await waitFor(() => expect(pad("Meditar")).toBeVisible());
     expect(within(notices()).getByText("Sin guardar")).toBeVisible();
     expect(count()).toContain("1 de 4");
+  });
+});
+
+const dayComplete = () => screen.queryByRole("region", { name: "Día completo" });
+
+describe("Día completo", () => {
+  test("resting the only pending habit completes the day; Deshacer takes it back", async () => {
+    const user = userEvent.setup();
+    const done = habit({ name: "Hecho", quantity: 1 });
+    const pending = habit({ name: "Pendiente" });
+    base = [done, pending];
+    server.habits = base;
+    withDayComplete = true;
+    render(<Harness />);
+    expect(dayComplete()).not.toBeInTheDocument();
+    const sheet = await openSheet(user, "Pendiente");
+    await user.click(within(sheet).getByRole("button", { name: "Saltar hoy" }));
+    // At once (optimistic): the rest is neutral, so 1 of 1 is done.
+    await waitFor(() => expect(dayComplete()).toBeInTheDocument());
+    await server.answer();
+    expect(dayComplete()).toBeInTheDocument();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(dayComplete()).not.toBeInTheDocument());
+    await server.answer();
+    expect(dayComplete()).not.toBeInTheDocument();
+    expect(pad("Pendiente")).toBeVisible();
+  });
+
+  test("resting the last pad (nothing done) is no Día completo: the calm empty day", async () => {
+    const user = userEvent.setup();
+    base = [habit({ name: "Único" })];
+    server.habits = base;
+    withDayComplete = true;
+    render(<Harness />);
+    const sheet = await openSheet(user, "Único");
+    await user.click(within(sheet).getByRole("button", { name: "Saltar hoy" }));
+    await server.answer();
+    expect(dayComplete()).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Nada programado para hoy" })).toBeVisible();
+  });
+});
+
+describe("failures and double activation", () => {
+  test("a failed Deshacer puts the rest back: no pad, 'Sin guardar', focus not on <body>", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSheet(user, "Leer");
+    await user.click(within(sheet).getByRole("button", { name: "Saltar hoy" }));
+    await server.answer();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(pad("Leer")).toBeVisible();
+    await server.answer(fail("No se pudo."));
+    await waitFor(() =>
+      expect(within(pads()).queryByRole("button", { name: "Leer" })).not.toBeInTheDocument(),
+    );
+    expect(within(notices()).getByText("Sin guardar")).toBeVisible();
+    expect(document.body).not.toHaveFocus();
+  });
+
+  test("a double click on Saltar hoy sends one skip; Deshacer twice sends one undo", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSheet(user, "Leer");
+    await user.dblClick(within(sheet).getByRole("button", { name: "Saltar hoy" }));
+    await server.answer();
+    expect(skipHabitToday).toHaveBeenCalledTimes(1);
+    await user.dblClick(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await server.answer();
+    expect(undoSkipHabit).toHaveBeenCalledTimes(1);
   });
 });

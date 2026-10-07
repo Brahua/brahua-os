@@ -39,6 +39,7 @@ export function refused<T>(failure: HabitFailure): ActionResult<T> {
   }
   if (failure === "pauseNotFound") return fail(PAUSE_ERRORS.notFound);
   if (failure === "avoidSkip") return fail(SKIP_COPY.avoidRefused);
+  if (failure === "notScheduledToday") return fail(SKIP_COPY.notScheduled);
   // H5: a new habit's start date, on its field ("Más detalles").
   if (failure === "startDateOutOfWindow") {
     return {

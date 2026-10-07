@@ -12,6 +12,7 @@ import {
 import { HABIT_ERRORS } from "./habit-input";
 import { PAUSE_ERRORS } from "./pause-copy";
 import { addDays, daysBetween } from "./schedule";
+import { isReservedReason } from "./skip-day";
 
 const id = z.uuid({ error: HABIT_ERRORS.notFound });
 const pauseId = z.uuid({ error: PAUSE_ERRORS.notFound });
@@ -29,6 +30,8 @@ const reason = z.preprocess(
         .string()
         .max(HABIT_PAUSE_REASON_MAX_LENGTH, PAUSE_ERRORS.reasonTooLong)
         .refine((value) => !hasInvisibleCharacters(value), PAUSE_ERRORS.reasonInvisible)
+        // Reserved for "Saltar hoy" (decisión autónoma): so its monthly count stays honest.
+        .refine((value) => !isReservedReason(value), PAUSE_ERRORS.reasonReserved)
         .transform((value) => (value === "" ? null : value)),
     )
     .nullable(),

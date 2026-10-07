@@ -1,19 +1,20 @@
 "use client";
 
-import { useRef, type TransitionStartFunction } from "react";
+import { useLayoutEffect, useRef, type TransitionStartFunction } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
 import type { HabitItem, HabitPauseSummary } from "../habit-input";
 import type { HabitListChange } from "../habit-list-optimistic";
+import { isPausedToday } from "../habit-status";
 import { HABITS_COPY } from "../habits-copy";
-import { pendingSkip } from "../skip-day";
-import { SKIP_COPY } from "../skip-copy";
-import type { SkippedHabit } from "../skip";
+import type { SkippedHabit, UnskippedHabit } from "../skip";
 import { skipHabitToday, undoSkipHabit } from "../skip-actions";
+import { SKIP_COPY } from "../skip-copy";
+import { pendingSkip } from "../skip-day";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 import type { TrackFocus } from "./use-pause-flow";
 
 type SkipTodayArgs = {
-  /** The screen's optimistic list (as shown now): the habit's place, for its undo. */
+  /** The screen's optimistic list (as shown now): the habit's place and its shown pause. */
   view: readonly HabitItem[];
   /** Applies an optimistic change (inside `startSaving`). */
   apply: (change: HabitListChange) => void;
@@ -40,6 +41,11 @@ export function useSkipToday({ view, apply, startSaving, notSaved, trackFocus }:
   const { push } = toaster;
   // Habits with a skip or its undo on its way: a second activation does nothing.
   const busy = useRef(new Set<string>());
+  // The list as last rendered: a notice's "Deshacer" runs from an older render.
+  const latest = useRef(view);
+  useLayoutEffect(() => {
+    latest.current = view;
+  });
 
   const withPause = (habit: HabitItem, pause: HabitPauseSummary | null): HabitItem => ({
     ...habit,
@@ -52,34 +58,56 @@ export function useSkipToday({ view, apply, startSaving, notSaved, trackFocus }:
     busy.current.add(habit.id);
     startSaving(async () => {
       try {
-        const follow = trackFocus(withPause(habit, pause));
-        // "restore": the board's read comes back without a habit that rests, so it may not be in
-        // the list anymore (it goes back at its old place); on Hábitos it just replaces it.
-        apply({ type: "restore", habit: withPause(habit, null), index });
-        follow(withPause(habit, null));
+        // What the screen shows now. If it isn't resting with THIS pause (a "Reanudar" or a newer
+        // skip already left it coherent), nothing is restored: the server just answers.
+        const shown = latest.current.find((item) => item.id === habit.id);
+        const stale = shown !== undefined && shown.pause?.id !== pause.id;
+        if (!stale) {
+          const follow = trackFocus(withPause(habit, pause));
+          // "restore": the board's read comes back without a habit that rests, so it may not be
+          // in the list anymore (it goes back at its old place); on Hábitos it just replaces it.
+          apply({ type: "restore", habit: withPause(habit, null), index });
+          follow(withPause(habit, null));
+        }
         const queued = await enqueue(`habit-pause:${habit.id}`, () =>
           undoSkipHabit({ id: habit.id, pauseId: pause.id }),
         );
         if (queued.kind === "skipped" || queued.superseded) return;
-        const result = queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
+        const result: ActionResult<UnskippedHabit> =
+          queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
         if (!result.ok) {
-          trackFocus(withPause(habit, null))(withPause(habit, pause));
+          // The optimistic change goes back with the transition; focus follows the habit.
+          if (!stale) trackFocus(withPause(habit, null))(withPause(habit, pause));
           notSaved(HABITS_COPY.notUndone, failureReason(result));
           return;
         }
-        // The pause is no longer a one-day rest: it stays as it is (the page refreshes with it).
-        announce(result.data.removed ? SKIP_COPY.back(habit.name) : SKIP_COPY.kept(habit.name));
+        announce(undoMessage(habit, result.data));
       } finally {
         busy.current.delete(habit.id);
       }
     });
   }
 
-  /** "Saltar hoy": `habit` rests today. */
-  function skip(habit: HabitItem) {
+  /** What the "Deshacer" says, by what the server found. */
+  function undoMessage(habit: HabitItem, result: UnskippedHabit): string {
+    if (result.removed) return SKIP_COPY.back(habit.name);
+    if (result.reason === "changed") return SKIP_COPY.kept(habit.name);
+    if (result.reason === "old") return SKIP_COPY.tooOld(habit.name);
+    // Gone: another action already removed the rest. The pad is back, or a newer rest holds it.
+    return isPausedToday(result.habit, today)
+      ? SKIP_COPY.stillResting(habit.name)
+      : SKIP_COPY.back(habit.name);
+  }
+
+  /**
+   * "Saltar hoy": `habit` rests today. Returns whether it was accepted (false: another Lima day
+   * is on screen, which reloads and says so, or a change of this habit is already on its way), so
+   * the caller only moves focus when the pad really left.
+   */
+  function skip(habit: HabitItem): boolean {
     // The page was read for another Lima day (left open past midnight): reload it instead.
-    if (!isCurrentDay()) return;
-    if (busy.current.has(habit.id)) return;
+    if (!isCurrentDay()) return false;
+    if (busy.current.has(habit.id)) return false;
     busy.current.add(habit.id);
     const shown = pendingSkip(habit.id, today);
     const index = view.findIndex((item) => item.id === habit.id);
@@ -110,6 +138,7 @@ export function useSkipToday({ view, apply, startSaving, notSaved, trackFocus }:
         busy.current.delete(habit.id);
       }
     });
+    return true;
   }
 
   return { skip };

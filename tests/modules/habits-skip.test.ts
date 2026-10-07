@@ -4,10 +4,13 @@ import { describe, expect, test } from "vitest";
 import { ownerDateKey } from "@/lib/time";
 import { HABIT_SKIP_REASON } from "@/modules/habits/habit-constants";
 import type { HabitItem } from "@/modules/habits/habit-input";
-import { skipHabitInputSchema } from "@/modules/habits/pause-input";
+import { PENDING_PREFIX } from "@/modules/habits/habit-constants";
+import { pauseHabitInputSchema, skipHabitInputSchema } from "@/modules/habits/pause-input";
+import { PAUSE_ERRORS } from "@/modules/habits/pause-copy";
 import { SKIP_COPY } from "@/modules/habits/skip-copy";
 import {
   canSkipToday,
+  isReservedReason,
   isSkipPause,
   pendingSkip,
   PENDING_SKIP_PREFIX,
@@ -164,5 +167,77 @@ describe("input and copy", () => {
       SKIP_COPY.avoidRefused,
     ].join(" ");
     expect(all).not.toMatch(/fall|perdi|culpa|pereza|rendi/i);
+  });
+});
+
+describe("the reserved reason «Descanso»", () => {
+  const ID = "00000000-0000-4000-8000-000000000001";
+  const manual = (reason: string | null) =>
+    pauseHabitInputSchema.safeParse({ id: ID, startDate: TODAY, endDate: TODAY, reason });
+
+  test("a manual one-day pause can't be «Descanso» (trim, case and accents ignored)", () => {
+    for (const reason of [
+      "Descanso",
+      "  descanso ",
+      "DESCANSO",
+      "Descansó",
+      "DESCANSÓ",
+      "dEsCaNsO",
+    ]) {
+      const result = manual(reason);
+      expect(result.success, reason).toBe(false);
+      expect(result.error?.issues[0]).toMatchObject({
+        path: ["reason"],
+        message: PAUSE_ERRORS.reasonReserved,
+      });
+    }
+    // The count can't be inflated by hand: no manual pause ever carries it.
+    expect(isReservedReason("Descanso")).toBe(true);
+  });
+
+  test("other reasons, none, and words that merely contain it are fine (positive controls)", () => {
+    for (const reason of ["Descanso largo", "Un descanso", "Viaje", "", null]) {
+      expect(manual(reason).success, String(reason)).toBe(true);
+    }
+    expect(isReservedReason("Descansos")).toBe(false);
+    expect(isReservedReason(null)).toBe(false);
+  });
+
+  test("old data is untouched: a stored «Descanso» of one day still counts", () => {
+    expect(skippedDaysInMonth([pause("2026-10-01")], "2026-10")).toBe(1);
+  });
+});
+
+describe("the month's count across the Lima month change", () => {
+  test("09-30 and 10-01 belong to their own months (real Lima days, not UTC)", () => {
+    // 2026-10-01 04:59:59Z is still Sep 30 in Lima; 05:00:00Z is Oct 1.
+    const lastOfSeptember = ownerDateKey(new Date("2026-10-01T04:59:59Z"));
+    const firstOfOctober = ownerDateKey(new Date("2026-10-01T05:00:00Z"));
+    expect([lastOfSeptember, firstOfOctober]).toEqual(["2026-09-30", "2026-10-01"]);
+    const pauses = [pause(lastOfSeptember), pause(firstOfOctober)];
+    expect(skippedDaysInMonth(pauses, "2026-09")).toBe(1);
+    expect(skippedDaysInMonth(pauses, "2026-10")).toBe(1);
+  });
+
+  test("the count text doesn't depend on the ICU month name", () => {
+    expect(SKIP_COPY.monthCount(1, null)).toBe("1 día saltado este mes");
+    expect(SKIP_COPY.monthCount(4, "cualquier mes")).toBe("4 días saltados en cualquier mes");
+  });
+});
+
+describe("pending ids and the days a habit is due", () => {
+  test("the skip's pending id starts with the one shared pending prefix", () => {
+    expect(PENDING_PREFIX).toBe("pending-");
+    expect(PENDING_SKIP_PREFIX.startsWith(PENDING_PREFIX)).toBe(true);
+    expect(pendingSkip("abc", TODAY).id.startsWith(PENDING_PREFIX)).toBe(true);
+  });
+
+  test("canSkipToday follows the schedule: fixed days only on theirs, X por semana every day", () => {
+    // 2026-10-02 is a Friday (ISO weekday 5).
+    expect(canSkipToday(habit({ frequency: "weekdays", weekdays: [5] }), TODAY)).toBe(true);
+    expect(canSkipToday(habit({ frequency: "weekdays", weekdays: [6, 7] }), TODAY)).toBe(false);
+    expect(canSkipToday(habit({ frequency: "weekly_count", weeklyTarget: 3 }), TODAY)).toBe(true);
+    // Not started yet.
+    expect(canSkipToday(habit({ startDate: "2026-10-03" }), TODAY)).toBe(false);
   });
 });

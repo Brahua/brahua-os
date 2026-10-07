@@ -20,6 +20,11 @@ export const SKIP_COPY = {
   back: (name: string) => `«${name}» volvió a tus hábitos de hoy.`,
   /** The undo found the pause longer than a day: it is left as the owner made it. */
   kept: (name: string) => `La pausa de «${name}» ya dura más de un día: se dejó como estaba.`,
+  /** The undo found no pause: another action already left the habit as it is. */
+  stillResting: (name: string) => `«${name}» sigue descansando hoy.`,
+  /** The undo is older than the 7-day window. */
+  tooOld: (name: string) => `El descanso de «${name}» ya es de hace días: no se puede deshacer.`,
+  notScheduled: "Este hábito no toca hoy: no hay nada que saltar.",
   notSkipped: "No se pudo saltar.",
   avoidRefused: "Un hábito a evitar no se salta: si hoy no puedes registrarlo, déjalo sin marcar.",
   /** The habit's page: "3 días saltados este mes" (the month's name for another month). */

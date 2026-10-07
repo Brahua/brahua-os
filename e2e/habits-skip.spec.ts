@@ -5,6 +5,8 @@ import {
   expect,
   habitsCount,
   insertHabit,
+  limaWeekday,
+  notDueToggle,
   openHabitPage,
   openHabits,
   pad,
@@ -61,16 +63,32 @@ const boardCount = (page: Page) => page.locator("[data-today-habits-count]");
 const boardPad = (page: Page, name: string) =>
   pads(page).getByRole("button", { name, exact: true });
 
-test("Hoy: two taps rest the pad (En pausa, 'Descanso'), the streak waits, Deshacer brings it back", async ({
+/** The habit's page streak, read in a tab of its own (the notice stays on the first one). */
+async function pageStreak(page: Page, id: string) {
+  const detail = await page.context().newPage();
+  try {
+    await openHabitPage(detail, id);
+    return await detail
+      .locator('[data-habit-stat="current"] .bo-stat__value .sr-only')
+      .textContent();
+  } finally {
+    await detail.close();
+  }
+}
+
+test("Hoy: two taps rest the pad (En pausa, 'Descanso'), the day is neutral for the streak, Deshacer brings it back", async ({
   page,
 }, testInfo) => {
   const name = unique("Gimnasio", testInfo);
   const other = unique("Leer", testInfo);
-  const id = await insertHabit({ name, doneDays: [-3, -2, -1], sortOrder: 0 });
+  // Done today and the 3 days before: a streak of 4 that the rest must make 3 (the rested day
+  // is neutral, so it neither counts nor breaks), and Deshacer must make 4 again.
+  const id = await insertHabit({ name, done: true, doneDays: [-3, -2, -1], sortOrder: 0 });
   await insertHabit({ name: other, sortOrder: 1 });
   await openHabits(page);
-  await expect(habitsCount(page)).toHaveText("0 de 2 hoy");
-  await expect(streak(page, name)).toHaveText("RACHA 3");
+  await expect(habitsCount(page)).toHaveText("1 de 2 hoy");
+  await expect(streak(page, name)).toHaveText("RACHA 4");
+  expect(await pageStreak(page, id)).toBe("4");
 
   // Tap 1: the options. Tap 2: "Saltar hoy".
   const options = await openOptions(page, name);
@@ -81,25 +99,50 @@ test("Hoy: two taps rest the pad (En pausa, 'Descanso'), the streak waits, Desha
   await expect(pads(page).getByRole("button", { name, exact: true })).toHaveCount(0);
   await expect(habitsCount(page)).toHaveText("0 de 1 hoy");
   await expect(page.getByRole("button", { name: `Reanudar «${name}»` })).toBeFocused();
-  await expect(page.getByText(`En pausa hasta el`, { exact: false }).first()).toBeVisible();
-  await expect(page.getByText(/· Descanso$/)).toBeVisible();
+  await expect(page.getByText(/^En pausa hasta el .* · Descanso$/)).toBeVisible();
   await expect(notices(page).getByText(`«${name}» descansa hoy.`)).toBeVisible();
   await expect(notices(page).getByText("Descanso", { exact: true })).toBeVisible();
-  // One pause of one day, today, with the reason "Descanso".
+  // One pause of one day, today, with the reason "Descanso"; the log stays stored.
   await expect
     .poll(() => readPausesWithReason(id))
     .toEqual([{ startDate: limaDay(0), endDate: limaDay(0), reason: "Descanso" }]);
+  expect(await readDay(id, 0)).toBe(1);
+  // The rested day is neutral: the streak is 3 (4 would mean the day still counted).
+  expect(await pageStreak(page, id)).toBe("3");
 
-  // The streak is neutral: Deshacer brings the pad back with the same RACHA 3.
+  // Deshacer brings the pad back and the streak with it.
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
   await expect(pad(page, name)).toBeVisible();
   await expect(pad(page, name)).toBeFocused();
-  await expect(streak(page, name)).toHaveText("RACHA 3");
-  await expect(habitsCount(page)).toHaveText("0 de 2 hoy");
+  await expect(streak(page, name)).toHaveText("RACHA 4");
+  await expect(habitsCount(page)).toHaveText("1 de 2 hoy");
   await expect.poll(() => readPauses(id)).toEqual([]);
+  expect(await pageStreak(page, id)).toBe("4");
   await page.reload();
-  await expect(streak(page, name)).toHaveText("RACHA 3");
-  expect(await readDay(id, 0)).toBeNull();
+  await expect(streak(page, name)).toHaveText("RACHA 4");
+});
+
+test("Hoy: resting the last pad leaves focus on its Reanudar; a quantity with a partial value keeps it", async ({
+  page,
+}, testInfo) => {
+  const name = unique("Agua", testInfo);
+  const id = await insertHabit({
+    name,
+    quantity: { goal: 8, unit: "vasos", today: 3 },
+    doneDays: [-1],
+  });
+  await openHabits(page);
+  await expect(pad(page, name)).toContainText("3/8");
+  const options = await openOptions(page, name);
+  await untilSaved(page, () => options.getByRole("button", { name: "Saltar hoy" }).click());
+  // The grid has nothing left: focus is somewhere defined, never <body>.
+  await expect(page.getByRole("button", { name: `Reanudar «${name}»` })).toBeFocused();
+  await expect(page.locator("[data-habits-nothing-today]")).toBeVisible();
+  // The 3 of 8 is still stored while it rests.
+  expect(await readDay(id, 0)).toBe(3);
+  await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
+  await expect(pad(page, name)).toContainText("3/8");
+  await expect(pad(page, name)).toBeFocused();
 });
 
 test("Hoy: a habit already done today rests too, and what it had logged comes back with Deshacer", async ({
@@ -123,6 +166,10 @@ test("Hoy: the key is only offered where it makes sense", async ({ page }, testI
   const plain = unique("Leer", testInfo);
   const resting = unique("Correr", testInfo);
   const avoid = unique("No fumar", testInfo);
+  const notToday = unique("Otro día", testInfo);
+  const weekly = unique("Semanal", testInfo);
+  await insertHabit({ name: notToday, weekdays: [limaWeekday(1)], sortOrder: 3 });
+  await insertHabit({ name: weekly, weeklyTarget: 3, sortOrder: 4 });
   await insertHabit({ name: plain, sortOrder: 0 });
   await insertHabit({ name: resting, pause: { start: -1, end: 3, reason: "Viaje" }, sortOrder: 1 });
   await insertHabit({ name: avoid, kind: "avoid", sortOrder: 2 });
@@ -136,6 +183,19 @@ test("Hoy: the key is only offered where it makes sense", async ({ page }, testI
 
   // A habit to avoid has none.
   options = await openOptions(page, avoid);
+  await expect(options.getByRole("button", { name: "Pausar" })).toBeVisible();
+  await expect(options.getByRole("button", { name: "Saltar hoy" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(options).toBeHidden();
+
+  // "X por semana" is due every day: it has it. Fixed days of another day (in "No tocan hoy")
+  // don't.
+  options = await openOptions(page, weekly);
+  await expect(options.getByRole("button", { name: "Saltar hoy" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(options).toBeHidden();
+  await notDueToggle(page).click();
+  options = await openOptions(page, notToday);
   await expect(options.getByRole("button", { name: "Pausar" })).toBeVisible();
   await expect(options.getByRole("button", { name: "Saltar hoy" })).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -286,30 +346,60 @@ boardTest(
 );
 
 boardTest(
-  "/ at 320 px: a quantity pad with two corner keys doesn't scroll sideways",
+  "/ at 320 px: a quantity pad with two corner keys keeps its LED and area icon clear of them",
   async ({ page }, testInfo) => {
     boardTest.skip(isDesktop(testInfo), "Phone widths only");
     await insertHabit({
       name: "Tomar agua con un nombre largo largo largo",
+      area: "health",
       quantity: { goal: 8, unit: "vasos", today: 3 },
       sortOrder: 0,
     });
-    await insertHabit({ name: "Meditar", sortOrder: 1 });
+    await insertHabit({ name: "Meditar", area: "health", sortOrder: 1 });
     await page.setViewportSize({ width: 320, height: 640 });
     await openToday(page);
-    const keys = pads(page)
-      .locator("li")
-      .first()
-      .getByRole("button", { name: /^(Ajustar|Opciones)/ });
-    await expect(keys).toHaveCount(2);
-    for (const key of await keys.all()) {
-      const box = await key.boundingBox();
-      expect(box!.width).toBeGreaterThanOrEqual(40);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+    for (const index of [0, 1]) {
+      const cell = pads(page).locator("li").nth(index);
+      const keys = cell.getByRole("button", { name: /^(Ajustar|Opciones)/ });
+      await expect(keys).toHaveCount(index === 0 ? 2 : 1);
+      const marks = [
+        await cell.locator(".bo-led").first().boundingBox(),
+        await cell.locator("svg").first().boundingBox(),
+      ];
+      for (const key of await keys.all()) {
+        const box = await key.boundingBox();
+        expect(box!.width).toBeGreaterThanOrEqual(40);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+        for (const mark of marks) {
+          // The mark is left of the key or above/below it: the boxes never intersect.
+          const apart =
+            mark!.x + mark!.width <= box!.x ||
+            box!.x + box!.width <= mark!.x ||
+            mark!.y + mark!.height <= box!.y ||
+            box!.y + box!.height <= mark!.y;
+          expect(apart).toBe(true);
+        }
+      }
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       320,
     );
+  },
+);
+
+boardTest(
+  "/: every pad of a row is as tall as its neighbor, a habit to avoid (no corner key) too",
+  async ({ page }) => {
+    await insertHabit({
+      name: "Meditar con un nombre largo para que ocupe dos líneas",
+      sortOrder: 0,
+    });
+    await insertHabit({ name: "No fumar", kind: "avoid", sortOrder: 1 });
+    await openToday(page);
+    const first = await pads(page).locator("[data-habit-pad]").nth(0).boundingBox();
+    const second = await pads(page).locator("[data-habit-pad]").nth(1).boundingBox();
+    expect(first!.height).toBeGreaterThanOrEqual(112);
+    expect(second!.height).toBe(first!.height);
   },
 );
 
