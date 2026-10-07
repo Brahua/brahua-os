@@ -196,6 +196,8 @@ type NewRecurring = {
   intervalMonths?: number | null;
   anchorMonth?: number | null;
   startDate?: string;
+  /** Monthly only: the payment ends after this many due dates ("cuotas"). */
+  installmentsTotal?: number | null;
   paymentMethodId?: string;
   archived?: boolean;
 };

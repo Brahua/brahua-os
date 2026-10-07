@@ -94,6 +94,9 @@ export function RecurringSheet({
   const [dayOfMonth, setDayOfMonth] = useState(String(recurring?.dayOfMonth ?? todayDay));
   const [intervalMonths, setIntervalMonths] = useState(String(recurring?.intervalMonths ?? 3));
   const [anchorMonth, setAnchorMonth] = useState(String(recurring?.anchorMonth ?? todayMonth));
+  const [installments, setInstallments] = useState(
+    recurring?.installmentsTotal != null ? String(recurring.installmentsTotal) : "",
+  );
   const [variable, setVariable] = useState(editing && recurring.amountCents === null);
   const [amount, setAmount] = useState(
     recurring?.amountCents != null ? centsToInput(recurring.amountCents) : "",
@@ -160,6 +163,9 @@ export function RecurringSheet({
       dayOfMonth: Number(dayOfMonth),
       intervalMonths: Number(intervalMonths),
       anchorMonth: Number(anchorMonth),
+      // Only a monthly payment can end after N payments; empty is "never ends".
+      installmentsTotal:
+        cycle === "monthly" && installments.trim() !== "" ? Number(installments.trim()) : null,
       startDate,
       notes,
     };
@@ -325,6 +331,22 @@ export function RecurringSheet({
                 />
               ) : null}
             </div>
+          ) : null}
+          {cycle === "monthly" ? (
+            <TextField
+              ref={fieldRef("installmentsTotal")}
+              id={`${ids}-installments`}
+              label={PAYMENTS_COPY.installmentsLabel}
+              value={installments}
+              inputMode="numeric"
+              autoComplete="off"
+              error={errors.installmentsTotal}
+              help={PAYMENTS_COPY.installmentsHelp}
+              onChange={(event) => {
+                setInstallments(event.target.value);
+                clear("installmentsTotal");
+              }}
+            />
           ) : null}
         </fieldset>
 

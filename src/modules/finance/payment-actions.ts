@@ -31,6 +31,7 @@ import {
   periodInputSchema,
   recurringIdInputSchema,
   undoPaidInputSchema,
+  undoSkippedInputSchema,
   updateRecurringInputSchema,
   type RecurringItem,
 } from "./recurring-input";
@@ -41,6 +42,7 @@ const ON_FIELD: Partial<Record<RecurringFailure, string>> = {
   categoryUnavailable: "categoryId",
   methodUnavailable: "paymentMethodId",
   variableNeedsAmount: "amount",
+  installmentsKeepMonthly: "cycle",
 };
 
 /** A refusal: on its field when it has one (category, method, amount), else the message. */
@@ -79,7 +81,20 @@ export async function createRecurringPayment(input: unknown): Promise<ActionResu
 
 const update = ownerAction(
   updateRecurringInputSchema,
-  async (data) => settle(await updateRecurring(getDb(), data, today())),
+  async (data) => {
+    const result = await updateRecurring(getDb(), data, today());
+    if (typeof result === "object" && "failure" in result) {
+      // N below what is settled: the page may be out of date, so it reads again; the message
+      // names the lowest N that holds what is paid or skipped.
+      revalidateFinanceAndHome();
+      return {
+        ok: false,
+        error: INVALID_FIELDS_MESSAGE,
+        fieldErrors: { installmentsTotal: [RECURRING_ERRORS.installmentsTooLow(result.min)] },
+      };
+    }
+    return settle(result);
+  },
   { name: "editRecurringPayment" },
 );
 
@@ -161,9 +176,13 @@ const undoPay = ownerAction(
 
 /**
  * "Deshacer" of a pay (`{ id, dueOn, expenseId }`, the expense `markPaid` returned): the expense is
- * removed and the period is pending again. Refused if the period now holds another expense.
+ * removed and the period is pending again. Refused if the period now holds another expense. With
+ * `reopenStamp` (the pay closed the payment: its last installment) the payment is reactivated too,
+ * only if its archive is still the one that pay made.
  */
-export async function undoPaid(input: unknown): Promise<ActionResult<{ dueOn: string }>> {
+export async function undoPaid(
+  input: unknown,
+): Promise<ActionResult<{ dueOn: string; reopened: boolean }>> {
   return undoPay(input);
 }
 
@@ -176,17 +195,19 @@ const skip = ownerAction(
 /** "Omitir este período": out of pending, with no expense. */
 export async function skipPeriod(
   input: unknown,
-): Promise<ActionResult<{ dueOn: string; name: string }>> {
+): Promise<ActionResult<{ dueOn: string; name: string; closedStamp: string | null }>> {
   return skip(input);
 }
 
 const undoSkip = ownerAction(
-  periodInputSchema,
+  undoSkippedInputSchema,
   async (data) => settle(await undoSkippedPeriod(getDb(), data)),
   { name: "undoSkip" },
 );
 
 /** "Deshacer" of a skip: the period is pending again. */
-export async function undoSkipped(input: unknown): Promise<ActionResult<{ dueOn: string }>> {
+export async function undoSkipped(
+  input: unknown,
+): Promise<ActionResult<{ dueOn: string; reopened: boolean }>> {
   return undoSkip(input);
 }

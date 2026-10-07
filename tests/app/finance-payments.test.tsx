@@ -94,6 +94,7 @@ function item(values: Partial<RecurringItem> = {}): RecurringItem {
     intervalMonths: null,
     anchorMonth: null,
     startDate: "2026-10-01",
+    installmentsTotal: null,
     notes: null,
     archived: false,
     ...values,
@@ -178,7 +179,7 @@ describe("Pagos", () => {
     const agua = item({ name: "Agua", dayOfMonth: 6 });
     const answer = deferred<Awaited<ReturnType<typeof markPaid>>>();
     vi.mocked(markPaid).mockReturnValue(answer.promise);
-    vi.mocked(undoPaid).mockResolvedValue(ok({ dueOn: TODAY }));
+    vi.mocked(undoPaid).mockResolvedValue(ok({ dueOn: TODAY, reopened: false }));
     renderView([internet, agua]);
     await user.click(payKey("Internet"));
     expect(markPaid).toHaveBeenCalledWith({ id: internet.id, dueOn: TODAY });
@@ -189,6 +190,7 @@ describe("Pagos", () => {
       ok({
         dueOn: TODAY,
         name: "Internet",
+        closedStamp: null,
         expense: {
           id: "e1",
           description: "Internet",
@@ -279,6 +281,7 @@ describe("Pagos", () => {
       ok({
         dueOn: TODAY,
         name: "Luz",
+        closedStamp: null,
         expense: {
           id: "e2",
           description: "Luz",
@@ -365,7 +368,7 @@ describe("Pagos", () => {
     await user.click(within(sheet).getByRole("button", { name: "Omitir este período" }));
     expect(skipPeriod).toHaveBeenCalledWith({ id: internet.id, dueOn: TODAY });
     expect(await screen.findByText(/Nada pendiente/)).toBeInTheDocument();
-    answer.resolve(ok({ dueOn: TODAY, name: "Internet" }));
+    answer.resolve(ok({ dueOn: TODAY, name: "Internet", closedStamp: null }));
     await within(notices()).findByText("Período omitido");
     expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
   });

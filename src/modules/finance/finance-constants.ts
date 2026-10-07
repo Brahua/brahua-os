@@ -20,6 +20,9 @@ export const CATALOG_NAME_MAX_LENGTH = 40;
 export const RECURRING_NAME_MAX_LENGTH = 80;
 /** F2: a recurring payment's notes, 1–500. */
 export const RECURRING_NOTES_MAX_LENGTH = 500;
+/** Installments ("Termina después de N pagos") of a monthly payment: 1–120. */
+export const INSTALLMENTS_MIN = 1;
+export const INSTALLMENTS_MAX = 120;
 /** An expense's optional description, 1–80. */
 export const EXPENSE_DESCRIPTION_MAX_LENGTH = 80;
 

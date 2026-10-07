@@ -113,6 +113,9 @@ export const financeRecurringPayments = pgTable(
     intervalMonths: integer("interval_months"), // 2–12, every_n_months only
     anchorMonth: integer("anchor_month"), // 1–12: every_n_months (first month), yearly (the month)
     startDate: date("start_date").notNull(), // first due date counted (a Lima day)
+    // Cuotas (polish → installments): the payment ends after this many due dates counted from
+    // `start_date` (the Nth is the last). Null: it never ends. Monthly only, 1–120.
+    installmentsTotal: integer("installments_total"),
     notes: text("notes"), // ≤ 500
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     // Soft delete: its past expenses stay (with their name).
@@ -174,6 +177,13 @@ export const financeRecurringPayments = pgTable(
         and ${table.dayOfMonth} between 1 and 31
         and ${table.intervalMonths} is null
         and ${table.anchorMonth} between 1 and 12
+      ), false)`,
+    ),
+    // Installments exist only for the monthly cycle (a due date per month: the Nth is the last).
+    check(
+      "finance_recurring_payments_installments_check",
+      sql`coalesce(${table.installmentsTotal} is null or (
+        ${table.installmentsTotal} between 1 and 120 and ${table.cycle} = 'monthly'
       ), false)`,
     ),
     // "Todos" and "Archivados" of the Pagos view (F2).

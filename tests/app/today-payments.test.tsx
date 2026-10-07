@@ -40,6 +40,7 @@ function payment(values: Partial<FinanceTodayItem> = {}): FinanceTodayItem {
     amountCents: 5_000,
     currency: "PEN",
     paymentMethod: CREDITO,
+    installment: null,
     ...values,
   };
 }
@@ -154,6 +155,22 @@ describe("what a row shows", () => {
     expect(section()).toHaveTextContent("S/ 129.90");
     expect(payKey("Internet")).toHaveAccessibleName("Pagado: Internet, venció hace 3 días");
     expect(payKey("Internet")).toHaveTextContent(/^Pagado$/);
+  });
+
+  test("an installment says “Cuota 3 de 6”, visible and spoken; one without says nothing", () => {
+    const notebook = payment({
+      name: "Notebook",
+      dueOn: "2026-10-02",
+      installment: { number: 3, total: 6 },
+    });
+    const agua = payment({ name: "Agua", dueOn: "2026-10-02" });
+    render(<Board payments={[notebook, agua]} />);
+    const row = (name: string) => screen.getByRole("link", { name }).closest("li") as HTMLElement;
+    expect(row("Notebook")).toHaveTextContent("Cuota 3 de 6");
+    expect(screen.getByRole("link", { name: "Notebook" })).toHaveAccessibleDescription(
+      "Venció hace 3 días, Cuota 3 de 6, 50 soles, Crédito",
+    );
+    expect(row("Agua")).not.toHaveTextContent("Cuota");
   });
 
   test("due today, and an upcoming one in gray (positive control of the color)", () => {

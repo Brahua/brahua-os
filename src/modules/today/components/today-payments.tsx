@@ -111,16 +111,18 @@ export function TodayPayments({ today, payments }: TodayPaymentsProps) {
     startSaving(async () => {
       apply({ type: "remove", id: row.id });
       // A failure rolls the row back when this transition ends (useOptimistic).
-      await completion.pay(row, overrides, (expenseId) => undo(row, index, expenseId));
+      await completion.pay(row, overrides, (expenseId, closedStamp) =>
+        undo(row, index, expenseId, closedStamp),
+      );
     });
   }
 
   /** "Deshacer" (the notice's key, ⌘Z / Ctrl+Z): back in its place, pending again. */
-  function undo(row: Row, index: number, expenseId: string) {
+  function undo(row: Row, index: number, expenseId: string, closedStamp: string | null) {
     startSaving(async () => {
       apply({ type: "restore", task: row, index });
       markRestoring(row.id);
-      await completion.undo(row, expenseId);
+      await completion.undo(row, expenseId, closedStamp);
     });
   }
 

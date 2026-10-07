@@ -160,6 +160,7 @@ describe("getFinanceTodaySummary", () => {
       amountCents: 2_500,
       currency: "USD",
       paymentMethod: { id: usd.id, name: "Débito dólares" },
+      installment: null,
     });
     expect(items.find((item) => item.name === "Luz")).toMatchObject({
       amountCents: null,

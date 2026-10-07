@@ -45,13 +45,19 @@ export type PaymentCompletion = {
   pay: (
     period: PayablePeriod,
     overrides: PayOverrides | null,
-    onUndo: (expenseId: string) => void,
+    onUndo: (expenseId: string, closedStamp: string | null) => void,
   ) => Promise<PaymentOutcome>;
   /**
    * "Deshacer" of a pay: the expense (the one `pay` created, never a later one) is removed and the
    * period is pending again; said once. Await it inside the transition that put the row back.
+   * `closedStamp` (what `pay` handed to `onUndo`: the pay was the last installment and archived
+   * the payment) reactivates the payment too, only if that archive is still in place.
    */
-  undo: (period: PayablePeriod, expenseId: string) => Promise<PaymentOutcome>;
+  undo: (
+    period: PayablePeriod,
+    expenseId: string,
+    closedStamp?: string | null,
+  ) => Promise<PaymentOutcome>;
 };
 
 /** Paying with the screen's queue, notices and announcer. */
@@ -76,15 +82,18 @@ export function paymentCompletion({
       );
       if (result.kind === "skipped") return "stale";
       if (result.kind === "done" && result.value.ok) {
-        const { expense } = result.value.data;
+        const { expense, closedStamp } = result.value.data;
         toaster.push({
           title: PAYMENTS_COPY.paidTitle,
-          text: PAYMENTS_COPY.paidText(
-            name,
-            spokenMoney(expense.amountCents, expense.currency, expense.exchangeRateE4),
-          ),
+          // The last installment says so: the payment archived itself in the same save.
+          text: closedStamp
+            ? PAYMENTS_COPY.lastInstallmentText(name)
+            : PAYMENTS_COPY.paidText(
+                name,
+                spokenMoney(expense.amountCents, expense.currency, expense.exchangeRateE4),
+              ),
           // The undo names this pay's expense: never a later pay of the same period.
-          action: { label: PAYMENTS_COPY.undo, run: () => onUndo(expense.id) },
+          action: { label: PAYMENTS_COPY.undo, run: () => onUndo(expense.id, closedStamp) },
         });
         return "saved";
       }
@@ -92,14 +101,23 @@ export function paymentCompletion({
       return "failed";
     },
 
-    async undo(period, expenseId) {
+    async undo(period, expenseId, closedStamp = null) {
       const { recurringId, name, dueOn } = period;
       const result = await enqueue(periodQueueKey(period), () =>
-        undoPaid({ id: recurringId, dueOn, expenseId }),
+        undoPaid({
+          id: recurringId,
+          dueOn,
+          expenseId,
+          ...(closedStamp ? { reopenStamp: closedStamp } : {}),
+        }),
       );
       if (result.kind === "skipped") return "stale";
       if (result.kind === "done" && result.value.ok) {
-        announce(PAYMENTS_COPY.undonePaid(name));
+        announce(
+          result.value.data.reopened
+            ? PAYMENTS_COPY.undonePaidReopened(name)
+            : PAYMENTS_COPY.undonePaid(name),
+        );
         return "saved";
       }
       notSaved(PAYMENTS_COPY.notUndone, result);

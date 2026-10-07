@@ -44,12 +44,15 @@ import type {
   PeriodInput,
   RecurringItem,
   UndoPaidInput,
+  UndoSkippedInput,
   SettlementItem,
   UpdateRecurringInput,
 } from "./recurring-input";
 import {
   addDays,
   isDueDate,
+  lastInstallmentDue,
+  monthlyPosition,
   nextDueDate,
   nextOpenDue,
   pendingWindow,
@@ -69,7 +72,13 @@ export type RecurringFailure =
   | "alreadyPaid"
   | "alreadySkipped"
   | "notSettled"
-  | "variableNeedsAmount";
+  | "variableNeedsAmount"
+  | "installmentsScheduleLocked"
+  | "installmentsKeepMonthly"
+  | "installmentsDone";
+
+/** An edit of N below what is already settled: `min` is the lowest N that holds it. */
+export type InstallmentsTooLow = { failure: "installmentsTooLow"; min: number };
 
 /**
  * Whether a recurring payment is visible (SPEC-finance "Visibilidad"): not deleted. Every read
@@ -89,6 +98,7 @@ const ITEM = {
   intervalMonths: financeRecurringPayments.intervalMonths,
   anchorMonth: financeRecurringPayments.anchorMonth,
   startDate: financeRecurringPayments.startDate,
+  installmentsTotal: financeRecurringPayments.installmentsTotal,
   notes: financeRecurringPayments.notes,
   archivedAt: financeRecurringPayments.archivedAt,
   categoryId: financeCategories.id,
@@ -108,6 +118,7 @@ type ItemRow = {
   intervalMonths: number | null;
   anchorMonth: number | null;
   startDate: string;
+  installmentsTotal: number | null;
   notes: string | null;
   archivedAt: Date | null;
   categoryId: string | null;
@@ -132,6 +143,7 @@ function toItem(row: ItemRow): RecurringItem {
     intervalMonths: row.intervalMonths,
     anchorMonth: row.anchorMonth,
     startDate: row.startDate,
+    installmentsTotal: row.installmentsTotal,
     notes: row.notes,
     archived: row.archivedAt !== null,
   };
@@ -289,11 +301,13 @@ export async function selectRecurringDetail(
   ]);
   if (!item) return null;
   const settled = new Set(history.map((settlement) => settlement.dueOn));
-  // The next due dates still to pay (one paid ahead of time is not "next" any more).
+  // The next due dates still to pay (one paid ahead of time is not "next" any more); a payment
+  // with installments may have fewer than 3 left.
   const nextDues: string[] = [];
   let from = today;
   while (nextDues.length < 3) {
     const due = nextOpenDue(item, from, settled);
+    if (due === null) break;
     nextDues.push(due);
     from = addDays(due, 1);
   }
@@ -316,6 +330,7 @@ async function lockedRow(tx: Tx, id: string) {
       intervalMonths: financeRecurringPayments.intervalMonths,
       anchorMonth: financeRecurringPayments.anchorMonth,
       startDate: financeRecurringPayments.startDate,
+      installmentsTotal: financeRecurringPayments.installmentsTotal,
       archivedAt: financeRecurringPayments.archivedAt,
     })
     .from(financeRecurringPayments)
@@ -405,9 +420,79 @@ async function editedSchedule<T extends Schedule>(
   const latest = await latestSettlement(tx, id);
   if (latest) {
     const covered = nextDueDate(existing, addDays(latest, 1));
-    if (covered > from) from = covered;
+    if (covered !== null && covered > from) from = covered;
   }
   return startFrom(values, from);
+}
+
+/**
+ * The stamp of a payment's archive as text (UTC, microseconds): what the auto-close of the last
+ * installment leaves in the pay's or the skip's answer, so its "Deshacer" reopens only that exact
+ * archive (never one the owner made or remade by hand in between).
+ */
+const archiveStamp = sql<string>`to_char(${financeRecurringPayments.archivedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
+/** How many periods a payment has settled (paid or skipped) and the latest one's due date. */
+async function settledSummary(
+  tx: Tx,
+  id: string,
+): Promise<{ count: number; latest: string | null }> {
+  const [row] = await tx
+    .select({
+      count: sql<number>`count(*)::int`,
+      latest: sql<string | null>`max(${financeSettlements.dueOn})`,
+    })
+    .from(financeSettlements)
+    .where(eq(financeSettlements.recurringPaymentId, id));
+  return { count: row?.count ?? 0, latest: row?.latest ?? null };
+}
+
+/** Whether a period of a payment is settled (paid or skipped). */
+async function isSettled(tx: Tx, id: string, dueOn: string): Promise<boolean> {
+  return (await settlementOf(tx, id, dueOn)) !== null;
+}
+
+/**
+ * Archives a payment with installments once its last one (the Nth due date) is settled, in the
+ * caller's transaction, under the payment's lock. Returns the archive's stamp when it archived,
+ * null when there was nothing to close (not the last installment, or already archived).
+ */
+async function closeIfFinished(
+  tx: Tx,
+  row: Schedule & { id: string; archivedAt: Date | null },
+): Promise<string | null> {
+  const last = lastInstallmentDue(row);
+  if (last === null || row.archivedAt !== null || !(await isSettled(tx, row.id, last))) {
+    return null;
+  }
+  const [archived] = await tx
+    .update(financeRecurringPayments)
+    .set({ archivedAt: sql`now()` })
+    .where(
+      and(eq(financeRecurringPayments.id, row.id), isNull(financeRecurringPayments.archivedAt)),
+    )
+    .returning({ stamp: archiveStamp });
+  return archived?.stamp ?? null;
+}
+
+/**
+ * Undoing a pay or a skip that closed the payment: unarchive it only if its archive is still the
+ * one that pay or skip made (`stamp`). Archived again by hand, or reactivated, in between: leave it.
+ */
+async function reopenIfStamped(tx: Tx, id: string, stamp: string | undefined): Promise<boolean> {
+  if (stamp === undefined) return false;
+  const reopened = await tx
+    .update(financeRecurringPayments)
+    .set({ archivedAt: null })
+    .where(
+      and(
+        eq(financeRecurringPayments.id, id),
+        isNotNull(financeRecurringPayments.archivedAt),
+        sql`${archiveStamp} = ${stamp}`,
+      ),
+    )
+    .returning({ id: financeRecurringPayments.id });
+  return reopened.length > 0;
 }
 
 /**
@@ -420,7 +505,7 @@ export async function updateRecurring(
   db: Database,
   input: UpdateRecurringInput,
   today: string,
-): Promise<RecurringItem | RecurringFailure> {
+): Promise<RecurringItem | RecurringFailure | InstallmentsTooLow> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
     const existing = await lockedRow(tx, input.id);
@@ -428,12 +513,30 @@ export async function updateRecurring(
     const refused = await checkRefs(tx, input, existing);
     if (refused) return refused;
     const { id, ...chosen } = input;
+    // Installments (decisiones autónomas): a payment with them stays monthly (the owner removes
+    // them first), and N never goes below what is settled (F2's lesson: an edit never reopens or
+    // drops a period). With periods settled the count is anchored to the start and the day, so
+    // those two don't move in the same save: a new day would settle the same month twice.
+    if (existing.installmentsTotal !== null && chosen.cycle !== "monthly") {
+      return "installmentsKeepMonthly";
+    }
     const changed = SCHEDULE_FIELDS.some((field) => existing[field] !== chosen[field]);
+    if (chosen.installmentsTotal !== null) {
+      const { count, latest } = await settledSummary(tx, id);
+      if (count > 0) {
+        if (changed) return "installmentsScheduleLocked";
+        const position = latest ? (monthlyPosition(existing, latest) ?? 0) : 0;
+        const min = Math.max(count, position);
+        if (chosen.installmentsTotal < min) return { failure: "installmentsTooLow", min };
+      }
+    }
     const values = changed ? await editedSchedule(tx, id, existing, chosen, today) : chosen;
     await tx
       .update(financeRecurringPayments)
       .set(values)
       .where(eq(financeRecurringPayments.id, id));
+    // N equal to what is settled (its last installment already settled) closes the payment.
+    if (values.installmentsTotal !== null) await closeIfFinished(tx, { ...existing, ...values });
     return (await selectRecurringById(tx, id)) as RecurringItem;
   });
 }
@@ -458,6 +561,17 @@ export async function setRecurringArchived(
         .set({ archivedAt: sql`now()` })
         .where(eq(financeRecurringPayments.id, id));
     } else if (!archived && existing.archivedAt !== null) {
+      if (existing.installmentsTotal !== null) {
+        // With installments the count is anchored to the start: it stays, and the installments
+        // left (including a late one) show as pending. One that was paid in full stays closed.
+        const last = lastInstallmentDue(existing);
+        if (last !== null && (await isSettled(tx, id, last))) return "installmentsDone";
+        await tx
+          .update(financeRecurringPayments)
+          .set({ archivedAt: null })
+          .where(eq(financeRecurringPayments.id, id));
+        return (await selectRecurringById(tx, id)) as RecurringItem;
+      }
       const moved = startFrom(existing, today);
       await tx
         .update(financeRecurringPayments)
@@ -534,7 +648,26 @@ async function settlementOf(tx: Tx, id: string, dueOn: string) {
 const alreadySettled = (status: string): RecurringFailure =>
   status === "paid" ? "alreadyPaid" : "alreadySkipped";
 
-export type PaidPeriod = { expense: ExpenseItem; dueOn: string; name: string };
+/**
+ * Why an archived payment can't settle a period: "Ya estaba pagado" when that period is already
+ * settled (a second tap on the last installment, which archived the payment a moment ago), else
+ * "archived".
+ */
+async function archivedFailure(tx: Tx, id: string, dueOn: string): Promise<RecurringFailure> {
+  const existing = await settlementOf(tx, id, dueOn);
+  return existing ? alreadySettled(existing.status) : "archived";
+}
+
+export type PaidPeriod = {
+  expense: ExpenseItem;
+  dueOn: string;
+  name: string;
+  /**
+   * Set when this pay was the last installment and archived the payment (in the same
+   * transaction): the stamp of that archive, which the undo hands back to reopen it.
+   */
+  closedStamp: string | null;
+};
 
 /**
  * "Pagado" (SPEC-finance "Pagar"), in one transaction: the payment's lock first, then the expense
@@ -556,7 +689,7 @@ export async function payPeriod(
       await lockRecurring(tx, input.id);
       const row = await lockedRow(tx, input.id);
       if (!row) return "notFound";
-      if (row.archivedAt !== null) return "archived";
+      if (row.archivedAt !== null) return archivedFailure(tx, input.id, input.dueOn);
       if (!isSettleable(row, input.dueOn, today)) return "notDue";
       const existing = await settlementOf(tx, input.id, input.dueOn);
       if (existing) return alreadySettled(existing.status);
@@ -607,10 +740,13 @@ export async function payPeriod(
         .returning({ dueOn: financeSettlements.dueOn });
       // The primary key, behind the lock: never two expenses for one period.
       if (settled.length === 0) throw new PeriodTaken();
+      // The last installment archives the payment, in this same transaction.
+      const closedStamp = await closeIfFinished(tx, row);
       return {
         expense: (await selectExpenseById(tx, expense.id)) as ExpenseItem,
         dueOn: input.dueOn,
         name: row.name,
+        closedStamp,
       };
     });
   } catch (error) {
@@ -627,7 +763,7 @@ export async function payPeriod(
 export async function undoPaidPeriod(
   db: Database,
   input: UndoPaidInput,
-): Promise<{ dueOn: string } | RecurringFailure> {
+): Promise<{ dueOn: string; reopened: boolean } | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
     // Archived is fine (the undo of a pay right before archiving); deleted is not.
@@ -648,7 +784,9 @@ export async function undoPaidPeriod(
       .update(financeExpenses)
       .set({ deletedAt: sql`now()` })
       .where(and(eq(financeExpenses.id, input.expenseId), visibleExpense));
-    return { dueOn: input.dueOn };
+    // The pay that closed the payment: reopen it, only if that archive is still the one in place.
+    const reopened = await reopenIfStamped(tx, input.id, input.reopenStamp);
+    return { dueOn: input.dueOn, reopened };
   });
 }
 
@@ -657,27 +795,29 @@ export async function skipPeriod(
   db: Database,
   input: PeriodInput,
   today: string,
-): Promise<{ dueOn: string; name: string } | RecurringFailure> {
+): Promise<{ dueOn: string; name: string; closedStamp: string | null } | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
     const row = await lockedRow(tx, input.id);
     if (!row) return "notFound";
-    if (row.archivedAt !== null) return "archived";
+    if (row.archivedAt !== null) return archivedFailure(tx, input.id, input.dueOn);
     if (!isSettleable(row, input.dueOn, today)) return "notDue";
     const existing = await settlementOf(tx, input.id, input.dueOn);
     if (existing) return alreadySettled(existing.status);
     await tx
       .insert(financeSettlements)
       .values({ recurringPaymentId: row.id, dueOn: input.dueOn, status: "skipped" });
-    return { dueOn: input.dueOn, name: row.name };
+    // Decisión autónoma: skipping the last installment closes the payment too (it counts as one).
+    const closedStamp = await closeIfFinished(tx, row);
+    return { dueOn: input.dueOn, name: row.name, closedStamp };
   });
 }
 
 /** "Deshacer" of a skip: the settlement row goes, the period is pending again. */
 export async function undoSkippedPeriod(
   db: Database,
-  input: PeriodInput,
-): Promise<{ dueOn: string } | RecurringFailure> {
+  input: UndoSkippedInput,
+): Promise<{ dueOn: string; reopened: boolean } | RecurringFailure> {
   return db.transaction(async (tx) => {
     await lockRecurring(tx, input.id);
     if (!(await lockedRow(tx, input.id))) return "notFound";
@@ -691,6 +831,7 @@ export async function undoSkippedPeriod(
         ),
       )
       .returning({ dueOn: financeSettlements.dueOn });
-    return removed.length === 0 ? "notSettled" : { dueOn: input.dueOn };
+    if (removed.length === 0) return "notSettled";
+    return { dueOn: input.dueOn, reopened: await reopenIfStamped(tx, input.id, input.reopenStamp) };
   });
 }

@@ -65,16 +65,25 @@ export const CYCLE_LABELS: Record<PaymentCycle, string> = {
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** "1 cuota", "6 cuotas". */
+export const installmentsCount = (total: number) => (total === 1 ? "1 cuota" : `${total} cuotas`);
+
+/** "Cuota 3 de 6": the installment a due date is. */
+export const installmentLabel = (installment: { number: number; total: number }) =>
+  `Cuota ${installment.number} de ${installment.total}`;
+
 /**
- * The cycle in words: "Semanal, lunes", "Mensual, día 15", "Cada 3 meses, día 5",
- * "Anual, 23 mar".
+ * The cycle in words: "Semanal, lunes", "Mensual, día 15", "Mensual, día 15 · 6 cuotas",
+ * "Cada 3 meses, día 5", "Anual, 23 mar".
  */
 export function cycleSummary(schedule: Omit<Schedule, "startDate">): string {
   switch (schedule.cycle) {
     case "weekly":
       return `Semanal, ${WEEKDAY_NAMES[schedule.weekday ?? 1]}`;
     case "monthly":
-      return `Mensual, día ${schedule.dayOfMonth}`;
+      return `Mensual, día ${schedule.dayOfMonth}${
+        schedule.installmentsTotal ? ` · ${installmentsCount(schedule.installmentsTotal)}` : ""
+      }`;
     case "every_n_months":
       return `Cada ${schedule.intervalMonths} meses, día ${schedule.dayOfMonth}`;
     case "yearly":
@@ -200,8 +209,13 @@ export const PAYMENTS_COPY = {
   skippedTitle: "Período omitido",
   skippedText: (name: string, due: string) => `${name} · ${due}`,
   undo: "Deshacer",
+  /** The last installment closed the payment: said in the notice of the pay or the skip. */
+  lastInstallmentText: (name: string) => `Última cuota de «${name}». Se archiva solo.`,
   undonePaid: (name: string) => `Se quitó el pago de ${name}: vuelve a pendientes.`,
+  undonePaidReopened: (name: string) =>
+    `Se quitó el pago de ${name}: vuelve a pendientes y el pago se reactivó.`,
   undoneSkip: (name: string) => `${name} vuelve a pendientes.`,
+  undoneSkipReopened: (name: string) => `${name} vuelve a pendientes y el pago se reactivó.`,
   notPaid: "No se pudo registrar el pago.",
   notSkipped: "No se pudo omitir el período.",
   notUndone: "No se pudo deshacer.",
@@ -222,6 +236,10 @@ export const PAYMENTS_COPY = {
   intervalOption: (n: number) => `Cada ${n} meses`,
   anchorLabel: "Desde el mes",
   yearMonthLabel: "Mes",
+  installmentsLabel: "Termina después de N pagos (opcional)",
+  installmentsHelp:
+    "Para una compra en cuotas. Vacío: no termina. Al pagar la última, el pago se archiva solo.",
+  noMoreDues: "Ya no quedan vencimientos: se agotaron las cuotas.",
   amountFieldLabel: (currency: "PEN" | "USD") =>
     currency === "USD" ? "Monto previsto en dólares" : "Monto previsto en soles",
   amountHelp: "Con punto o coma para los decimales.",
@@ -288,6 +306,16 @@ export const RECURRING_ERRORS = {
   dayOfMonth: "Elige un día del 1 al 31.",
   intervalMonths: "Elige cada cuántos meses (de 2 a 12).",
   anchorMonth: "Elige un mes.",
+  installmentsRange: "Escribe un número entero de cuotas, del 1 al 120.",
+  installmentsCycle: "Las cuotas solo se pueden usar con el ciclo mensual.",
+  installmentsTooLow: (min: number) =>
+    `Ya hay ${min} cuotas pagadas u omitidas: escribe ${min} o más.`,
+  installmentsScheduleLocked:
+    "Con cuotas ya pagadas u omitidas no se puede cambiar el día ni el inicio: quita las cuotas, guarda y cámbialo.",
+  installmentsKeepMonthly:
+    "Este pago tiene cuotas y solo puede ser mensual: quita las cuotas antes de cambiar el ciclo.",
+  installmentsDone:
+    "Ya se pagaron todas las cuotas de este pago. Sube el número de cuotas para reactivarlo.",
   startInvalid: "Esa fecha no es válida.",
   startOutOfRange: "La fecha debe estar entre 2000 y 2100.",
   amountRequired: "Escribe el monto o marca «Monto variable».",

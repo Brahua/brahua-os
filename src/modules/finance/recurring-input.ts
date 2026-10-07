@@ -7,6 +7,8 @@ import { isCalendarDay, optionalRef, spentOnSchema, type ExpenseRef } from "./ex
 import { EXPENSE_ERRORS } from "./finance-copy";
 import {
   CURRENCIES,
+  INSTALLMENTS_MAX,
+  INSTALLMENTS_MIN,
   PAYMENT_CYCLES,
   RECURRING_NAME_MAX_LENGTH,
   RECURRING_NOTES_MAX_LENGTH,
@@ -33,6 +35,8 @@ export type RecurringItem = {
   anchorMonth: number | null;
   /** First due date counted (YYYY-MM-DD). */
   startDate: string;
+  /** Monthly only: the payment ends after this many due dates ("cuotas"); null: never ends. */
+  installmentsTotal: number | null;
   notes: string | null;
   archived: boolean;
 };
@@ -113,6 +117,12 @@ const recurringFields = z.object({
   dayOfMonth: smallInt,
   intervalMonths: smallInt,
   anchorMonth: smallInt,
+  /** "Termina después de N pagos": whole, 1–120, monthly only; empty is none. */
+  installmentsTotal: z
+    .number({ error: RECURRING_ERRORS.installmentsRange })
+    .int(RECURRING_ERRORS.installmentsRange)
+    .nullable()
+    .optional(),
   startDate,
   notes,
 });
@@ -137,6 +147,12 @@ function checkFields(value: Fields, context: z.core.$RefinementCtx<Fields>) {
     !between(value.anchorMonth, 1, 12)
   ) {
     issue("anchorMonth", RECURRING_ERRORS.anchorMonth);
+  }
+  if (value.installmentsTotal != null) {
+    if (value.cycle !== "monthly") issue("installmentsTotal", RECURRING_ERRORS.installmentsCycle);
+    else if (!between(value.installmentsTotal, INSTALLMENTS_MIN, INSTALLMENTS_MAX)) {
+      issue("installmentsTotal", RECURRING_ERRORS.installmentsRange);
+    }
   }
   if (!value.variable) {
     const parsed = parseAmount(value.amount);
@@ -169,6 +185,8 @@ function toStored(value: Fields) {
       value.cycle === "every_n_months" || value.cycle === "yearly"
         ? (value.anchorMonth ?? null)
         : null,
+    // Only a monthly payment has installments (checkFields refuses them on other cycles).
+    installmentsTotal: value.cycle === "monthly" ? (value.installmentsTotal ?? null) : null,
     startDate: value.startDate,
     notes: value.notes,
   };
@@ -195,12 +213,22 @@ const dueOn = z
 /** One period of a payment (skip, and the undo of a pay or a skip). */
 export const periodInputSchema = z.object({ id, dueOn });
 
+/**
+ * What an undo hands back from the pay or skip that closed the payment (its last installment): the
+ * stamp of the archive it made. The undo reopens the payment only if that archive is still there.
+ */
+const reopenStamp = z.string().max(40).optional();
+
 /** The undo of a pay names the expense it created: a later pay of the period is never undone. */
 export const undoPaidInputSchema = z.object({
   id,
   dueOn,
   expenseId: z.uuid({ error: RECURRING_ERRORS.notSettled }),
+  reopenStamp,
 });
+
+/** The undo of a skip. */
+export const undoSkippedInputSchema = z.object({ id, dueOn, reopenStamp });
 
 /**
  * "Pagado" (one tap: only the period) or "Pagado…" (the amount, date and method as adjusted).
@@ -228,6 +256,7 @@ export type UpdateRecurringInput = z.output<typeof updateRecurringInputSchema>;
 export type PayInput = z.output<typeof payInputSchema>;
 export type PeriodInput = z.output<typeof periodInputSchema>;
 export type UndoPaidInput = z.output<typeof undoPaidInputSchema>;
+export type UndoSkippedInput = z.output<typeof undoSkippedInputSchema>;
 
 /** The sheet's fields in the order they show (focus goes to the first invalid one). */
 export const RECURRING_FIELDS = [
@@ -237,6 +266,7 @@ export const RECURRING_FIELDS = [
   "dayOfMonth",
   "intervalMonths",
   "anchorMonth",
+  "installmentsTotal",
   "amount",
   "currency",
   "paymentMethodId",

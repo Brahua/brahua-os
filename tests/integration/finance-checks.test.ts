@@ -285,6 +285,43 @@ describe("recurring payments (F2's table)", () => {
       check("finance_recurring_payments_currency_check"),
     );
   });
+
+  test("installments: 1 to 120, monthly only; none is fine for every cycle", async () => {
+    const rule = check("finance_recurring_payments_installments_check");
+    // Valid: none (every cycle), and 1, 6 and 120 on a monthly payment.
+    expect(await violation(recurring({ installmentsTotal: null }))).toBeNull();
+    expect(
+      await violation(recurring({ cycle: "weekly", weekday: 1, dayOfMonth: null })),
+    ).toBeNull();
+    for (const total of [1, 6, 120]) {
+      expect(await violation(recurring({ installmentsTotal: total })), String(total)).toBeNull();
+    }
+    // Out of range.
+    for (const total of [0, -3, 121]) {
+      expect(await violation(recurring({ installmentsTotal: total })), String(total)).toEqual(rule);
+    }
+    // Any other cycle with installments (the cycle's own rule holds, so this one breaks).
+    for (const values of [
+      { cycle: "weekly", weekday: 1, dayOfMonth: null, installmentsTotal: 6 },
+      { cycle: "every_n_months", intervalMonths: 3, anchorMonth: 2, installmentsTotal: 6 },
+      { cycle: "yearly", dayOfMonth: 23, anchorMonth: 3, installmentsTotal: 6 },
+    ]) {
+      expect(await violation(recurring(values)), JSON.stringify(values)).toEqual(rule);
+    }
+    // An existing monthly payment can't become weekly while it keeps its installments.
+    await testDb
+      .update(financeRecurringPayments)
+      .set({ installmentsTotal: 3 })
+      .where(eq(financeRecurringPayments.id, recurringId));
+    expect(
+      await violation(() =>
+        testDb
+          .update(financeRecurringPayments)
+          .set({ cycle: "weekly", weekday: 1, dayOfMonth: null })
+          .where(eq(financeRecurringPayments.id, recurringId)),
+      ),
+    ).toEqual(rule);
+  });
 });
 
 describe("expenses of recurring payments (F2)", () => {

@@ -26,10 +26,20 @@ export type MonthEntry =
       expense: SettlementExpense;
     }
   | { recurring: RecurringItem; dueOn: string; status: "pending" | "skipped"; expense: null }
-  | { recurring: RecurringItem; dueOn: null; status: "none"; expense: null; nextDue: string };
+  | {
+      recurring: RecurringItem;
+      dueOn: null;
+      status: "none";
+      expense: null;
+      /** Null: a payment with installments that has none left. */
+      nextDue: string | null;
+    };
 
-/** A row of "Todos": an active payment and its next due date (from today). */
-export type ActiveEntry = { recurring: RecurringItem; nextDue: string };
+/**
+ * A row of "Todos": an active payment and its next due date (from today); null when a payment
+ * with installments has none left.
+ */
+export type ActiveEntry = { recurring: RecurringItem; nextDue: string | null };
 
 export type PaymentsViewData = {
   /** Lima's today (YYYY-MM-DD) the view was computed for. */
@@ -153,7 +163,11 @@ export function buildPaymentsView(
       recurring,
       nextDue: nextOpenDue(recurring, today, new Set(settledOf(recurring.id).keys())),
     }))
-    .sort((a, b) => a.nextDue.localeCompare(b.nextDue) || byName(a.recurring, b.recurring));
+    .sort(
+      (a, b) =>
+        (a.nextDue ?? "9999").localeCompare(b.nextDue ?? "9999") ||
+        byName(a.recurring, b.recurring),
+    );
 
   return {
     today,

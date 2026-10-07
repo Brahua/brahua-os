@@ -20,6 +20,7 @@ import { failureText, paymentCompletion, type PayablePeriod } from "../payment-c
 import {
   cycleSummary,
   dueState,
+  installmentLabel,
   isUrgent,
   PAYMENTS_COPY,
   shortDay,
@@ -29,6 +30,7 @@ import type { MonthEntry, PaymentsViewData, PendingPeriod } from "../payments-vi
 import type { RecurringItem } from "../recurring-input";
 import { recurringPaymentPath } from "../routes";
 import { monthOfDay } from "../schedule";
+import { installmentOf } from "../today-summary";
 import { useFinanceScreen } from "./finance-screen";
 import { PaySheet, type PayOverrides } from "./pay-sheet";
 import { RecurringSheet } from "./recurring-sheet";
@@ -131,21 +133,29 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
     return next ? periodKey(next) : null;
   }
 
-  function undoPay(period: PendingPeriod, expenseId: string) {
+  function undoPay(period: PendingPeriod, expenseId: string, closedStamp: string | null) {
     startSaving(async () => {
-      await completion.undo(payable(period), expenseId);
+      await completion.undo(payable(period), expenseId, closedStamp);
     });
   }
 
-  function undoSkip(period: PendingPeriod) {
+  function undoSkip(period: PendingPeriod, closedStamp: string | null) {
     const { recurring, dueOn } = period;
     startSaving(async () => {
       const result = await enqueue(`payment-period:${periodKey(period)}`, () =>
-        undoSkipped({ id: recurring.id, dueOn }),
+        undoSkipped({
+          id: recurring.id,
+          dueOn,
+          ...(closedStamp ? { reopenStamp: closedStamp } : {}),
+        }),
       );
       if (result.kind === "skipped") return;
       if (result.kind === "done" && result.value.ok) {
-        announce(PAYMENTS_COPY.undoneSkip(recurring.name));
+        announce(
+          result.value.data.reopened
+            ? PAYMENTS_COPY.undoneSkipReopened(recurring.name)
+            : PAYMENTS_COPY.undoneSkip(recurring.name),
+        );
         return;
       }
       toaster.push({
@@ -161,7 +171,9 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
       settle([periodKey(period), "paid"]);
       // A failure puts it back in the list (the optimistic removal ends with the transition),
       // unless it was already paid: the page's new data leaves it out.
-      await completion.pay(payable(period), overrides, (expenseId) => undoPay(period, expenseId));
+      await completion.pay(payable(period), overrides, (expenseId, closedStamp) =>
+        undoPay(period, expenseId, closedStamp),
+      );
     });
   }
 
@@ -175,10 +187,17 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
       );
       if (result.kind === "skipped") return;
       if (result.kind === "done" && result.value.ok) {
+        const { closedStamp } = result.value.data;
         toaster.push({
           title: PAYMENTS_COPY.skippedTitle,
-          text: PAYMENTS_COPY.skippedText(recurring.name, spokenDay(dueOn)),
-          action: { label: PAYMENTS_COPY.undo, run: () => undoSkip(period) },
+          // The last installment says so: the payment archived itself in the same save.
+          text: closedStamp
+            ? PAYMENTS_COPY.lastInstallmentText(recurring.name)
+            : PAYMENTS_COPY.skippedText(recurring.name, spokenDay(dueOn)),
+          action: {
+            label: PAYMENTS_COPY.undo,
+            run: () => undoSkip(period, closedStamp),
+          },
         });
         return;
       }
@@ -356,7 +375,9 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
                     cycleSummary(recurring),
                     recurring.paymentMethod?.name,
                     spokenExpected(recurring),
-                    PAYMENTS_COPY.nextDueSpoken(spokenDay(nextDue)),
+                    nextDue
+                      ? PAYMENTS_COPY.nextDueSpoken(spokenDay(nextDue))
+                      : PAYMENTS_COPY.noMoreDues,
                   ]
                     .filter(Boolean)
                     .join(", ")}
@@ -375,7 +396,9 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
                       {expectedAmount(recurring)}
                     </span>
                     <span className="bo-text-body-sm">
-                      {PAYMENTS_COPY.nextDue(shortDay(nextDue))}
+                      {nextDue
+                        ? PAYMENTS_COPY.nextDue(shortDay(nextDue))
+                        : PAYMENTS_COPY.noMoreDues}
                     </span>
                   </span>
                 </Link>
@@ -476,6 +499,8 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
   const urgent = isUrgent(due);
   const variable = recurring.amountCents === null;
   const metaId = useId();
+  const installment = installmentOf(recurring, dueOn);
+  const installmentText = installment ? installmentLabel(installment) : null;
   return (
     <div className="bo-row bo-row--static bo-payment-row" data-pending-row={periodKey(period)}>
       <span className="bo-row__body">
@@ -487,7 +512,7 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
           {recurring.name}
         </Link>
         <span id={metaId} hidden>
-          {[due.spoken, spokenExpected(recurring), recurring.paymentMethod?.name]
+          {[due.spoken, installmentText, spokenExpected(recurring), recurring.paymentMethod?.name]
             .filter(Boolean)
             .join(", ")}
         </span>
@@ -503,6 +528,11 @@ function PendingRow({ period, today, payRef, onPay, onMore }: PendingRowProps) {
             {due.label}
           </span>
           <span className="bo-amount text-text">{expectedAmount(recurring)}</span>
+          {installmentText ? (
+            <span className="text-text-secondary" data-installment="">
+              {installmentText}
+            </span>
+          ) : null}
           {recurring.paymentMethod ? (
             <span className="text-text-secondary">{recurring.paymentMethod.name}</span>
           ) : null}
@@ -545,6 +575,8 @@ type MonthRowProps = {
 function MonthRow({ entry, settledNow }: MonthRowProps) {
   const { recurring } = entry;
   const metaId = useId();
+  const installment = entry.dueOn === null ? null : installmentOf(recurring, entry.dueOn);
+  const installmentText = installment ? installmentLabel(installment) : null;
   let status: string;
   let spoken: string;
   switch (entry.status) {
@@ -585,15 +617,27 @@ function MonthRow({ entry, settledNow }: MonthRowProps) {
         <span id={metaId} hidden>
           {[
             entry.status === "none"
-              ? PAYMENTS_COPY.nextDueSpoken(spokenDay(entry.nextDue))
-              : `${PAYMENTS_COPY.dueSpoken(spokenDay(entry.dueOn))}, ${spokenExpected(recurring)}`,
+              ? entry.nextDue
+                ? PAYMENTS_COPY.nextDueSpoken(spokenDay(entry.nextDue))
+                : PAYMENTS_COPY.noMoreDues
+              : [
+                  PAYMENTS_COPY.dueSpoken(spokenDay(entry.dueOn)),
+                  installmentText,
+                  spokenExpected(recurring),
+                ]
+                  .filter(Boolean)
+                  .join(", "),
             spoken,
           ].join(", ")}
         </span>
         <span className="bo-row__subtitle" aria-hidden>
           {entry.status === "none"
-            ? PAYMENTS_COPY.nextDue(shortDay(entry.nextDue))
-            : `${shortDay(entry.dueOn)} · ${expectedAmount(recurring)}`}
+            ? entry.nextDue
+              ? PAYMENTS_COPY.nextDue(shortDay(entry.nextDue))
+              : PAYMENTS_COPY.noMoreDues
+            : [shortDay(entry.dueOn), expectedAmount(recurring), installmentText]
+                .filter(Boolean)
+                .join(" · ")}
         </span>
       </span>
       <span

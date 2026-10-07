@@ -223,6 +223,7 @@ const LOOKS_USD = /d[oó]lar|usd/i;
 
 /** The first due date of a monthly payment on `dayOfMonth`, on or after `today` (Lima). */
 export function firstDueFrom(dayOfMonth: number, today: string): string {
+  // A schedule without installments always has a next due date.
   return nextDueDate(
     {
       cycle: "monthly",
@@ -233,7 +234,7 @@ export function firstDueFrom(dayOfMonth: number, today: string): string {
       startDate: today,
     },
     today,
-  );
+  ) as string;
 }
 
 /** The rows the file maps to (SPEC-finance mapping), with the warnings, for Lima's `today`. */
