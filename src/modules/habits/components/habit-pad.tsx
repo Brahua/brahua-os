@@ -74,8 +74,11 @@ type HabitPadProps = {
   onToggle: (habit: HabitItem, done: boolean) => void;
   /** One tap of a quantity habit: add its step (required: a quantity pad without it is dead). */
   onAdd: (habit: HabitItem) => void;
-  /** Room on the top right for a control drawn over the pad (the options key). */
-  reserveCorner?: boolean;
+  /**
+   * Room on the top right for the control(s) drawn over the pad: the options key (`true`), or two
+   * keys side by side (`"wide"`, a quantity pad on the board: "Ajustar" and the options).
+   */
+  reserveCorner?: boolean | "wide";
   className?: string;
 };
 
@@ -155,7 +158,14 @@ export function HabitPad({
       >
         {/* With a control over the corner, the row is as tall as it, so the name starts below. */}
         <span
-          className={cn("flex items-center gap-2", reserveCorner ? "min-h-10 pr-12" : "min-h-6")}
+          className={cn(
+            "flex items-center gap-2",
+            reserveCorner === "wide"
+              ? "min-h-10 pr-24"
+              : reserveCorner
+                ? "min-h-10 pr-12"
+                : "min-h-6",
+          )}
         >
           <Led area={area?.color} on={done} />
           {/* Not only color (WCAG 1.4.1): the area's icon too. */}

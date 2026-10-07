@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarX,
+  Coffee,
   Pause,
   Pencil,
   Play,
@@ -23,6 +24,8 @@ import { ORGANIZE_COPY } from "../organize-copy";
 import { isPausedToday } from "../habit-status";
 import { PAUSE_COPY } from "../pause-copy";
 import { habitPath } from "../routes";
+import { SKIP_COPY } from "../skip-copy";
+import { canSkipToday } from "../skip-day";
 import { otherLoggableDays } from "../schedule";
 import { useHabitsScreen } from "./habits-screen";
 import { preloadPause } from "./use-pause-flow";
@@ -47,6 +50,8 @@ export type HabitOptionsSheetProps = {
   onLogOtherDay?: (habit: HabitItem) => void;
   /** H4: open "Pausar" (the screen closes this sheet first). */
   onPause?: (habit: HabitItem) => void;
+  /** polish: "Saltar hoy" (the screen closes the sheet, then rests the habit for today). */
+  onSkipToday?: (habit: HabitItem) => void;
   /** H4: "Reanudar" the current pause, or cancel the next one (the screen closes the sheet). */
   onResume?: (habit: HabitItem) => void;
 };
@@ -68,6 +73,7 @@ export function HabitOptionsSheet({
   onAdjust,
   onLogOtherDay,
   onPause,
+  onSkipToday,
   onResume,
 }: HabitOptionsSheetProps) {
   const isDesktop = useIsDesktop();
@@ -111,6 +117,7 @@ export function HabitOptionsSheet({
   const otherDayHelpId = `${ids}-other-day-help`;
   const pauseHelpId = `${ids}-pause-help`;
   const pauseStateId = `${ids}-pause-state`;
+  const skipHelpId = `${ids}-skip-help`;
   const confirmTextId = `${ids}-confirm-text`;
 
   return (
@@ -213,7 +220,7 @@ export function HabitOptionsSheet({
         ) : null}
 
         {/* H4: the current (or next) pause with "Reanudar", and "Pausar". */}
-        {onPause || onResume ? (
+        {onPause || onResume || onSkipToday ? (
           <div className="flex flex-col items-start gap-2">
             {pause && onResume ? (
               <>
@@ -230,6 +237,22 @@ export function HabitOptionsSheet({
                 >
                   {pausedToday ? PAUSE_COPY.resume : PAUSE_COPY.cancelPause}
                 </Key>
+              </>
+            ) : null}
+            {onSkipToday && canSkipToday(habit, today) ? (
+              <>
+                <Key
+                  variant="ghost"
+                  icon={Coffee}
+                  aria-describedby={skipHelpId}
+                  data-habit-skip=""
+                  onClick={() => onSkipToday(habit)}
+                >
+                  {SKIP_COPY.skipToday}
+                </Key>
+                <p id={skipHelpId} className="bo-text-body-sm text-text-secondary">
+                  {SKIP_COPY.skipHelp}
+                </p>
               </>
             ) : null}
             {onPause && !pausedToday ? (

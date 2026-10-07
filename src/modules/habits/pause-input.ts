@@ -85,3 +85,8 @@ export type HabitPauseInput = z.output<typeof habitPauseInputSchema>;
 /** The fields of the pause sheet, in order (focus goes to the first invalid one). */
 export const PAUSE_FIELDS = ["startDate", "endDate", "reason"] as const;
 export type PauseField = (typeof PAUSE_FIELDS)[number];
+
+/** "Saltar hoy": the habit to rest today (today and the reason are the server's). */
+export const skipHabitInputSchema = z.object({ id });
+
+export type SkipHabitInput = z.output<typeof skipHabitInputSchema>;

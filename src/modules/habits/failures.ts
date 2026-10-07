@@ -5,6 +5,7 @@ import { HABIT_ERRORS } from "./habit-input";
 import { MEASURE_ERRORS } from "./measure-copy";
 import { DETAILS_ERRORS } from "./history-copy";
 import { PAUSE_ERRORS } from "./pause-copy";
+import { SKIP_COPY } from "./skip-copy";
 import type { HabitFailure } from "./habits";
 
 /** A refusal: on its field when it has one (the area), else the general message. */
@@ -37,6 +38,7 @@ export function refused<T>(failure: HabitFailure): ActionResult<T> {
     };
   }
   if (failure === "pauseNotFound") return fail(PAUSE_ERRORS.notFound);
+  if (failure === "avoidSkip") return fail(SKIP_COPY.avoidRefused);
   // H5: a new habit's start date, on its field ("Más detalles").
   if (failure === "startDateOutOfWindow") {
     return {

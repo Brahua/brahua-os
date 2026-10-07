@@ -12,13 +12,15 @@ import { monthLinks, monthOf } from "../calendar";
 import { frequencySummary } from "../frequency-input";
 import type { HabitDayLog, HabitItem, HabitPauseSummary } from "../habit-input";
 import { HABITS_COPY } from "../habits-copy";
-import { dayStateText, HISTORY_COPY } from "../history-copy";
+import { dayStateText, formatMonth, HISTORY_COPY } from "../history-copy";
 import { setHabitDone, setHabitQuantity } from "../log-actions";
 import { measureSummary } from "../measure-input";
 import { archiveHabit, unarchiveHabit } from "../organize-actions";
 import { ORGANIZE_COPY } from "../organize-copy";
 import { pauseHabit, removeHabitPause, resumeHabit } from "../pause-actions";
 import { PAUSE_COPY } from "../pause-copy";
+import { SKIP_COPY } from "../skip-copy";
+import { skippedDaysInMonth } from "../skip-day";
 import type { PauseHabitInput } from "../pause-input";
 import { DELETED_PARAM, HABITS_PATH, habitMonthHref } from "../routes";
 import { addDays, isLoggableDay, otherLoggableDays } from "../schedule";
@@ -130,6 +132,7 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
       total: totalDone(habit, shown, today),
     };
   }, [habit, logView, pauseView, month, today]);
+  const skippedDays = skippedDaysInMonth(pauseView, month);
   const avoid = habit.kind === "avoid";
   const byQuantity = !avoid && habit.measure === "quantity";
   const links = monthLinks(month, today, habit.startDate);
@@ -560,6 +563,15 @@ export function HabitDetail({ habit, archived, logs, pauses, month, headingId }:
             name="total"
           />
         </dl>
+        {skippedDays > 0 ? (
+          // A plain fact, no judgment and no alarm color: the days the habit rested this month.
+          <p className="bo-text-body-sm mt-3 text-text-secondary" data-habit-skipped="">
+            {SKIP_COPY.monthCount(
+              skippedDays,
+              month === monthOf(today) ? null : formatMonth(month),
+            )}
+          </p>
+        ) : null}
       </section>
 
       <section aria-labelledby={monthTitleId} className="flex flex-col gap-3">
