@@ -2,6 +2,7 @@
 // client-safe: the list applies a change at once and the server's answer (the page revalidates)
 // replaces it.
 import type { TaskItem } from "./task-input";
+import { compareByDue } from "./task-views";
 
 export type TaskListChange =
   /** Leaves the list (completed, moved out, deleted). */
@@ -9,7 +10,12 @@ export type TaskListChange =
   /** Comes back ("Deshacer") at its old place; replaces it if the list already has it. */
   | { type: "restore"; task: TaskItem; index: number }
   /** Changes in place. */
-  | { type: "update"; id: string; patch: Partial<TaskItem> };
+  | { type: "update"; id: string; patch: Partial<TaskItem> }
+  /**
+   * A new due date ("Mañana", "Otro día…", their "Deshacer"): the row takes its place in the
+   * views' order (`compareByDue`), so a grouped list never shows a day twice.
+   */
+  | { type: "reschedule"; id: string; dueDate: string | null };
 
 export function applyTaskListChange(list: TaskItem[], change: TaskListChange): TaskItem[] {
   switch (change.type) {
@@ -24,6 +30,10 @@ export function applyTaskListChange(list: TaskItem[], change: TaskListChange): T
     }
     case "update":
       return list.map((task) => (task.id === change.id ? { ...task, ...change.patch } : task));
+    case "reschedule":
+      return list
+        .map((task) => (task.id === change.id ? { ...task, dueDate: change.dueDate } : task))
+        .sort(compareByDue);
   }
 }
 

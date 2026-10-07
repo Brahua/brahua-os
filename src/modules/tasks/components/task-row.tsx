@@ -14,13 +14,14 @@ import { doneLabel } from "../task-views";
 import { TASKS_COPY } from "../tasks-copy";
 import { TAGS_COPY } from "../tags-copy";
 import { VIEWS_COPY } from "../views-copy";
+import { PostponeKeys, type RowPostpone } from "./postpone-keys";
 import { TaskRowTags } from "./task-row-tags";
 
 /**
  * Every focusable control of a row carries `data-task-focus="<control>:<id>"`, so focus can be
  * moved to a neighbor when a row leaves (completed, classified, deleted).
  */
-export type TaskFocusControl = "check" | "title" | "classify" | "reopen";
+export type TaskFocusControl = "check" | "title" | "classify" | "reopen" | "postpone" | "pick";
 export const taskFocusSelector = (id: string, control: TaskFocusControl) =>
   `[data-task-focus="${control}:${CSS.escape(id)}"]`;
 
@@ -40,6 +41,8 @@ type TaskRowProps = {
   onReopen?: (task: TaskItem) => void;
   /** Leaves out the area and project (T5: on the project's own page). */
   hidePlacement?: boolean;
+  /** "Mañana" and "Otro día…" under the title (pending tasks of the views that postpone). */
+  postpone?: RowPostpone;
 };
 
 /**
@@ -55,6 +58,7 @@ export function TaskRow({
   onClassify,
   onReopen,
   hidePlacement = false,
+  postpone,
 }: TaskRowProps) {
   const metaId = useId();
   const due = taskDueState(task.dueDate, task.doneAt, now);
@@ -178,6 +182,7 @@ export function TaskRow({
           {VIEWS_COPY.reopen}
         </Key>
       ) : null}
+    {postpone && !done ? <PostponeKeys task={task} {...postpone} /> : null}
     </>
   );
 }

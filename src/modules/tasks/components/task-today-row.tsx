@@ -10,6 +10,7 @@ import { taskPath } from "../routes";
 import { isUrgentDue } from "../task-due";
 import { TASKS_COPY } from "../tasks-copy";
 import type { TaskTodayItem } from "../today-summary";
+import { PostponeKeys, type RowPostpone } from "./postpone-keys";
 import { taskFocusSelector } from "./task-row";
 
 /** A today row's checkbox (the lists' `data-task-focus`): where focus goes when a neighbor leaves. */
@@ -24,6 +25,8 @@ type TaskTodayRowProps = {
    * says so with `aria-disabled`, and a tap does nothing (never `disabled` on a focused control).
    */
   busy?: boolean;
+  /** "Mañana" and "Otro día…" under the title (the board's list passes them). */
+  postpone?: RowPostpone;
 };
 
 /**
@@ -34,7 +37,7 @@ type TaskTodayRowProps = {
  * aria-hidden (its flex items would be read run together); the title is described in words. The
  * `<li>` is the caller's.
  */
-export function TaskTodayRow({ task, onComplete, busy = false }: TaskTodayRowProps) {
+export function TaskTodayRow({ task, onComplete, busy = false, postpone }: TaskTodayRowProps) {
   const metaId = useId();
   const areaLabel = task.area
     ? task.project
@@ -116,6 +119,7 @@ export function TaskTodayRow({ task, onComplete, busy = false }: TaskTodayRowPro
           ) : null}
         </p>
       </div>
+    {postpone ? <PostponeKeys task={task} {...postpone} busy={busy || postpone.busy} /> : null}
     </>
   );
 }

@@ -122,6 +122,7 @@ export function AllView({ tasks, filters, choices, params, headingId }: AllViewP
       tasks={tasks}
       label={VIEWS_COPY.allList}
       belongs={belongs}
+      postpone
       fallbackFocusId={headingId}
       header={(count) => (
         <>
