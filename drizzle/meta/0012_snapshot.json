@@ -74,9 +74,7 @@
         "core_life_areas_slug_unique": {
           "name": "core_life_areas_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -203,12 +201,8 @@
           "name": "auth_accounts_user_id_auth_users_id_fk",
           "tableFrom": "auth_accounts",
           "tableTo": "auth_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -313,12 +307,8 @@
           "name": "auth_passkeys_user_id_auth_users_id_fk",
           "tableFrom": "auth_passkeys",
           "tableTo": "auth_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -328,9 +318,7 @@
         "auth_passkeys_credential_id_unique": {
           "name": "auth_passkeys_credential_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "credential_id"
-          ]
+          "columns": ["credential_id"]
         }
       },
       "policies": {},
@@ -373,9 +361,7 @@
         "auth_rate_limits_key_unique": {
           "name": "auth_rate_limits_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -459,12 +445,8 @@
           "name": "auth_sessions_user_id_auth_users_id_fk",
           "tableFrom": "auth_sessions",
           "tableTo": "auth_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -474,9 +456,7 @@
         "auth_sessions_token_unique": {
           "name": "auth_sessions_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -540,9 +520,7 @@
         "auth_users_email_unique": {
           "name": "auth_users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -830,12 +808,8 @@
           "name": "finance_expenses_category_id_finance_categories_id_fk",
           "tableFrom": "finance_expenses",
           "tableTo": "finance_categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -843,12 +817,8 @@
           "name": "finance_expenses_payment_method_id_finance_payment_methods_id_fk",
           "tableFrom": "finance_expenses",
           "tableTo": "finance_payment_methods",
-          "columnsFrom": [
-            "payment_method_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["payment_method_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -856,12 +826,8 @@
           "name": "finance_expenses_recurring_payment_id_finance_recurring_payments_id_fk",
           "tableFrom": "finance_expenses",
           "tableTo": "finance_recurring_payments",
-          "columnsFrom": [
-            "recurring_payment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recurring_payment_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1110,12 +1076,8 @@
           "name": "finance_recurring_payments_category_id_finance_categories_id_fk",
           "tableFrom": "finance_recurring_payments",
           "tableTo": "finance_categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1123,12 +1085,8 @@
           "name": "finance_recurring_payments_payment_method_id_finance_payment_methods_id_fk",
           "tableFrom": "finance_recurring_payments",
           "tableTo": "finance_payment_methods",
-          "columnsFrom": [
-            "payment_method_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["payment_method_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1205,12 +1163,8 @@
           "name": "finance_settings_last_payment_method_id_finance_payment_methods_id_fk",
           "tableFrom": "finance_settings",
           "tableTo": "finance_payment_methods",
-          "columnsFrom": [
-            "last_payment_method_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["last_payment_method_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1272,12 +1226,8 @@
           "name": "finance_settlements_recurring_payment_id_finance_recurring_payments_id_fk",
           "tableFrom": "finance_settlements",
           "tableTo": "finance_recurring_payments",
-          "columnsFrom": [
-            "recurring_payment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recurring_payment_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1285,12 +1235,8 @@
           "name": "finance_settlements_expense_id_finance_expenses_id_fk",
           "tableFrom": "finance_settlements",
           "tableTo": "finance_expenses",
-          "columnsFrom": [
-            "expense_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["expense_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1298,10 +1244,7 @@
       "compositePrimaryKeys": {
         "finance_settlements_recurring_payment_id_due_on_pk": {
           "name": "finance_settlements_recurring_payment_id_due_on_pk",
-          "columns": [
-            "recurring_payment_id",
-            "due_on"
-          ]
+          "columns": ["recurring_payment_id", "due_on"]
         }
       },
       "uniqueConstraints": {},
@@ -1360,12 +1303,8 @@
           "name": "habit_logs_habit_id_habits_id_fk",
           "tableFrom": "habit_logs",
           "tableTo": "habits",
-          "columnsFrom": [
-            "habit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["habit_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1373,10 +1312,7 @@
       "compositePrimaryKeys": {
         "habit_logs_habit_id_day_pk": {
           "name": "habit_logs_habit_id_day_pk",
-          "columns": [
-            "habit_id",
-            "day"
-          ]
+          "columns": ["habit_id", "day"]
         }
       },
       "uniqueConstraints": {},
@@ -1471,12 +1407,8 @@
           "name": "habit_pauses_habit_id_habits_id_fk",
           "tableFrom": "habit_pauses",
           "tableTo": "habits",
-          "columnsFrom": [
-            "habit_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["habit_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1644,12 +1576,8 @@
           "name": "habits_life_area_id_core_life_areas_id_fk",
           "tableFrom": "habits",
           "tableTo": "core_life_areas",
-          "columnsFrom": [
-            "life_area_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["life_area_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1740,12 +1668,8 @@
           "name": "project_dependencies_project_id_projects_id_fk",
           "tableFrom": "project_dependencies",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1753,12 +1677,8 @@
           "name": "project_dependencies_blocked_by_id_projects_id_fk",
           "tableFrom": "project_dependencies",
           "tableTo": "projects",
-          "columnsFrom": [
-            "blocked_by_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["blocked_by_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1766,10 +1686,7 @@
       "compositePrimaryKeys": {
         "project_dependencies_project_id_blocked_by_id_pk": {
           "name": "project_dependencies_project_id_blocked_by_id_pk",
-          "columns": [
-            "project_id",
-            "blocked_by_id"
-          ]
+          "columns": ["project_id", "blocked_by_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1846,12 +1763,8 @@
           "name": "project_links_project_id_projects_id_fk",
           "tableFrom": "project_links",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1951,12 +1864,8 @@
           "name": "project_milestones_project_id_projects_id_fk",
           "tableFrom": "project_milestones",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2102,12 +2011,8 @@
           "name": "projects_life_area_id_core_life_areas_id_fk",
           "tableFrom": "projects",
           "tableTo": "core_life_areas",
-          "columnsFrom": [
-            "life_area_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["life_area_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2186,12 +2091,8 @@
           "name": "task_tag_links_task_id_tasks_id_fk",
           "tableFrom": "task_tag_links",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2199,12 +2100,8 @@
           "name": "task_tag_links_tag_id_task_tags_id_fk",
           "tableFrom": "task_tag_links",
           "tableTo": "task_tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2212,10 +2109,7 @@
       "compositePrimaryKeys": {
         "task_tag_links_task_id_tag_id_pk": {
           "name": "task_tag_links_task_id_tag_id_pk",
-          "columns": [
-            "task_id",
-            "tag_id"
-          ]
+          "columns": ["task_id", "tag_id"]
         }
       },
       "uniqueConstraints": {},
@@ -2255,9 +2149,7 @@
         "task_tags_name_unique": {
           "name": "task_tags_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         }
       },
       "policies": {},
@@ -2508,12 +2400,8 @@
           "name": "tasks_life_area_id_core_life_areas_id_fk",
           "tableFrom": "tasks",
           "tableTo": "core_life_areas",
-          "columnsFrom": [
-            "life_area_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["life_area_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2521,12 +2409,8 @@
           "name": "tasks_project_id_projects_id_fk",
           "tableFrom": "tasks",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2534,12 +2418,8 @@
           "name": "tasks_milestone_id_project_milestones_id_fk",
           "tableFrom": "tasks",
           "tableTo": "project_milestones",
-          "columnsFrom": [
-            "milestone_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["milestone_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2547,12 +2427,8 @@
           "name": "tasks_spawned_from_id_tasks_id_fk",
           "tableFrom": "tasks",
           "tableTo": "tasks",
-          "columnsFrom": [
-            "spawned_from_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["spawned_from_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
