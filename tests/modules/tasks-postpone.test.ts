@@ -1,7 +1,13 @@
 // polish → postpone-one-tap: the pure rules: tomorrow in Lima's calendar (23:59 and midnight), the
 // refusal of past days, the input schemas, the notice's phrase, and what "Día completo" counts when
 // a row left by postponement.
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+import { ok } from "@/lib/action-result";
+import { restoreTaskDueDate } from "@/modules/tasks/postpone-actions";
+import { LEAVE_FADE_SECONDS, SWIPE_VELOCITY, swipeDecision } from "@/modules/tasks/swipe";
+import { taskPostponement } from "@/modules/tasks/task-postponement";
+import { applyTaskListChange } from "@/modules/tasks/task-list-optimistic";
+import type { TaskItem } from "@/modules/tasks/task-input";
 import { dayPhrase } from "@/modules/tasks/postpone-copy";
 import {
   postponeDay,
@@ -10,6 +16,11 @@ import {
   tomorrowOf,
 } from "@/modules/tasks/task-postpone";
 import { completionsDelta } from "@/modules/today/today-board";
+
+vi.mock("@/modules/tasks/postpone-actions", () => ({
+  postponeTask: vi.fn(),
+  restoreTaskDueDate: vi.fn(),
+}));
 
 const ID = "00000000-0000-4000-8000-000000000001";
 
@@ -110,5 +121,116 @@ describe("completionsDelta (what 'Día completo' counts as completed)", () => {
 
   test("positive control: a completion next to a postponement still counts", () => {
     expect(completionsDelta(["a", "b", "c"], ["c"], new Set(["a"]))).toBe(1);
+  });
+});
+
+// ── The swipe's rules ──
+
+describe("swipeDecision", () => {
+  test("the threshold is 96 px to the left: 95 does not postpone, 96 does", () => {
+    expect(swipeDecision(-95, 0)).toBe(false);
+    expect(swipeDecision(-96, 0)).toBe(true);
+    expect(swipeDecision(-200, 0)).toBe(true);
+  });
+
+  test("a flick postpones from 48 px: 47 does not, 48 does (and only fast enough, to the left)", () => {
+    expect(swipeDecision(-47, -SWIPE_VELOCITY)).toBe(false);
+    expect(swipeDecision(-48, -SWIPE_VELOCITY)).toBe(true);
+    expect(swipeDecision(-48, -(SWIPE_VELOCITY - 1))).toBe(false);
+    expect(swipeDecision(-60, 0)).toBe(false);
+  });
+
+  test("never to the right, however fast", () => {
+    expect(swipeDecision(120, -SWIPE_VELOCITY * 3)).toBe(false);
+    expect(swipeDecision(0, -SWIPE_VELOCITY * 3)).toBe(false);
+    expect(swipeDecision(-60, SWIPE_VELOCITY * 3)).toBe(false);
+  });
+
+  test("the row's fade stays inside the 100 ms budget", () => {
+    expect(LEAVE_FADE_SECONDS).toBeLessThanOrEqual(0.1);
+  });
+});
+
+// ── The optimistic list after a new due date ──
+
+describe("applyTaskListChange: reschedule", () => {
+  const base = { priority: "medium", createdAt: new Date("2026-09-20T12:00:00Z") };
+  const make = (id: string, dueDate: string | null) =>
+    ({ ...base, id, dueDate }) as never as TaskItem;
+
+  test("the row takes its place in the due order, so a day never shows twice", () => {
+    const list = [make("a", "2026-10-03"), make("b", "2026-10-03"), make("c", "2026-10-08")];
+    const after = applyTaskListChange(list, { type: "reschedule", id: "c", dueDate: "2026-10-03" });
+    expect(after.map((task) => [task.id, task.dueDate])).toEqual([
+      ["a", "2026-10-03"],
+      ["b", "2026-10-03"],
+      ["c", "2026-10-03"],
+    ]);
+    const back = applyTaskListChange(after, { type: "reschedule", id: "a", dueDate: "2026-10-09" });
+    expect(back.map((task) => task.id)).toEqual(["b", "c", "a"]);
+  });
+
+  test("without a date it goes last", () => {
+    const list = [make("a", "2026-10-03"), make("b", "2026-10-04")];
+    expect(
+      applyTaskListChange(list, { type: "reschedule", id: "a", dueDate: null }).map((t) => t.id),
+    ).toEqual(["b", "a"]);
+  });
+});
+
+// ── Undoing twice ──
+
+describe("taskPostponement.undo", () => {
+  test("undoing twice announces both times and never fails", async () => {
+    vi.mocked(restoreTaskDueDate)
+      .mockResolvedValueOnce(ok({ id: ID, dueDate: "2026-10-02", restored: true }))
+      .mockResolvedValueOnce(ok({ id: ID, dueDate: "2026-10-02", restored: false }));
+    const announce = vi.fn();
+    const push = vi.fn();
+    const postponement = taskPostponement({
+      enqueue: async (_key, call) => ({ kind: "done", value: await call(), superseded: false }),
+      toaster: { push } as never,
+      announce,
+    });
+    const moved = {
+      id: ID,
+      title: "Pagar",
+      dueDate: "2026-10-03",
+      previousDueDate: "2026-10-02",
+      changed: true,
+    };
+    expect(await postponement.undo({ id: ID, title: "Pagar" }, moved)).toBe("saved");
+    expect(await postponement.undo({ id: ID, title: "Pagar" }, moved)).toBe("saved");
+    expect(announce).toHaveBeenCalledTimes(2);
+    expect(announce).toHaveBeenLastCalledWith("«Pagar» volvió a su día.");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  test("a day edited meanwhile is a failure that says so (and is not announced as undone)", async () => {
+    vi.mocked(restoreTaskDueDate).mockResolvedValueOnce(
+      ok({ id: ID, dueDate: "2026-10-09", restored: false }),
+    );
+    const announce = vi.fn();
+    const push = vi.fn();
+    const postponement = taskPostponement({
+      enqueue: async (_key, call) => ({ kind: "done", value: await call(), superseded: false }),
+      toaster: { push } as never,
+      announce,
+    });
+    const outcome = await postponement.undo(
+      { id: ID, title: "Pagar" },
+      {
+        id: ID,
+        title: "Pagar",
+        dueDate: "2026-10-03",
+        previousDueDate: "2026-10-02",
+        changed: true,
+      },
+    );
+    expect(outcome).toBe("failed");
+    expect(announce).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Sin guardar", tone: "error" }),
+    );
   });
 });

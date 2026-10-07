@@ -196,3 +196,41 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 }
+
+test("postponing the last pending task with a habit done shows Día completo without counting the task; with no activity it does not (decision to review with the owner)", async ({
+  page,
+}, testInfo) => {
+  // No activity at all: a postponed task is not something done.
+  const alone = unique("Sin actividad", testInfo);
+  await insertTodayTask({ title: alone, due: 0 });
+  await openToday(page);
+  await untilSaved(page, () =>
+    page
+      .getByRole("region", { name: "Tareas" })
+      .getByRole("button", { name: `Pasar a mañana: ${alone}` })
+      .click(),
+  );
+  await expect(page.getByRole("region", { name: "Tareas" })).toHaveCount(0);
+  await afterSaveSettled(page);
+  await expect(complete(page)).toHaveCount(0);
+
+  // Positive control: with a habit done, the same move closes the day, and only the habit is
+  // "logrado". Deshacer reopens it.
+  await insertHabit({ name: "Leer", done: true, sortOrder: 0 });
+  const title = unique("Enviar informe", testInfo);
+  await insertTodayTask({ title, due: 0 });
+  await openToday(page);
+  await expect(complete(page)).toHaveCount(0);
+  await untilSaved(page, () =>
+    page
+      .getByRole("region", { name: "Tareas" })
+      .getByRole("button", { name: `Pasar a mañana: ${title}` })
+      .click(),
+  );
+  await expect(complete(page)).toBeVisible();
+  await expect(achieved(page)).toHaveText("Logrado hoy: 1 hábito");
+
+  await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
+  await expect(complete(page)).toHaveCount(0);
+  await expect(check(page, title)).toBeVisible();
+});

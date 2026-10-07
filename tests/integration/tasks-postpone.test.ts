@@ -5,7 +5,7 @@
 // the owner, the visibility and the input.
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { ownerDateKey } from "@/lib/time";
@@ -324,5 +324,66 @@ describe("authorization", () => {
       expect(await call()).toEqual({ ok: false, error: UNAUTHORIZED_MESSAGE });
     }
     expect(await row(task.id)).toEqual(before);
+  });
+});
+
+describe("restoreTaskDueDate on a task that is no longer pending", () => {
+  test("a task completed meanwhile keeps its day (restored: false); a pending one is restored (positive control)", async () => {
+    const pending = await capture({ title: "pendiente", dueDate: day(0) });
+    const done = await capture({ title: "hecha", dueDate: day(0) });
+    const movedPending = await postpone(pending.id, "tomorrow");
+    const movedDone = await postpone(done.id, "tomorrow");
+    expect((await completeTask({ id: done.id })).ok).toBe(true);
+
+    expect(
+      await restoreTaskDueDate({
+        id: pending.id,
+        dueDate: movedPending.previousDueDate,
+        expected: movedPending.dueDate,
+      }),
+    ).toEqual({ ok: true, data: { id: pending.id, dueDate: day(0), restored: true } });
+    expect(
+      await restoreTaskDueDate({
+        id: done.id,
+        dueDate: movedDone.previousDueDate,
+        expected: movedDone.dueDate,
+      }),
+    ).toEqual({ ok: true, data: { id: done.id, dueDate: day(1), restored: false } });
+    expect((await row(done.id)).dueDate).toBe(day(1));
+  });
+});
+
+describe("Lima's midnight (the server's clock)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("at 23:59 in Lima 'tomorrow' is the next Lima day, and 'today' is still accepted", async () => {
+    const task = await capture({ title: "tarde", dueDate: "2026-10-02" });
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-03T04:59:00.000Z") });
+    expect(await postponeTask({ id: task.id, to: "tomorrow" })).toMatchObject({
+      ok: true,
+      data: { dueDate: "2026-10-03", previousDueDate: "2026-10-02", changed: true },
+    });
+    expect(await postponeTask({ id: task.id, to: "2026-10-02" })).toMatchObject({
+      ok: true,
+      data: { dueDate: "2026-10-02", changed: true },
+    });
+    expect((await row(task.id)).dueDate).toBe("2026-10-02");
+  });
+
+  test("right after Lima's midnight 'tomorrow' moves a day on and yesterday is refused", async () => {
+    const task = await capture({ title: "medianoche", dueDate: "2026-10-02" });
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-03T05:00:00.000Z") });
+    expect(await postponeTask({ id: task.id, to: "2026-10-02" })).toMatchObject({
+      ok: false,
+      error: POSTPONE_ERRORS.pastDay,
+    });
+    expect((await row(task.id)).dueDate).toBe("2026-10-02");
+    expect(await postponeTask({ id: task.id, to: "tomorrow" })).toMatchObject({
+      ok: true,
+      data: { dueDate: "2026-10-04" },
+    });
+    expect((await row(task.id)).dueDate).toBe("2026-10-04");
   });
 });

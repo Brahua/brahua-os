@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, TestInfo } from "@playwright/test";
+import type { Locator, Page, TestInfo } from "@playwright/test";
 import { formatDateKey } from "@/lib/time";
 import { fontsLoaded } from "./support/fonts";
 import { expect } from "./support/habits";
@@ -59,6 +59,19 @@ async function insertInOrder(prefix: string, n: number, testInfo: TestInfo) {
     made.push({ id: await insertTodayTask({ title, due: 0, createdMinute: index }), title });
   }
   return made;
+}
+
+/** The dragged row has gone back to its place (it springs back when released short). */
+async function springBack(page: Page, id: string) {
+  await expect
+    .poll(() =>
+      rowOf(page, id).evaluate((row) => {
+        const content = row.lastElementChild as HTMLElement;
+        const transform = getComputedStyle(content).transform;
+        return transform === "none" || transform === "matrix(1, 0, 0, 1, 0, 0)";
+      }),
+    )
+    .toBe(true);
 }
 
 /**
@@ -173,8 +186,8 @@ test("Otro día…: a sheet with a date; the row leaves and the notice says whic
     notices(page).getByText(`«${first.title}» pasa al ${formatDateKey(limaDay(6), "short")}.`),
   ).toBeVisible();
   expect((await readTask(first.id)).dueDate).toBe(limaDay(6));
-  // Focus is on the board (the next row's key), not lost on <body>.
-  await expect(page.locator("body")).not.toBeFocused();
+  // Focus is on the same key of the next row, not lost on <body>.
+  await expect(pickKey(page, second.title)).toBeFocused();
 
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
   await expect(titles(page)).toHaveText([first.title, second.title]);
@@ -192,7 +205,7 @@ test("the keys are 44 px or more and secondary; the checkbox stays the row's pri
     expect(box.width).toBeGreaterThanOrEqual(44);
     // Icon and text.
     await expect(key.locator("svg")).toHaveCount(1);
-    await expect(key).not.toHaveClass(/bo-key--signal/);
+    await expect(key).toHaveClass(/bo-key--ghost/);
   }
   await expect(tomorrowKey(page, first.title)).toHaveText("Mañana");
   await expect(pickKey(page, first.title)).toHaveText("Otro día…");
@@ -215,6 +228,7 @@ test("at 390 px a swipe to the left does what Mañana does; a short drag and a v
   await page.mouse.down();
   await page.mouse.move(startX - 30, y, { steps: 6 });
   await page.mouse.up();
+  await springBack(page, first.id);
   await expect(rowOf(page, first.id)).toBeVisible();
   expect((await readTask(first.id)).dueDate).toBe(limaDay(0));
 
@@ -223,23 +237,55 @@ test("at 390 px a swipe to the left does what Mañana does; a short drag and a v
   await page.mouse.down();
   await page.mouse.move(startX - 50, y + 90, { steps: 8 });
   await page.mouse.up();
+  await springBack(page, first.id);
   await expect(rowOf(page, first.id)).toBeVisible();
   expect((await readTask(first.id)).dueDate).toBe(limaDay(0));
 
-  // Far enough: Mañana.
+  // A short drag that is released over "Otro día…": no click on it, no dialog, nothing saved.
+  await page.mouse.move(startX, y);
+  await page.mouse.down();
+  await page.mouse.move(startX - 46, y, { steps: 6 });
+  await page.mouse.up();
+  await springBack(page, first.id);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(rowOf(page, first.id)).toBeVisible();
+  expect((await readTask(first.id)).dueDate).toBe(limaDay(0));
+
+  // Far enough, and released over the same key: Mañana, and still no click on the key.
   await untilSaved(page, async () => {
     await page.mouse.move(startX, y);
     await page.mouse.down();
-    await page.mouse.move(startX - 220, y, { steps: 10 });
+    await page.mouse.move(other.x + 20, y, { steps: 10 });
     await page.mouse.up();
   });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(rowOf(page, first.id)).toHaveCount(0);
   await expect(titles(page)).toHaveText([second.title]);
   expect((await readTask(first.id)).dueDate).toBe(limaDay(1));
   await expect(notices(page).getByText(`«${first.title}» pasa a mañana.`)).toBeVisible();
 });
 
-test("at 320 px the rows with their keys don't scroll sideways", async ({ page }, testInfo) => {
+/** Every key of the row fits inside the row and the screen, and the row doesn't clip anything. */
+async function expectKeysFit(page: Page, row: Locator, width: number) {
+  const rowBox = (await row.boundingBox())!;
+  expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(width);
+  const sizes = await row.evaluate((node) => ({
+    scrollWidth: node.scrollWidth,
+    clientWidth: node.clientWidth,
+  }));
+  expect(sizes.scrollWidth).toBeLessThanOrEqual(sizes.clientWidth);
+  for (const key of await row.getByRole("button").all()) {
+    const box = (await key.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(rowBox.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+}
+
+test("at 320 px the rows with their keys fit and don't scroll sideways", async ({
+  page,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await insertTodayTask({
     title: "Una tarea con un título realmente largo que tiene que partirse en varias líneas",
@@ -251,10 +297,56 @@ test("at 320 px the rows with their keys don't scroll sideways", async ({ page }
   await openToday(page);
   await expect(list(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  for (const item of await list(page).getByRole("listitem").all()) {
-    const rowBox = (await item.boundingBox())!;
-    expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(320);
-  }
+  const rows = await list(page).getByRole("listitem").all();
+  expect(rows).toHaveLength(2);
+  for (const item of rows) await expectKeysFit(page, item, 320);
+});
+
+tasksTest("at 320 px the keys fit in Tareas > Hoy too @today-tasks", async ({ page }, testInfo) => {
+  test.skip(isDesktop(testInfo), "Phone widths only");
+  const title = unique("Una tarea con un título largo para la vista", testInfo);
+  await insertViewTask({ title, due: 0 });
+  await page.setViewportSize({ width: 320, height: 640 });
+  await openReady(page, "/tasks?vista=hoy");
+  await expect(viewRow(page, title)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await expectKeysFit(page, viewRow(page, title), 320);
+});
+
+test("a double tap on Mañana saves once and says it once", async ({ page }, testInfo) => {
+  const [first, second] = await insertInOrder("Doble", 2, testInfo);
+  await openToday(page);
+  let posts = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.headers()["next-action"] !== undefined) posts += 1;
+  });
+
+  await untilSaved(page, () => tomorrowKey(page, first.title).dblclick());
+  await expect(titles(page)).toHaveText([second.title]);
+  await afterSaveSettled(page);
+  expect(posts).toBe(1);
+  await expect(notices(page).getByText(`«${first.title}» pasa a mañana.`)).toHaveCount(1);
+  expect((await readTask(first.id)).dueDate).toBe(limaDay(1));
+});
+
+test("with 5 tasks, postponing the 2nd raises the 4th and Deshacer restores the order", async ({
+  page,
+}, testInfo) => {
+  const tasks = await insertInOrder("Cinco", 5, testInfo);
+  const names = (indexes: number[]) => indexes.map((index) => tasks[index].title);
+  await openToday(page);
+  await expect(titles(page)).toHaveText(names([0, 1, 2]));
+  await expect(section(page).getByRole("button", { name: "Ver 2 más" })).toBeVisible();
+
+  await untilSaved(page, () => tomorrowKey(page, tasks[1].title).click());
+  await expect(titles(page)).toHaveText(names([0, 2, 3]));
+  await expect(section(page).getByRole("button", { name: "Ver 1 más" })).toBeVisible();
+  await expect(tomorrowKey(page, tasks[2].title)).toBeFocused();
+
+  await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
+  await expect(titles(page)).toHaveText(names([0, 1, 2]));
+  await expect(section(page).getByRole("button", { name: "Ver 2 más" })).toBeVisible();
+  await expect.poll(async () => (await readTask(tasks[1].id)).dueDate).toBe(limaDay(0));
 });
 
 /** The section's tasks for axe and the screenshot: fixed titles (the board shows only these). */

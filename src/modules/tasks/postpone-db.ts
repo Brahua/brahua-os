@@ -46,7 +46,7 @@ export async function postponeTaskById(
 }
 
 /**
- * "Deshacer" of a postponement: puts `dueDate` back, only while the task still has `expected` (the
+ * "Deshacer" of a postponement: puts `dueDate` back, only while the task is still pending and has `expected` (the
  * day the postponement set); a newer edit is never overwritten (`restored: false`, with the day it
  * has). Undoing twice is not an error. Null when the task doesn't exist or is deleted.
  */
@@ -58,12 +58,15 @@ export async function restoreDueDateById(
 ): Promise<RestoredDueDate | null> {
   return db.transaction(async (tx) => {
     const [current] = await tx
-      .select({ dueDate: tasks.dueDate })
+      .select({ dueDate: tasks.dueDate, doneAt: tasks.doneAt })
       .from(tasks)
       .where(and(eq(tasks.id, id), visibleTask))
       .for("update");
     if (!current) return null;
-    if (current.dueDate !== expected) return { id, dueDate: current.dueDate, restored: false };
+    // A task completed meanwhile is not put back on a day (it is no longer pending), nor a newer edit.
+    if (current.doneAt !== null || current.dueDate !== expected) {
+      return { id, dueDate: current.dueDate, restored: false };
+    }
     await tx.update(tasks).set({ dueDate }).where(eq(tasks.id, id));
     return { id, dueDate, restored: true };
   });

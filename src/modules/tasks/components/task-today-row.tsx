@@ -10,7 +10,7 @@ import { taskPath } from "../routes";
 import { isUrgentDue } from "../task-due";
 import { TASKS_COPY } from "../tasks-copy";
 import type { TaskTodayItem } from "../today-summary";
-import { PostponeKeys, type RowPostpone } from "./postpone-row";
+import { PostponeKeys, type RowPostpone } from "./postpone-keys";
 import { taskFocusSelector } from "./task-row";
 
 /** A today row's checkbox (the lists' `data-task-focus`): where focus goes when a neighbor leaves. */

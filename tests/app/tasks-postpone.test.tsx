@@ -6,8 +6,10 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MotionGlobalConfig } from "motion/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
-import { TodayView } from "@/app/(app)/tasks/_components/date-views";
+import { TodayView, UpcomingView } from "@/app/(app)/tasks/_components/date-views";
+import { AllView } from "@/app/(app)/tasks/_components/all-view";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { LEAVE_FADE_SECONDS } from "@/modules/tasks/swipe";
 import { ownerDateKey } from "@/lib/time";
 import { postponeTask, restoreTaskDueDate } from "@/modules/tasks/postpone-actions";
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
@@ -22,12 +24,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }));
-// motion reads the preference once for the whole page; the test needs both answers.
 let reduced = false;
-vi.mock("motion/react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("motion/react")>()),
-  useReducedMotion: () => reduced,
-}));
 vi.mock("@/modules/tasks/postpone-actions", () => ({
   postponeTask: vi.fn(),
   restoreTaskDueDate: vi.fn(),
@@ -150,7 +147,7 @@ describe("'/' (today's Tareas)", () => {
     expect(key).toHaveTextContent("Mañana");
     expect(key.querySelector("svg")).not.toBeNull();
     // Secondary: completing stays the row's one primary action (never the signal key).
-    expect(key.className).not.toMatch(/signal/);
+    expect(key).toHaveClass("bo-key--ghost");
     expect(pickKey("Enviar informe")).toHaveTextContent("Otro día…");
   });
 
@@ -385,5 +382,185 @@ describe("/tasks (Hoy)", () => {
       </TasksScreen>,
     );
     expect(screen.queryByRole("button", { name: /^Pasar a mañana/ })).toBeNull();
+  });
+});
+
+// ── Próximas and Todas: the row stays (it only changes day) ──
+
+const TOMORROW_B = "2026-10-03";
+const THURSDAY = "2026-10-08";
+
+function TasksUpcoming({ tasks }: { tasks: TaskItem[] }) {
+  return (
+    <TasksScreen now={NOW} targets={TARGETS}>
+      <h2 id="heading" tabIndex={-1}>
+        Próximas
+      </h2>
+      <UpcomingView tasks={tasks} headingId="heading" />
+    </TasksScreen>
+  );
+}
+
+const groupHeadings = () =>
+  screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
+const everyLink = () => screen.getAllByRole("link").map((link) => link.textContent);
+
+describe("/tasks (Próximas)", () => {
+  test("the row stays and changes group; Deshacer puts it back; the key is never unmounted under focus", async () => {
+    const user = userEvent.setup();
+    const a = listTask({ dueDate: TOMORROW_B });
+    const b = listTask({ dueDate: TOMORROW_B });
+    const c = listTask({ dueDate: THURSDAY });
+    render(<TasksUpcoming tasks={[a, b, c]} />);
+    expect(groupHeadings()).toEqual(["Mañana", "Jueves 8 de octubre"]);
+
+    // A task due tomorrow does not offer a "Mañana" that would do something.
+    expect(tomorrowKey(a.title)).toHaveAttribute("aria-disabled", "true");
+    expect(tomorrowKey(a.title)).not.toBeDisabled();
+    await user.click(tomorrowKey(a.title));
+    expect(postponeTask).not.toHaveBeenCalled();
+    expect(everyLink()).toEqual([a.title, b.title, c.title]);
+
+    // A task due Thursday goes to tomorrow: it changes group and joins the tomorrow ones.
+    await user.click(pickKey(c.title));
+    const sheet = await screen.findByRole("dialog", { name: "Otro día" });
+    await user.clear(within(sheet).getByLabelText("Día"));
+    await user.type(within(sheet).getByLabelText("Día"), TOMORROW_B);
+    await user.click(within(sheet).getByRole("button", { name: "Mover" }));
+    await waitFor(() => expect(groupHeadings()).toEqual(["Mañana"]));
+    expect(everyLink()).toEqual([a.title, b.title, c.title]);
+    expect(postponeTask).toHaveBeenCalledExactlyOnceWith({ id: c.id, to: TOMORROW_B });
+    await answer(moved(c, { dueDate: TOMORROW_B, previousDueDate: THURSDAY }));
+
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(groupHeadings()).toEqual(["Mañana", "Jueves 8 de octubre"]);
+    expect(restoreTaskDueDate).toHaveBeenCalledExactlyOnceWith({
+      id: c.id,
+      dueDate: THURSDAY,
+      expected: TOMORROW_B,
+    });
+    await answer(restored(c, THURSDAY));
+  });
+
+  test("'Mañana' on a task of a later day: it joins tomorrow's group, its key turns aria-disabled and keeps focus", async () => {
+    const user = userEvent.setup();
+    const a = listTask({ dueDate: TOMORROW_B });
+    const c = listTask({ dueDate: THURSDAY });
+    render(<TasksUpcoming tasks={[a, c]} />);
+
+    await user.click(tomorrowKey(c.title));
+    await waitFor(() => expect(groupHeadings()).toEqual(["Mañana"]));
+    // The focused key stayed in the document (never <body>), now doing nothing.
+    expect(tomorrowKey(c.title)).toHaveFocus();
+    expect(tomorrowKey(c.title)).toHaveAttribute("aria-disabled", "true");
+    expect(document.body).not.toHaveFocus();
+    expect(postponeTask).toHaveBeenCalledExactlyOnceWith({ id: c.id, to: "tomorrow" });
+    await answer(moved(c, { previousDueDate: THURSDAY }));
+  });
+
+  test("'Otro día…' with the day it already has changes nothing and never calls the server", async () => {
+    const user = userEvent.setup();
+    const a = listTask({ dueDate: TOMORROW_B });
+    render(<TasksUpcoming tasks={[a, listTask({ dueDate: THURSDAY })]} />);
+    await user.click(pickKey(a.title));
+    const sheet = await screen.findByRole("dialog", { name: "Otro día" });
+    await user.clear(within(sheet).getByLabelText("Día"));
+    await user.type(within(sheet).getByLabelText("Día"), TOMORROW_B);
+    await user.click(within(sheet).getByRole("button", { name: "Mover" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(postponeTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("/tasks (Todas)", () => {
+  const FILTERS = { areaId: null, projectId: null, tagId: null } as never;
+  const CHOICES = { areas: [], projects: [], tags: [] } as never;
+  const PARAMS = {} as never;
+
+  test("the row stays in place with its new day; Deshacer puts the old day back", async () => {
+    const user = userEvent.setup();
+    const a = listTask({ dueDate: TODAY });
+    const b = listTask({ dueDate: THURSDAY });
+    render(
+      <TasksScreen now={NOW} targets={TARGETS}>
+        <AllView
+          tasks={[a, b]}
+          filters={FILTERS}
+          choices={CHOICES}
+          params={PARAMS}
+          headingId="heading"
+        />
+      </TasksScreen>,
+    );
+    const dueOf = (title: string) =>
+      screen.getByRole("link", { name: title }).closest("li")!.querySelector("[data-task-due]")!
+        .textContent;
+    expect(dueOf(a.title)).toBe("Vence hoy");
+
+    await user.click(tomorrowKey(a.title));
+    await waitFor(() => expect(dueOf(a.title)).toBe("Vence mañana"));
+    expect(everyLink()).toEqual([a.title, b.title]);
+    await answer(moved(a));
+
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(dueOf(a.title)).toBe("Vence hoy"));
+    await answer(restored(a));
+  });
+});
+
+// ── Double tap, timing, focus after the row leaves ──
+
+describe("timing and double tap (real animation)", () => {
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+  });
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+  });
+
+  test("the row leaves after its short fade (not at once, not late), and a second tap in that window calls once", async () => {
+    const user = userEvent.setup();
+    const [a, b] = [todayItem(), todayItem()];
+    render(<Board tasks={[a, b]} />);
+    // The swipe's features are fetched on the first row; let them arrive.
+    await act(async () => {
+      await import("@/modules/tasks/components/motion-features");
+    });
+
+    const started = performance.now();
+    const key = tomorrowKey(a.title);
+    await user.click(key);
+    // The key is still there while the row fades; a second tap during the fade is ignored.
+    await user.click(key);
+    await waitFor(() => expect(titles()).toEqual([b.title]), { timeout: 1000 });
+    const elapsed = performance.now() - started;
+    expect(elapsed).toBeGreaterThanOrEqual(LEAVE_FADE_SECONDS * 1000 * 0.5);
+    expect(elapsed).toBeLessThan(400);
+    expect(postponeTask).toHaveBeenCalledTimes(1);
+    await answer(moved(a));
+  });
+});
+
+describe("five rows, the fold and the order", () => {
+  test("postponing the 2nd of 5 raises the 4th into view, focus goes to the next row's key, and Deshacer restores the order", async () => {
+    const user = userEvent.setup();
+    const tasks = [todayItem(), todayItem(), todayItem(), todayItem(), todayItem()];
+    const view = render(<Board tasks={tasks} />);
+    expect(titles()).toEqual(tasks.slice(0, 3).map((item) => item.title));
+    expect(screen.getByRole("button", { name: "Ver 2 más" })).toBeInTheDocument();
+
+    await user.click(tomorrowKey(tasks[1].title));
+    await waitFor(() =>
+      expect(titles()).toEqual([tasks[0], tasks[2], tasks[3]].map((item) => item.title)),
+    );
+    expect(tomorrowKey(tasks[2].title)).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Ver 1 más" })).toBeInTheDocument();
+    await answer(moved(tasks[1]));
+    view.rerender(<Board tasks={[tasks[0], tasks[2], tasks[3], tasks[4]]} />);
+
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    expect(titles()).toEqual(tasks.slice(0, 3).map((item) => item.title));
+    expect(screen.getByRole("button", { name: "Ver 2 más" })).toBeInTheDocument();
+    await answer(restored(tasks[1]));
   });
 });

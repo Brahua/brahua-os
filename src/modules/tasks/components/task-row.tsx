@@ -14,7 +14,7 @@ import { doneLabel } from "../task-views";
 import { TASKS_COPY } from "../tasks-copy";
 import { TAGS_COPY } from "../tags-copy";
 import { VIEWS_COPY } from "../views-copy";
-import { PostponeKeys, type RowPostpone } from "./postpone-row";
+import { PostponeKeys, type RowPostpone } from "./postpone-keys";
 import { TaskRowTags } from "./task-row-tags";
 
 /**

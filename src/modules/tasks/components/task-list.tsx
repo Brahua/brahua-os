@@ -29,7 +29,8 @@ import { settled } from "../task-failure";
 import { postponeDay, tomorrowOf, type PostponedTask, type PostponeTarget } from "../task-postpone";
 import { taskPostponement } from "../task-postponement";
 import { limaToday } from "../task-views";
-import { SwipeRow } from "./postpone-row";
+import { SwipeRow } from "./swipe-row";
+import { useSwipeEnabled } from "./use-swipe-enabled";
 import { TaskRow, taskFocusSelector, type TaskFocusControl } from "./task-row";
 import { failureReason, useTasksScreen } from "./tasks-screen";
 import { usePostponePicker } from "./use-postpone-picker";
@@ -120,6 +121,7 @@ export function TaskList({
     () => taskCompletion({ enqueue, toaster, announce }),
     [enqueue, toaster, announce],
   );
+  const swipe = useSwipeEnabled();
   const postponement = useMemo(
     () => taskPostponement({ enqueue, toaster, announce }),
     [enqueue, toaster, announce],
@@ -281,26 +283,47 @@ export function TaskList({
    * had (`previousDueDate`), and the row where it was.
    */
   function postponeRow(task: TaskItem, to: PostponeTarget, control: TaskFocusControl) {
-    const day = postponeDay(to, new Date());
+    const day = postponeDay(to, now);
     if (day === null || day === task.dueDate) return;
     const index = view.findIndex((item) => item.id === task.id);
     const moved: TaskItem = { ...task, dueDate: day };
     const leaves = !belongs(moved);
     if (leaves) focusAfterLeaving(task.id, control);
+    else keepFocusOn(task.id, control);
     startSaving(async () => {
-      apply(leaves ? { type: "remove", id: task.id } : { type: "update", id: task.id, patch: { dueDate: day } });
+      apply(
+        leaves
+          ? { type: "remove", id: task.id }
+          : { type: "reschedule", id: task.id, dueDate: day },
+      );
       await postponement.postpone(task, to, (result) => undoPostpone(task, index, result, leaves));
     });
+  }
+
+  /**
+   * The row stays but may change group ("Próximas" draws each day in its own list), which
+   * remounts it: its control gets focus back after the commit (the sheet's "Otro día…" does it
+   * when it closes).
+   */
+  function keepFocusOn(id: string, control: TaskFocusControl) {
+    const selector = taskFocusSelector(id, control);
+    if (control === "pick") {
+      sheetFocus.current = selector;
+      return;
+    }
+    const active = document.activeElement;
+    if (active?.closest(`[data-task-row="${CSS.escape(id)}"]`)) pendingFocus.current = [selector];
   }
 
   function undoPostpone(task: TaskItem, index: number, result: PostponedTask, left: boolean) {
     startSaving(async () => {
       if (left) apply({ type: "restore", task, index });
-      else apply({ type: "update", id: task.id, patch: { dueDate: result.previousDueDate } });
+      else apply({ type: "reschedule", id: task.id, dueDate: result.previousDueDate });
       await postponement.undo(task, result);
     });
   }
 
+  const sheetFocus = useRef<string | null>(null);
   const picker = usePostponePicker({
     onSave: (picked, day) => {
       const task = view.find((item) => item.id === picked.id);
@@ -309,7 +332,13 @@ export function TaskList({
       if (!belongs({ ...task, dueDate: day })) picker.returnFocus.current = neighborElement(task.id);
       postponeRow(task, day, "pick");
     },
-    onClosed: afterSheetClosed,
+    onClosed: () => {
+      const selector = sheetFocus.current;
+      sheetFocus.current = null;
+      const element = selector ? document.querySelector<HTMLElement>(selector) : null;
+      if (element) element.focus();
+      else afterSheetClosed();
+    },
   });
 
   function postponeProps(task: TaskItem) {
@@ -317,10 +346,9 @@ export function TaskList({
     return {
       onTomorrow: () => postponeRow(task, "tomorrow", "postpone"),
       onPick: (picked: { id: string; title: string }, trigger: HTMLElement) => {
-        const today = limaToday(new Date());
-        picker.openFor(picked, trigger, { minDay: today, initialDay: tomorrowOf(new Date()) });
+        picker.openFor(picked, trigger, { minDay: limaToday(now), initialDay: tomorrowOf(now) });
       },
-      hideTomorrow: task.dueDate === tomorrowOf(new Date()),
+      tomorrowDisabled: task.dueDate === tomorrowOf(now),
     };
   }
 
@@ -481,7 +509,7 @@ export function TaskList({
         <SwipeRow
           key={task.id}
           taskId={task.id}
-          swipe
+          swipe={swipe && !postponeKeys.tomorrowDisabled}
           onSwipe={() => postponeRow(task, "tomorrow", "postpone")}
         >
           {row}

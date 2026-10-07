@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { keyClasses } from "@/design-system";
 import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
-import { SwipeRow } from "@/modules/tasks/components/postpone-row";
+import { SwipeRow } from "@/modules/tasks/components/swipe-row";
+import { useSwipeEnabled } from "@/modules/tasks/components/use-swipe-enabled";
 import { taskFocusSelector, type TaskFocusControl } from "@/modules/tasks/components/task-row";
 import { TaskTodayRow, taskTodayCheckSelector } from "@/modules/tasks/components/task-today-row";
 import { usePostponePicker } from "@/modules/tasks/components/use-postpone-picker";
@@ -47,6 +48,7 @@ export function TodayTasks({ tasks }: TodayTasksProps) {
   const services = useRequiredScreenServices();
   const { isCurrentDay } = services;
   const completion = useMemo(() => taskCompletion(services), [services]);
+  const swipe = useSwipeEnabled();
   const postponement = useMemo(() => taskPostponement(services), [services]);
   const [view, apply] = useOptimistic(
     tasks,
@@ -208,7 +210,7 @@ export function TodayTasks({ tasks }: TodayTasksProps) {
           <SwipeRow
             key={task.id}
             taskId={task.id}
-            swipe
+            swipe={swipe}
             onSwipe={() => postpone(task, "tomorrow", "postpone")}
           >
             <TaskTodayRow
