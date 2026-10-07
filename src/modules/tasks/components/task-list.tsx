@@ -26,8 +26,13 @@ import {
 } from "../recurrence-actions";
 import { taskCompletion } from "../task-completion";
 import { settled } from "../task-failure";
+import { postponeDay, tomorrowOf, type PostponedTask, type PostponeTarget } from "../task-postpone";
+import { taskPostponement } from "../task-postponement";
+import { limaToday } from "../task-views";
+import { SwipeRow } from "./postpone-row";
 import { TaskRow, taskFocusSelector, type TaskFocusControl } from "./task-row";
 import { failureReason, useTasksScreen } from "./tasks-screen";
+import { usePostponePicker } from "./use-postpone-picker";
 
 // The sheets' code loads on their first opening.
 const loadClassify = () => import("./classify-sheet");
@@ -59,6 +64,12 @@ type TaskListProps = {
   groupOf?: (task: TaskItem) => TaskGroup;
   /** Every row gets a visible "Deshacer" that reopens it ("Hechas"). */
   reopenable?: boolean;
+  /**
+   * Pending rows get "Mañana" and "Otro día…" (and, on a touch screen, the swipe to the left that
+   * does "Mañana"): the due date moves, the row leaves if it no longer belongs, and the notice
+   * offers "Deshacer". The date views and "Todas" turn it on.
+   */
+  postpone?: boolean;
   /**
    * T5 (a project's "Tareas"): rows leave out the area and project (the page is the project's),
    * get an extra control after the row (`rowAction`, the next-action mark), and "Deshacer" of a
@@ -93,6 +104,7 @@ export function TaskList({
   header,
   groupOf,
   reopenable = false,
+  postpone = false,
   hidePlacement = false,
   rowAction,
   undoCompletion,
@@ -108,15 +120,22 @@ export function TaskList({
     () => taskCompletion({ enqueue, toaster, announce }),
     [enqueue, toaster, announce],
   );
+  const postponement = useMemo(
+    () => taskPostponement({ enqueue, toaster, announce }),
+    [enqueue, toaster, announce],
+  );
 
   // ── Focus when a row leaves ──
-  const pendingFocus = useRef<string | null>(null);
+  // Selectors in order of preference (a control of the neighbor, its checkbox, the heading).
+  const pendingFocus = useRef<string[] | null>(null);
   useEffect(() => {
-    const selector = pendingFocus.current;
-    if (!selector) return;
+    const selectors = pendingFocus.current;
+    if (!selectors) return;
     pendingFocus.current = null;
     const element =
-      document.querySelector<HTMLElement>(selector) ?? document.getElementById(fallbackFocusId);
+      selectors
+        .map((selector) => document.querySelector<HTMLElement>(selector))
+        .find((found) => found !== null) ?? document.getElementById(fallbackFocusId);
     element?.focus();
   });
 
@@ -140,8 +159,8 @@ export function TaskList({
     if (!inRow && active && active !== document.body) return;
     const neighbor = neighborOf(view, id);
     pendingFocus.current = neighbor
-      ? taskFocusSelector(neighbor.id, control)
-      : `#${CSS.escape(fallbackFocusId)}`;
+      ? [taskFocusSelector(neighbor.id, control), taskFocusSelector(neighbor.id, "check")]
+      : [`#${CSS.escape(fallbackFocusId)}`];
   }
 
   /** After a sheet closes: if its return target left meanwhile, focus never stays on <body>. */
@@ -252,6 +271,57 @@ export function TaskList({
       if (result.ok) announce(reopenedNotice(task, result.data.spawn));
       else notSaved(TASKS_COPY.notUndone, failureReason(result));
     });
+  }
+
+  // ── Postpone ("Mañana", "Otro día…", the swipe) and undo ──
+
+  /**
+   * Moves the due date. The row leaves if it no longer belongs to this view (the "Hoy" view
+   * after "Mañana"); otherwise it stays with its new day. "Deshacer" puts back exactly the day it
+   * had (`previousDueDate`), and the row where it was.
+   */
+  function postponeRow(task: TaskItem, to: PostponeTarget, control: TaskFocusControl) {
+    const day = postponeDay(to, new Date());
+    if (day === null || day === task.dueDate) return;
+    const index = view.findIndex((item) => item.id === task.id);
+    const moved: TaskItem = { ...task, dueDate: day };
+    const leaves = !belongs(moved);
+    if (leaves) focusAfterLeaving(task.id, control);
+    startSaving(async () => {
+      apply(leaves ? { type: "remove", id: task.id } : { type: "update", id: task.id, patch: { dueDate: day } });
+      await postponement.postpone(task, to, (result) => undoPostpone(task, index, result, leaves));
+    });
+  }
+
+  function undoPostpone(task: TaskItem, index: number, result: PostponedTask, left: boolean) {
+    startSaving(async () => {
+      if (left) apply({ type: "restore", task, index });
+      else apply({ type: "update", id: task.id, patch: { dueDate: result.previousDueDate } });
+      await postponement.undo(task, result);
+    });
+  }
+
+  const picker = usePostponePicker({
+    onSave: (picked, day) => {
+      const task = view.find((item) => item.id === picked.id);
+      if (!task) return;
+      // The sheet gives focus back to the neighbor if this row is going to leave.
+      if (!belongs({ ...task, dueDate: day })) picker.returnFocus.current = neighborElement(task.id);
+      postponeRow(task, day, "pick");
+    },
+    onClosed: afterSheetClosed,
+  });
+
+  function postponeProps(task: TaskItem) {
+    if (!postpone || task.doneAt) return undefined;
+    return {
+      onTomorrow: () => postponeRow(task, "tomorrow", "postpone"),
+      onPick: (picked: { id: string; title: string }, trigger: HTMLElement) => {
+        const today = limaToday(new Date());
+        picker.openFor(picked, trigger, { minDay: today, initialDay: tomorrowOf(new Date()) });
+      },
+      hideTomorrow: task.dueDate === tomorrowOf(new Date()),
+    };
   }
 
   // ── Delete and undo ──
@@ -390,24 +460,42 @@ export function TaskList({
   }
 
   const rows = (items: TaskItem[]) =>
-    items.map((task) => (
-      <li
-        key={task.id}
-        data-task-row={task.id}
-        className="flex min-w-0 items-start gap-1 bg-surface pr-2"
-      >
-        <TaskRow
-          task={task}
-          now={now}
-          onToggle={toggle}
-          onOpen={openDetail}
-          onClassify={classify ? openClassify : undefined}
-          onReopen={reopenable ? (item) => reopenFromRow(item, "reopen") : undefined}
-          hidePlacement={hidePlacement}
-        />
-        {rowAction?.(task)}
-      </li>
-    ));
+    items.map((task) => {
+      const postponeKeys = postponeProps(task);
+      const row = (
+        <>
+          <TaskRow
+            task={task}
+            now={now}
+            onToggle={toggle}
+            onOpen={openDetail}
+            onClassify={classify ? openClassify : undefined}
+            onReopen={reopenable ? (item) => reopenFromRow(item, "reopen") : undefined}
+            hidePlacement={hidePlacement}
+            postpone={postponeKeys}
+          />
+          {rowAction?.(task)}
+        </>
+      );
+      return postponeKeys ? (
+        <SwipeRow
+          key={task.id}
+          taskId={task.id}
+          swipe
+          onSwipe={() => postponeRow(task, "tomorrow", "postpone")}
+        >
+          {row}
+        </SwipeRow>
+      ) : (
+        <li
+          key={task.id}
+          data-task-row={task.id}
+          className="flex min-w-0 items-start gap-1 bg-surface pr-2"
+        >
+          {row}
+        </li>
+      );
+    });
 
   return (
     <div className="flex flex-col gap-3" data-saving={saving ? "" : undefined}>
@@ -450,6 +538,8 @@ export function TaskList({
           onDelete={deleteFromClassify}
         />
       ) : null}
+
+      {picker.sheet}
 
       {detail ? (
         <TaskDetailSheet

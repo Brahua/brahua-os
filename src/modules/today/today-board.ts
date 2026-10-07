@@ -113,6 +113,25 @@ export function focusAfterTaskLeaves(ids: readonly string[], id: string): TaskFo
   return { kind: "row", id: ids[index + 1] ?? ids[index - 1] };
 }
 
+/**
+ * What "Tareas" has completed that the server's read doesn't have yet (`doneDelta` of "Día
+ * completo"): rows the optimistic list is missing against the server's, minus rows it has that the
+ * server's doesn't (an undone completion). Rows in `postponed` don't count either way: a
+ * postponed row left the list (or came back with "Deshacer") without being completed or reopened.
+ */
+export function completionsDelta(
+  serverIds: readonly string[],
+  viewIds: readonly string[],
+  postponed: ReadonlySet<string>,
+): number {
+  const server = new Set(serverIds);
+  const view = new Set(viewIds);
+  let delta = 0;
+  for (const id of server) if (!view.has(id) && !postponed.has(id)) delta += 1;
+  for (const id of view) if (!server.has(id) && !postponed.has(id)) delta -= 1;
+  return delta;
+}
+
 /** An optimistic change to the "Tareas" list: a completed row leaves, an undone one returns. */
 export type TodayTaskChange<T> =
   { type: "remove"; id: string } | { type: "restore"; task: T; index: number };

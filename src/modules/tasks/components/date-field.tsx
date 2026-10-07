@@ -13,6 +13,8 @@ type DateFieldProps = {
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   help?: string;
   error?: string;
+  /** Earliest day the picker offers (YYYY-MM-DD). */
+  min?: string;
   ref?: React.Ref<HTMLInputElement>;
 };
 
@@ -23,7 +25,7 @@ type DateFieldProps = {
  * browsers draw their own placeholder and calendar icon. The hint is decorative: the field is
  * named by its label and an empty value reads as such.
  */
-export function DateField({ id, label, value, onChange, help, error, ref }: DateFieldProps) {
+export function DateField({ id, label, value, onChange, help, error, min, ref }: DateFieldProps) {
   const describedBy = error ? `${id}-error` : help ? `${id}-help` : undefined;
   return (
     <div className={cn("bo-field bo-date-field", error && "is-error")}>
@@ -35,6 +37,7 @@ export function DateField({ id, label, value, onChange, help, error, ref }: Date
           ref={ref}
           id={id}
           type="date"
+          min={min}
           className="bo-field__control"
           value={value}
           aria-invalid={Boolean(error)}

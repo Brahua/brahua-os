@@ -30,6 +30,7 @@ export function TodayView({ tasks, headingId }: DateViewProps) {
       tasks={tasks}
       label={VIEWS_COPY.todayList}
       belongs={belongs}
+      postpone
       fallbackFocusId={headingId}
       header={(count) => (
         <ViewHeading
@@ -59,6 +60,7 @@ export function UpcomingView({ tasks, headingId }: DateViewProps) {
       label={VIEWS_COPY.upcomingList}
       belongs={belongs}
       groupOf={groupOf}
+      postpone
       fallbackFocusId={headingId}
       header={(count) => (
         <ViewHeading
