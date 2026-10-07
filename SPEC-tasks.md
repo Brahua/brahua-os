@@ -122,6 +122,8 @@ export const taskTagLinks = pgTable("task_tag_links", {
 
 Los mismos de `SPEC-core`. Módulo en `src/modules/tasks/` (como `projects`), páginas en `src/app/(app)/tasks/`, captura global en `src/modules/tasks/components/quick-capture*` montada desde el shell por un punto de extensión (el shell de `core` no importa `tasks`: se registra como los manifiestos).
 
+**Posponer (corte `polish`, `postpone-one-tap`):** `postponeTask({ id, to })` (`to`: `"tomorrow"` o un día `YYYY-MM-DD`, nunca antes de hoy en Lima) mueve solo `due_date` de una tarea pendiente y visible (una recurrente mueve solo esa ocurrencia: sin copia y con su regla intacta) y es idempotente; `restoreTaskDueDate({ id, dueDate, expected })` es su "Deshacer" por id (devuelve el día exacto que tenía y no pisa una edición posterior). Las filas de `/` y de las vistas Hoy, Próximas y Todas llevan la tecla "Mañana", "Otro día…" y, en pantallas táctiles, el deslizamiento a la izquierda.
+
 ## Estrategia de pruebas
 
 | Nivel | Qué cubre |
