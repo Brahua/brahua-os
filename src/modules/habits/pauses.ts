@@ -17,7 +17,10 @@ import { addDays, logWindowStart } from "./schedule";
  * The habit to pause or resume, read FOR SHARE after its lock: visible and not archived. Returns
  * its start date, or why not.
  */
-async function pausableHabit(tx: Tx, id: string): Promise<{ startDate: string } | HabitFailure> {
+export async function pausableHabit(
+  tx: Tx,
+  id: string,
+): Promise<{ startDate: string } | HabitFailure> {
   const [habit] = await tx
     .select({ archivedAt: habits.archivedAt, startDate: habits.startDate })
     .from(habits)
@@ -90,7 +93,7 @@ export type ResumedHabit = {
 };
 
 /** One pause of the habit, not deleted, after the habit's lock. */
-async function findPause(tx: Tx, input: HabitPauseInput) {
+export async function findPause(tx: Tx, input: HabitPauseInput) {
   const [pause] = await tx
     .select({
       id: habitPauses.id,

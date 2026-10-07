@@ -32,3 +32,7 @@ export const HABIT_PAUSE_REASON_MAX_LENGTH = 60;
 export const HABIT_LOG_WINDOW_DAYS = 7;
 /** H4: a pause can start this many days ahead at most (a planned trip; conservative bound). */
 export const HABIT_PAUSE_START_AHEAD_DAYS = 365;
+/** An id that starts with this is a pause shown optimistically, not saved yet. */
+export const PENDING_PREFIX = "pending-";
+/** "Saltar hoy": the reason of the one-day pause a skip creates (what the month count reads). */
+export const HABIT_SKIP_REASON = "Descanso";

@@ -223,6 +223,21 @@ export function readPauses(id: string) {
   );
 }
 
+/** polish: a habit's pauses that aren't removed, with their reason ("Saltar hoy" says "Descanso"). */
+export function readPausesWithReason(id: string) {
+  return withDb((db) =>
+    db
+      .select({
+        startDate: habitPauses.startDate,
+        endDate: habitPauses.endDate,
+        reason: habitPauses.reason,
+      })
+      .from(habitPauses)
+      .where(and(eq(habitPauses.habitId, id), isNull(habitPauses.deletedAt)))
+      .orderBy(habitPauses.startDate),
+  );
+}
+
 /** A seeded area's id, by slug. */
 export function areaIdOf(slug: string): Promise<string> {
   return withDb(async (db) => {

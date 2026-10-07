@@ -98,6 +98,59 @@ beforeEach(() => {
   vi.mocked(getHabitDetail).mockReset().mockResolvedValue(LOADED);
 });
 
+describe("/habits/[id]: days rested with Saltar hoy", () => {
+  const rest = (startDate: string, reason: string | null = "Descanso", endDate = startDate) => ({
+    id: `pause-${startDate}-${endDate}-${reason}`,
+    startDate,
+    endDate,
+    reason,
+  });
+  const skipped = () => document.querySelector("[data-habit-skipped]");
+
+  test("'3 días saltados este mes': only one-day Descanso pauses of the month, as a plain fact", async () => {
+    vi.mocked(getHabitDetail).mockResolvedValue({
+      ...LOADED,
+      pauses: [
+        rest("2026-09-28"), // last month: not counted
+        rest("2026-10-01"),
+        rest("2026-10-02"),
+        rest("2026-10-01", "Viaje"), // another reason: not a skip
+        rest("2026-10-03", "Descanso", "2026-10-05"), // more than a day: not a skip
+        rest("2026-10-08"),
+      ],
+    });
+    render(await HabitPage(props()));
+    expect(skipped()).toHaveTextContent("3 días saltados este mes");
+    // No alarm color, no judgment.
+    expect(skipped()).toHaveClass("text-text-secondary");
+    expect(skipped()?.className).not.toMatch(/danger|error|signal|red/);
+  });
+
+  test("singular, and the month's name for another month", async () => {
+    vi.mocked(getHabitDetail).mockResolvedValue({ ...LOADED, pauses: [rest("2026-10-01")] });
+    const { unmount } = render(await HabitPage(props()));
+    expect(skipped()).toHaveTextContent("1 día saltado este mes");
+    unmount();
+    vi.mocked(getHabitDetail).mockResolvedValue({ ...LOADED, pauses: [rest("2026-09-10")] });
+    render(await HabitPage(props("2026-09")));
+    expect(skipped()).toHaveTextContent(/1 día saltado en setiembre de 2026/i);
+  });
+
+  test("not shown at 0 (positive control: the same page with one is)", async () => {
+    vi.mocked(getHabitDetail).mockResolvedValue({
+      ...LOADED,
+      pauses: [rest("2026-09-10"), rest("2026-10-04", "Viaje")],
+    });
+    const { unmount } = render(await HabitPage(props()));
+    expect(skipped()).toBeNull();
+    expect(document.body.textContent).not.toMatch(/saltado/);
+    unmount();
+    vi.mocked(getHabitDetail).mockResolvedValue({ ...LOADED, pauses: [rest("2026-10-04")] });
+    render(await HabitPage(props()));
+    expect(skipped()).not.toBeNull();
+  });
+});
+
 describe("/habits/[id]", () => {
   test("owner check; today's month by default; the title is the habit's", async () => {
     expect((await generateMetadata(props())).title).toBe("Leer · Hábitos · brahua-os");

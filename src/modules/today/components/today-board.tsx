@@ -114,7 +114,10 @@ export function TodayBoard({
         <div className="flex flex-col gap-10" data-today-board="">
           {dayComplete ? <DayComplete /> : null}
           {sections.empty ? <EmptyDay /> : null}
-          {sections.habits ? <TodayHabits today={today} habits={habits} /> : null}
+          {/* Mounted even with no habits (it renders nothing then), like the slots: when the last
+              one rests ("Saltar hoy") the server's read comes back empty and its "Deshacer"
+              still needs a live component to put the pad back at once (see `TodaySlot`). */}
+          <TodayHabits today={today} habits={habits} />
           {/* Mounted whenever the slot is given, even at 0: see `TodaySlot`. */}
           {tasks ? tasks.content : null}
           {payments ? payments.content : null}

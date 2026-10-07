@@ -340,6 +340,10 @@ export type HabitFailure =
   | "pauseStartOutOfWindow"
   /** H4: a pause that doesn't exist (or was removed) for that habit. */
   | "pauseNotFound"
+  /** polish: "Saltar hoy" on a habit to avoid (resting from "no fumar" makes no sense). */
+  | "avoidSkip"
+  /** polish: "Saltar hoy" on a habit that is not due today (fixed days of other weekdays). */
+  | "notScheduledToday"
   /** H5: a new habit's start date in the future or more than 7 days back. */
   | "startDateOutOfWindow";
 

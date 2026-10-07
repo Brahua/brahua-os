@@ -22,6 +22,7 @@ import { FoldedSection } from "./habit-sections";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 import { PausedHabits, resumeSelector } from "./paused-habits";
 import { usePauseFlow, type TrackFocus } from "./use-pause-flow";
+import { useSkipToday } from "./use-skip-today";
 import { useDayLog } from "./use-day-log";
 import { useQuantityLog } from "./use-quantity-log";
 
@@ -232,6 +233,9 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
     },
     focusFallback: () => document.getElementById(headingId)?.focus(),
   });
+
+  // polish: "Saltar hoy" (a one-day pause from the options; its notice has the "Deshacer").
+  const skips = useSkipToday({ view, trackFocus, apply, startSaving, notSaved });
 
   /**
    * "Reanudar" (a row of "En pausa", or the options): the habit goes back to its grid at once.
@@ -485,9 +489,10 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
 
   // H4: "Registrar otro día" and "Pausar" open their sheet once the options sheet is closed;
   // "Reanudar" closes it and resumes.
-  const afterOptions = useRef<{ kind: "otherDay" | "pause" | "resume"; habit: HabitItem } | null>(
-    null,
-  );
+  const afterOptions = useRef<{
+    kind: "otherDay" | "pause" | "resume" | "skip";
+    habit: HabitItem;
+  } | null>(null);
 
   function logOtherDayFromOptions(habit: HabitItem) {
     afterOptions.current = { kind: "otherDay", habit };
@@ -496,6 +501,13 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
 
   function pauseFromOptions(habit: HabitItem) {
     afterOptions.current = { kind: "pause", habit };
+    setOptionsOpen(false);
+  }
+
+  function skipFromOptions(habit: HabitItem) {
+    // The pad leaves for "En pausa" (its options key goes with it): focus follows it there.
+    optionsReturn.current = null;
+    afterOptions.current = { kind: "skip", habit };
     setOptionsOpen(false);
   }
 
@@ -528,7 +540,16 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
       const habit = latest.current.find((h) => h.id === next.habit.id) ?? next.habit;
       if (next.kind === "otherDay") quantity.openOtherDay(habit, optionsReturn.current);
       else if (next.kind === "pause") pauses.openPause(habit, optionsReturn.current);
-      else resumeFrom(habit, false);
+      else if (next.kind === "skip") {
+        // Only if the skip was accepted (not on another Lima day, not while a change of this
+        // habit is on its way): "En pausa" opens with focus on its "Reanudar".
+        if (skips.skip(habit)) {
+          setPausedOpen(true);
+          focusWhenReady(resumeSelector(habit.id));
+        } else if (document.activeElement === document.body || document.activeElement === null) {
+          focusWhenReady(padIn(gridOf(habit), habit.id));
+        }
+      } else resumeFrom(habit, false);
       return;
     }
     if (document.activeElement === document.body || document.activeElement === null) {
@@ -715,6 +736,7 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
           onAdjust={adjustFromOptions}
           onLogOtherDay={logOtherDayFromOptions}
           onPause={pauseFromOptions}
+          onSkipToday={skipFromOptions}
           onResume={resumeFromOptions}
         />
       ) : null}

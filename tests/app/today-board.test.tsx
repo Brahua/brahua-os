@@ -253,7 +253,9 @@ describe("Hábitos", () => {
     render(<TodayBoard today={TODAY} habits={[MEDITAR, LEER, AGUA, FUMAR]} />);
     // Leer (done) and No fumar (clean) of 4.
     expect(count()).toHaveTextContent("2 de 4 cumplidos");
-    expect(within(pads()).getAllByRole("button", { name: /^(?!Ajustar)/ })).toHaveLength(4);
+    expect(within(pads()).getAllByRole("button", { name: /^(?!Ajustar|Opciones)/ })).toHaveLength(
+      4,
+    );
   });
 
   test("a tap logs today, the count follows, the pads don't move; Deshacer in the one viewport", async () => {

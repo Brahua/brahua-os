@@ -7,8 +7,11 @@ import type { HabitItem, HabitPauseSummary } from "../habit-input";
 import type { HabitListChange } from "../habit-list-optimistic";
 import { HABITS_COPY } from "../habits-copy";
 import { pauseHabit, removeHabitPause, resumeHabit } from "../pause-actions";
+import { PENDING_PREFIX } from "../habit-constants";
 import { PAUSE_COPY } from "../pause-copy";
 import type { PauseHabitInput } from "../pause-input";
+import { isSkipPause } from "../skip-day";
+import { skipHabitToday } from "../skip-actions";
 import { failureReason, useHabitsScreen } from "./habits-screen";
 
 // The pause sheet's code loads on demand (from the options sheet's "Pausar").
@@ -41,9 +44,6 @@ type PauseFlowArgs = {
 };
 
 type Pausing = { habit: HabitItem; key: number };
-
-/** A pause shown optimistically, not saved yet (its id isn't a real one). */
-const PENDING_PREFIX = "pending-";
 
 /**
  * H4's pauses on a habits screen: "Pausar" (a sheet with the dates and a reason; not optimistic,
@@ -116,7 +116,11 @@ export function usePauseFlow({
     startSaving(async () => {
       try {
         move(withPause(habit, null), shown);
-        const queued = await enqueue(`habit-pause:${habit.id}`, () => pauseHabit(input));
+        // A resumed "Saltar hoy" comes back through its own action: "Descanso" is not a reason
+        // the manual form accepts.
+        const queued = await enqueue(`habit-pause:${habit.id}`, () =>
+          isSkipPause(input) ? skipHabitToday({ id: habit.id }) : pauseHabit(input),
+        );
         if (queued.kind === "skipped" || queued.superseded) return;
         const result: ActionResult<unknown> =
           queued.kind === "done" ? queued.value : fail(HABITS_COPY.checkConnection);
