@@ -6,7 +6,9 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Icon, Key, SegmentedControl, Sheet, TextField } from "@/design-system";
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
+import { parseExpenseText } from "@/lib/natural-date";
 import { useIsDesktop } from "@/lib/use-is-desktop";
+import { CapturePreview } from "@/modules/core/components/capture-preview";
 import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { createExpense, deleteExpense, editExpense } from "../actions";
 import type { FinanceCatalog } from "../catalog-input";
@@ -25,7 +27,7 @@ import {
 } from "../expense-form";
 import type { Currency } from "../finance-constants";
 import { FINANCE_COPY } from "../finance-copy";
-import { centsToInput, formatRate, parseAmount, spokenMoney } from "../money";
+import { centsToInput, formatMoney, formatRate, parseAmount, spokenMoney } from "../money";
 import { PAYMENTS_COPY } from "../payments-copy";
 import { recurringPaymentPath } from "../routes";
 import { SelectField } from "./select-field";
@@ -125,7 +127,19 @@ export function ExpenseSheet({
   const busy = pending || undoing;
 
   const methodId = methodChoice ?? defaultMethodId(catalog);
-  const currency = currencyChoice ?? currencyForMethod(catalog, methodId);
+  const methodCurrency = currencyChoice ?? currencyForMethod(catalog, methodId);
+
+  // polish → capture-nl-dates: a new expense typed as "12.50 café" is read as an amount and a
+  // description. The text is the amount field's when it has letters in it (a keyboard that can
+  // type them), else the description's while the amount is still empty (an amount typed by hand
+  // rules). Pure, so it is read on every render.
+  const [textOff, setTextOff] = useState(false);
+  const amountIsText = /[^\d.,\s]/.test(amount);
+  const source = amountIsText ? amount : amount.trim() === "" ? description : null;
+  const typed = !editing && !textOff && source !== null ? parseExpenseText(source) : null;
+  const understood = typed && typed.amountCents !== null ? typed : null;
+  // The text's own currency ("USD 95", "$20", "S/ 12") wins over the method's.
+  const currency = understood?.currency ?? methodCurrency;
 
   const amountInput = useRef<HTMLInputElement>(null);
   const descriptionInput = useRef<HTMLInputElement>(null);
@@ -181,7 +195,14 @@ export function ExpenseSheet({
   }
 
   function payload() {
-    const base = { amount, description, categoryId };
+    const base = understood
+      ? {
+          amount: centsToInput(understood.amountCents!),
+          // From the amount field, a description already typed stays when the text has none.
+          description: understood.description || (amountIsText ? description : ""),
+          categoryId,
+        }
+      : { amount, description, categoryId };
     if (editing) {
       return {
         ...base,
@@ -196,7 +217,7 @@ export function ExpenseSheet({
     return {
       ...base,
       ...(catalog || methodChoice !== null ? { paymentMethodId: methodId } : {}),
-      ...(catalog || currencyChoice !== null ? { currency } : {}),
+      ...(catalog || currencyChoice !== null || understood?.currency ? { currency } : {}),
       ...(spentOn !== null ? { spentOn } : {}),
     };
   }
@@ -239,6 +260,7 @@ export function ExpenseSheet({
         setAmount("");
       }
       setDescription("");
+      setTextOff(false);
       setCategoryId("");
       setSaved(item);
       amountInput.current?.focus();
@@ -356,6 +378,7 @@ export function ExpenseSheet({
           onChange={(event) => {
             amountNow.current = event.target.value;
             setAmount(event.target.value);
+            if (event.target.value.trim() === "") setTextOff(false);
             clearError("amount");
           }}
         />
@@ -373,9 +396,34 @@ export function ExpenseSheet({
           onKeyDown={enterSubmits}
           onChange={(event) => {
             setDescription(event.target.value);
+            if (event.target.value.trim() === "") setTextOff(false);
             clearError("description");
           }}
         />
+
+        {/* "12.50 café" read as an amount and a description; a touch cancels it. */}
+        {editing ? null : (
+          <CapturePreview
+            className="-mt-2"
+            summary={
+              understood
+                ? expenseSummary(understood.amountCents!, currency, understood.description)
+                : null
+            }
+            spoken={
+              understood
+                ? FINANCE_COPY.nlSpoken(
+                    expenseSummary(understood.amountCents!, currency, understood.description),
+                  )
+                : ""
+            }
+            removeText={FINANCE_COPY.nlRemove}
+            onRemove={() => {
+              setTextOff(true);
+              (amountIsText ? amountInput : descriptionInput).current?.focus();
+            }}
+          />
+        )}
 
         {saved && !editing ? (
           <div
@@ -544,4 +592,10 @@ function savedText(item: ExpenseItem): string {
 function catalogHelp(catalog: FinanceCatalog | null, failed: boolean): string | undefined {
   if (catalog) return undefined;
   return failed ? FINANCE_COPY.catalogLoadFailed : FINANCE_COPY.catalogLoading;
+}
+
+/** "S/ 12.50 · café" for the preview of a typed expense. */
+function expenseSummary(cents: number, currency: Currency, description: string): string {
+  const money = formatMoney(cents, currency);
+  return description ? `${money} · ${description}` : money;
 }

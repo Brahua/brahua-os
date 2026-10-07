@@ -2,6 +2,7 @@
 
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { CapturePreview } from "@/modules/core/components/capture-preview";
 import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { Icon, Key, Sheet, TextField } from "@/design-system";
 import { fail, type ActionResult, type FieldErrors } from "@/lib/action-result";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { CaptureSheetProps } from "@/lib/quick-capture";
 import { useIsDesktop } from "@/lib/use-is-desktop";
 import { createTask, listTaskTargets } from "../actions";
+import { readCaptureTitle, type CaptureReading } from "../capture-text";
 import { INBOX_VALUE, placementName, toPlacement, type PlacementValue } from "../placement";
 import type { TaskPriority } from "../task-constants";
 import { createTaskInputSchema, type TaskItem, type TaskTargets } from "../task-input";
@@ -86,6 +88,10 @@ export function QuickCaptureSheet({
   const [tags, setTags] = useState<string[]>([]);
   const knownTags = useKnownTags();
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // polish → capture-nl-dates: what the title says ("pilas mañana"), refreshed as the owner types,
+  // and whether they cancelled it for this entry (the text then stays as typed).
+  const [reading, setReading] = useState<CaptureReading | null>(null);
+  const [readingOff, setReadingOff] = useState(false);
   // T3: the recurrence rule (none by default), its errors shown after a submit.
   // Lima's "today" for the editor: refreshed when "Más detalles" opens (the editor shows only
   // then) and after each save, so a sheet kept open past midnight doesn't use yesterday.
@@ -192,14 +198,21 @@ export function QuickCaptureSheet({
     onOpenChange(next);
   }
 
+  function reread(text: string, manualDate: string) {
+    setReading(readCaptureTitle(text, new Date(), manualDate));
+  }
+
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
     const rule = ruleFromDraft(recurrence);
+    // The reading is made again now (the clock moved since the last key); cancelled: as typed.
+    const understood = readingOff ? null : readCaptureTitle(title, new Date(), dueDate);
     const parsed = createTaskInputSchema.safeParse({
-      title,
+      title: understood?.title ?? title,
       ...toPlacement(placement),
-      dueDate,
+      dueDate: understood?.dueDate ?? dueDate,
+      ...(understood?.dueTime ? { dueTime: understood.dueTime } : {}),
       priority,
       // Only a rule is sent (none: the field is left out).
       recurrence: rule.ok && rule.rule ? rule.rule : undefined,
@@ -235,6 +248,9 @@ export function QuickCaptureSheet({
         titleNow.current = "";
         setTitle("");
       }
+      // The next entry (empty, or what the owner already typed while saving) starts uncancelled.
+      setReadingOff(false);
+      reread(titleNow.current, "");
       setPlacement(INBOX_VALUE);
       setDueDate("");
       setPriority("medium");
@@ -314,7 +330,21 @@ export function QuickCaptureSheet({
           onChange={(event) => {
             titleNow.current = event.target.value;
             setTitle(event.target.value);
+            reread(event.target.value, dueDate);
+            if (event.target.value.trim() === "") setReadingOff(false);
             clearError("title");
+          }}
+        />
+
+        {/* The reading of the title; a touch cancels it and focus goes back to the field. */}
+        <CapturePreview
+          className="-mt-2"
+          summary={readingOff ? null : (reading?.summary ?? null)}
+          spoken={reading ? TASKS_COPY.nlSpoken(reading.summary) : ""}
+          removeText={TASKS_COPY.nlRemove}
+          onRemove={() => {
+            setReadingOff(true);
+            titleInput.current?.focus();
           }}
         />
 
@@ -346,6 +376,7 @@ export function QuickCaptureSheet({
           error={errors.dueDate}
           onChange={(event) => {
             setDueDate(event.target.value);
+            reread(title, event.target.value);
             clearError("dueDate");
           }}
         />

@@ -38,6 +38,11 @@ export const TASKS_COPY = {
   captureTitle: "Nueva tarea",
   captureTitleLabel: "¿Qué hay que hacer?",
   captureTitleHelp: "Enter guarda. Sin área ni proyecto, va a la bandeja.",
+  // Natural language in the title (polish → capture-nl-dates)
+  nlDue: (day: string, time: string | null) => `Vence el ${day}${time ? ` · ${time}` : ""}`,
+  nlTimeOnly: (time: string) => `Hora ${time}`,
+  nlRemove: "Quitar",
+  nlSpoken: (summary: string) => `${summary}. Toca para dejar el texto tal cual.`,
   add: "Agregar",
   adding: "Agregando…",
   addingStatus: "Agregando tarea…",

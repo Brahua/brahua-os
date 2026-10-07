@@ -45,6 +45,9 @@ export const FINANCE_COPY = {
   amountHelp: "Con punto o coma para los decimales: 12.50 o 12,50.",
   descriptionLabel: "Descripción (opcional)",
   descriptionHelp: "Por ejemplo, «Café» o «Mercado».",
+  // Natural language in the description (polish → capture-nl-dates)
+  nlSpoken: (summary: string) => `${summary}. Toca para dejar el texto tal cual.`,
+  nlRemove: "Quitar",
   more: "Más",
   categoryLabel: "Categoría",
   noCategory: "Sin categoría",
