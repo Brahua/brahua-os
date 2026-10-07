@@ -1,0 +1,1856 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>brahua-os × rimu · benchmark</title>
+<meta name="description" content="Análisis competitivo de rimu para pulir brahua-os. Basado solo en la landing pública.">
+<meta name="color-scheme" content="dark light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* ── Tokens (Panel mono, desde src/design-system/styles/tokens) ───────────── */
+:root {
+  --gray-0:#FFFFFF; --gray-50:#FAFAF8; --gray-75:#F2F2F0; --gray-100:#EAE9E4; --gray-150:#E6E5E0;
+  --gray-200:#D6D6D2; --gray-250:#CFCDC6; --gray-300:#C9C8C2; --gray-400:#B5B5B0; --gray-450:#9A9A96;
+  --gray-500:#8A8984; --gray-550:#6E6E6A; --gray-600:#55544F; --gray-700:#3A3A38; --gray-750:#2A2A2A;
+  --gray-800:#1F1F1F; --gray-825:#1C1C1C; --gray-850:#161616; --gray-875:#141414; --gray-900:#0F0F0F;
+  --gray-925:#0A0A0A; --gray-950:#050505; --gray-1000:#000000;
+  --signal-400:#FF5C31; --signal-500:#FF4A1C; --signal-600:#C2330A; --signal-700:#A32B07;
+  --lcd-100:#D5DACB; --lcd-300:#BFC4B3; --lcd-400:#B9BEAE; --lcd-600:#4A5040; --lcd-800:#2F3527; --lcd-900:#161A10;
+  --area-health:#5CCB8A; --area-finance:#3CC3BC; --area-learning:#8C9EFF; --area-work:#C19BFF; --area-travel:#6CC4F5; --area-home:#E8B04A;
+  --font-sans:"Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius-sm:6px; --radius-md:10px; --radius-lg:14px; --radius-xl:18px;
+  --dur:200ms; --ease:cubic-bezier(.2,0,0,1);
+  --nav-w:248px;
+}
+:root, :root[data-theme="dark"] {
+  color-scheme:dark;
+  --bg:var(--gray-925); --surface:var(--gray-900); --surface-2:var(--gray-875); --well:var(--gray-950);
+  --key:var(--gray-850); --key-hover:var(--gray-825); --key-on:var(--gray-75); --on-key-on:var(--gray-925);
+  --border:var(--gray-750); --border-strong:var(--gray-700); --divider:var(--gray-800);
+  --text:var(--gray-75); --text-2:var(--gray-450); --text-3:var(--gray-550);
+  --signal:var(--signal-500); --signal-text:var(--signal-500); --on-signal:var(--gray-925);
+  --lcd-bg:var(--gray-950); --lcd-border:var(--gray-800); --lcd-text:var(--gray-75); --lcd-text-2:var(--gray-450); --lcd-signal:var(--signal-500); --lcd-seg-off:var(--gray-800);
+  --shadow-key:inset 0 -4px 0 var(--gray-1000), inset 0 1px 0 var(--gray-750), 0 0 0 1px var(--gray-800);
+  --shadow-key-pressed:inset 0 -1px 0 var(--gray-1000), 0 0 0 1px var(--gray-800);
+  --shadow-lcd:inset 0 2px 0 var(--gray-1000);
+  --focus:var(--signal-500);
+  --sidebar:var(--gray-950);
+  --ok:#5CCB8A; --warn:#E8B04A; --info:#6CC4F5; --mute:var(--gray-500);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme:light;
+    --bg:var(--gray-75); --surface:var(--gray-0); --surface-2:var(--gray-50); --well:var(--gray-150);
+    --key:var(--gray-0); --key-hover:var(--gray-50); --key-on:var(--gray-925); --on-key-on:var(--gray-75);
+    --border:var(--gray-200); --border-strong:var(--gray-300); --divider:var(--gray-150);
+    --text:var(--gray-925); --text-2:var(--gray-600); --text-3:var(--gray-500);
+    --signal:var(--signal-500); --signal-text:var(--signal-700); --on-signal:var(--gray-925);
+    --lcd-bg:var(--lcd-100); --lcd-border:var(--lcd-400); --lcd-text:var(--lcd-900); --lcd-text-2:var(--lcd-600); --lcd-signal:var(--signal-700); --lcd-seg-off:var(--lcd-300);
+    --shadow-key:inset 0 -4px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200), 0 1px 2px rgb(10 10 10/.08);
+    --shadow-key-pressed:inset 0 -1px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
+    --shadow-lcd:inset 0 2px 4px rgb(0 0 0/.14);
+    --focus:var(--signal-600);
+    --sidebar:var(--gray-100);
+    --ok:#1D7545; --warn:#875A00; --info:#0B6690; --mute:var(--gray-600);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme:light;
+  --bg:var(--gray-75); --surface:var(--gray-0); --surface-2:var(--gray-50); --well:var(--gray-150);
+  --key:var(--gray-0); --key-hover:var(--gray-50); --key-on:var(--gray-925); --on-key-on:var(--gray-75);
+  --border:var(--gray-200); --border-strong:var(--gray-300); --divider:var(--gray-150);
+  --text:var(--gray-925); --text-2:var(--gray-600); --text-3:var(--gray-500);
+  --signal:var(--signal-500); --signal-text:var(--signal-700); --on-signal:var(--gray-925);
+  --lcd-bg:var(--lcd-100); --lcd-border:var(--lcd-400); --lcd-text:var(--lcd-900); --lcd-text-2:var(--lcd-600); --lcd-signal:var(--signal-700); --lcd-seg-off:var(--lcd-300);
+  --shadow-key:inset 0 -4px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200), 0 1px 2px rgb(10 10 10/.08);
+  --shadow-key-pressed:inset 0 -1px 0 var(--gray-250), inset 0 0 0 1px var(--gray-200);
+  --shadow-lcd:inset 0 2px 4px rgb(0 0 0/.14);
+  --focus:var(--signal-600);
+  --sidebar:var(--gray-100);
+  --ok:#1D7545; --warn:#875A00; --info:#0B6690; --mute:var(--gray-600);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--font-sans);overflow-x:hidden;font-variant-numeric:tabular-nums}
+h1,h2,h3,h4{margin:0;font-family:var(--font-sans);letter-spacing:-0.01em;font-stretch:115%}
+h1{font-size:clamp(34px,6vw,56px);line-height:1;font-weight:800;font-stretch:125%}
+h2{font-size:clamp(24px,3.2vw,30px);line-height:1.1;font-weight:700;font-stretch:125%}
+h3{font-size:18px;line-height:1.25;font-weight:700}
+h4{font-size:15px;line-height:1.3;font-weight:600;font-stretch:100%}
+p{margin:0 0 12px}
+a{color:var(--signal-text);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{color:var(--text)}
+code,kbd,.mono{font-family:var(--font-mono);font-weight:500;font-size:.9em}
+code{overflow-wrap:anywhere;background:var(--well);padding:1px 5px;border-radius:var(--radius-sm);border:1px solid var(--divider)}
+ul,ol{margin:0 0 12px;padding-left:20px}
+li{margin:3px 0}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+hr{border:0;border-top:1px solid var(--divider);margin:24px 0}
+strong{font-weight:600}
+small{color:var(--text-2)}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;padding:10px 16px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--divider)}
+.topbar .brand{font:600 12px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layout{display:grid;grid-template-columns:1fr;max-width:1240px;margin:0 auto}
+.toc{display:none}
+main{min-width:0;padding:0 16px 80px}
+section{scroll-margin-top:72px;padding:40px 0 8px;border-top:1px solid var(--divider)}
+section:first-of-type{border-top:0}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.sec-num{font:600 12px/1 var(--font-mono);letter-spacing:.12em;color:var(--signal-text);text-transform:uppercase}
+.lede{color:var(--text-2);max-width:68ch;font-size:16px}
+.prose{max-width:76ch}
+@media (min-width:1024px){
+  .layout{grid-template-columns:var(--nav-w) 1fr;gap:32px;padding:0 24px}
+  .toc{display:block;position:sticky;top:64px;align-self:start;max-height:calc(100vh - 80px);overflow:auto;padding:20px 0 20px 0;border-right:1px solid var(--divider)}
+  .toc ol{list-style:none;padding:0;margin:0}
+  .toc li{margin:0}
+  .toc a{display:block;padding:7px 14px 7px 12px;color:var(--text-2);text-decoration:none;font-size:13px;border-left:2px solid transparent;line-height:1.3}
+  .toc a:hover{color:var(--text);background:var(--surface-2)}
+  .toc a.is-active{color:var(--text);border-left-color:var(--signal);background:var(--surface)}
+  .toc .toc-n{font:500 11px/1 var(--font-mono);color:var(--text-3);margin-right:8px}
+  .topbar .menu-btn{display:none}
+  main{padding:0 0 100px}
+}
+/* mobile menu */
+.menu-btn{display:inline-flex}
+.mobile-nav{display:none;position:fixed;inset:52px 0 0 0;z-index:25;background:var(--bg);overflow:auto;padding:16px}
+.mobile-nav.is-open{display:block}
+.mobile-nav ol{list-style:none;padding:0;margin:0;display:grid;gap:4px}
+.mobile-nav a{display:flex;gap:10px;padding:12px 10px;border-radius:var(--radius-md);background:var(--surface);color:var(--text);text-decoration:none;border:1px solid var(--divider);min-height:44px;align-items:center}
+.mobile-nav .toc-n{font:500 11px/1 var(--font-mono);color:var(--text-3);min-width:24px}
+@media (min-width:1024px){.mobile-nav{display:none !important}}
+
+/* ── Keys (botones) ───────────────────────────────────────────────────────── */
+.key{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:0 12px;border:0;border-radius:var(--radius-md);background:var(--key);color:var(--text);box-shadow:var(--shadow-key);font:600 13px/1.15 var(--font-sans);cursor:pointer;user-select:none;transition:transform 90ms var(--ease),box-shadow 90ms var(--ease),background-color 120ms var(--ease)}
+.key:hover{background:var(--key-hover)}
+.key:active{transform:translateY(3px);box-shadow:var(--shadow-key-pressed)}
+.key[aria-pressed="true"]{background:var(--key-on);color:var(--on-key-on);box-shadow:inset 0 -1px 0 var(--gray-400);transform:translateY(3px)}
+.key--sm{min-height:30px;padding:0 10px;font-size:12px}
+.key--icon{width:36px;padding:0}
+@media (prefers-reduced-motion:reduce){.key,.key:active,.key[aria-pressed="true"]{transform:none;transition:none}}
+
+/* ── LCD ──────────────────────────────────────────────────────────────────── */
+.lcd{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:var(--radius-xl);background:var(--lcd-bg);border:1px solid var(--lcd-border);box-shadow:var(--shadow-lcd);color:var(--lcd-text)}
+.lcd__tag{font:500 11px/14px var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--lcd-signal)}
+.lcd__text{font-size:15px;line-height:1.45;margin:0}
+.lcd__meta{font:500 12px/16px var(--font-mono);color:var(--lcd-text-2)}
+
+/* ── Cards / grid ─────────────────────────────────────────────────────────── */
+.grid{display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:720px){.grid--2{grid-template-columns:repeat(2,1fr)}.grid--3{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:1100px){.grid--3{grid-template-columns:repeat(3,1fr)}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;min-width:0}
+.card h3,.card h4{margin-bottom:8px}
+.card .meta{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.card p:last-child,.card ul:last-child{margin-bottom:0}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:14px;margin:0 0 10px}
+.kv dt{color:var(--text-2);font:500 11px/20px var(--font-mono);letter-spacing:.08em;text-transform:uppercase}
+.kv dd{margin:0}
+
+/* ── Badges / chips ───────────────────────────────────────────────────────── */
+.b{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font:600 11px/16px var(--font-mono);letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border);color:var(--text-2);white-space:nowrap;vertical-align:middle}
+.b::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.b--obs{color:var(--ok)}
+.b--prom{color:var(--warn)}
+.b--ext{color:var(--info)}
+.b--inf{color:var(--mute)}
+.b--none{color:var(--ok)}
+.b--part{color:var(--warn)}
+.b--total{color:var(--signal-text)}
+.b--better{color:var(--area-learning)}
+:root[data-theme="light"] .b--better{color:#3A4FC4}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .b--better{color:#3A4FC4}}
+.b--adopt{color:var(--ok)}
+.b--adapt{color:var(--warn)}
+.b--beat{color:var(--signal-text)}
+.b--drop{color:var(--mute)}
+.b--closed{color:var(--ok)}
+.b--pending{color:var(--warn)}
+.b--later{color:var(--mute)}
+.b--h1{color:var(--ok)}
+.b--h2{color:var(--info)}
+.b--h3{color:var(--signal-text)}
+.chip{display:inline-flex;align-items:center;min-width:26px;height:22px;padding:0 6px;border-radius:var(--radius-sm);background:var(--well);border:1px solid var(--divider);font:500 11px/1 var(--font-mono);color:var(--text-2);justify-content:center}
+.chips{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:middle}
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);margin:0 0 16px;max-width:100%}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+caption{text-align:left;padding:12px 14px;font:500 11px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-2)}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-top:1px solid var(--divider)}
+th{font:600 11px/16px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);background:var(--surface-2);position:sticky;top:0}
+tbody th{background:transparent;font:600 14px/1.4 var(--font-sans);letter-spacing:0;text-transform:none;color:var(--text);position:static}
+td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.tw--wide table{min-width:900px}
+.tw--narrow table{min-width:0}
+
+/* ── Opportunity cards (expandable) ───────────────────────────────────────── */
+.opp{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin:0 0 12px;overflow:hidden}
+.opp summary{list-style:none;cursor:pointer;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center}
+.opp summary::-webkit-details-marker{display:none}
+.opp summary:hover{background:var(--surface-2)}
+.opp summary:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.opp__title{font-weight:700;font-size:16px;font-stretch:110%;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.opp__id{font:500 11px/1 var(--font-mono);color:var(--text-3)}
+.opp__score{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font:600 20px/1 var(--font-mono);color:var(--text)}
+.opp__score small{font:500 10px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.opp__meta{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px}
+.opp__body{padding:0 16px 16px;border-top:1px solid var(--divider)}
+.opp__body .kv{margin-top:12px}
+.opp__body h4{margin:14px 0 4px;color:var(--text-2);font:500 11px/16px var(--font-mono);letter-spacing:.1em;text-transform:uppercase}
+.opp__body p,.opp__body ul{font-size:14px}
+.opp.is-hidden{display:none}
+.opp--drop summary{padding:10px 14px}
+.opp--drop .opp__title{font-size:14px;font-weight:600}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;align-items:center}
+.filters .lbl{font:500 11px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text-2);margin-right:4px}
+.filters select{min-height:36px;padding:0 10px;border-radius:var(--radius-md);background:var(--key);color:var(--text);border:1px solid var(--border);font:600 13px var(--font-sans)}
+.count{font:500 12px/1 var(--font-mono);color:var(--text-2)}
+
+/* ── Flows ────────────────────────────────────────────────────────────────── */
+.flow{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.flow h3{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.flow .kv{font-size:13.5px}
+.flow .clash{border-left:3px solid var(--signal);padding:6px 10px;background:var(--well);border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin-top:8px;font-size:13.5px}
+.flow .clash b{color:var(--signal-text)}
+
+/* ── Horizons ─────────────────────────────────────────────────────────────── */
+.horizon{border-top:3px solid var(--border)}
+.horizon--1{border-top-color:var(--ok)}
+.horizon--2{border-top-color:var(--info)}
+.horizon--3{border-top-color:var(--signal)}
+.horizon ul{padding-left:18px;font-size:14px}
+.order{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:720px){.order{grid-template-columns:1fr auto 1fr;align-items:center}}
+.order .arrow{font:600 24px/1 var(--font-mono);color:var(--signal-text);text-align:center}
+.order ol{margin:0;padding-left:22px;font-family:var(--font-mono);font-size:13px;font-weight:500}
+.order li.is-new{color:var(--signal-text)}
+.order li.is-moved{color:var(--info)}
+
+/* ── Chart ────────────────────────────────────────────────────────────────── */
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px;overflow-x:auto}
+.chart-wrap svg{display:block;width:100%;height:auto;min-width:520px;font-family:var(--font-mono)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font:500 12px/1 var(--font-mono);color:var(--text-2);margin:10px 0 0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+
+/* ── Cover ────────────────────────────────────────────────────────────────── */
+.cover{padding:56px 0 24px;border-top:0}
+.cover .kicker{font:600 12px/1 var(--font-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--signal-text);margin-bottom:18px}
+.cover h1 .x{color:var(--signal-text);font-weight:400;font-stretch:100%}
+.cover .sub{font-size:18px;color:var(--text-2);margin:16px 0 20px;max-width:62ch}
+.cover .facts{display:flex;flex-wrap:wrap;gap:10px 24px;font:500 12px/1.6 var(--font-mono);color:var(--text-2)}
+.cover .lcd{margin-top:24px;max-width:720px}
+
+/* ── Exec summary ─────────────────────────────────────────────────────────── */
+.lesson{position:relative;padding-top:18px}
+.lesson .n{position:absolute;top:-12px;left:14px;background:var(--signal);color:var(--on-signal);font:700 12px/24px var(--font-mono);width:28px;text-align:center;border-radius:6px}
+.top5{counter-reset:t;list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.top5 li{counter-increment:t;display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px}
+.top5 li::before{content:counter(t,decimal-leading-zero);font:700 20px/1.2 var(--font-mono);color:var(--signal-text)}
+.top5 b{display:block;font-size:15px}
+.top5 span{font-size:13.5px;color:var(--text-2)}
+
+/* ── Module cards ─────────────────────────────────────────────────────────── */
+.mod{display:grid;grid-template-columns:10px minmax(0,1fr);gap:12px}
+.mod>div{min-width:0}
+.mod p,.mod .name{overflow-wrap:anywhere}
+.mod .led{width:10px;height:10px;border-radius:50%;margin-top:6px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 25%,transparent)}
+.mod .name{font:600 13px/1 var(--font-mono);display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.mod p{font-size:14px;margin:0}
+
+/* ── Questions ────────────────────────────────────────────────────────────── */
+.qs{counter-reset:q;list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.qs li{counter-increment:q;display:grid;grid-template-columns:44px 1fr;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px}
+.qs li::before{content:"Q" counter(q);font:600 12px/1.3 var(--font-mono);color:var(--signal-text);padding-top:2px}
+.qs b{display:block;margin-bottom:4px}
+.qs span{color:var(--text-2);font-size:13.5px}
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+footer{padding:24px 16px 60px;color:var(--text-3);font:500 12px/1.6 var(--font-mono);text-align:center;border-top:1px solid var(--divider)}
+
+/* ── Motion ───────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none !important;animation:none !important}}
+
+/* ── Print ────────────────────────────────────────────────────────────────── */
+@media print{
+  :root{--bg:#fff;--surface:#fff;--surface-2:#f4f4f2;--text:#111;--text-2:#444;--text-3:#666;--border:#bbb;--divider:#ddd;--well:#f4f4f2;--signal-text:#A32B07;--lcd-bg:#eef0e8;--lcd-text:#111;--lcd-text-2:#444;--lcd-border:#bbb;--ok:#1D7545;--warn:#875A00;--info:#0B6690;--mute:#555}
+  .topbar,.toc,.mobile-nav,.filters,.key{display:none !important}
+  .layout{display:block}
+  main{padding:0}
+  section{page-break-inside:avoid;border-top:1px solid #ddd}
+  .opp{page-break-inside:avoid}
+  details>summary{pointer-events:none}
+  .opp.is-hidden{display:block}
+  .tw{overflow:visible;border:0}
+  table{min-width:0;font-size:12px}
+  a{color:#111;text-decoration:none}
+  body{font-size:12.5px}
+}
+</style>
+</head>
+<body>
+<a class="sr-only" href="#main">Saltar al contenido</a>
+<header class="topbar">
+  <span class="brand">brahua-os × rimu · benchmark</span>
+  <button class="key key--sm menu-btn" id="menu-btn" aria-expanded="false" aria-controls="mobile-nav">Índice</button>
+  <button class="key key--sm" id="theme-btn" aria-pressed="false">Tema: oscuro</button>
+</header>
+<nav class="mobile-nav" id="mobile-nav" aria-label="Índice (móvil)">
+  <ol>
+    <li><a href="#cover"><span class="toc-n">01</span>Portada</a></li>
+    <li><a href="#exec"><span class="toc-n">02</span>Resumen ejecutivo</a></li>
+    <li><a href="#baseline"><span class="toc-n">03</span>brahua-os hoy</a></li>
+    <li><a href="#rimu"><span class="toc-n">04</span>Qué es rimu</a></li>
+    <li><a href="#flows"><span class="toc-n">05</span>Flujos desmontados</a></li>
+    <li><a href="#matrix"><span class="toc-n">06</span>Matriz comparativa</a></li>
+    <li><a href="#opps"><span class="toc-n">07</span>Oportunidades</a></li>
+    <li><a href="#prio"><span class="toc-n">08</span>Priorización</a></li>
+    <li><a href="#horizons"><span class="toc-n">09</span>Horizontes y orden</a></li>
+    <li><a href="#questions"><span class="toc-n">10</span>Preguntas abiertas</a></li>
+    <li><a href="#sources"><span class="toc-n">11</span>Fuentes y método</a></li>
+  </ol>
+</nav>
+<div class="layout">
+<nav class="toc" aria-label="Índice">
+  <ol>
+    <li><a href="#cover"><span class="toc-n">01</span>Portada</a></li>
+    <li><a href="#exec"><span class="toc-n">02</span>Resumen ejecutivo</a></li>
+    <li><a href="#baseline"><span class="toc-n">03</span>brahua-os hoy</a></li>
+    <li><a href="#rimu"><span class="toc-n">04</span>Qué es rimu</a></li>
+    <li><a href="#flows"><span class="toc-n">05</span>Flujos desmontados</a></li>
+    <li><a href="#matrix"><span class="toc-n">06</span>Matriz comparativa</a></li>
+    <li><a href="#opps"><span class="toc-n">07</span>Oportunidades</a></li>
+    <li><a href="#prio"><span class="toc-n">08</span>Priorización</a></li>
+    <li><a href="#horizons"><span class="toc-n">09</span>Horizontes y orden</a></li>
+    <li><a href="#questions"><span class="toc-n">10</span>Preguntas abiertas</a></li>
+    <li><a href="#sources"><span class="toc-n">11</span>Fuentes y método</a></li>
+  </ol>
+</nav>
+<main id="main">
+
+<section id="cover" class="cover" aria-labelledby="h-cover">
+  <div class="kicker">Análisis competitivo · informe interno</div>
+  <h1 id="h-cover">brahua-os <span class="x">×</span> rimu</h1>
+  <p class="sub">Qué hace rimu para que registrar cueste poco y dé algo a cambio, qué de eso encaja con brahua-os y qué se puede hacer mejor.</p>
+  <div class="facts">
+    <span>Fecha · 2026-10-06</span>
+    <span>Autor · agente de producto (PM, interacción, arquitectura)</span>
+    <span>Objeto · https://www.rimuapp.com/</span>
+    <span>Estado del repo · 7 módulos cerrados, siguiente <code>reminders</code></span>
+  </div>
+  <div class="lcd">
+    <span class="lcd__tag">Alcance</span>
+    <p class="lcd__text">Basado solo en la landing pública de rimu (textos, mockups, videos, términos y privacidad). Lo que la landing <strong>promete</strong> no está verificado: no hay cuenta, no se inició el checkout y no existe ninguna reseña externa indexada. Cada afirmación lleva su etiqueta: <span class="b b--obs">observado</span> <span class="b b--prom">prometido</span> <span class="b b--ext">externo</span> <span class="b b--inf">inferencia</span>.</p>
+    <span class="lcd__meta">Solo análisis: no se tocó código, specs, producción ni datos. Las decisiones que aparecen son propuestas para revisar con el owner.</span>
+  </div>
+</section>
+<section id="exec" aria-labelledby="h-exec">
+  <div class="sec-head"><span class="sec-num">02</span><h2 id="h-exec">Resumen ejecutivo</h2></div>
+  <p class="lede">rimu no gana por funciones: gana en la <strong>entrada</strong> (captura desde WhatsApp con lenguaje natural) y en el <strong>bucle diario</strong> (briefing, racha, rojo). brahua-os ya es mejor en compasión, deshacer y accesibilidad. La brecha real está en registrar sin abrir la app y en un ritual de mañana y noche que todavía no existe porque <code>reminders</code> no está.</p>
+
+  <div class="grid grid--3" style="margin:22px 0 26px">
+    <div class="card lesson"><span class="n">1</span>
+      <h3>La batalla es la entrada, no la pantalla</h3>
+      <p>Todo lo que rimu muestra de captura ocurre <em>fuera</em> de la app: un chat de WhatsApp donde "Ir al super mañana 9am" se vuelve tarea con fecha y hora, y "Gasté $45 uber" se vuelve gasto <span class="b b--obs">observado</span>. brahua-os tiene la tecla naranja y ≤ 3 interacciones, pero obliga a abrir la PWA y a elegir la fecha a mano. Un atajo de iOS más un parser de fechas y montos cierra el 80 % de esa brecha sin Meta, OpenAI ni servidor de mensajería.</p>
+    </div>
+    <div class="card lesson"><span class="n">2</span>
+      <h3>El bucle diario vive en los avisos</h3>
+      <p>rimu promete briefings de mañana, mediodía y noche, avisos de "racha en riesgo" y de factura "vence mañana" <span class="b b--prom">prometido</span>. Son el disparador del modelo de Fogg (principio 1). brahua-os no tiene ninguno: la portada es excelente, pero nadie te lleva a ella. La spec de <code>reminders</code> es el punto de apalancamiento de todo este informe, y puede hacerse sin alarma ni culpa.</p>
+    </div>
+    <div class="card lesson"><span class="n">3</span>
+      <h3>34 funciones no son 34 razones</h3>
+      <p>La lista de precios de rimu enumera 34 ítems: Kanban, Eisenhower, Gantt, grafo, PDF, OFX. La mitad son <em>vistas</em> que suman decisiones (ley de Hick, principio 13) y no bajan el costo de registrar. brahua-os debe seguir con una acción por pantalla y gastar el esfuerzo en pulido percibido: hora en tareas, "mover a mañana" de un toque, cierre del día, offline en la PWA.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-bottom:10px">Top 5: qué haría primero</h3>
+  <ol class="top5">
+    <li><div><b>Captura desde fuera de la app con atajo de iOS (<code>ios-shortcut-capture</code>)</b><span>Un atajo en la pantalla de inicio o en la hoja de compartir que abre <code>/capture?text=…</code> y guarda al instante. Sustituye al bot de WhatsApp de rimu sin terceros. Prioridad 12,5.</span></div></li>
+    <li><div><b>Lenguaje natural en la captura (<code>capture-nl-dates</code>)</b><span>"pilas mañana", "dentista vie 10am", "12.50 café": fecha, hora y monto salen del texto, con vista previa editable. Prioridad 10.</span></div></li>
+    <li><div><b>"Mover a mañana" y hora opcional en tareas (<code>postpone-one-tap</code>, <code>task-time</code>)</b><span>Posponer desde Hoy en un toque es la versión mínima del planificador semanal de rimu; la hora ordena Hoy y alimenta los avisos. Prioridades 16 y 12.</span></div></li>
+    <li><div><b>Cierre del día y saludos con estado (<code>evening-close-ritual</code>, <code>greeting-variants</code>)</b><span>"Día completo" ya existe; falta el cierre cuando quedó algo: lo logrado primero, lo pendiente se mueve a mañana sin contador de deuda. Prioridades 10 y 10.</span></div></li>
+    <li><div><b>Spec de <code>reminders</code> con tres avisos útiles y sin alarma</b><span>Briefing de la mañana, "vence mañana" en pagos y el hábito a su hora (del campo "momento"). Cada uno configurable, ninguno insistente. Prioridades 6,7 a 10.</span></div></li>
+  </ol>
+
+  <div class="kv" style="margin-top:22px;max-width:620px">
+    <dt>Oportunidades</dt><dd>25 clasificadas (8 adoptar · 12 adaptar · 5 superar) y 10 descartadas con su razón.</dd>
+    <dt>Horizontes</dt><dd>10 de pulido inmediato · 11 insumos para specs pendientes · 4 apuestas.</dd>
+    <dt>Orden de construcción</dt><dd>Se mantiene <code>reminders</code> como siguiente. Propuesta para revisar: adelantar <code>notes</code> y mover <code>health</code> del "más adelante" al mapa, después de <code>weekly-review</code>.</dd>
+  </div>
+</section>
+<section id="baseline" aria-labelledby="h-baseline">
+  <div class="sec-head"><span class="sec-num">03</span><h2 id="h-baseline">brahua-os hoy</h2></div>
+  <p class="lede">Línea base del análisis: qué hace cada módulo tal como está en el código al 2026-10-06. Siete módulos cerrados, cinco pendientes y seis ideas sin spec.</p>
+
+  <div class="lcd" style="margin:0 0 18px;max-width:900px">
+    <span class="lcd__tag">Ficha · brahua-os hoy</span>
+    <p class="lcd__text">Una sola app (web responsive + PWA en iPhone) para una sola persona, con login por contraseña y passkey. Todo se clasifica por <strong>áreas de vida</strong> (8 por defecto, con LED de color). <strong>Proyectos</strong> con estado, hitos, dependencias y avance calculado. <strong>Tareas</strong> con bandeja de entrada, captura global en &lt; 10 s, recurrencia al completar, etiquetas y próxima acción por proyecto. <strong>Hábitos</strong> como filas con registro diario de un toque: sí/no o cantidad, diario, X por semana o días fijos, hábitos a evitar, pausas, registro hasta 7 días atrás y rachas que nunca pintan rojo. <strong>Hoy</strong> (<code>/</code>) junta hábitos, 3 tareas destacadas, pagos que vencen y proyectos en riesgo, con un bloque "Día completo". <strong>Finanzas</strong> con pagos recurrentes por ciclo, "Pagado" de un toque, gastos sueltos en ≤ 3 interacciones, PEN/USD con tipo de cambio manual y resumen mensual. Todo es optimista con "Deshacer", sin borrado físico, con atajos de teclado en escritorio y axe en 0 en ambos temas.</p>
+    <span class="lcd__meta">Sin: notificaciones, service worker/offline, metas, revisión semanal, notas, entrenamiento, estudios, presupuesto, importación de extractos, IA.</span>
+  </div>
+
+  <div class="grid grid--2">
+    <div class="card mod" style="color:var(--gray-450)"><span class="led"></span><div>
+      <div class="name">design-system <span class="b b--closed">cerrado</span></div>
+      <p>Tokens Panel mono (Archivo + IBM Plex Mono, naranja de señal, LCD), componentes <code>Key</code>, <code>Led</code>, <code>Lcd</code>, <code>HabitPad</code>, <code>DotMatrix</code>, <code>DayCell</code>, <code>StatNumber</code>, <code>Sheet</code>, <code>SegmentedControl</code>. Fuente de verdad en Claude Design; overrides con <code>PENDING UPSTREAM</code>.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--gray-450)"><span class="led"></span><div>
+      <div class="name">core <span class="b b--closed">cerrado</span></div>
+      <p>Shell, login (contraseña + passkey, un solo owner), PWA instalable <em>sin service worker</em>, barra inferior (5 ítems) y lateral, áreas de vida con orden, archivo y "Deshacer", tema oscuro por defecto, atajos de una tecla (1–8, <kbd>C</kbd> captura), cola de avisos LCD, hora de Lima en el servidor.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--area-work)"><span class="led"></span><div>
+      <div class="name">projects <span class="b b--closed">cerrado</span></div>
+      <p>Estados idea/activo/pausado/mantenimiento/terminado/cancelado, área obligatoria, prioridad, fechas con "Vence en N días", hitos reordenables, "Bloqueado por" sin ciclos, notas Markdown saneado, enlaces. Avance = hitos + tareas (fuente registrada). Sin Kanban ni Gantt.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--area-home)"><span class="led"></span><div>
+      <div class="name">tasks <span class="b b--closed">cerrado</span></div>
+      <p>Captura global (tecla naranja / <kbd>C</kbd>) a la bandeja; vistas Bandeja, Hoy, Próximas, Todas, Hechas; prioridad baja/media/alta; recurrencia <em>al completar</em> (cada N días/semanas/meses, días de la semana, día del mes); etiquetas; próxima acción única por proyecto; "Retrasada hace N días" en naranja, nunca rojo. Sin checklist dentro de la tarea, sin hora, sin Kanban ni matriz.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--area-health)"><span class="led"></span><div>
+      <div class="name">habits <span class="b b--closed">cerrado</span></div>
+      <p>Un toque en un pad (optimista, "Deshacer", <code>aria-pressed</code>); sí/no o cantidad con meta, unidad y paso; diario, X por semana (cuota proporcional) o días fijos; hábitos a evitar con "días limpio"; pausas por rango; registro hasta 7 días atrás; racha, mejor racha, cumplimiento y total acumulado; vista Semana (DotMatrix) y calendario mensual; identidad y momento como texto; hitos 7/30/90/365 en el aviso. Sin hora ni recordatorio, sin heatmap anual.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--signal-500)"><span class="led"></span><div>
+      <div class="name">today <span class="b b--closed">cerrado</span></div>
+      <p><code>/</code>: saludo y fecha; hábitos de hoy como pads; 3 tareas destacadas + "Ver N más"; pagos vencidos y de 7 días con "Pagado"; proyectos que vencen o están bloqueados; "Día completo" con 6 mensajes variados y lo logrado; "Nada programado para hoy" sin culpa. Sin briefing por horas ni cierre guiado.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--area-finance)"><span class="led"></span><div>
+      <div class="name">finance <span class="b b--closed">cerrado</span></div>
+      <p>Pagos recurrentes (semanal, mensual, cada N meses, anual) con "Pagado" de un toque (crea el gasto), "Pagado…" con monto y "Omitir este período"; gastos sueltos desde la captura ("Tarea · Gasto") con monto, medio recordado y categoría opcional; PEN/USD con tipo de cambio manual guardado por gasto; resumen mensual por categoría y medio; importación única desde Notion. Sin ingresos, cuentas, tarjetas con corte, cuotas, presupuesto ni importación de extractos.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--gray-500)"><span class="led"></span><div>
+      <div class="name">reminders <span class="b b--pending">siguiente</span></div>
+      <p>Motor genérico de avisos (push de la PWA y/o email), cron diario y service worker. Lo esperan <code>finance</code> (vencimientos), <code>habits</code> (hora del momento), <code>tasks</code> (hora de la fecha). Sin spec todavía: este informe es insumo.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--gray-500)"><span class="led"></span><div>
+      <div class="name">goals · weekly-review <span class="b b--pending">pendientes</span></div>
+      <p>Metas anuales/trimestrales y objetivo semanal enlazadas a hábitos y proyectos; ritual guiado de cierre de semana que termina en logros. <code>habits</code> ya expone <code>getHabitsWeekSummary</code> para esto.</p>
+    </div></div>
+    <div class="card mod" style="color:var(--gray-500)"><span class="led"></span><div>
+      <div class="name">learning · notes <span class="b b--pending">pendientes</span></div>
+      <p>Cursos y rutas de estudio con sesiones y enlace a metas; daily log y notas de conocimiento con búsqueda (el renderizador Markdown ya existe en <code>src/lib/markdown/</code>).</p>
+    </div></div>
+    <div class="card mod" style="color:var(--gray-600)"><span class="led"></span><div>
+      <div class="name">health · budget · ai-assistant · library · relationships · travel <span class="b b--later">más adelante</span></div>
+      <p>Ideas sin spec. <code>health</code> unificaría los 3 sistemas de ejercicio de Notion; <code>budget</code> extiende <code>finance</code> con topes por categoría; <code>ai-assistant</code> consulta y resume datos propios.</p>
+    </div></div>
+  </div>
+
+  <h3 style="margin:22px 0 8px">Lo que ya está decidido y no se negocia en este informe</h3>
+  <ul class="prose">
+    <li>Marcar un hábito = 1 toque; capturar tarea o gasto ≤ 3 interacciones y &lt; 10 s (criterios 1 y 2 de <code>principios-ux.md</code> §5).</li>
+    <li>Nunca culpa: ni "fallaste", ni rojo por incumplir, ni rachas "perdidas" con drama (principio 6 y "Lo que no haremos").</li>
+    <li>Una acción primaria por pantalla, máximo 3 prioridades destacadas en Hoy (principios 5 y 13).</li>
+    <li>UI optimista con "Deshacer" en todo lo reversible; sin borrado físico; migraciones solo aditivas.</li>
+    <li>Un solo usuario; sin IA, colaboración ni app nativa en el MVP (se marcan como "futuro", no se rechazan).</li>
+  </ul>
+</section>
+<section id="rimu" aria-labelledby="h-rimu">
+  <div class="sec-head"><span class="sec-num">04</span><h2 id="h-rimu">Qué es rimu</h2></div>
+  <p class="lede">Producto comercial multiusuario de C2 Digital (Brasil) con pago único. Se vende como "un sistema" para dejar de alternar entre apps. La landing es una SPA de React de 26 secciones y un solo botón de compra.</p>
+
+  <h3>Posicionamiento</h3>
+  <div class="tw tw--narrow"><table>
+    <caption>Datos de la landing y sus metadatos</caption>
+    <thead><tr><th scope="col">Dato</th><th scope="col">Valor</th><th scope="col">Evidencia</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Título</th><td>«rimu — Tareas, Hábitos y Entrenamientos en un solo sistema»</td><td><span class="b b--obs">observado</span> <code>&lt;title&gt;</code></td></tr>
+      <tr><th scope="row">Descripción</th><td>«La app de productividad que reúne tareas, hábitos, entrenamientos y finanzas en un solo sistema. Organiza tu rutina con IA. Acceso de por vida.»</td><td><span class="b b--obs">observado</span> <code>og:description</code></td></tr>
+      <tr><th scope="row">Promesa central</th><td>«Solo necesitas un sistema para ser organizado y productivo.» + «Deja de alternar entre apps.» / «Una app. Cero fricción.» / «Sin mensualidades. Nunca.»</td><td><span class="b b--obs">observado</span> hero</td></tr>
+      <tr><th scope="row">Precio</th><td>USD 39,99 pago único; desde Perú muestra S/ 149,90. Variante oculta de "2 años" (<code>?v=term</code>) no servida por defecto. Garantía 7 días.</td><td><span class="b b--obs">observado</span> JSON-LD, pricing</td></tr>
+      <tr><th scope="row">Plataformas</th><td>PWA en <code>app.rimuapp.com</code>, «con soporte offline»; sin enlaces a tiendas. Móvil declarado como experiencia principal.</td><td><span class="b b--prom">prometido</span> FAQ, JSON-LD</td></tr>
+      <tr><th scope="row">Login</th><td>Código por correo, sin contraseña.</td><td><span class="b b--prom">prometido</span> sección "Tu acceso"</td></tr>
+      <tr><th scope="row">Idiomas</th><td>Landing ES/EN (PT en el bundle, no seleccionable). App "en español, portugués e inglés" en textos no renderizados.</td><td><span class="b b--obs">observado</span> selector · <span class="b b--prom">prometido</span> bundle</td></tr>
+      <tr><th scope="row">Tema</th><td>Landing solo oscura. App: modo claro en el video principal, oscuro en las capturas de iPhone.</td><td><span class="b b--obs">observado</span></td></tr>
+      <tr><th scope="row">Infraestructura y terceros</th><td>Supabase, Cloudflare, Stripe, Hotmart, Meta (píxel y WhatsApp Business), OpenAI (texto de gastos), Groq (transcripción de audio), push de Google/Mozilla/Apple.</td><td><span class="b b--ext">externo</span> /privacy §7–8</td></tr>
+      <tr><th scope="row">Prueba social</th><td>10 capturas de DMs anónimos de Instagram; <code>aggregateRating 4.8/150</code> sin respaldo visible; cero resultados en búsqueda web.</td><td><span class="b b--inf">inferencia</span> no verificable</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:22px">Inventario por áreas</h3>
+  <p class="prose">Para cada función: qué promete, qué se ve de su interfaz y qué problema resuelve. La fuente va entre paréntesis (sección de la landing o archivo).</p>
+  <div class="tw tw--wide"><table>
+    <caption>Funciones de rimu por área</caption>
+    <thead><tr><th scope="col">Área</th><th scope="col">Función</th><th scope="col">Qué promete (copy)</th><th scope="col">Qué se ve</th><th scope="col">Problema que resuelve</th><th scope="col">Evidencia</th></tr></thead>
+    <tbody>
+      <tr><th scope="row" rowspan="4">Captura</th><td>WhatsApp: texto → tarea</td><td>«Manda una tarea, un gasto o un audio y lo registra en tu cuenta al instante, sin abrir la app.»</td><td>Chat «Rimu by C2»: «Ir al super mañana 9am» → «✅ Creada — "Ir al super" · mañana a las 9:00 AM» con botón «Editar». La fecha y la hora salen del texto.</td><td>Registrar sin abrir la app; la fricción de la fecha desaparece.</td><td><span class="b b--obs">observado</span> wa-tarefa</td></tr>
+      <tr><td>WhatsApp: texto → gasto</td><td>«Registra gastos, ingresos y transferencias por WhatsApp».</td><td>«Gaste $45 uber» → formulario nativo «Nuevo Gasto» → «✅ Gasto registrado · Categoría: Alimentación · Cuenta: Bank of America». La categoría es errónea en la propia captura promocional.</td><td>Anotar el gasto en el momento, sin teclado numérico.</td><td><span class="b b--obs">observado</span> wa-gasto · <span class="b b--inf">inferencia</span> IA se equivoca</td></tr>
+      <tr><td>WhatsApp: audio → tarea / nota</td><td>«El audio de WhatsApp se convierte en nota automáticamente».</td><td>Nota de voz de 0:04 → «✅ Creada — "reunión." · mañana a las 9:00 AM». No se ve audio → nota.</td><td>Capturar manos libres.</td><td><span class="b b--obs">observado</span> tarea · <span class="b b--prom">prometido</span> nota</td></tr>
+      <tr><td>Barra de captura en la app</td><td>No la describe el copy.</td><td>Campo inferior con placeholders «Study every day 8am», «Call John friday 3pm» e ícono de rayo: parser de lenguaje natural dentro de la app.</td><td>Crear tarea o hábito desde cualquier vista.</td><td><span class="b b--obs">observado</span> agenda, habitos-03</td></tr>
+
+      <tr><th scope="row" rowspan="6">Tareas</th><td>Vista Día / agenda</td><td>«Tareas, hábitos y cuentas en un solo lugar».</td><td>iPhone: saludo «Mornings are quiet, start with what matters.», secciones BILLS TO PAY · 1, OVERDUE · 2 (rojo), MORNING (Workout 9:30–10:30), NO TIME (hábitos). Checkbox por fila; 4 íconos en cabecera.</td><td>Ver todo lo del día en una lista.</td><td><span class="b b--obs">observado</span> agenda.webp</td></tr>
+      <tr><td>Recurrentes con horario</td><td>«Tareas recurrentes con horario».</td><td>«Every day» bajo cada hábito/tarea; bloques con hora en el planner.</td><td>Rutinas con hora fija.</td><td><span class="b b--obs">observado</span></td></tr>
+      <tr><td>Checklist dentro de la tarea</td><td>«Checklist dentro de cada tarea».</td><td>Subitem «Open» bajo «Read 30min»; subtareas anidadas en Eisenhower.</td><td>Pasos de una tarea sin crear varias.</td><td><span class="b b--obs">observado</span> agenda, site-03</td></tr>
+      <tr><td>4 prioridades, categorías, subcategorías, proyectos</td><td>Lista de precios.</td><td>Etiquetas «Urgente · Importante» en el video. No hay pantalla de proyectos.</td><td>Clasificar.</td><td><span class="b b--prom">prometido</span></td></tr>
+      <tr><td>Kanban y Eisenhower</td><td>«Eisenhower y Kanban, a tu manera».</td><td>Mockup con 4 cuadrantes de color y 3 columnas; en el video, cuadrantes «HACER AHORA / PROGRAMAR / DELEGAR / EVALUAR» con contadores.</td><td>Priorizar visualmente.</td><td><span class="b b--obs">observado</span> site-03, 09-*</td></tr>
+      <tr><td>Planner (línea de tiempo)</td><td>«Vista de día, semana y mes sobre una cuadrícula de horas. Arrastra y ajusta cada tarea».</td><td>Video gantt.mp4: grilla de horas, bloques arrastrables, fila «SIN HORA», toasts «Tarea actualizada» y «Tarea eliminada · DESHACER». Es un calendario, no un Gantt de proyecto.</td><td>Planear la semana moviendo tareas.</td><td><span class="b b--obs">observado</span> · <span class="b b--inf">inferencia</span> no es Gantt</td></tr>
+
+      <tr><th scope="row" rowspan="4">Hábitos</th><td>Lista con racha</td><td>«Marca cada hábito al cumplirlo y mantén la llama encendida.»</td><td>iPhone: gráfico de tendencia, 7 círculos (días cumplidos rellenos), DAILY con «🔥 9», WEEKLY «0 of 1 this week». Check cuadrado blanco.</td><td>Ver la cadena y no romperla.</td><td><span class="b b--obs">observado</span> habitos.webp</td></tr>
+      <tr><td>Tracker mensual</td><td>«Tracker con rachas y récords».</td><td>Escritorio: 31 columnas × 5 hábitos, barras diarias, % por semana («23/31 74 %»), total «94/124 76 %», toast «Habit completed · UNDO».</td><td>Consistencia del mes de un vistazo.</td><td><span class="b b--obs">observado</span> habitos.mp4</td></tr>
+      <tr><td>Saltar día sin romper racha</td><td>Lista de precios.</td><td>No se ve.</td><td>Descanso sin castigo.</td><td><span class="b b--prom">prometido</span></td></tr>
+      <tr><td>Aviso «racha en riesgo»</td><td>«⚠️ ¡Tu racha está en riesgo! Leer por 30 min. ¡racha de 9 días!»</td><td>Solo texto en el bundle, no renderizado.</td><td>Disparador para no romper la cadena.</td><td><span class="b b--prom">prometido</span> bundle</td></tr>
+
+      <tr><th scope="row" rowspan="2">Entrenamientos</th><td>Plantillas, series, PR</td><td>«Registra series, repeticiones y cargas. rimu sigue tus récords».</td><td>iPhone: «LOAD 21.4 t», tarjetas «Push Day · 5 exercises · 19×» con sparkline; mockup «3 · 8×80 kg · PR».</td><td>Ver que la carga sube.</td><td><span class="b b--obs">observado</span> entrenos.webp</td></tr>
+      <tr><td>Cardio, descanso, sesión en vivo</td><td>Lista de precios.</td><td>Widget «Leg Day · not started yet»; «Día de descanso · Sin entrenamiento hoy».</td><td>Registrar en el gimnasio.</td><td><span class="b b--prom">prometido</span></td></tr>
+
+      <tr><th scope="row" rowspan="6">Finanzas</th><td>Cuentas, ingresos, patrimonio</td><td>«Ingresos, gastos y transferencias».</td><td>iPhone: «NET WORTH $15,971.27 · −4.0 %» en rojo, gráfico de área rojo, logos de Oxxo/Spotify/Netflix, montos en rojo.</td><td>Ver el saldo total.</td><td><span class="b b--obs">observado</span> finanzas.webp</td></tr>
+      <tr><td>Facturas de tarjeta</td><td>«Facturas de tarjeta con pago parcial, total o saltar. rimu marca atrasado automáticamente».</td><td>Mockup: «Nubank · Abierta · S/1,800 · Pagado S/680 · Cierra el 28 · vence el 5 de jun».</td><td>Saber cuánto cerrará la tarjeta.</td><td><span class="b b--prom">prometido</span> mockup HTML</td></tr>
+      <tr><td>Cuotas</td><td>«Divide compras en hasta 36 cuotas».</td><td>Mockup «Notebook Dell · Cuota 3/12»; «2/6 · 10 jun».</td><td>Compras a plazos.</td><td><span class="b b--prom">prometido</span></td></tr>
+      <tr><td>Recurrentes</td><td>«Lo que se repite se registra solo».</td><td>«Salario · El día 5», «Alquiler · Cada mes».</td><td>No reescribir lo fijo.</td><td><span class="b b--prom">prometido</span></td></tr>
+      <tr><td>Multimoneda, presupuesto</td><td>«11 monedas con cotización automática», «Presupuesto por categoría».</td><td>«Cuenta USD $1,200 · 1 USD = S/3.70»; «Ocio S/390 de S/340» con barra llena; en el video «Aún no hay límites de categoría».</td><td>Vivir en dos monedas; no pasarse.</td><td><span class="b b--prom">prometido</span> · <span class="b b--obs">observado</span> límites vacíos</td></tr>
+      <tr><td>Importar OFX/CSV/XLSX, PDF</td><td>«rimu detecta las cuotas solo», «Exporta el mes entero en un informe».</td><td>Mockup «extracto-mayo.ofx · 142 movimientos · ✓ Importado»; «Informe · Junio 2026 · PDF · 1,2 MB».</td><td>No teclear cada movimiento.</td><td><span class="b b--prom">prometido</span></td></tr>
+
+      <tr><th scope="row" rowspan="2">Estudios</th><td>Materias, horas, Pomodoro</td><td>«Organiza materias y temas, registra tus horas de estudio y enfócate con el Pomodoro.»</td><td>iPhone: «CONSISTENCY 42×» (heatmap), horas por franja, donut por materia; video: «ESTUDIO DE HOY» con ▶ para iniciar sesión; mockup «POMODORO · Ciclo 2 de 4 · EN FOCO Cálculo II».</td><td>Ver cuánto estudias y cuándo.</td><td><span class="b b--obs">observado</span></td></tr>
+      <tr><td>Enlaces a materiales, notas en sesión</td><td>Lista de precios.</td><td>No se ve.</td><td>Tener el material a mano.</td><td><span class="b b--prom">prometido</span></td></tr>
+
+      <tr><th scope="row" rowspan="3">Notas</th><td>Nota diaria en bloques</td><td>«Cada día tiene su nota. Escribe en bloques».</td><td>Mockup «NOTA DE HOY · 31 may» con viñetas y enlaces en negrita; widget «Latest Note · Plan de hoy».</td><td>Journaling que mueve el día.</td><td><span class="b b--obs">observado</span> mockup</td></tr>
+      <tr><td>[[enlaces]], @menciones, línea → tarea/hábito</td><td>«Escribe @ y elige un hábito o tarea para marcar ahí mismo».</td><td>Tres tarjetas ilustrativas. No hay captura real de la conversión.</td><td>Escribir una vez, usar en varios módulos.</td><td><span class="b b--prom">prometido</span></td></tr>
+      <tr><td>Grafo</td><td>«Mira cómo se conectan tus ideas».</td><td>Video graph.mp4 y editor con mini-grafo lateral, carpetas y buscador.</td><td>Descubrir conexiones.</td><td><span class="b b--obs">observado</span> site-08</td></tr>
+
+      <tr><th scope="row">Metas</th><td>Metas con plazo, dinero y tareas</td><td>«rimu mide tu progreso y te muestra si vas al día con el plazo.»</td><td>iPhone: «Adelantadas 1 / Atrasadas 1», línea de tiempo «Faltan 205d · 50 %», tarjetas con foto («Viaje a Japón · FALTAN 259 DÍAS · Sin progreso aún · • Atrasada»), barras TAREAS 1/1 y DINERO 0 US$. Modal con toggles Fecha límite / Financiero / Objetivo numérico.</td><td>Saber si llegas a tiempo.</td><td><span class="b b--obs">observado</span> objetivos.webp, site-06</td></tr>
+
+      <tr><th scope="row">Estadísticas</th><td>Tasa de finalización, días perfectos</td><td>«No es motivación vacía. Es la prueba de lo que construiste.»</td><td>Anillos «Tasks 0 of 2 · 0 %», «Habits 0 of 5», «Objectives» en el dashboard.</td><td>Evidencia acumulada.</td><td><span class="b b--prom">prometido</span> · <span class="b b--obs">observado</span> anillos</td></tr>
+
+      <tr><th scope="row" rowspan="2">Avisos</th><td>Push de tarea y factura</td><td>«Avisos de tus tareas y cuentas en el momento justo.» «Solo lo necesario.»</td><td>Mockup de dos notificaciones: «Reunión de equipo · Empieza en 15 min» y «Factura Nubank · Vence mañana».</td><td>Disparador a tiempo.</td><td><span class="b b--prom">prometido</span> · <span class="b b--ext">externo</span> push web (/privacy §8)</td></tr>
+      <tr><td>Briefings de mañana, mediodía y noche</td><td>«con el total gastado»; configurables o desactivables (/privacy).</td><td>Solo bajo demanda: «Agenda» → mensaje con Atrasadas, Hábitos 2/5, Tareas 0/1, Pendientes sin fecha (+19).</td><td>Empezar el día con el plan.</td><td><span class="b b--obs">observado</span> bajo demanda · <span class="b b--prom">prometido</span> horarios</td></tr>
+
+      <tr><th scope="row">IA</th><td>Asistente «Zada», lenguaje natural</td><td>«Reprogramar mi reunión de mañana para el jueves a las 10 → Listo.»</td><td>Textos en el bundle no renderizados. Ninguna captura muestra un chat dentro de la app.</td><td>Hablarle a la app.</td><td><span class="b b--prom">prometido</span> no visible</td></tr>
+      <tr><th scope="row">Integraciones</th><td>Google Calendar bidireccional</td><td>«En ambos sentidos, en tiempo real.»</td><td>Solo mockup HTML. Los términos limitan el permiso a <code>calendar.events</code> y a eventos creados por la app.</td><td>Ver citas y tareas juntas.</td><td><span class="b b--prom">prometido</span> · <span class="b b--inf">inferencia</span> copy y términos no coinciden</td></tr>
+      <tr><th scope="row">Móvil / offline</th><td>PWA, offline, sync en tiempo real</td><td>«funciona como PWA… con soporte offline».</td><td>6 capturas reales de iPhone (barra de estado, 4G). UI en inglés con datos en español.</td><td>Usar en el celular sin instalar.</td><td><span class="b b--prom">prometido</span> offline · <span class="b b--obs">observado</span> móvil</td></tr>
+      <tr><th scope="row">Personalización</th><td>Tema, idioma, saludos variables</td><td>«Modo claro y oscuro».</td><td>Saludos distintos por hora y estado: «Slow day? tomorrow's another shot.», «Un día más de evolución, eso nadie te lo quita.»</td><td>Sentir la app propia.</td><td><span class="b b--obs">observado</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:22px">La landing como documento de producto</h3>
+  <div class="grid grid--2">
+    <div class="card">
+      <h4>Qué dolores ataca</h4>
+      <ul>
+        <li><strong>Fragmentación:</strong> «Cinco apps, cinco suscripciones. O una, una vez.» Aparece en el hero, en "Haz las cuentas" y en el pricing. El dolor número uno es tener la vida repartida.</li>
+        <li><strong>Fricción de registro:</strong> «Una app. Cero fricción.» y, en la versión anterior de la landing, «No es falta de disciplina. Es fricción innecesaria.» Es exactamente la tesis de brahua-os.</li>
+        <li><strong>Olvido:</strong> «Ningún plazo te toma por sorpresa», «Todo en el radar».</li>
+        <li><strong>Costo recurrente:</strong> «Sin mensualidades. Nunca.» No aplica a brahua-os.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Qué muestra primero</h4>
+      <ul>
+        <li>Video de 2:17 de la app real antes que cualquier función: vende la sensación, no la lista.</li>
+        <li>Orden: Tu día → Hábitos → Notas → Grafo → Metas → Kanban → <strong>WhatsApp</strong> → Calendar → Planner → Finanzas → Entrenos → Estudios → iPhone → Desktop → precio.</li>
+        <li>WhatsApp tiene 4 capturas reales; Google Calendar, un dibujo. Lo verificable está donde más invirtieron.</li>
+        <li>Único CTA al final: el recorrido es la venta.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Qué repite</h4>
+      <ul>
+        <li>«Sin saltar entre cinco apps» (3 veces), «Foco del Día» (4 veces), «pago único · de por vida» (5 lugares).</li>
+        <li>El mismo mockup de factura Nubank, press de banca 80 kg y Cálculo II reaparece en varias secciones: hay menos pantallas reales que funciones listadas.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Qué deja fuera</h4>
+      <ul>
+        <li>Proyectos como entidad (solo "meta con tareas"), revisión semanal, exportación general de datos, capturas del asistente de IA, del offline y de Google Calendar.</li>
+        <li>No hay pantalla de bandeja de entrada aunque un testimonio la llama «oro puro».</li>
+        <li>Nada sobre accesibilidad, teclado ni movimiento reducido.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="prose" style="margin-top:14px"><strong>Lectura</strong> <span class="b b--inf">inferencia</span>: sus usuarios valoran (1) no abrir la app para registrar, (2) ver el día entero en una lista, (3) la racha como motor y (4) tener el dinero en el mismo lugar. Lo que rimu promete y no muestra (IA, Calendar, offline, importación) es lo que menos pesa en la decisión de compra. brahua-os ya cubre (2) y (4); le faltan (1) y un motor que no sea la presión de la racha.</p>
+</section>
+<section id="flows" aria-labelledby="h-flows">
+  <div class="sec-head"><span class="sec-num">05</span><h2 id="h-flows">Flujos desmontados</h2></div>
+  <p class="lede">Las funciones se copian fácil; lo valioso es el <em>cómo</em>. Diez flujos que la landing destaca, con el costo de interacción, el bucle de recompensa, la densidad, el lenguaje y los principios UX que tocan. Donde rimu choca con <code>principios-ux.md</code> hay una oportunidad de hacerlo mejor.</p>
+  <p class="prose"><small>Toques y segundos son estimaciones a partir de lo que se ve; los flujos no se probaron en la app. Los chips citan el número del principio.</small></p>
+
+  <div class="grid grid--2">
+
+    <article class="flow">
+      <h3>1 · Captura por WhatsApp <span class="b b--obs">observado</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Abrir WhatsApp (1), tocar el chat (1), escribir «Ir al super mañana 9am» y enviar (1). ~8 s. Lanzado fuera de la app; la fecha y la hora salen del texto. Para un gasto, un formulario nativo agrega 2–3 toques.</dd>
+        <dt>Recompensa</dt><dd>Respuesta inmediata «✅ Creada» con lo interpretado y botón «Editar». Reconocimiento, no celebración.</dd>
+        <dt>Densidad</dt><dd>Una línea de texto; cero decisiones salvo corregir.</dd>
+        <dt>Lenguaje</dt><dd>Neutro, funcional («Creada», «Gasto registrado»). La categorización de «uber» como «Alimentación» en la captura promocional muestra el costo del error de la IA.</dd>
+        <dt>Conexiones</dt><dd>Texto → tarea / gasto / nota; cuenta bancaria elegida sola.</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">12</span><span class="chip">13</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque:</b> depende de Meta, OpenAI y Groq (datos a terceros, /privacy §7) y de un servidor de mensajería propio. Para un solo usuario es un costo de mantenimiento desproporcionado. La <em>idea</em> (registrar sin abrir la app, con lenguaje natural) es la mejor de toda la landing.</div>
+    </article>
+
+    <article class="flow">
+      <h3>2 · Briefing de la mañana <span class="b b--obs">observado</span> <span class="b b--prom">prometido</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Bajo demanda: escribir «Agenda» (1 mensaje). Prometido: llega solo a las horas configuradas (0 toques).</dd>
+        <dt>Recompensa</dt><dd>Un mensaje de texto plano con Atrasadas (con la fecha original en cursiva), Hábitos 2/5 con tachado, Tareas 0/1 y «Pendientes (sin fecha) +19». Acciones rápidas «✓ Marcar hecho / + Nueva tarea».</dd>
+        <dt>Densidad</dt><dd>Alta: 5 atrasadas + 5 hábitos + lista larga sin fecha. Sin tope.</dd>
+        <dt>Lenguaje</dt><dd>Empieza por «Atrasadas». Las 19 sin fecha son una deuda visible.</dd>
+        <dt>Rituales</dt><dd>Mañana, mediodía y noche «con el total gastado» (prometido).</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">5</span><span class="chip">7</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque:</b> principio 5 (máximo 3 prioridades) y "Lo que no haremos" (contadores de deuda). El disparador está bien; el contenido abruma. brahua-os puede mandar un briefing con 3 cosas y un enlace a <code>/</code>.</div>
+    </article>
+
+    <article class="flow">
+      <h3>3 · Planificador semanal (planner) <span class="b b--obs">observado</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Escritorio: arrastrar un bloque de un día a otro (1 gesto). En móvil, arrastrar en una grilla de horas es impreciso (inferencia). Vistas Día · 4 días · Semana · Mes.</dd>
+        <dt>Recompensa</dt><dd>Toast «Tarea actualizada: Reunión a las nueve.» y «Tarea eliminada · DESHACER». Deshacer visible.</dd>
+        <dt>Densidad</dt><dd>Grilla de horas + barra lateral de tareas sin fecha + filtros VENCIDAS / COMPLETADAS. Densidad alta.</dd>
+        <dt>Lenguaje</dt><dd>«Vencidas» como filtro permanente.</dd>
+        <dt>Rituales</dt><dd>La planificación semanal es implícita; no hay guía ni cierre.</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">4</span><span class="chip">12</span><span class="chip">14</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque:</b> principio 14 (zona del pulgar) y 13 (Hick): cuatro vistas y arrastre fino en el celular. La necesidad real es "esto no va hoy, va mañana": un toque, no un planner.</div>
+    </article>
+
+    <article class="flow">
+      <h3>4 · Marcar un hábito y ver la racha <span class="b b--obs">observado</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>1 toque en la casilla (iPhone) o en el tracker mensual (escritorio). Igual que brahua-os.</dd>
+        <dt>Recompensa</dt><dd>Check blanco, «🔥 9» que sube, gráfico de tendencia arriba, % semanal en el tracker («23/31 74 %»), toast «Habit completed · UNDO».</dd>
+        <dt>Densidad</dt><dd>Móvil: lista por DAILY / WEEKLY, 1 acción por fila. Escritorio: 31 × 5 casillas, muy denso.</dd>
+        <dt>Lenguaje</dt><dd>«Mantén la llama encendida», «presión positiva para no romper la cadena», «⚠️ ¡Tu racha está en riesgo!». Amortiguador: «Saltar día sin romper racha».</dd>
+        <dt>Conexiones</dt><dd>Hábito ↔ meta (prometido), hábito marcado desde la nota con «@» (prometido).</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">2</span><span class="chip">3</span><span class="chip">6</span><span class="chip">15</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque frontal con el principio 6:</b> la racha diaria perfecta y el aviso de alarma son el patrón "ya da igual". brahua-os ya tiene cuota semanal proporcional, pausas, 7 días atrás y cero rojo. Lo único rescatable es "saltar hoy" como atajo de un toque.</div>
+    </article>
+
+    <article class="flow">
+      <h3>5 · Gasto en otra moneda <span class="b b--prom">prometido</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Por WhatsApp: 1 mensaje. En la app no se ve el formulario de gasto; se infiere monto + cuenta + categoría (≥ 3 campos).</dd>
+        <dt>Recompensa</dt><dd>Saldo de la cuenta en USD y conversión «1 USD = S/3.70» automática en el total.</dd>
+        <dt>Densidad</dt><dd>Pantalla de finanzas con patrimonio, gráfico, 4 accesos y lista: 6 bloques antes del primer movimiento.</dd>
+        <dt>Lenguaje</dt><dd>Gastos en rojo, «−4.0 %» en rojo. El dinero que sale se pinta como pérdida.</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">13</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque:</b> "Lo que no haremos" (rojo como castigo). brahua-os ya guarda el tipo de cambio vigente por gasto y muestra solo el dato. El tipo automático ahorra un ajuste mensual a cambio de un servicio externo: no compensa.</div>
+    </article>
+
+    <article class="flow">
+      <h3>6 · Factura de tarjeta <span class="b b--prom">prometido</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Configurar cierre y vencimiento una vez; cada compra con tarjeta cae sola en la factura abierta. Pagar: parcial, total o saltar.</dd>
+        <dt>Recompensa</dt><dd>Ver «Abierta · S/1,800 · Pagado S/680 · Cierra el 28» antes de que llegue el estado de cuenta.</dd>
+        <dt>Densidad</dt><dd>Una tarjeta con 4 datos.</dd>
+        <dt>Lenguaje</dt><dd>«rimu marca atrasado automáticamente», «Venció · 28 may» en rojo.</dd>
+        <dt>Conexiones</dt><dd>Gasto → factura → pago (transferencia desde una cuenta).</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">4</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque menor:</b> el rojo. La capacidad es real y <code>SPEC-finance.md</code> la dejó fuera ("sin fechas de corte"). Solo vale si el owner paga con tarjeta de crédito a fin de mes; es una pregunta abierta.</div>
+    </article>
+
+    <article class="flow">
+      <h3>7 · Sesión de entrenamiento <span class="b b--obs">observado</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Elegir plantilla «Push Day» (1), iniciar (1), marcar cada serie con peso y reps (≥ 2 toques por serie). En el gimnasio, con las manos ocupadas.</dd>
+        <dt>Recompensa</dt><dd>Etiqueta «PR» al superar el récord, gráfico por ejercicio, tonelaje «21.4 t», conteo «19×».</dd>
+        <dt>Densidad</dt><dd>Alta: tonelaje + toggle + gráfico + plantillas + ejercicios en una pantalla.</dd>
+        <dt>Lenguaje</dt><dd>Competencia (principio 9): récords, carga que sube. «Día de descanso · Sin entrenamiento hoy» sin culpa.</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">4</span><span class="chip">9</span><span class="chip">10</span></span></dd>
+      </dl>
+      <div class="clash"><b>Sin choque.</b> Es el flujo mejor diseñado de rimu para el principio 10 (evidencia de identidad). brahua-os lo tiene en "Más adelante" como <code>health</code>; en Notion había 3 sistemas de ejercicio duplicados.</div>
+    </article>
+
+    <article class="flow">
+      <h3>8 · Nota diaria con enlaces <span class="b b--prom">prometido</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Escribir en la nota del día; «[[» abre un selector; «@» marca un hábito o tarea ahí mismo; una línea se vuelve tarea (prometido). 0 cambios de pantalla.</dd>
+        <dt>Recompensa</dt><dd>Lo escrito «llega al resto de rimu en cuanto publicas»; mini-grafo local al costado.</dd>
+        <dt>Densidad</dt><dd>Editor de tres paneles en escritorio (carpetas, texto, grafo). No se ve la versión móvil.</dd>
+        <dt>Lenguaje</dt><dd>«Lo que escribes mueve tu día».</dd>
+        <dt>Conexiones</dt><dd>Nota ↔ meta ↔ materia ↔ hábito ↔ tarea. Es el pegamento del "segundo cerebro".</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">4</span><span class="chip">9</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque:</b> el grafo es vistoso pero no baja la fricción (principio 16 mal entendido como adorno). La nota diaria con enlaces y "línea → tarea" sí: es el insumo principal para <code>notes</code>.</div>
+    </article>
+
+    <article class="flow">
+      <h3>9 · Metas con ritmo <span class="b b--obs">observado</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Crear: título, foto opcional, toggles Fecha límite / Financiero / Objetivo numérico (≈ 6 toques). Después no se registra nada: el progreso viene de tareas, dinero o hábitos enlazados.</dd>
+        <dt>Recompensa</dt><dd>«Faltan 259 días», % completado, marcador de ritmo esperado, «Adelantada» / «Al día». Foto de portada (Tokyo Station, un BMW).</dd>
+        <dt>Densidad</dt><dd>Banner + contadores + línea de tiempo + tarjetas: 4 bloques para 2 metas.</dd>
+        <dt>Lenguaje</dt><dd>«• Atrasada», «Sin progreso aún», «Sin ahorros en los últimos 6 meses». Tres mensajes de deuda en una pantalla.</dd>
+        <dt>Conexiones</dt><dd>Meta ↔ cuenta (dinero), ↔ tareas, ↔ hábito.</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">3</span><span class="chip">4</span><span class="chip">9</span><span class="chip">10</span></span></dd>
+      </dl>
+      <div class="clash"><b>Choque:</b> "Lo que no haremos" (culpa). El ritmo esperado es una gran idea para el principio 3; la etiqueta «Atrasada» la arruina. brahua-os puede decir cuánto falta y qué ritmo hace falta, no cuánto debes.</div>
+    </article>
+
+    <article class="flow">
+      <h3>10 · Modo enfoque / Pomodoro <span class="b b--obs">observado</span> <span class="b b--prom">prometido</span></h3>
+      <dl class="kv">
+        <dt>Costo</dt><dd>Iniciar sesión de estudio con ▶ (1 toque); Pomodoro «Ciclo 2 de 4 · 10:00 ENFOQUE».</dd>
+        <dt>Recompensa</dt><dd>Horas acumuladas, heatmap «CONSISTENCY 42×», «Peak: Afternoon». Aviso «cuando tu bloque de enfoque comienza» (prometido).</dd>
+        <dt>Densidad</dt><dd>Checklist de temas + temporizador: baja, bien.</dd>
+        <dt>Lenguaje</dt><dd>«Foco del Día» (4 veces en la landing). Sin culpa.</dd>
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">5</span><span class="chip">11</span><span class="chip">13</span></span></dd>
+      </dl>
+      <div class="clash"><b>Sin choque.</b> En brahua-os el "modo enfoque" global ya existe como regla: 3 prioridades y el resto plegado. El temporizador de sesión es un insumo para <code>learning</code>, no una función transversal.</div>
+    </article>
+  </div>
+
+  <h3 style="margin-top:24px">Pulido visual, en una lectura</h3>
+  <div class="grid grid--3">
+    <div class="card"><h4>Tipografía y color</h4><p>Manrope 200–300 en titulares enormes, Instrument Serif itálica para la frase rotatoria. Negro puro, gris medio, acento verde solo en el CTA. La app es monocroma con color semántico: rojo para atrasos y gastos, azul para pagos. <span class="b b--obs">observado</span></p></div>
+    <div class="card"><h4>Movimiento</h4><p>Framer Motion con entradas de 0,55–1,1 s al hacer scroll; videos en bucle de 8–12 s con arrastre y toasts. Nada comunica causa y efecto en la app salvo el toast. <span class="b b--obs">observado</span></p></div>
+    <div class="card"><h4>Estados</h4><p>Hecho = tachado + check blanco; atrasado = rojo + ⓘ; racha = 🔥 + número; récord = «PR»; factura = Abierta / Pagado / Venció; meta = Al día / Adelantada / Atrasada. Depende del color para el atraso. <span class="b b--obs">observado</span></p></div>
+  </div>
+</section>
+<section id="matrix" aria-labelledby="h-matrix">
+  <div class="sec-head"><span class="sec-num">06</span><h2 id="h-matrix">Matriz comparativa</h2></div>
+  <p class="lede">Una fila por capacidad. La brecha dice cuánto falta en brahua-os; las filas marcadas "brahua-os es mejor" son lo que no hay que perder al copiar.</p>
+  <p class="prose"><small>Brecha: <span class="b b--none">ninguna</span> ya existe · <span class="b b--part">parcial</span> existe a medias · <span class="b b--total">total</span> no existe · <span class="b b--better">brahua-os es mejor</span> y por qué.</small></p>
+
+  <div class="tw tw--wide"><table>
+    <caption>Capacidades: rimu frente a brahua-os</caption>
+    <thead><tr><th scope="col">Capacidad</th><th scope="col">rimu</th><th scope="col">brahua-os hoy</th><th scope="col">Módulo dueño</th><th scope="col">Brecha</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Captura fuera de la app</th><td>Bot de WhatsApp: texto y audio → tarea, gasto <span class="b b--obs">observado</span></td><td>Solo dentro de la PWA (tecla naranja, <kbd>C</kbd>)</td><td><code>core</code> / <code>tasks</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Lenguaje natural en fechas y montos</th><td>«mañana 9am», «friday 3pm», «$45 uber» interpretados <span class="b b--obs">observado</span></td><td>Campo de fecha nativo; monto en campo propio</td><td><code>tasks</code>, <code>finance</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Captura en ≤ 3 interacciones</th><td>WhatsApp 1 mensaje; en la app no se ve <span class="b b--inf">inferencia</span></td><td>Tarea: tecla, texto, Enter. Gasto: tecla, monto, Enter (E2E lo mide)</td><td><code>tasks</code>, <code>finance</code></td><td><span class="b b--better">brahua-os es mejor</span> dentro de la app: medido, sin terceros</td></tr>
+      <tr><th scope="row">Bandeja de entrada (GTD)</th><td>Mencionada en un testimonio; sin pantalla <span class="b b--ext">externo</span></td><td>Bandeja con acciones rápidas de clasificar</td><td><code>tasks</code></td><td><span class="b b--better">brahua-os es mejor</span> capturar sin clasificar es explícito</td></tr>
+      <tr><th scope="row">Vista del día unificada</th><td>Agenda con cuentas, atrasadas, hábitos por franja <span class="b b--obs">observado</span></td><td><code>/</code> con hábitos, 3 tareas, pagos, proyectos</td><td><code>today</code></td><td><span class="b b--none">ninguna</span></td></tr>
+      <tr><th scope="row">Tope de pendientes visibles</th><td>Sin tope: «ATRASADAS · 15», «+19» <span class="b b--obs">observado</span></td><td>3 destacadas y «Ver N más»</td><td><code>today</code></td><td><span class="b b--better">brahua-os es mejor</span> principio 5</td></tr>
+      <tr><th scope="row">Saludo variable por hora y estado</th><td>«Mornings are quiet…», «Slow day? tomorrow's another shot.» <span class="b b--obs">observado</span></td><td>Saludo fijo por hora</td><td><code>today</code></td><td><span class="b b--part">parcial</span></td></tr>
+      <tr><th scope="row">Cierre del día</th><td>No se ve; briefing de noche prometido <span class="b b--prom">prometido</span></td><td>«Día completo» con 6 mensajes cuando no queda nada</td><td><code>today</code></td><td><span class="b b--part">parcial</span> falta el cierre cuando quedó algo</td></tr>
+      <tr><th scope="row">Posponer a mañana</th><td>Arrastre en el planner; toast «Tarea reprogramada» <span class="b b--obs">observado</span></td><td>Editar la fecha en el detalle</td><td><code>tasks</code> / <code>today</code></td><td><span class="b b--part">parcial</span></td></tr>
+      <tr><th scope="row">Hora en tareas y recurrentes</th><td>«9:30–10:30 AM», «Every day» <span class="b b--obs">observado</span></td><td>Solo día; la hora se dejó para <code>reminders</code></td><td><code>tasks</code>, <code>reminders</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Checklist dentro de la tarea</th><td>Subitem «Open» <span class="b b--obs">observado</span></td><td>Notas Markdown con listas de tareas (no interactivas)</td><td><code>tasks</code></td><td><span class="b b--part">parcial</span></td></tr>
+      <tr><th scope="row">Recurrencia</th><td>Recurrentes con horario <span class="b b--prom">prometido</span></td><td>5 reglas al completar, sin copias acumuladas, deshacer borra la siguiente</td><td><code>tasks</code></td><td><span class="b b--better">brahua-os es mejor</span> definido para tareas domésticas</td></tr>
+      <tr><th scope="row">Prioridad</th><td>4 niveles + Eisenhower <span class="b b--prom">prometido</span></td><td>3 niveles + próxima acción por proyecto</td><td><code>tasks</code></td><td><span class="b b--none">ninguna</span> por decisión</td></tr>
+      <tr><th scope="row">Kanban, Eisenhower, Gantt, planner</th><td>4 vistas <span class="b b--obs">observado</span> (Gantt <span class="b b--prom">prometido</span>)</td><td>Listas: Bandeja, Hoy, Próximas, Todas, Hechas</td><td><code>tasks</code></td><td><span class="b b--total">total</span> y se descarta (principio 13)</td></tr>
+      <tr><th scope="row">Proyectos con hitos y dependencias</th><td>Sin pantalla de proyectos; «proyectos» en la lista <span class="b b--prom">prometido</span></td><td>Estados, hitos, "Bloqueado por", avance, notas, enlaces</td><td><code>projects</code></td><td><span class="b b--better">brahua-os es mejor</span></td></tr>
+      <tr><th scope="row">Marcar hábito en 1 toque</th><td>Casilla, toast con UNDO <span class="b b--obs">observado</span></td><td>Pad con <code>aria-pressed</code>, optimista, «Deshacer» ⌘Z</td><td><code>habits</code></td><td><span class="b b--none">ninguna</span></td></tr>
+      <tr><th scope="row">Rachas</th><td>Diaria perfecta, 🔥, «en riesgo», «saltar día» <span class="b b--obs">observado</span> <span class="b b--prom">prometido</span></td><td>Cuota semanal proporcional, pausas por rango, 7 días atrás, hoy no rompe, nunca rojo</td><td><code>habits</code></td><td><span class="b b--better">brahua-os es mejor</span> principio 6</td></tr>
+      <tr><th scope="row">Saltar un día puntual</th><td>«Saltar día sin romper racha» <span class="b b--prom">prometido</span></td><td>Pausa por rango de fechas (hoja con fechas y motivo)</td><td><code>habits</code></td><td><span class="b b--part">parcial</span> falta el atajo de un toque</td></tr>
+      <tr><th scope="row">Hábitos con cantidad y "a evitar"</th><td>Solo casilla; «Drink 3L» es sí/no <span class="b b--obs">observado</span></td><td>Cantidad con meta, unidad y paso; varias veces al día; días limpios</td><td><code>habits</code></td><td><span class="b b--better">brahua-os es mejor</span></td></tr>
+      <tr><th scope="row">Hábitos por horario / franja</th><td>MORNING / NO TIME, «9:30 AM 💧 Drink 3L» <span class="b b--obs">observado</span></td><td>«Momento» como texto libre; sin hora</td><td><code>habits</code>, <code>reminders</code></td><td><span class="b b--part">parcial</span></td></tr>
+      <tr><th scope="row">Historial de hábitos</th><td>Tracker mensual, % semanal, heatmap de estudio <span class="b b--obs">observado</span></td><td>Semana (DotMatrix), calendario mensual, racha, mejor racha, total</td><td><code>habits</code></td><td><span class="b b--part">parcial</span> falta la vista anual</td></tr>
+      <tr><th scope="row">Identidad del hábito</th><td>No aparece</td><td>Frase de identidad opcional, «Llevas 42 días hechos»</td><td><code>habits</code></td><td><span class="b b--better">brahua-os es mejor</span> principio 10</td></tr>
+      <tr><th scope="row">Avisos push</th><td>Tarea 15 min antes, factura «vence mañana», racha en riesgo, briefings <span class="b b--prom">prometido</span></td><td>Ninguno (sin service worker)</td><td><code>reminders</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Pagos recurrentes</th><td>«Lo que se repite se registra solo», «Atrasado» automático <span class="b b--prom">prometido</span></td><td>4 ciclos, «Pagado» crea el gasto, omitir, ventana de 60 días sin deuda infinita</td><td><code>finance</code></td><td><span class="b b--better">brahua-os es mejor</span> el pago es un toque y es el dato</td></tr>
+      <tr><th scope="row">Gasto suelto</th><td>Por WhatsApp o app <span class="b b--obs">observado</span></td><td>Monto primero, medio recordado, categoría opcional</td><td><code>finance</code></td><td><span class="b b--none">ninguna</span></td></tr>
+      <tr><th scope="row">Multimoneda</th><td>11 monedas, tipo automático <span class="b b--prom">prometido</span></td><td>PEN/USD, tipo manual guardado por gasto</td><td><code>finance</code></td><td><span class="b b--none">ninguna</span> para el uso real</td></tr>
+      <tr><th scope="row">Tarjetas con cierre y vencimiento</th><td>Factura abierta, pago parcial, cierre <span class="b b--prom">prometido</span></td><td>El gasto cuenta el día de la compra</td><td><code>finance</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Cuotas</th><td>Hasta 36, detectadas al importar <span class="b b--prom">prometido</span></td><td>Recurrente sin fin; se archiva a mano</td><td><code>finance</code></td><td><span class="b b--part">parcial</span></td></tr>
+      <tr><th scope="row">Ingresos, cuentas, patrimonio</th><td>Net worth, cuentas, transferencias <span class="b b--obs">observado</span></td><td>Fuera de alcance por decisión</td><td><code>finance</code></td><td><span class="b b--total">total</span> por decisión</td></tr>
+      <tr><th scope="row">Presupuesto por categoría</th><td>«Comida S/600 de S/670» <span class="b b--prom">prometido</span></td><td>Resumen por categoría sin tope</td><td><code>budget</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Importar extractos</th><td>OFX/CSV/XLSX <span class="b b--prom">prometido</span></td><td>Importación única desde Notion</td><td><code>finance</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Resumen mensual</th><td>Donut, balance, comparación con el periodo anterior <span class="b b--obs">observado</span></td><td>Total, barras por categoría y medio, pendiente de pagar, sin comparaciones</td><td><code>finance</code></td><td><span class="b b--none">ninguna</span></td></tr>
+      <tr><th scope="row">Metas enlazadas</th><td>Meta ↔ tareas, dinero, hábito; ritmo esperado <span class="b b--obs">observado</span></td><td>No existe</td><td><code>goals</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Revisión semanal guiada</th><td>No aparece</td><td>No existe; <code>getHabitsWeekSummary</code> ya está</td><td><code>weekly-review</code></td><td><span class="b b--total">total</span> en ambos</td></tr>
+      <tr><th scope="row">Nota diaria y enlaces</th><td>Nota del día, [[ ]], @, línea → tarea, grafo <span class="b b--prom">prometido</span></td><td>Notas Markdown en proyectos y tareas</td><td><code>notes</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Entrenamientos</th><td>Plantillas, series, PR, tonelaje <span class="b b--obs">observado</span></td><td>No existe</td><td><code>health</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Estudios</th><td>Materias, horas, Pomodoro, heatmap <span class="b b--obs">observado</span></td><td>No existe</td><td><code>learning</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Asistente de IA</th><td>«Zada», lenguaje natural <span class="b b--prom">prometido</span> no visible</td><td>Fuera del MVP</td><td><code>ai-assistant</code></td><td><span class="b b--total">total</span> futuro</td></tr>
+      <tr><th scope="row">Google Calendar</th><td>Bidireccional <span class="b b--prom">prometido</span> solo mockup</td><td>No existe</td><td>—</td><td><span class="b b--total">total</span> y se descarta</td></tr>
+      <tr><th scope="row">Offline</th><td>«con soporte offline» <span class="b b--prom">prometido</span></td><td>Sin service worker (ADR 004)</td><td><code>reminders</code> / <code>core</code></td><td><span class="b b--total">total</span></td></tr>
+      <tr><th scope="row">Deshacer</th><td>Toast UNDO en hábitos y planner <span class="b b--obs">observado</span></td><td>En toda mutación reversible, ⌘Z, el deshacer borra la siguiente recurrencia</td><td><code>core</code></td><td><span class="b b--better">brahua-os es mejor</span> principio 12</td></tr>
+      <tr><th scope="row">Celebración</th><td>🔥, «PR», «Habit completed» <span class="b b--obs">observado</span></td><td>Hitos 7/30/90/365 en el aviso; confeti pendiente; sin <code>motion</code> instalado</td><td><code>habits</code>, <code>core</code></td><td><span class="b b--part">parcial</span></td></tr>
+      <tr><th scope="row">Accesibilidad</th><td>Nada declarado; estados por color <span class="b b--inf">inferencia</span></td><td>axe en 0, atajos desactivables (WCAG 2.1.4), movimiento reducido, foco explícito, grilla navegable</td><td>todos</td><td><span class="b b--better">brahua-os es mejor</span></td></tr>
+      <tr><th scope="row">Login</th><td>Código por correo <span class="b b--prom">prometido</span></td><td>Contraseña + passkey (Face ID)</td><td><code>core</code></td><td><span class="b b--better">brahua-os es mejor</span></td></tr>
+      <tr><th scope="row">Datos y terceros</th><td>Supabase, OpenAI, Groq, Meta <span class="b b--ext">externo</span></td><td>Neon propio, sin IA, respaldo semanal cifrado, exportación JSON</td><td><code>core</code></td><td><span class="b b--better">brahua-os es mejor</span> privacidad y portabilidad</td></tr>
+      <tr><th scope="row">Lenguaje ante el fallo</th><td>Rojo, «OVERDUE», «Atrasada», «en riesgo» <span class="b b--obs">observado</span></td><td>Naranja de señal, «Retrasada hace N días», nunca rojo ni contador de deuda</td><td>todos</td><td><span class="b b--better">brahua-os es mejor</span> "Lo que no haremos"</td></tr>
+      <tr><th scope="row">Tema claro y oscuro</th><td>Ambos en la app <span class="b b--obs">observado</span></td><td>Oscuro por defecto, claro y sistema</td><td><code>core</code></td><td><span class="b b--none">ninguna</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:20px">Áreas de rimu sin módulo en brahua-os y su encaje en el mapa</h3>
+  <div class="tw tw--narrow"><table>
+    <thead><tr><th scope="col">Área de rimu</th><th scope="col">Módulo de brahua-os</th><th scope="col">Estado en el mapa</th><th scope="col">Qué toma de rimu</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Entrenamientos</th><td><code>health</code></td><td>Más adelante (sin spec)</td><td>Plantillas, series con peso, «PR», carga que sube; sin tonelaje ni gráficos al inicio.</td></tr>
+      <tr><th scope="row">Estudios</th><td><code>learning</code></td><td>Pendiente (4.º)</td><td>Sesión con temporizador, horas por materia, consistencia. Sin radar ni donut.</td></tr>
+      <tr><th scope="row">Presupuesto</th><td><code>budget</code></td><td>Más adelante</td><td>Tope por categoría con barra; nunca rojo al pasarse.</td></tr>
+      <tr><th scope="row">Asistente y WhatsApp</th><td><code>ai-assistant</code></td><td>Más adelante</td><td>Solo la idea de hablar en lenguaje natural; el parser de fechas no necesita IA.</td></tr>
+      <tr><th scope="row">Notas con grafo</th><td><code>notes</code></td><td>Pendiente (5.º)</td><td>Nota diaria, [[enlaces]], línea → tarea, backlinks. Sin grafo.</td></tr>
+      <tr><th scope="row">Metas</th><td><code>goals</code></td><td>Pendiente (2.º)</td><td>Enlace a hábito/proyecto, ritmo esperado, plazo. Sin «Atrasada».</td></tr>
+      <tr><th scope="row">Briefings y avisos</th><td><code>reminders</code></td><td>Siguiente (1.º)</td><td>Briefing de mañana, «vence mañana», hábito a su hora. Sin alarma de racha.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+<section id="opps" aria-labelledby="h-opps">
+  <div class="sec-head"><span class="sec-num">07</span><h2 id="h-opps">Oportunidades</h2></div>
+  <p class="lede">25 oportunidades clasificadas en una sola categoría. Cada una lleva problema, fuente, propuesta concreta, principios, módulo dueño, puntuación, esfuerzo, riesgos y un criterio verificable. Los descartes van al final, con su razón.</p>
+  <p class="prose"><small>Puntuación = impacto × frecuencia ÷ esfuerzo (S = 1, M = 2, L = 3). Impacto mide cuánto baja "registrar cuesta" o sube "da algo a cambio". Horizonte: <span class="b b--h1">pulido</span> módulos cerrados · <span class="b b--h2">spec</span> insumo para un módulo pendiente · <span class="b b--h3">apuesta</span> módulo nuevo o cambio de dirección.</small></p>
+
+  <div class="filters" role="group" aria-label="Filtros de oportunidades">
+    <span class="lbl">Filtrar</span>
+    <label class="sr-only" for="f-cat">Categoría</label>
+    <select id="f-cat"><option value="all">Todas las categorías</option><option value="adopt">Adoptar</option><option value="adapt">Adaptar</option><option value="beat">Superar</option></select>
+    <label class="sr-only" for="f-mod">Módulo</label>
+    <select id="f-mod"><option value="all">Todos los módulos</option><option value="core">core</option><option value="tasks">tasks</option><option value="habits">habits</option><option value="today">today</option><option value="finance">finance</option><option value="reminders">reminders</option><option value="goals">goals</option><option value="weekly-review">weekly-review</option><option value="learning">learning</option><option value="notes">notes</option><option value="health">health</option><option value="budget">budget</option></select>
+    <label class="sr-only" for="f-hor">Horizonte</label>
+    <select id="f-hor"><option value="all">Todos los horizontes</option><option value="h1">Pulido inmediato</option><option value="h2">Insumo para specs</option><option value="h3">Apuesta</option></select>
+    <span class="count" id="f-count" aria-live="polite"></span>
+    <button class="key key--sm" id="expand-all" type="button">Expandir todo</button>
+    <button class="key key--sm" id="collapse-all" type="button">Plegar todo</button>
+  </div>
+
+  <!-- ═══ 1 ═══ -->
+  <details class="opp" data-cat="beat" data-mod="core" data-hor="h1" id="opp-ios-shortcut-capture">
+    <summary>
+      <div class="opp__title">Captura desde fuera de la app con un atajo de iOS <span class="opp__id">ios-shortcut-capture</span></div>
+      <div class="opp__score">12,5<small>5 × 5 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--beat">Superar</span><span class="b b--h1">pulido</span><span class="b">core · tasks · finance</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema en mi uso real</h4>
+      <p>Para anotar "comprar pilas" hay que desbloquear, abrir la PWA, esperar el shell y tocar la tecla naranja. Son 4 pasos antes de escribir. En Notion ese costo fue la causa del abandono. rimu lo resuelve con un contacto de WhatsApp.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Bot «Rimu by C2» en WhatsApp: «Ir al super mañana 9am» → «✅ Creada» con botón «Editar»; audio de 4 s → tarea <span class="b b--obs">observado</span> (sección 10 de la landing, capturas <code>wa-tarefa</code>, <code>wa-tarefas-lembretes</code>). Detrás: WhatsApp Business, OpenAI y Groq <span class="b b--ext">externo</span> (/privacy §7).</p>
+      <h4>Propuesta para brahua-os</h4>
+      <ul>
+        <li>Ruta <code>/capture?text=…&amp;kind=task|expense</code> que, con sesión, guarda al instante y muestra la LCD «Guardado en la bandeja · Deshacer» (sin formulario si el texto alcanza). Sin sesión, redirige a <code>/login</code> y conserva el texto.</li>
+        <li>Un <strong>atajo de iOS</strong> (Shortcuts, sin dependencias) con "Pedir texto" o dictado → abre esa URL en la PWA instalada. Se pone en la pantalla de inicio, en el widget de atajos y en la Acción del botón lateral del iPhone 15/16. Toques desde el bloqueo: 2 (atajo, dictar) + Enter.</li>
+        <li>Mismo atajo para gastos: «12.50 café» → <code>kind=expense</code>. El parser de la oportunidad <code>capture-nl-dates</code> saca el monto.</li>
+        <li>Con <code>reminders</code> (service worker): <code>share_target</code> en el manifiesto para compartir un enlace o texto desde cualquier app a brahua-os.</li>
+      </ul>
+      <p>Copy: «Guardado en la bandeja», «Gasto registrado: S/ 12,50 · café». Mejor que rimu porque no sale ningún dato a terceros, no hay IA que se equivoque de categoría y el "Editar" es el "Deshacer" de siempre.</p>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">12</span><span class="chip">13</span><span class="chip">14</span></span></dd>
+        <dt>Módulo</dt><dd><code>core</code> (ruta y manifiesto) con proveedores <code>tasks</code> y <code>finance</code>, como la captura rápida. Share target depende del service worker de <code>reminders</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>5 · 5 (varias veces al día, fuera de la app).</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: sin migraciones; una página servidor + acción existente; E2E de la ruta con y sin sesión; el atajo lo instala el owner en su iPhone (no se puede probar en Playwright).</dd>
+        <dt>Riesgos</dt><dd>El texto viaja en la URL (queda en historial del navegador): limitar a 200 caracteres y no incluir montos sensibles en logs. iOS puede abrir Safari en vez de la PWA si la URL no coincide con el <code>scope</code>. Verificación en el iPhone real por el owner.</dd>
+        <dt>Criterio de aceptación</dt><dd>Desde la pantalla de bloqueo del iPhone, una tarea queda guardada en ≤ 3 interacciones y &lt; 10 s; E2E: <code>GET /capture?text=pilas</code> con sesión crea la tarea en la bandeja y muestra «Deshacer»; sin sesión no crea nada.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 2 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="tasks" data-hor="h1" id="opp-capture-nl-dates">
+    <summary>
+      <div class="opp__title">Fechas, horas y montos en lenguaje natural al capturar <span class="opp__id">capture-nl-dates</span></div>
+      <div class="opp__score">10<small>4 × 5 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h1">pulido</span><span class="b">tasks · finance</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Poner fecha a una tarea capturada exige abrir el selector nativo (3–4 toques). En la práctica la tarea queda sin fecha y no aparece en Hoy. En un gasto, la descripción y el monto son dos campos.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Barra de captura con placeholders «Study every day 8am», «Call John friday 3pm» e ícono de rayo <span class="b b--obs">observado</span> (<code>agenda.webp</code>, <code>habitos-03</code>); por WhatsApp, «mañana 9am» se convierte en fecha y hora, «$45 uber» en monto y descripción <span class="b b--obs">observado</span>. Usa OpenAI para gastos <span class="b b--ext">externo</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Parser determinista en español (sin IA ni dependencia nueva), función pura en <code>src/lib/natural-date.ts</code>: «hoy», «mañana», «pasado», «lun/martes/vie», «el 15», «15 oct», «en 3 días», «10am», «16:30», y para gastos el primer número con coma o punto como monto («12.50 café», «café 12,50», «USD 95 claude»).</li>
+        <li>Vista previa en vivo bajo el campo, en la tira LCD: «→ Vence el vie 10 · 10:00» o «→ S/ 12,50 · café»; un toque en la vista previa quita la interpretación. Lo interpretado se saca del título («Dentista vie 10am» → título «Dentista»).</li>
+        <li>Mismo parser en la ruta <code>/capture</code> y en el campo de la bandeja.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">12</span><span class="chip">13</span></span></dd>
+        <dt>Módulo</dt><dd><code>tasks</code> (fecha y, con <code>task-time</code>, hora) y <code>finance</code> (monto y moneda). Función en <code>src/lib</code> para no duplicar.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 5.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: sin migraciones; tabla de casos unitaria grande (día de Lima, medianoche, cambio de mes, "vie" cuando hoy es viernes); E2E de la vista previa.</dd>
+        <dt>Riesgos</dt><dd>Falsos positivos («comprar 3 pilas» no es un monto; «el 15» en un título). Regla: solo tokens al final del texto o con unidad clara, y siempre con vista previa cancelable. Ambigüedad dd/mm.</dd>
+        <dt>Criterio de aceptación</dt><dd>«pilas mañana» crea una tarea con <code>due_date</code> = mañana (Lima) y título «pilas» en ≤ 3 interacciones; «12.50 café» crea un gasto de 1250 céntimos con descripción «café»; 200 casos de la tabla pasan; un título sin tokens no cambia.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 3 ═══ -->
+  <details class="opp" data-cat="beat" data-mod="today" data-hor="h1" id="opp-postpone-one-tap">
+    <summary>
+      <div class="opp__title">"Mover a mañana" desde Hoy en un toque <span class="opp__id">postpone-one-tap</span></div>
+      <div class="opp__score">16<small>4 × 4 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--beat">Superar</span><span class="b b--h1">pulido</span><span class="b">today · tasks</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Una tarea de hoy que no va a salir se queda como «Retrasada hace 1 día» mañana. Hoy no hay forma de posponer sin entrar al detalle y abrir el selector de fecha.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Planner semanal con arrastre entre días y toast «Tarea reprogramada» <span class="b b--obs">observado</span> (<code>gantt.mp4</code>, <code>site-04</code>). Cuatro vistas y una grilla de horas.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>En cada fila de tareas de <code>/</code> y de la vista Hoy, una acción secundaria «Mañana» (ícono + texto, 44 px) y en el menú «Otro día…». En el celular, deslizar la fila a la izquierda muestra «Mañana».</li>
+        <li>Optimista: la fila sale con fundido y la LCD dice «"Pilas" pasa a mañana · Deshacer». Recurrentes: solo se mueve esta ocurrencia.</li>
+        <li>En la revisión semanal (después) la misma acción en lote: «Mover las 4 pendientes al lunes».</li>
+      </ul>
+      <p>Mejor que rimu porque resuelve el 90 % del planner con un toque y sin vista nueva (principio 13); el arrastre fino no funciona con el pulgar (principio 14).</p>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">5</span><span class="chip">12</span><span class="chip">13</span><span class="chip">14</span></span></dd>
+        <dt>Módulo</dt><dd><code>tasks</code> expone <code>postponeTask(id, to)</code>; <code>today</code> y la vista Hoy lo usan.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 4.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: una acción nueva sobre <code>due_date</code>, sin migración; unitarias (mañana en Lima a las 23:59) y E2E con <code>@today-tasks</code>.</dd>
+        <dt>Riesgos</dt><dd>El gesto de deslizar compite con el scroll: solo horizontal con umbral, y siempre con el botón como alternativa accesible. Lección del clic perdido tras un aviso (backlog).</dd>
+        <dt>Criterio de aceptación</dt><dd>Desde <code>/</code> en 390 px, una tarea pasa a mañana con 1 toque, desaparece en &lt; 100 ms y ofrece «Deshacer»; al deshacer vuelve a su posición; una recurrente no crea copia.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 4 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="tasks" data-hor="h2" id="opp-task-time">
+    <summary>
+      <div class="opp__title">Hora opcional en tareas <span class="opp__id">task-time</span></div>
+      <div class="opp__score">12<small>3 × 4 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h2">spec</span><span class="b">tasks · reminders</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>«Dentista» y «comprar pilas» pesan igual en Hoy. Sin hora no hay orden dentro del día ni un momento para avisar.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Workout 9:30 AM–10:30 AM», secciones MORNING / NO TIME, aviso «Empieza en 15 min» <span class="b b--obs">observado</span> agenda y mockup de notificaciones.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Columna aditiva <code>due_time time</code> (hora de Lima, sin zona). La fecha sigue siendo el día; la hora es opcional y sale del parser («vie 10am»).</li>
+        <li>En Hoy, las tareas con hora van primero ordenadas por hora y muestran «10:00»; las sin hora, después, como ahora. Sin grilla de horas.</li>
+        <li><code>reminders</code> programa el aviso a la hora (o N minutos antes, por tarea).</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">11</span></span></dd>
+        <dt>Módulo</dt><dd><code>tasks</code> (dato y orden); <code>reminders</code> (aviso). Debería entrar en <code>SPEC-reminders.md</code> como prerequisito.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 4.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: una migración aditiva, un campo en el detalle, orden en la consulta de Hoy, unitarias de orden.</dd>
+        <dt>Riesgos</dt><dd>No convertir la app en un calendario: sin duración, sin bloques.</dd>
+        <dt>Criterio de aceptación</dt><dd>Una tarea con hora aparece antes que una sin hora en <code>/</code> y en Hoy; «vie 10am» la rellena; la exportación incluye el campo.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 5 ═══ -->
+  <details class="opp" data-cat="beat" data-mod="today" data-hor="h1" id="opp-evening-close-ritual">
+    <summary>
+      <div class="opp__title">Cierre del día también cuando quedó algo <span class="opp__id">evening-close-ritual</span></div>
+      <div class="opp__score">10<small>4 × 5 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--beat">Superar</span><span class="b b--h1">pulido</span><span class="b">today</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>«Día completo» solo aparece si no queda nada. La mayoría de los días queda algo, y la portada a las 22:00 muestra la deuda del día en vez de lo que se hizo. Es el final de la experiencia (principio 8) y hoy se deja al azar.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Briefing de noche «con el total gastado» <span class="b b--prom">prometido</span>; saludos como «Slow day? tomorrow's another shot.» <span class="b b--obs">observado</span>. No hay cierre guiado.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Desde las 20:00 (hora configurable), la cabecera de <code>/</code> cambia a modo "cierre": primero <strong>lo logrado</strong> («Hoy: 4 hábitos · 3 tareas · 1 pago», NumberFlow), luego una sola pregunta sobre lo pendiente: «Quedan 2 tareas. ¿Las pasamos a mañana?» con una tecla «Mañana» (usa <code>postpone-one-tap</code> en lote) y «Dejar aquí».</li>
+        <li>Los hábitos no cumplidos no se mencionan uno por uno; solo «Hábitos: 4 de 5». Nunca «te faltó».</li>
+        <li>Mensajes variados como los de «Día completo» («Lo que no salió hoy, sale mañana. Pizarra limpia.»).</li>
+      </ul>
+      <p>Mejor que rimu porque el cierre termina en logros, no en el total gastado ni en atrasadas.</p>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">7</span><span class="chip">8</span><span class="chip">15</span></span></dd>
+        <dt>Módulo</dt><dd><code>today</code> (regla pura en <code>today-board.ts</code>), usa <code>postponeTask</code> de <code>tasks</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 5.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: sin migración; hora de cierre como preferencia (cookie o fila de ajustes); unitarias de la regla; E2E con reloj fijo.</dd>
+        <dt>Riesgos</dt><dd>Que el bloque se perciba como regaño: revisión de copy obligatoria (criterio 6 de §5). No mover nada sin el toque del owner.</dd>
+        <dt>Criterio de aceptación</dt><dd>A las 21:00 con 2 tareas pendientes, <code>/</code> muestra primero lo logrado y una sola acción primaria; «Mañana» mueve las 2 con un toque y «Deshacer»; ningún texto de culpa en la revisión.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 6 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="today" data-hor="h1" id="opp-greeting-variants">
+    <summary>
+      <div class="opp__title">Saludo con estado, variado y sin presión <span class="opp__id">greeting-variants</span></div>
+      <div class="opp__score">10<small>2 × 5 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h1">pulido</span><span class="b">today</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>La portada saluda igual todos los días. Es la primera línea que se lee cada mañana y no dice nada del día.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Mornings are quiet, start with what matters.», «Slow day? tomorrow's another shot.», «Un día más de evolución, eso nadie te lo quita.» <span class="b b--obs">observado</span> en capturas de agenda y dashboard.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Segunda línea bajo el saludo, elegida por franja (mañana / tarde / noche) y estado (nada hecho / algo / todo / día vacío), con 3–4 variantes por combinación en <code>today-copy.ts</code> y la misma función <code>variantForDay</code> de «Día completo».</li>
+        <li>Ejemplos: mañana sin nada hecho: «Empieza por lo que importa: hay 3 cosas arriba.» Tarde con la mitad: «Vas por la mitad. Lo que falta cabe en la tarde.» Lunes: «Semana nueva, pizarra limpia.»</li>
+        <li>Prohibido: contadores de lo que falta, «todavía», «solo».</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">7</span><span class="chip">9</span><span class="chip">15</span></span></dd>
+        <dt>Módulo</dt><dd><code>today</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>2 · 5.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: copy y una función pura; unitarias con tabla; una captura nueva.</dd>
+        <dt>Riesgos</dt><dd>Cursilería. Revisión de copy en el PR.</dd>
+        <dt>Criterio de aceptación</dt><dd>La misma hora y estado dan el mismo mensaje todo el día; días distintos lo cambian; ninguna variante contiene palabras de la lista negra (test).</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 7 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="reminders" data-hor="h2" id="opp-habit-time-of-day">
+    <summary>
+      <div class="opp__title">Hábitos con hora y franja: ordenan Hoy y disparan el aviso del "momento" <span class="opp__id">habit-time-of-day</span></div>
+      <div class="opp__score">10<small>4 × 5 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h2">spec</span><span class="b">reminders · habits</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>El campo «momento» («Después del desayuno») es texto y no hace nada. Los pads de Hoy van en orden manual, y "Medicación 2 veces al día" no distingue mañana de noche.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Secciones MORNING / NO TIME en la agenda, «9:30 AM 💧 Drink 3L» en el briefing <span class="b b--obs">observado</span>; «Hábitos por horario» <span class="b b--prom">prometido</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Columnas aditivas en <code>habits</code>: <code>reminder_time time</code> y <code>daypart</code> (<code>morning | afternoon | evening | null</code>). El formulario las pide junto al momento (principio 11), opcionales.</li>
+        <li>En Hoy y en <code>/</code>, los pads se agrupan por franja (Mañana · Tarde · Noche · Sin hora) manteniendo el orden manual dentro de cada grupo; un pad no cambia de grupo al tocarlo.</li>
+        <li><code>reminders</code> programa un aviso a la hora solo para los hábitos que la tienen, con el texto del momento: «Después del desayuno: Meditar».</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">11</span><span class="chip">13</span></span></dd>
+        <dt>Módulo</dt><dd><code>habits</code> (datos y agrupación), <code>reminders</code> (aviso). Insumo para <code>SPEC-reminders.md</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 5.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: migración aditiva, formulario, agrupación en 3 pantallas, E2E de orden.</dd>
+        <dt>Riesgos</dt><dd>Grupos vacíos que ocupan espacio: una franja sin hábitos no se muestra. El tope de "sin hora" sigue sin aplicar.</dd>
+        <dt>Criterio de aceptación</dt><dd>Un hábito con franja "Noche" aparece bajo «Noche» en <code>/</code> y en Hoy; con hora, el aviso llega a esa hora (Lima) en la PWA instalada; sin hora, no hay aviso.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 8 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="habits" data-hor="h1" id="opp-habit-skip-day">
+    <summary>
+      <div class="opp__title">"Saltar hoy" en un toque <span class="opp__id">habit-skip-day</span></div>
+      <div class="opp__score">9<small>3 × 3 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h1">pulido</span><span class="b">habits</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Para un día de descanso puntual (enfermo, feriado) hay que abrir el detalle, «Pausar», elegir fechas y motivo. Son 6 toques para decir "hoy no".</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Saltar día sin romper racha» en la lista de funciones <span class="b b--prom">prometido</span>; no se ve en ninguna captura.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>En el menú del pad (hoja «Ajustar» ya existente), una tecla «Saltar hoy» que crea una pausa de un día (hoy) con motivo «Descanso». Reutiliza <code>habit_pauses</code>: sin migración. El pad muestra el guion de descanso del DS y la LCD dice «"Gimnasio" descansa hoy · Deshacer».</li>
+        <li>La racha no cambia (día neutro, regla existente).</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">6</span><span class="chip">9</span><span class="chip">13</span></span></dd>
+        <dt>Módulo</dt><dd><code>habits</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: acción que envuelve <code>createPause</code>; integración (solape con una pausa existente) y E2E.</dd>
+        <dt>Riesgos</dt><dd>Abuso como escape: mostrar en el detalle «3 días saltados este mes» como dato, sin juicio.</dd>
+        <dt>Criterio de aceptación</dt><dd>Desde Hoy, 2 toques (menú, Saltar hoy) dejan el pad en descanso con «Deshacer»; la racha de ayer se conserva; en un día ya en pausa la tecla no aparece.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 9 ═══ -->
+  <details class="opp" data-cat="beat" data-mod="reminders" data-hor="h2" id="opp-at-risk-notice">
+    <summary>
+      <div class="opp__title">Aviso de "te queda uno" sin alarma, en vez de "racha en riesgo" <span class="opp__id">at-risk-notice-compassionate</span></div>
+      <div class="opp__score">8<small>4 × 4 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--beat">Superar</span><span class="b b--h2">spec</span><span class="b">reminders · habits</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>A las 21:00 queda un hábito sin marcar y nadie lo dice. El disparador (principio 1) llega tarde o no llega. rimu lo resuelve con miedo.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«⚠️ ¡Tu racha está en riesgo! Leer por 30 min. ¡racha de 9 días!» <span class="b b--prom">prometido</span> (bundle, no visible); «rimu te avisa… cuando un hábito está en riesgo de romperse» <span class="b b--prom">prometido</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Un solo aviso opcional por día, a una hora que el owner elige («Repaso de la noche, 21:00»), solo si queda algún hábito de hoy sin cumplir. Texto: «Te queda Leer. Si lo haces ahora, cuenta hoy.» Nunca menciona la racha ni usa ⚠️.</li>
+        <li>Si quedan varios: «Te quedan 2 hábitos. Abrir Hoy.» Tocar abre <code>/</code>.</li>
+        <li>Con cuota semanal ya cumplida o el día en pausa, no avisa. Un interruptor por hábito «Incluir en el repaso de la noche».</li>
+      </ul>
+      <p>Mejor que rimu porque la racha con compasión no está "en riesgo" (principio 6) y el aviso es uno, configurable y desactivable ("Lo que no haremos").</p>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">6</span><span class="chip">9</span></span></dd>
+        <dt>Módulo</dt><dd><code>reminders</code> (cron y push) con el contrato <code>getHabitsDueToday</code> de <code>habits</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 4.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong> dentro de <code>reminders</code>: una regla pura y una plantilla de aviso; el push en sí es el costo L del módulo.</dd>
+        <dt>Riesgos</dt><dd>Push web en iPhone solo en la PWA instalada (iOS 16.4+) y con permiso desde un gesto. Verificación del owner en el dispositivo.</dd>
+        <dt>Criterio de aceptación</dt><dd>Con un hábito pendiente a la hora fijada llega un aviso; con todos cumplidos no llega ninguno; el texto no contiene «racha», «riesgo» ni «⚠️» (test); se desactiva desde Ajustes.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 10 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="reminders" data-hor="h2" id="opp-payment-due-push">
+    <summary>
+      <div class="opp__title">Aviso "vence mañana" de pagos recurrentes <span class="opp__id">payment-due-push</span></div>
+      <div class="opp__score">8<small>4 × 4 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h2">spec</span><span class="b">reminders · finance</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Los pagos recurrentes son lo único que sobrevivió en Notion, y hoy en brahua-os solo se ven si se abre la app. Un pago de tarjeta que se pasa cuesta dinero real.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Mockup de notificación «CUENTA POR PAGAR · Factura Nubank · Vence mañana» <span class="b b--prom">prometido</span>; recordatorio por WhatsApp con botón «Hecho» <span class="b b--obs">observado</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li><code>finance</code> expone <code>getUpcomingPayments(from, to)</code> (ya previsto en su spec). <code>reminders</code> manda un aviso la víspera a la hora del briefing: «Mañana vence Netflix · S/ 50». Si hay varios: «Mañana vencen 3 pagos · S/ 1 250».</li>
+        <li>Tocar abre <code>/</code> en la sección Pagos. Sin botón «Pagado» en la notificación: iOS no muestra acciones en push web, y pagar sin ver el monto es un riesgo.</li>
+        <li>Un segundo aviso solo si sigue pendiente 3 días después del vencimiento («Netflix sigue pendiente»), sin «atrasado».</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">13</span></span></dd>
+        <dt>Módulo</dt><dd><code>reminders</code> con contrato de <code>finance</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 4 (16 activos mensuales).</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong> dentro de <code>reminders</code>: contrato puro ya diseñado, plantilla y prueba de integración.</dd>
+        <dt>Riesgos</dt><dd>Montos en el texto del push pasan por el servicio de push de Apple: mostrar el monto es decisión del owner (opción «solo el nombre»).</dd>
+        <dt>Criterio de aceptación</dt><dd>Un pago que vence mañana genera exactamente un aviso la víspera; uno ya pagado u omitido no; el segundo aviso llega solo al tercer día pendiente; ambos se pueden apagar.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 11 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="reminders" data-hor="h2" id="opp-morning-briefing">
+    <summary>
+      <div class="opp__title">Briefing de la mañana con tres cosas <span class="opp__id">morning-briefing-push</span></div>
+      <div class="opp__score">6,7<small>4 × 5 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h2">spec</span><span class="b">reminders · today</span><span class="b b--obs">rimu: observado</span> <span class="b b--prom">prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Nada lleva al owner a <code>/</code> por la mañana. El modelo de Fogg necesita el disparador a la hora elegida (principio 1 y 11).</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Agenda» por WhatsApp devuelve Atrasadas (5), Hábitos 2/5, Tareas, Pendientes sin fecha (+19) <span class="b b--obs">observado</span>; briefings de mañana, mediodía y noche con el total gastado <span class="b b--prom">prometido</span>, configurables <span class="b b--ext">externo</span> /privacy.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Un push a la hora elegida (por defecto 7:30) con como máximo 3 líneas: «Hoy: 5 hábitos · 3 tareas · Netflix vence». Sin atrasadas, sin «sin fecha», sin total gastado. Tocar abre <code>/</code>.</li>
+        <li>Solo mañana por defecto; el repaso de la noche es la oportunidad <code>at-risk-notice-compassionate</code>. Nada al mediodía.</li>
+        <li>Si el día está vacío: no manda nada (no hay disparador sin conducta).</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">5</span><span class="chip">7</span></span></dd>
+        <dt>Módulo</dt><dd><code>reminders</code>, leyendo los mismos contratos que <code>today</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 5.</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: es el primer aviso del módulo: service worker, claves VAPID (las pone el owner), suscripción desde un gesto, cron diario (Vercel Cron o GitHub Actions; minutos finitos), tabla de suscripciones y de avisos enviados (idempotencia), E2E limitada.</dd>
+        <dt>Riesgos</dt><dd>El service worker cambia el cacheo de la app (ADR 004): no cachear HTML autenticado. Push en iPhone solo en PWA instalada. Vercel Cron en plan Hobby corre una vez al día: suficiente.</dd>
+        <dt>Criterio de aceptación</dt><dd>A la hora fijada llega un aviso con ≤ 3 líneas y sin palabras de deuda; un día vacío no genera aviso; el mismo día no se envía dos veces aunque el cron se repita.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 12 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="finance" data-hor="h1" id="opp-installments">
+    <summary>
+      <div class="opp__title">Cuotas: recurrente que termina solo <span class="opp__id">installments</span></div>
+      <div class="opp__score">6<small>3 × 2 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h1">pulido</span><span class="b">finance</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Una compra en 6 cuotas se modela hoy como un recurrente mensual que hay que archivar a mano al terminar, y el resumen no dice «3 de 6».</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Divide compras en hasta 36 cuotas», «Notebook Dell · Cuota 3/12», «2/6 · 10 jun» <span class="b b--prom">prometido</span> (mockups 14 y "Tu día").</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Columna aditiva <code>installments_total integer</code> en <code>finance_recurring_payments</code>. Al crear un recurrente mensual, «Termina después de N pagos» (opcional). <code>schedule.ts</code> deja de generar períodos tras el N-ésimo y la lista muestra «Cuota 3 de 6».</li>
+        <li>Al pagar la última: «Última cuota de Notebook. Se archiva solo.» con «Deshacer».</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">3</span><span class="chip">4</span></span></dd>
+        <dt>Módulo</dt><dd><code>finance</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 2.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: migración aditiva, tabla de casos en <code>schedule.ts</code>, un campo en la hoja.</dd>
+        <dt>Riesgos</dt><dd>Lección de F2: definir qué pasa al editar N con períodos ya pagados (solo puede crecer o igualar a los pagados).</dd>
+        <dt>Criterio de aceptación</dt><dd>Un recurrente con 6 cuotas no muestra un 7.º vencimiento; la lista dice «Cuota 3 de 6»; al pagar la 6.ª queda archivado con «Deshacer»; editar N por debajo de las pagadas se rechaza.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 13 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="tasks" data-hor="h1" id="opp-ics-feed">
+    <summary>
+      <div class="opp__title">Calendario ICS de solo lectura para el iPhone <span class="opp__id">ics-feed</span></div>
+      <div class="opp__score">6<small>2 × 3 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h1">pulido</span><span class="b">tasks · finance</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Las fechas de tareas, proyectos y pagos no se ven junto a las citas del calendario del teléfono.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Google Calendar «bidireccional, en tiempo real» <span class="b b--prom">prometido</span>, solo en mockup; OAuth <code>calendar.events</code> <span class="b b--ext">externo</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Ruta <code>/calendar/&lt;token&gt;.ics</code> con un token secreto generado en Ajustes (revocable), que publica tareas con fecha, vencimientos de proyectos y pagos pendientes como eventos de día completo. Se suscribe desde Calendario de iOS una vez. Solo lectura, sin OAuth ni dependencias.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">9</span></span></dd>
+        <dt>Módulo</dt><dd><code>core</code> (ruta y token) con contratos de <code>tasks</code>, <code>projects</code>, <code>finance</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>2 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: generación de texto ICS sin librería, una tabla pequeña de tokens (aditiva), prueba de formato.</dd>
+        <dt>Riesgos</dt><dd>El token da lectura sin sesión: largo, revocable, sin montos en el texto del evento por defecto. iOS refresca cada pocas horas, no en tiempo real.</dd>
+        <dt>Criterio de aceptación</dt><dd>La URL con token válido devuelve un ICS que Calendario de iOS importa; con token revocado responde 404; ningún evento incluye un monto salvo que el owner lo active.</dd>
+      </dl>
+    </div>
+  </details>
+  <!-- ═══ 14 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="notes" data-hor="h2" id="opp-daily-note-links">
+    <summary>
+      <div class="opp__title">Nota diaria con [[enlaces]] y "línea → tarea" <span class="opp__id">daily-note-links</span></div>
+      <div class="opp__score">5,3<small>4 × 4 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h2">spec</span><span class="b">notes</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>El "segundo cerebro" propiamente dicho (journaling, ideas, lo que pasó) no existe. Si escribir el día no mueve nada, se abandona como el daily log de Notion.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Cada día tiene su nota. Escribe en bloques, conecta ideas con [[enlaces]]», «Escribe @ y elige un hábito o tarea para marcar ahí mismo», «Cualquier línea se vuelve tarea o hábito al instante» <span class="b b--prom">prometido</span> (sección 6, bundle); editor con carpetas y mini-grafo <span class="b b--obs">observado</span> <code>site-08</code>.</p>
+      <h4>Propuesta para <code>SPEC-notes.md</code></h4>
+      <ul>
+        <li>Una nota por día (<code>/notes/2026-10-06</code>) en Markdown con el renderizador existente, abierta desde <code>/</code> con una tecla «Nota de hoy».</li>
+        <li><code>[[</code> abre un selector de proyectos, hábitos, metas y notas; se guarda como <code>[[type:id|Nombre]]</code> y se renderiza como enlace. Backlinks al pie de cada entidad («Mencionado en 3 notas»). Sin grafo.</li>
+        <li>Una línea que empieza con <code>- [ ]</code> ofrece «Convertir en tarea» (crea la tarea en la bandeja y deja el enlace en la nota). Marcar la casilla en la nota completa la tarea.</li>
+        <li>Búsqueda de texto completo con <code>tsvector</code> de Postgres, sin servicio externo.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">4</span><span class="chip">9</span><span class="chip">10</span></span></dd>
+        <dt>Módulo</dt><dd><code>notes</code> (pendiente, 5.º). Depende de <code>core</code>; para marcar hábitos usa el contrato de <code>habits</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 4.</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: tablas de notas y enlaces, parser de <code>[[</code> en el editor, backlinks, búsqueda, E2E del editor en móvil.</dd>
+        <dt>Riesgos</dt><dd>Editor de texto en el iPhone con selector emergente: foco y teclado virtual (lecciones de foco). Renombrar una entidad no rompe el enlace porque se guarda por id.</dd>
+        <dt>Criterio de aceptación</dt><dd>Escribir «[[Gim» y elegir «Gimnasio» deja un enlace que abre el hábito; el hábito muestra el backlink; una línea con casilla se convierte en tarea en 2 toques y completar la tarea marca la casilla.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 15 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="health" data-hor="h3" id="opp-health-workouts">
+    <summary>
+      <div class="opp__title">Entrenamientos: plantillas, series y "récord" <span class="opp__id">health-workouts</span></div>
+      <div class="opp__score">5,3<small>4 × 4 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h3">apuesta</span><span class="b">health</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>En Notion había 3 sistemas de ejercicio duplicados y una terapia de rodilla registrada como texto. Hoy "Gimnasio" es un hábito sí/no: no dice qué se hizo ni si la carga sube.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Push Day · 5 exercises · 19×», «LOAD 21.4 t», series «3 · 8×80 kg · PR», gráfico por ejercicio <span class="b b--obs">observado</span> <code>entrenos.webp</code>, sección 16. Cardio y descanso entre series <span class="b b--prom">prometido</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Módulo <code>health</code> v1 solo con rutinas: plantilla (nombre, lista de ejercicios con series × reps objetivo), sesión (fecha, ejercicios con peso y reps reales), y «Récord» cuando un peso supera el mejor anterior. Sin tonelaje, sin gráficos al inicio: el detalle del ejercicio muestra los últimos 10 pesos como números.</li>
+        <li>Registrar en el gimnasio: la sesión copia la última (pesos incluidos) y cada serie es un pad de un toque («10 × 70 kg · Hecho»); ajustar el peso con −/+ de 2,5 kg.</li>
+        <li>Completar la sesión marca el hábito «Gimnasio» del día (contrato con <code>habits</code>) y cuenta en «Día completo».</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">4</span><span class="chip">9</span><span class="chip">10</span></span></dd>
+        <dt>Módulo</dt><dd><code>health</code>: hoy en "Más adelante". Propuesta para revisar con el owner: entrar al mapa después de <code>weekly-review</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 4 (3 veces por semana, con las manos ocupadas).</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: 4 tablas, spec nueva, pantallas de sesión en móvil, E2E.</dd>
+        <dt>Riesgos</dt><dd>Alcance: dejar fuera sueño, alimentación y terapia en v1 o se vuelve un módulo de 6 cortes.</dd>
+        <dt>Criterio de aceptación</dt><dd>Empezar una sesión desde la plantilla y marcar 12 series toma &lt; 60 s en el celular; superar un peso muestra «Récord» en el aviso; la sesión marca el hábito enlazado.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 16 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="tasks" data-hor="h1" id="opp-task-checklist">
+    <summary>
+      <div class="opp__title">Checklist dentro de la tarea <span class="opp__id">task-checklist</span></div>
+      <div class="opp__score">4,5<small>3 × 3 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h1">pulido</span><span class="b">tasks</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>«Preparar viaje» tiene 6 pasos. Hoy la alternativa es 6 tareas (ruido en Hoy) o una lista Markdown en las notas que no se puede marcar.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Subitem «Open» con casilla bajo «Read 30min» <span class="b b--obs">observado</span> <code>agenda.webp</code>; subtareas anidadas en Eisenhower <span class="b b--obs">observado</span> <code>site-03</code>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Sin tabla nueva: las listas <code>- [ ]</code> de las notas Markdown de la tarea se vuelven interactivas en el detalle (marcar escribe en el Markdown, con «Deshacer»). La fila en Hoy muestra «2 de 6» al lado del título. La tarea se completa a mano, como ahora.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">4</span><span class="chip">5</span></span></dd>
+        <dt>Módulo</dt><dd><code>tasks</code>; el renderizador de <code>src/lib/markdown/</code> gana casillas interactivas que <code>projects</code> y <code>notes</code> reutilizan.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: toggle por índice de casilla en el texto (función pura probada), componente de casilla accesible, conteo en la consulta de Hoy.</dd>
+        <dt>Riesgos</dt><dd>Edición concurrente del Markdown (el detalle abierto en dos pestañas): la acción reescribe por índice y rechaza si el texto cambió.</dd>
+        <dt>Criterio de aceptación</dt><dd>Marcar una casilla en el detalle actualiza el Markdown y el «2 de 6» de la fila en &lt; 100 ms con «Deshacer»; un cambio con el texto desactualizado se rechaza con mensaje.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 17 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="budget" data-hor="h2" id="opp-budget-caps">
+    <summary>
+      <div class="opp__title">Tope mensual por categoría sin rojo <span class="opp__id">budget-caps</span></div>
+      <div class="opp__score">4,5<small>3 × 3 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h2">spec</span><span class="b">budget</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>El resumen mensual dice cuánto se gastó por categoría pero no contra qué. Sin referencia, la barra no da nada a cambio.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Comida S/600.00 de S/670.00», «Ocio S/390.00 de S/340.00» con barra llena <span class="b b--prom">prometido</span> (mockup 14); en el video, «Aún no hay límites de categoría» <span class="b b--obs">observado</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Columna aditiva <code>monthly_cap_cents</code> en <code>finance_categories</code>. En el resumen, la barra existente gana una marca del tope y el texto «S/ 600 de S/ 670»; pasado el tope, «S/ 390 · 50 sobre el tope» en el color de señal, nunca rojo, sin frase.</li>
+        <li>Es el módulo <code>budget</code> del mapa, reducido a su mínimo: 1 columna y 1 marca.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">3</span><span class="chip">9</span></span></dd>
+        <dt>Módulo</dt><dd><code>budget</code> (extiende <code>finance</code>); puede absorberse en el backlog de <code>finance</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: migración aditiva, campo en Ajustes de categorías, marca en la barra, unitarias de <code>summary.ts</code>.</dd>
+        <dt>Riesgos</dt><dd>Convertirlo en culpa a fin de mes: solo el dato; nada en <code>/</code>.</dd>
+        <dt>Criterio de aceptación</dt><dd>Una categoría con tope muestra «X de Y» y la marca; sin tope, igual que hoy; el color de "sobre el tope" pasa axe en ambos temas y no es rojo.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 18 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="learning" data-hor="h2" id="opp-focus-session">
+    <summary>
+      <div class="opp__title">Sesión de estudio con temporizador <span class="opp__id">focus-session</span></div>
+      <div class="opp__score">4,5<small>3 × 3 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h2">spec</span><span class="b">learning</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Estudiar AWS o un curso de Platzi no deja rastro salvo un hábito sí/no. No se sabe cuántas horas van ni en qué.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«ESTUDIO DE HOY» con ▶ para iniciar sesión, «HORAS ESTUDIADAS 2h», Pomodoro «Ciclo 2 de 4 · EN FOCO Cálculo II» <span class="b b--obs">observado</span> <code>site-07</code>, mockup 17.</p>
+      <h4>Propuesta para <code>SPEC-learning.md</code></h4>
+      <ul>
+        <li>Una ruta de estudio (curso) con temas; «Empezar sesión» abre una pantalla mínima con el tema, un cronómetro grande (LCD) y «Terminar». La sesión guarda minutos y tema. Sin ciclos de Pomodoro obligatorios: un aviso opcional a los 25 min (con <code>reminders</code>).</li>
+        <li>El detalle del curso muestra «12 h en 9 sesiones» y los temas marcados; terminar una sesión puede marcar el hábito «Estudiar» (contrato con <code>habits</code>).</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">4</span><span class="chip">5</span><span class="chip">10</span><span class="chip">13</span></span></dd>
+        <dt>Módulo</dt><dd><code>learning</code> (pendiente, 4.º).</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong> dentro del módulo: tabla de sesiones, pantalla de cronómetro, cierre de sesión robusto si se cierra la PWA (guardar el inicio en el servidor).</dd>
+        <dt>Riesgos</dt><dd>Cronómetro en segundo plano en iOS: calcular desde la hora de inicio guardada, no contar en el cliente.</dd>
+        <dt>Criterio de aceptación</dt><dd>Iniciar y terminar una sesión toma 2 toques; cerrar y reabrir la PWA a mitad conserva el tiempo; el total del curso suma las sesiones.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 19 ═══ -->
+  <details class="opp" data-cat="beat" data-mod="goals" data-hor="h2" id="opp-goals-linked">
+    <summary>
+      <div class="opp__title">Metas enlazadas con ritmo necesario, sin "Atrasada" <span class="opp__id">goals-linked-progress</span></div>
+      <div class="opp__score">4<small>4 × 3 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--beat">Superar</span><span class="b b--h2">spec</span><span class="b">goals</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Las metas anuales y trimestrales de Notion no estaban conectadas a nada y no se revisaban. Una meta que hay que actualizar a mano muere.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>Meta con plazo, foto, barras TAREAS 1/1 y DINERO 0 US$, «Faltan 259 días», marcador de ritmo esperado y estados «Al día / Adelantada / • Atrasada»; «Sin ahorros en los últimos 6 meses» <span class="b b--obs">observado</span> <code>objetivos.webp</code>, <code>site-06</code>, mockup 8.</p>
+      <h4>Propuesta para <code>SPEC-goals.md</code></h4>
+      <ul>
+        <li>Una meta tiene plazo y una o varias <strong>fuentes de progreso</strong> registradas (patrón <code>registerProgressSource</code>): hábito (sesiones o racha: «90 días seguidos»), proyecto (avance), cantidad manual («12 libros», con un pad de +1) y, si algún día hay cuentas, dinero. El progreso nunca se escribe a mano cuando hay fuente.</li>
+        <li>Ritmo como dato, no juicio: «Llevas 4 de 12 · faltan 8 en 20 semanas: 1 cada 2 semanas y media». Sin «Atrasada»; si el ritmo es inalcanzable, «Con el plazo actual no alcanza: ¿mover el plazo o bajar la meta?» como opción, no como alarma.</li>
+        <li>Sin foto de portada (peso y privacidad); el LED del área y el nombre bastan.</li>
+      </ul>
+      <p>Mejor que rimu porque el progreso viene de lo que ya se registra (principio 4) y el ritmo se expresa como siguiente paso (principio 3), no como deuda.</p>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">3</span><span class="chip">4</span><span class="chip">9</span><span class="chip">10</span></span></dd>
+        <dt>Módulo</dt><dd><code>goals</code> (pendiente, 2.º). Depende de <code>habits</code> y <code>projects</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 3 (se mira semanalmente).</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: spec, tablas de metas y fuentes, cálculo de ritmo puro, sección en <code>/</code> solo para el objetivo semanal.</dd>
+        <dt>Riesgos</dt><dd>Metas de dinero necesitan ingresos o saldos que <code>finance</code> no tiene: dejarlas para después o permitir cantidad manual.</dd>
+        <dt>Criterio de aceptación</dt><dd>Una meta enlazada a un hábito sube sola al registrar el hábito; el texto de ritmo no contiene «atrasada» ni «retraso» (test); crear una meta toma &lt; 20 s en el celular.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 20 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="core" data-hor="h2" id="opp-offline-queue">
+    <summary>
+      <div class="opp__title">Registrar sin red: cola de escrituras en la PWA <span class="opp__id">offline-queue</span></div>
+      <div class="opp__score">4<small>4 × 3 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h2">spec</span><span class="b">core · reminders</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>En el gimnasio o en el metro la PWA sin red no abre o falla al guardar. Un toque que falla rompe el bucle (principio 2) y el umbral de 400 ms (principio 12).</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Funciona como PWA… con soporte offline» <span class="b b--prom">prometido</span> (JSON-LD). Nada observado.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Cuando <code>reminders</code> traiga el service worker: cachear el shell y la última respuesta de <code>/</code> y <code>/habits</code> (stale-while-revalidate, nunca HTML sin la comprobación de sesión al revalidar).</li>
+        <li>Cola de mutaciones idempotentes en IndexedDB solo para registrar hábito, completar tarea y gasto rápido (las acciones ya son idempotentes por diseño). La LCD dice «Guardado aquí · se envía al volver la red»; al reconectar se envían en orden y se confirma.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">2</span><span class="chip">12</span></span></dd>
+        <dt>Módulo</dt><dd><code>core</code> con el service worker de <code>reminders</code> (ADR 004).</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: estrategia de caché segura con sesión, cola, conflictos (deshacer de algo no enviado), pruebas con red cortada en Playwright.</dd>
+        <dt>Riesgos</dt><dd>Servir datos viejos tras un deploy (riesgo citado en HANDOFF); una cola que reenvía dos veces. Limitar a 3 acciones.</dd>
+        <dt>Criterio de aceptación</dt><dd>Con la red cortada, marcar un hábito da feedback en &lt; 100 ms y queda en cola; al reconectar se guarda exactamente una vez; tras un deploy la app nunca muestra una pantalla de otra versión.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 21 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="habits" data-hor="h1" id="opp-celebration">
+    <summary>
+      <div class="opp__title">Celebrar los hitos con movimiento, no solo texto <span class="opp__id">celebration-milestones</span></div>
+      <div class="opp__score">4<small>2 × 2 ÷ S</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h1">pulido</span><span class="b">habits · core</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Los hitos 7/30/90/365 solo cambian el texto del aviso. <code>canvas-confetti</code> y <code>motion</code> figuran en los principios pero no están instalados; la recompensa variable (principio 15) queda en palabras.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«🔥 9» que sube, etiqueta «PR», toast «Habit completed» <span class="b b--obs">observado</span>. Sin celebración especial visible.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>En los hitos de 30 y más: confeti monocromo con el color del área (≤ 800 ms, nunca con movimiento reducido), como ya dice <code>SPEC-habits.md</code>. Pide OK por la dependencia <code>canvas-confetti</code> (backlog existente).</li>
+        <li>En cada toque: el número de racha con NumberFlow (ya instalado) y un "hundido" de la tecla de 90 ms (ya en el DS). Sin vibración: iOS Safari no expone <code>navigator.vibrate</code>.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">2</span><span class="chip">15</span><span class="chip">16</span></span></dd>
+        <dt>Módulo</dt><dd><code>habits</code>; dependencia en <code>core</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>2 · 2.</dd>
+        <dt>Esfuerzo</dt><dd><strong>S</strong>: un componente y una prueba de que no corre con movimiento reducido.</dd>
+        <dt>Riesgos</dt><dd>Dependencia nueva (OK del owner). Rendimiento en gama media: una sola ráfaga.</dd>
+        <dt>Criterio de aceptación</dt><dd>Al llegar a 30 se ve confeti una vez; con <code>prefers-reduced-motion</code> no; la racha sube animada en &lt; 100 ms.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 22 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="habits" data-hor="h1" id="opp-habit-heatmap">
+    <summary>
+      <div class="opp__title">Vista anual de consistencia por hábito <span class="opp__id">habit-heatmap-year</span></div>
+      <div class="opp__score">3<small>3 × 2 ÷ M</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h1">pulido</span><span class="b">habits</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>El calendario mensual muestra un mes; la evidencia acumulada (principio 10) de medio año no se ve en ningún lado.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«CONSISTENCY 42×» como heatmap de estudio y tracker mensual con % por semana <span class="b b--obs">observado</span>; «Consistencia y heatmap de actividad» <span class="b b--prom">prometido</span>.</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>En el detalle del hábito, bajo el calendario: 26 semanas en una grilla de <code>DayCell</code> pequeñas (hecho, parcial, descanso, vacío), con el texto «Llevas 118 días hechos desde abril». Sin porcentajes ni colores de intensidad múltiples (monocromo del DS). Sin vista de todos los hábitos a la vez (31 × N es ruido).</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">4</span><span class="chip">10</span></span></dd>
+        <dt>Módulo</dt><dd><code>habits</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 2.</dd>
+        <dt>Esfuerzo</dt><dd><strong>M</strong>: consulta de 26 semanas (una), componente accesible (<code>role="img"</code> con resumen), captura.</dd>
+        <dt>Riesgos</dt><dd>Celdas &lt; 44 px: es información, no control; sin interacción por celda.</dd>
+        <dt>Criterio de aceptación</dt><dd>El detalle muestra 26 semanas con una sola consulta; el lector de pantalla lee «118 de 180 días hechos»; axe en 0.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 23 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="finance" data-hor="h3" id="opp-credit-card-cycle">
+    <summary>
+      <div class="opp__title">Tarjetas con cierre y vencimiento <span class="opp__id">credit-card-cycle</span></div>
+      <div class="opp__score">3<small>3 × 3 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h3">apuesta</span><span class="b">finance</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Si los gastos se pagan con tarjeta de crédito, lo que sale de la cuenta no es el gasto del día sino la factura del mes. Hoy el resumen mezcla ambos. <code>SPEC-finance.md</code> lo dejó fuera a propósito.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«Nubank · Abierta · S/1,800 · Pagado S/680 · Cierra el 28 · vence el 5 de jun»; pago parcial, total o saltar <span class="b b--prom">prometido</span> (mockup 14, bundle).</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Un medio de pago puede ser «tarjeta de crédito» con día de cierre y de vencimiento (columnas aditivas). Cada gasto con ese medio cae en el período de la tarjeta por su fecha. La vista Pagos muestra «Crédito BCP · cierra el 28 · S/ 1 800 hasta hoy» y, cerrado el período, un pago recurrente virtual «Factura Crédito BCP · vence el 5» que se marca «Pagado» como cualquier otro, sin duplicar los gastos en el resumen.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">4</span></span></dd>
+        <dt>Módulo</dt><dd><code>finance</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 3 si el owner paga con crédito; 0 si no.</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: la lección de F2 (cada edición redefine períodos ya cerrados) aplica entera; tablas de casos de cierre; dos vistas.</dd>
+        <dt>Riesgos</dt><dd>Doble conteo factura/gastos en el resumen. Decidir antes qué significa "gastado en octubre" con tarjeta.</dd>
+        <dt>Criterio de aceptación</dt><dd>Un gasto del 29 con tarjeta que cierra el 28 cae en la factura siguiente; pagar la factura no suma gasto nuevo al mes; el resumen del mes no cambia al pagar.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 24 ═══ -->
+  <details class="opp" data-cat="adopt" data-mod="learning" data-hor="h2" id="opp-study-sessions">
+    <summary>
+      <div class="opp__title">Materias con horas y consistencia <span class="opp__id">study-sessions</span></div>
+      <div class="opp__score">3<small>3 × 3 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adopt">Adoptar</span><span class="b b--h2">spec</span><span class="b">learning</span><span class="b b--obs">rimu: observado</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Las rutas de estudio (AWS, Platzi, Career Roadmap) son listas de enlaces en Notion sin avance ni tiempo invertido.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«MATERIAS · Inglés · 2h · 5×», «TEMAS · Pendientes / Completados», heatmap «CONSISTENCY 42×», horas por franja <span class="b b--obs">observado</span>; «Links a materiales y playlists» <span class="b b--prom">prometido</span>.</p>
+      <h4>Propuesta para <code>SPEC-learning.md</code></h4>
+      <ul>
+        <li>Curso (nombre, área, enlace, meta enlazada) → temas con casilla → sesiones (de <code>focus-session</code>). El avance es temas hechos / total (misma fuente de progreso que proyectos); el detalle dice «12 h · 9 sesiones · última el martes».</li>
+        <li>Sin radar, donut ni franja horaria del día: una grilla de 26 semanas como la de hábitos.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">3</span><span class="chip">4</span><span class="chip">10</span></span></dd>
+        <dt>Módulo</dt><dd><code>learning</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>3 · 3.</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: módulo completo (spec, 3 tablas, lista, detalle, sesión).</dd>
+        <dt>Riesgos</dt><dd>Duplicar <code>projects</code>: un curso es casi un proyecto con hitos. Decidir si <code>learning</code> es un módulo o una vista de proyectos del área Aprendizaje más sesiones.</dd>
+        <dt>Criterio de aceptación</dt><dd>Un curso con 10 temas y 3 hechos muestra 30 %; registrar una sesión suma horas y aparece en la grilla; el enlace del curso abre en una pestaña nueva.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ 25 ═══ -->
+  <details class="opp" data-cat="adapt" data-mod="finance" data-hor="h3" id="opp-statement-import">
+    <summary>
+      <div class="opp__title">Importar el extracto del banco en CSV <span class="opp__id">statement-import</span></div>
+      <div class="opp__score">2,7<small>4 × 2 ÷ L</small></div>
+      <div class="opp__meta"><span class="b b--adapt">Adaptar</span><span class="b b--h3">apuesta</span><span class="b">finance</span><span class="b b--prom">rimu: prometido</span></div>
+    </summary>
+    <div class="opp__body">
+      <h4>Problema</h4>
+      <p>Registrar cada gasto a mano es lo que se abandonó en Notion. Si la captura rápida tampoco se sostiene, el extracto mensual del banco es la red de seguridad: 142 movimientos en un archivo.</p>
+      <h4>Cómo lo hace rimu</h4>
+      <p>«extracto-mayo.ofx · 142 movimientos · cuotas detectadas · ✓ Importado», OFX/CSV/XLSX <span class="b b--prom">prometido</span> (mockup 15).</p>
+      <h4>Propuesta</h4>
+      <ul>
+        <li>Importador de CSV (el formato que exporte el banco del owner; XLSX pediría una dependencia) con mapeo de columnas guardado por medio de pago, vista previa, deduplicación contra gastos ya registrados (misma fecha, monto y medio ± descripción) y categoría sugerida por reglas simples («uber» → Transporte) que el owner edita en la vista previa. Sin IA.</li>
+      </ul>
+      <dl class="kv">
+        <dt>Principios</dt><dd><span class="chips"><span class="chip">1</span><span class="chip">4</span></span></dd>
+        <dt>Módulo</dt><dd><code>finance</code>.</dd>
+        <dt>Impacto · frecuencia</dt><dd>4 · 2 (mensual).</dd>
+        <dt>Esfuerzo</dt><dd><strong>L</strong>: parser con codificaciones y formatos de fecha, deduplicación, vista previa editable, pruebas con archivos de ejemplo (sin datos reales en el repo).</dd>
+        <dt>Riesgos</dt><dd>Archivos del banco con datos sensibles: se procesan en memoria y no se guardan. Un CSV mal mapeado crea 142 gastos: vista previa obligatoria y «Deshacer» de la importación entera.</dd>
+        <dt>Criterio de aceptación</dt><dd>Importar dos veces el mismo archivo no duplica; los movimientos que coinciden con gastos existentes se marcan «ya registrado»; la importación entera se deshace con un toque.</dd>
+      </dl>
+    </div>
+  </details>
+
+  <!-- ═══ DESCARTES ═══ -->
+  <h3 style="margin:32px 0 6px">Descartes</h3>
+  <p class="prose"><small>Lo que rimu ofrece y no encaja. No son rechazos definitivos: algunos quedan como "futuro".</small></p>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Bot de WhatsApp como canal de captura <span class="opp__id">whatsapp-bot</span></div></summary>
+    <div class="opp__body"><p>Requiere WhatsApp Business Platform (Meta), un servidor de mensajería y, en rimu, OpenAI y Groq <span class="b b--ext">externo</span>. Para un solo usuario es costo de mantenimiento permanente y datos a tres terceros. La necesidad real (registrar sin abrir la app) la cubre <code>ios-shortcut-capture</code> con cero servicios. Si algún día hace falta un canal de chat, es parte de <code>ai-assistant</code> (futuro).</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> "Presión positiva" y "racha en riesgo" como motor <span class="opp__id">streak-pressure</span></div></summary>
+    <div class="opp__body"><p>«Cada checkmark verde se vuelve presión positiva para no romper la cadena», «⚠️ ¡Tu racha está en riesgo!» <span class="b b--prom">prometido</span>. Es el patrón "ya da igual" del principio 6 y el aviso manipulador de "Lo que no haremos". El costo: cuando la cadena se rompe, el usuario abandona (lo que pasó en Notion). Se reemplaza por <code>at-risk-notice-compassionate</code>.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Kanban, Eisenhower, Gantt y planner de horas <span class="opp__id">task-views</span></div></summary>
+    <div class="opp__body"><p>Cuatro vistas para la misma lista <span class="b b--obs">observado</span>. Suman decisiones (principio 13) y necesitan arrastre fino en el celular (principio 14). brahua-os ya prioriza con 3 niveles, próxima acción por proyecto y 3 destacadas en Hoy; lo que falta del planner es <code>postpone-one-tap</code>. Kanban sigue como "posible vista futura de un proyecto" en <code>SPEC-projects.md</code>.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Grafo de notas <span class="opp__id">notes-graph</span></div></summary>
+    <div class="opp__body"><p>Vistoso en un video de 9 s <span class="b b--obs">observado</span>, pero no baja la fricción de escribir ni de encontrar. Los backlinks («Mencionado en 3 notas») dan el 90 % del valor con una consulta. Se podría revisar cuando <code>notes</code> tenga cientos de notas.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Tipo de cambio automático y 11 monedas <span class="opp__id">fx-auto-rate</span></div></summary>
+    <div class="opp__body"><p>Dos monedas y un tipo manual que se actualiza una vez al mes cubren el uso real; cada gasto ya guarda su tipo. Un servicio de cotización es una dependencia externa (pide OK) para ahorrar un campo mensual. Contradice "sin servicios externos" de <code>SPEC-finance.md</code>.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Ingresos, cuentas, patrimonio y "−4,0 %" <span class="opp__id">net-worth</span></div></summary>
+    <div class="opp__body"><p>«NET WORTH $15,971.27 · −4.0 %» en rojo con gráfico de área rojo <span class="b b--obs">observado</span>. Es el dato que más ansiedad produce por menos conducta que cambia. Ingresos y saldos quedaron fuera de <code>finance</code> por decisión del owner; si vuelven, que sea sin comparaciones ni porcentajes de caída. Marcado como futuro.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Informe mensual en PDF <span class="opp__id">pdf-report</span></div></summary>
+    <div class="opp__body"><p>«Exporta el mes entero en un informe listo para compartir» <span class="b b--prom">prometido</span>. Un solo usuario no tiene con quién compartirlo; el resumen mensual en pantalla y <code>pnpm db:export</code> cubren lectura y portabilidad. Una vista de impresión del resumen costaría S y se puede agregar si alguna vez hace falta.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Google Calendar bidireccional <span class="opp__id">google-calendar-sync</span></div></summary>
+    <div class="opp__body"><p>Solo mockup <span class="b b--prom">prometido</span>; OAuth con verificación de Google, tokens cifrados, conflictos en dos sentidos. Para un usuario, el feed ICS de solo lectura (<code>ics-feed</code>) da la mitad del valor por una vigésima parte del costo.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar por ahora</span> Asistente de IA en lenguaje natural («Zada») <span class="opp__id">ai-assistant-nl</span></div></summary>
+    <div class="opp__body"><p>Textos en el bundle no renderizados <span class="b b--prom">prometido</span>; ninguna captura. Fuera del MVP por decisión del mapa. El parser determinista de <code>capture-nl-dates</code> cubre el caso de uso principal (fechas y montos) sin coste ni error de IA. Queda como módulo <code>ai-assistant</code>, futuro.</p></div></details>
+
+  <details class="opp opp--drop"><summary><div class="opp__title"><span class="b b--drop">Descartar</span> Login con código por correo, foto en metas, logos de marcas, Meta Pixel <span class="opp__id">misc</span></div></summary>
+    <div class="opp__body"><p>Passkey con Face ID es más rápido y más seguro que un código por correo. Las fotos de portada y los logos de Spotify/Netflix son peso y terceros sin conducta a cambio. El píxel y el precio localizado existen para vender; no aplican.</p></div></details>
+</section>
+<section id="prio" aria-labelledby="h-prio">
+  <div class="sec-head"><span class="sec-num">08</span><h2 id="h-prio">Priorización</h2></div>
+  <p class="lede">Las 25 oportunidades ordenadas por prioridad. La fórmula premia lo que se usa a diario y cuesta poco; por eso las tres primeras son pulido de módulos cerrados y no módulos nuevos.</p>
+  <div class="chart-wrap"><svg viewBox="0 0 760 644" role="img" aria-labelledby="chart-title chart-desc" xmlns="http://www.w3.org/2000/svg">
+<title id="chart-title">Puntuación de prioridad de las 25 oportunidades</title>
+<desc id="chart-desc">Barras horizontales ordenadas de mayor a menor. La barra más alta es “Mover a mañana” con 16 puntos; la más baja, importar extracto CSV con 2,7. El color indica el horizonte: verde pulido inmediato, azul insumo para specs, naranja apuesta. Los valores exactos están en la tabla siguiente.</desc>
+<g font-size="11" fill="var(--text-2)"><line x1="250" y1="20" x2="250" y2="632" stroke="var(--divider)" stroke-width="1"/><text x="250" y="16" text-anchor="middle">0</text><line x1="360" y1="20" x2="360" y2="632" stroke="var(--divider)" stroke-width="1"/><text x="360" y="16" text-anchor="middle">4</text><line x1="470" y1="20" x2="470" y2="632" stroke="var(--divider)" stroke-width="1"/><text x="470" y="16" text-anchor="middle">8</text><line x1="580" y1="20" x2="580" y2="632" stroke="var(--divider)" stroke-width="1"/><text x="580" y="16" text-anchor="middle">12</text><line x1="690" y1="20" x2="690" y2="632" stroke="var(--divider)" stroke-width="1"/><text x="690" y="16" text-anchor="middle">16</text></g><g><text x="242" y="43" text-anchor="end" font-size="11.5" fill="var(--text)">“Mover a mañana” en un toque</text>
+<rect x="250" y="32" width="440.0" height="16" rx="3" fill="var(--ok)"><title>“Mover a mañana” en un toque: 16</title></rect>
+<text x="696.0" y="44" font-size="11" font-weight="600" fill="var(--text)">16</text></g><g><text x="242" y="67" text-anchor="end" font-size="11.5" fill="var(--text)">Captura con atajo de iOS</text>
+<rect x="250" y="56" width="343.8" height="16" rx="3" fill="var(--ok)"><title>Captura con atajo de iOS: 12,5</title></rect>
+<text x="599.8" y="68" font-size="11" font-weight="600" fill="var(--text)">12,5</text></g><g><text x="242" y="91" text-anchor="end" font-size="11.5" fill="var(--text)">Hora opcional en tareas</text>
+<rect x="250" y="80" width="330.0" height="16" rx="3" fill="var(--info)"><title>Hora opcional en tareas: 12</title></rect>
+<text x="586.0" y="92" font-size="11" font-weight="600" fill="var(--text)">12</text></g><g><text x="242" y="115" text-anchor="end" font-size="11.5" fill="var(--text)">Lenguaje natural al capturar</text>
+<rect x="250" y="104" width="275.0" height="16" rx="3" fill="var(--ok)"><title>Lenguaje natural al capturar: 10</title></rect>
+<text x="531.0" y="116" font-size="11" font-weight="600" fill="var(--text)">10</text></g><g><text x="242" y="139" text-anchor="end" font-size="11.5" fill="var(--text)">Cierre del día cuando quedó algo</text>
+<rect x="250" y="128" width="275.0" height="16" rx="3" fill="var(--ok)"><title>Cierre del día cuando quedó algo: 10</title></rect>
+<text x="531.0" y="140" font-size="11" font-weight="600" fill="var(--text)">10</text></g><g><text x="242" y="163" text-anchor="end" font-size="11.5" fill="var(--text)">Saludo con estado, variado</text>
+<rect x="250" y="152" width="275.0" height="16" rx="3" fill="var(--ok)"><title>Saludo con estado, variado: 10</title></rect>
+<text x="531.0" y="164" font-size="11" font-weight="600" fill="var(--text)">10</text></g><g><text x="242" y="187" text-anchor="end" font-size="11.5" fill="var(--text)">Hábitos con hora y franja</text>
+<rect x="250" y="176" width="275.0" height="16" rx="3" fill="var(--info)"><title>Hábitos con hora y franja: 10</title></rect>
+<text x="531.0" y="188" font-size="11" font-weight="600" fill="var(--text)">10</text></g><g><text x="242" y="211" text-anchor="end" font-size="11.5" fill="var(--text)">“Saltar hoy” en un toque</text>
+<rect x="250" y="200" width="247.5" height="16" rx="3" fill="var(--ok)"><title>“Saltar hoy” en un toque: 9</title></rect>
+<text x="503.5" y="212" font-size="11" font-weight="600" fill="var(--text)">9</text></g><g><text x="242" y="235" text-anchor="end" font-size="11.5" fill="var(--text)">Aviso “te queda uno” sin alarma</text>
+<rect x="250" y="224" width="220.0" height="16" rx="3" fill="var(--info)"><title>Aviso “te queda uno” sin alarma: 8</title></rect>
+<text x="476.0" y="236" font-size="11" font-weight="600" fill="var(--text)">8</text></g><g><text x="242" y="259" text-anchor="end" font-size="11.5" fill="var(--text)">Aviso “vence mañana” de pagos</text>
+<rect x="250" y="248" width="220.0" height="16" rx="3" fill="var(--info)"><title>Aviso “vence mañana” de pagos: 8</title></rect>
+<text x="476.0" y="260" font-size="11" font-weight="600" fill="var(--text)">8</text></g><g><text x="242" y="283" text-anchor="end" font-size="11.5" fill="var(--text)">Briefing de la mañana</text>
+<rect x="250" y="272" width="183.3" height="16" rx="3" fill="var(--info)"><title>Briefing de la mañana: 6,7</title></rect>
+<text x="439.3" y="284" font-size="11" font-weight="600" fill="var(--text)">6,7</text></g><g><text x="242" y="307" text-anchor="end" font-size="11.5" fill="var(--text)">Calendario ICS de solo lectura</text>
+<rect x="250" y="296" width="165.0" height="16" rx="3" fill="var(--ok)"><title>Calendario ICS de solo lectura: 6</title></rect>
+<text x="421.0" y="308" font-size="11" font-weight="600" fill="var(--text)">6</text></g><g><text x="242" y="331" text-anchor="end" font-size="11.5" fill="var(--text)">Cuotas que terminan solas</text>
+<rect x="250" y="320" width="165.0" height="16" rx="3" fill="var(--ok)"><title>Cuotas que terminan solas: 6</title></rect>
+<text x="421.0" y="332" font-size="11" font-weight="600" fill="var(--text)">6</text></g><g><text x="242" y="355" text-anchor="end" font-size="11.5" fill="var(--text)">Nota diaria con [[enlaces]]</text>
+<rect x="250" y="344" width="146.7" height="16" rx="3" fill="var(--info)"><title>Nota diaria con [[enlaces]]: 5,3</title></rect>
+<text x="402.7" y="356" font-size="11" font-weight="600" fill="var(--text)">5,3</text></g><g><text x="242" y="379" text-anchor="end" font-size="11.5" fill="var(--text)">Entrenamientos con series y récord</text>
+<rect x="250" y="368" width="146.7" height="16" rx="3" fill="var(--signal)"><title>Entrenamientos con series y récord: 5,3</title></rect>
+<text x="402.7" y="380" font-size="11" font-weight="600" fill="var(--text)">5,3</text></g><g><text x="242" y="403" text-anchor="end" font-size="11.5" fill="var(--text)">Tope mensual por categoría</text>
+<rect x="250" y="392" width="123.8" height="16" rx="3" fill="var(--info)"><title>Tope mensual por categoría: 4,5</title></rect>
+<text x="379.8" y="404" font-size="11" font-weight="600" fill="var(--text)">4,5</text></g><g><text x="242" y="427" text-anchor="end" font-size="11.5" fill="var(--text)">Sesión de estudio con temporizador</text>
+<rect x="250" y="416" width="123.8" height="16" rx="3" fill="var(--info)"><title>Sesión de estudio con temporizador: 4,5</title></rect>
+<text x="379.8" y="428" font-size="11" font-weight="600" fill="var(--text)">4,5</text></g><g><text x="242" y="451" text-anchor="end" font-size="11.5" fill="var(--text)">Checklist dentro de la tarea</text>
+<rect x="250" y="440" width="123.8" height="16" rx="3" fill="var(--ok)"><title>Checklist dentro de la tarea: 4,5</title></rect>
+<text x="379.8" y="452" font-size="11" font-weight="600" fill="var(--text)">4,5</text></g><g><text x="242" y="475" text-anchor="end" font-size="11.5" fill="var(--text)">Celebrar hitos con movimiento</text>
+<rect x="250" y="464" width="110.0" height="16" rx="3" fill="var(--ok)"><title>Celebrar hitos con movimiento: 4</title></rect>
+<text x="366.0" y="476" font-size="11" font-weight="600" fill="var(--text)">4</text></g><g><text x="242" y="499" text-anchor="end" font-size="11.5" fill="var(--text)">Metas enlazadas con ritmo</text>
+<rect x="250" y="488" width="110.0" height="16" rx="3" fill="var(--info)"><title>Metas enlazadas con ritmo: 4</title></rect>
+<text x="366.0" y="500" font-size="11" font-weight="600" fill="var(--text)">4</text></g><g><text x="242" y="523" text-anchor="end" font-size="11.5" fill="var(--text)">Cola de escrituras sin red</text>
+<rect x="250" y="512" width="110.0" height="16" rx="3" fill="var(--info)"><title>Cola de escrituras sin red: 4</title></rect>
+<text x="366.0" y="524" font-size="11" font-weight="600" fill="var(--text)">4</text></g><g><text x="242" y="547" text-anchor="end" font-size="11.5" fill="var(--text)">Tarjetas con cierre y vencimiento</text>
+<rect x="250" y="536" width="82.5" height="16" rx="3" fill="var(--signal)"><title>Tarjetas con cierre y vencimiento: 3</title></rect>
+<text x="338.5" y="548" font-size="11" font-weight="600" fill="var(--text)">3</text></g><g><text x="242" y="571" text-anchor="end" font-size="11.5" fill="var(--text)">Vista anual de consistencia</text>
+<rect x="250" y="560" width="82.5" height="16" rx="3" fill="var(--ok)"><title>Vista anual de consistencia: 3</title></rect>
+<text x="338.5" y="572" font-size="11" font-weight="600" fill="var(--text)">3</text></g><g><text x="242" y="595" text-anchor="end" font-size="11.5" fill="var(--text)">Materias con horas y consistencia</text>
+<rect x="250" y="584" width="82.5" height="16" rx="3" fill="var(--info)"><title>Materias con horas y consistencia: 3</title></rect>
+<text x="338.5" y="596" font-size="11" font-weight="600" fill="var(--text)">3</text></g><g><text x="242" y="619" text-anchor="end" font-size="11.5" fill="var(--text)">Importar extracto CSV</text>
+<rect x="250" y="608" width="73.3" height="16" rx="3" fill="var(--signal)"><title>Importar extracto CSV: 2,7</title></rect>
+<text x="329.3" y="620" font-size="11" font-weight="600" fill="var(--text)">2,7</text></g></svg>
+  <div class="legend"><span><i style="background:var(--ok)"></i>Pulido inmediato</span><span><i style="background:var(--info)"></i>Insumo para specs</span><span><i style="background:var(--signal)"></i>Apuesta</span></div>
+  </div>
+  <div class="tw"><table>
+<caption>Prioridad = impacto × frecuencia ÷ esfuerzo (S = 1, M = 2, L = 3)</caption>
+<thead><tr><th scope="col" class="num">#</th><th scope="col">Oportunidad</th><th scope="col">Categoría</th><th scope="col">Módulo</th><th scope="col">Horizonte</th><th scope="col" class="num">Impacto</th><th scope="col" class="num">Frecuencia</th><th scope="col" class="num">Esfuerzo</th><th scope="col" class="num">Prioridad</th></tr></thead><tbody><tr><td class="num">1</td><th scope="row"><a href="#opp-postpone-one-tap">“Mover a mañana” en un toque</a> <span class="opp__id">postpone-one-tap</span></th><td><span class="b b--beat">Superar</span></td><td><code>today · tasks</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">4</td><td class="num">4</td><td class="num">S</td><td class="num"><strong>16</strong></td></tr><tr><td class="num">2</td><th scope="row"><a href="#opp-ios-shortcut-capture">Captura con atajo de iOS</a> <span class="opp__id">ios-shortcut-capture</span></th><td><span class="b b--beat">Superar</span></td><td><code>core · tasks · finance</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">5</td><td class="num">5</td><td class="num">M</td><td class="num"><strong>12,5</strong></td></tr><tr><td class="num">3</td><th scope="row"><a href="#opp-task-time">Hora opcional en tareas</a> <span class="opp__id">task-time</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>tasks · reminders</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">3</td><td class="num">4</td><td class="num">S</td><td class="num"><strong>12</strong></td></tr><tr><td class="num">4</td><th scope="row"><a href="#opp-capture-nl-dates">Lenguaje natural al capturar</a> <span class="opp__id">capture-nl-dates</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>tasks · finance</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">4</td><td class="num">5</td><td class="num">M</td><td class="num"><strong>10</strong></td></tr><tr><td class="num">5</td><th scope="row"><a href="#opp-evening-close-ritual">Cierre del día cuando quedó algo</a> <span class="opp__id">evening-close-ritual</span></th><td><span class="b b--beat">Superar</span></td><td><code>today</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">4</td><td class="num">5</td><td class="num">M</td><td class="num"><strong>10</strong></td></tr><tr><td class="num">6</td><th scope="row"><a href="#opp-greeting-variants">Saludo con estado, variado</a> <span class="opp__id">greeting-variants</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>today</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">2</td><td class="num">5</td><td class="num">S</td><td class="num"><strong>10</strong></td></tr><tr><td class="num">7</td><th scope="row"><a href="#opp-habit-time-of-day">Hábitos con hora y franja</a> <span class="opp__id">habit-time-of-day</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>reminders · habits</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">5</td><td class="num">M</td><td class="num"><strong>10</strong></td></tr><tr><td class="num">8</td><th scope="row"><a href="#opp-habit-skip-day">“Saltar hoy” en un toque</a> <span class="opp__id">habit-skip-day</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>habits</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">3</td><td class="num">3</td><td class="num">S</td><td class="num"><strong>9</strong></td></tr><tr><td class="num">9</td><th scope="row"><a href="#opp-at-risk-notice">Aviso “te queda uno” sin alarma</a> <span class="opp__id">at-risk-notice-compassionate</span></th><td><span class="b b--beat">Superar</span></td><td><code>reminders · habits</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">4</td><td class="num">M</td><td class="num"><strong>8</strong></td></tr><tr><td class="num">10</td><th scope="row"><a href="#opp-payment-due-push">Aviso “vence mañana” de pagos</a> <span class="opp__id">payment-due-push</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>reminders · finance</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">4</td><td class="num">M</td><td class="num"><strong>8</strong></td></tr><tr><td class="num">11</td><th scope="row"><a href="#opp-morning-briefing">Briefing de la mañana</a> <span class="opp__id">morning-briefing-push</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>reminders · today</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">5</td><td class="num">L</td><td class="num"><strong>6,7</strong></td></tr><tr><td class="num">12</td><th scope="row"><a href="#opp-ics-feed">Calendario ICS de solo lectura</a> <span class="opp__id">ics-feed</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>core · tasks · finance</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">2</td><td class="num">3</td><td class="num">S</td><td class="num"><strong>6</strong></td></tr><tr><td class="num">13</td><th scope="row"><a href="#opp-installments">Cuotas que terminan solas</a> <span class="opp__id">installments</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>finance</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">3</td><td class="num">2</td><td class="num">S</td><td class="num"><strong>6</strong></td></tr><tr><td class="num">14</td><th scope="row"><a href="#opp-daily-note-links">Nota diaria con [[enlaces]]</a> <span class="opp__id">daily-note-links</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>notes</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">4</td><td class="num">L</td><td class="num"><strong>5,3</strong></td></tr><tr><td class="num">15</td><th scope="row"><a href="#opp-health-workouts">Entrenamientos con series y récord</a> <span class="opp__id">health-workouts</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>health</code></td><td><span class="b b--h3">Apuesta</span></td><td class="num">4</td><td class="num">4</td><td class="num">L</td><td class="num"><strong>5,3</strong></td></tr><tr><td class="num">16</td><th scope="row"><a href="#opp-budget-caps">Tope mensual por categoría</a> <span class="opp__id">budget-caps</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>budget</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">3</td><td class="num">3</td><td class="num">M</td><td class="num"><strong>4,5</strong></td></tr><tr><td class="num">17</td><th scope="row"><a href="#opp-focus-session">Sesión de estudio con temporizador</a> <span class="opp__id">focus-session</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>learning</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">3</td><td class="num">3</td><td class="num">M</td><td class="num"><strong>4,5</strong></td></tr><tr><td class="num">18</td><th scope="row"><a href="#opp-task-checklist">Checklist dentro de la tarea</a> <span class="opp__id">task-checklist</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>tasks</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">3</td><td class="num">3</td><td class="num">M</td><td class="num"><strong>4,5</strong></td></tr><tr><td class="num">19</td><th scope="row"><a href="#opp-celebration">Celebrar hitos con movimiento</a> <span class="opp__id">celebration-milestones</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>habits · core</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">2</td><td class="num">2</td><td class="num">S</td><td class="num"><strong>4</strong></td></tr><tr><td class="num">20</td><th scope="row"><a href="#opp-goals-linked">Metas enlazadas con ritmo</a> <span class="opp__id">goals-linked-progress</span></th><td><span class="b b--beat">Superar</span></td><td><code>goals</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">3</td><td class="num">L</td><td class="num"><strong>4</strong></td></tr><tr><td class="num">21</td><th scope="row"><a href="#opp-offline-queue">Cola de escrituras sin red</a> <span class="opp__id">offline-queue</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>core · reminders</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">4</td><td class="num">3</td><td class="num">L</td><td class="num"><strong>4</strong></td></tr><tr><td class="num">22</td><th scope="row"><a href="#opp-credit-card-cycle">Tarjetas con cierre y vencimiento</a> <span class="opp__id">credit-card-cycle</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>finance</code></td><td><span class="b b--h3">Apuesta</span></td><td class="num">3</td><td class="num">3</td><td class="num">L</td><td class="num"><strong>3</strong></td></tr><tr><td class="num">23</td><th scope="row"><a href="#opp-habit-heatmap">Vista anual de consistencia</a> <span class="opp__id">habit-heatmap-year</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>habits</code></td><td><span class="b b--h1">Pulido inmediato</span></td><td class="num">3</td><td class="num">2</td><td class="num">M</td><td class="num"><strong>3</strong></td></tr><tr><td class="num">24</td><th scope="row"><a href="#opp-study-sessions">Materias con horas y consistencia</a> <span class="opp__id">study-sessions</span></th><td><span class="b b--adopt">Adoptar</span></td><td><code>learning</code></td><td><span class="b b--h2">Insumo para specs</span></td><td class="num">3</td><td class="num">3</td><td class="num">L</td><td class="num"><strong>3</strong></td></tr><tr><td class="num">25</td><th scope="row"><a href="#opp-statement-import">Importar extracto CSV</a> <span class="opp__id">statement-import</span></th><td><span class="b b--adapt">Adaptar</span></td><td><code>finance</code></td><td><span class="b b--h3">Apuesta</span></td><td class="num">4</td><td class="num">2</td><td class="num">L</td><td class="num"><strong>2,7</strong></td></tr></tbody></table></div>
+  <p class="prose"><small>Lectura: una prioridad alta con esfuerzo L (briefing, notas) sigue valiendo la pena, pero entra por su spec, no por el backlog. Una prioridad baja con esfuerzo S (celebración, ICS) es relleno de una tarde entre módulos.</small></p>
+</section>
+<section id="horizons" aria-labelledby="h-horizons">
+  <div class="sec-head"><span class="sec-num">09</span><h2 id="h-horizons">Horizontes y orden de construcción</h2></div>
+  <p class="lede">Tres columnas: lo que entra al "Backlog técnico" de módulos cerrados, lo que debe decir cada spec pendiente, y las apuestas con la pregunta que las decide.</p>
+
+  <div class="grid grid--3">
+    <div class="card horizon horizon--1">
+      <h3>Pulido inmediato <span class="b b--h1">10</span></h3>
+      <p><small>Candidatos al "Backlog técnico" de <code>tasks/todo.md</code>. Ninguno necesita spec nueva; los de esfuerzo S caben entre módulos.</small></p>
+      <ul>
+        <li><a href="#opp-postpone-one-tap">Mover a mañana en un toque</a> (16, S)</li>
+        <li><a href="#opp-ios-shortcut-capture">Captura con atajo de iOS</a> (12,5, M)</li>
+        <li><a href="#opp-capture-nl-dates">Lenguaje natural al capturar</a> (10, M)</li>
+        <li><a href="#opp-evening-close-ritual">Cierre del día cuando quedó algo</a> (10, M)</li>
+        <li><a href="#opp-greeting-variants">Saludo con estado</a> (10, S)</li>
+        <li><a href="#opp-habit-skip-day">Saltar hoy</a> (9, S)</li>
+        <li><a href="#opp-installments">Cuotas que terminan solas</a> (6, S)</li>
+        <li><a href="#opp-ics-feed">Calendario ICS</a> (6, S)</li>
+        <li><a href="#opp-task-checklist">Checklist en la tarea</a> (4,5, M)</li>
+        <li><a href="#opp-celebration">Celebrar hitos</a> (4, S) · <a href="#opp-habit-heatmap">Vista anual</a> (3, M)</li>
+      </ul>
+      <p><small>Más lo que ya está en el backlog y rimu confirma que importa: clic perdido tras eliminar, texto perdido al cambiar "Tarea · Gasto", grilla que salta en el iPhone.</small></p>
+    </div>
+    <div class="card horizon horizon--2">
+      <h3>Insumos para specs pendientes <span class="b b--h2">11</span></h3>
+      <ul>
+        <li><strong><code>reminders</code></strong> (siguiente): <a href="#opp-morning-briefing">briefing de la mañana</a> con ≤ 3 líneas; <a href="#opp-payment-due-push">"vence mañana"</a> de pagos; <a href="#opp-at-risk-notice">repaso de la noche</a> sin alarma; <a href="#opp-habit-time-of-day">hora y franja de hábitos</a>; <a href="#opp-task-time">hora en tareas</a> como prerequisito; service worker con caché segura y <code>share_target</code> para la captura; base de la <a href="#opp-offline-queue">cola offline</a>. Un aviso por tipo, todos configurables y desactivables. Nunca «racha», «riesgo», «atrasado».</li>
+        <li><strong><code>goals</code></strong>: <a href="#opp-goals-linked">fuentes de progreso registradas</a> (hábito, proyecto, cantidad manual), ritmo como siguiente paso, sin «Atrasada». Objetivo semanal visible en <code>/</code>.</li>
+        <li><strong><code>weekly-review</code></strong>: rimu no lo tiene y es la ventaja a defender. Empieza en logros (<code>getHabitsWeekSummary</code>, tareas hechas, avance de proyectos), ofrece «Mover las pendientes al lunes» en lote, y cierra con el objetivo de la semana. «Días completos esta semana: 4» como único número de consistencia.</li>
+        <li><strong><code>learning</code></strong>: <a href="#opp-focus-session">sesión con cronómetro</a> y <a href="#opp-study-sessions">materias con horas</a>; decidir si es módulo o vista de proyectos del área Aprendizaje.</li>
+        <li><strong><code>notes</code></strong>: <a href="#opp-daily-note-links">nota diaria, [[enlaces]], línea → tarea, backlinks</a>; búsqueda con Postgres; sin grafo.</li>
+        <li><strong><code>budget</code></strong>: <a href="#opp-budget-caps">una columna y una marca</a>; puede ir como corte de <code>finance</code>.</li>
+      </ul>
+    </div>
+    <div class="card horizon horizon--3">
+      <h3>Apuestas <span class="b b--h3">4</span></h3>
+      <p><small>Módulos nuevos o cambios de dirección. Cada una con la pregunta que la decide.</small></p>
+      <ul>
+        <li><a href="#opp-health-workouts"><strong>health</strong> con entrenamientos</a> (5,3, L). <em>¿Vas al gimnasio con rutina fija y quieres ver subir la carga, o "Gimnasio" como hábito sí/no te basta?</em></li>
+        <li><a href="#opp-credit-card-cycle"><strong>Tarjetas con cierre</strong></a> (3, L). <em>¿Pagas la mayoría de los gastos con tarjeta de crédito a fin de mes?</em></li>
+        <li><a href="#opp-statement-import"><strong>Importar extracto CSV</strong></a> (2,7, L). <em>¿Tu banco exporta CSV y aceptarías registrar gastos una vez al mes en vez de en el momento?</em></li>
+        <li><strong>Adelantar <code>notes</code></strong> (sin tarjeta propia). <em>¿El daily log es lo que más echas de menos de Notion, o lo que menos usabas?</em></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin:26px 0 10px">Orden de construcción: propuesta para revisar con el owner</h3>
+  <p class="prose"><code>reminders</code> sigue primero: es el disparador de todo el bucle y lo esperan tres módulos cerrados. El cambio propuesto es después: adelantar <code>notes</code> (es el "segundo cerebro" propiamente dicho y alimenta la revisión semanal) y traer <code>health</code> del "más adelante" al mapa, antes que <code>learning</code>, porque se usa 3 veces por semana con las manos ocupadas mientras un curso se toca de forma esporádica. La decisión es del owner.</p>
+  <div class="order">
+    <div class="card">
+      <h4>Actual</h4>
+      <ol>
+        <li>reminders</li>
+        <li>goals</li>
+        <li>weekly-review</li>
+        <li>learning</li>
+        <li>notes</li>
+        <li><small>más adelante: health, budget, …</small></li>
+      </ol>
+    </div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="card">
+      <h4>Propuesto</h4>
+      <ol>
+        <li>reminders <small>(+ hora en tareas y hábitos)</small></li>
+        <li>goals</li>
+        <li>weekly-review</li>
+        <li class="is-moved">notes <small>(sube)</small></li>
+        <li class="is-new">health <small>(entra al mapa)</small></li>
+        <li class="is-moved">learning <small>(baja)</small></li>
+        <li><small>budget como corte de finance</small></li>
+      </ol>
+    </div>
+  </div>
+  <p class="prose" style="margin-top:12px"><small>Alternativa conservadora: no mover nada y solo meter <code>budget-caps</code> e <code>installments</code> en el backlog de <code>finance</code>. El informe no encuentra razón para adelantar <code>goals</code> o <code>weekly-review</code> por encima de <code>reminders</code>.</small></p>
+</section>
+
+<section id="questions" aria-labelledby="h-questions">
+  <div class="sec-head"><span class="sec-num">10</span><h2 id="h-questions">Preguntas abiertas para el owner</h2></div>
+  <p class="lede">Lo que este informe no puede decidir. Cada respuesta mueve una o varias oportunidades.</p>
+  <ol class="qs">
+    <li><div><b>¿Captura fuera de la app con un atajo de iOS te sirve, o quieres un canal de chat?</b><span>Decide <code>ios-shortcut-capture</code> frente a reabrir el bot de WhatsApp como parte de <code>ai-assistant</code>. El atajo lo instalas tú en el iPhone; no se puede probar en CI.</span></div></li>
+    <li><div><b>Para <code>reminders</code>: ¿push web en la PWA, email o ambos? ¿Y qué tres avisos primero?</b><span>El informe propone briefing de la mañana, "vence mañana" de pagos y repaso de la noche. El email pide un proveedor (servicio nuevo, tu OK). Las claves VAPID las pones tú.</span></div></li>
+    <li><div><b>¿A qué hora empieza tu "cierre del día"?</b><span>Fija el modo cierre de <code>/</code> y el repaso de la noche. Propuesta: 20:00 y 21:00, configurables en Ajustes.</span></div></li>
+    <li><div><b>¿Vas al gimnasio con rutina fija (series y pesos) o "Gimnasio" como hábito te basta?</b><span>Decide si <code>health</code> entra al mapa antes que <code>learning</code>.</span></div></li>
+    <li><div><b>¿Pagas la mayoría de los gastos con tarjeta de crédito a fin de mes?</b><span>Si sí, <code>credit-card-cycle</code> sube de apuesta a insumo de <code>finance</code>; si no, se descarta.</span></div></li>
+    <li><div><b>¿Tu banco exporta CSV y aceptarías importar una vez al mes?</b><span>Decide <code>statement-import</code>. Si la captura rápida se sostiene, no hace falta.</span></div></li>
+    <li><div><b>¿El daily log de Notion lo echas de menos o nunca lo usaste?</b><span>Decide si <code>notes</code> sube en el orden y si la nota diaria se abre desde <code>/</code>.</span></div></li>
+    <li><div><b>¿Metas de dinero sin cuentas ni ingresos?</b><span><code>goals</code> puede enlazar hábitos y proyectos ya; una meta de ahorro necesitaría saldos que <code>finance</code> no tiene. Opción: cantidad manual con un pad de +.</span></div></li>
+    <li><div><b>¿OK a <code>canvas-confetti</code> (hitos) y a instalar <code>motion</code>?</b><span>Ambas figuran en <code>principios-ux.md</code> §4 pero no están en <code>package.json</code>. Sin ellas, la celebración queda en texto y NumberFlow.</span></div></li>
+    <li><div><b>¿Mostrar montos en los avisos push y en el calendario ICS?</b><span>Pasan por Apple y por el token del feed. Propuesta: solo el nombre por defecto, con un interruptor.</span></div></li>
+  </ol>
+  <h3 style="margin:26px 0 10px">Decisiones del owner (2026-10-06)</h3>
+  <p class="prose">Las diez preguntas se respondieron el mismo día. Lo decidido manda sobre las propuestas de arriba y ya está en <code>tasks/todo.md</code>, <code>docs/HANDOFF.md</code> y <code>CAPABILITY-MAP.md</code>.</p>
+  <div class="tw tw--narrow"><table>
+    <thead><tr><th scope="col">Pregunta</th><th scope="col">Decisión</th><th scope="col">Efecto</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Q1 Captura fuera de la app</th><td><strong>Bot de Telegram</strong>, texto primero; audio (Groq) en una fase 2 con OK aparte. Se investigaron costos: la Bot API de Telegram es gratuita y sin número extra; WhatsApp Cloud API exige un segundo número, Meta Business Manager y plantillas aprobadas, con cobro por respuestas de servicio desde el 1 de octubre de 2026.</td><td><code>ios-shortcut-capture</code> se reemplaza por la captura por Telegram dentro de <code>reminders</code>; <code>capture-nl-dates</code> pasa a ser su parser.</td></tr>
+      <tr><th scope="row">Q2 Canal de avisos</th><td>Telegram primero; push web después (o nunca, si basta).</td><td>Sin service worker ni claves VAPID en la v1 de <code>reminders</code>.</td></tr>
+      <tr><th scope="row">Avisos v1</th><td>Los cuatro: briefing de la mañana, pago vence mañana, repaso de la noche y hábito a su hora.</td><td><code>habit-time-of-day</code> entra en <code>reminders</code>.</td></tr>
+      <tr><th scope="row">Q3 Horarios</th><td>7:30 · 20:00 · 21:00, editables.</td><td>Defaults de <code>morning-briefing-push</code>, <code>evening-close-ritual</code> y <code>at-risk-notice-compassionate</code>.</td></tr>
+      <tr><th scope="row">Q4 Entrenamientos</th><td>Rutina fija con pesos: <code>health</code> entra al mapa.</td><td>Orden: … → weekly-review → <strong>health</strong> → learning → notes.</td></tr>
+      <tr><th scope="row">Q5 Tarjetas de crédito</th><td>Pago mixto, sin separar la factura.</td><td><code>credit-card-cycle</code> descartado.</td></tr>
+      <tr><th scope="row">Q6 Extracto CSV</th><td>No por ahora: apostar a la captura rápida.</td><td><code>statement-import</code> queda como apuesta sin fecha; se retoma si en dos meses los gastos sueltos no se sostienen.</td></tr>
+      <tr><th scope="row">Q7 Daily log</th><td>Nunca lo usó.</td><td><code>notes</code> se queda al final del orden.</td></tr>
+      <tr><th scope="row">Q8 Metas de dinero</th><td>Sin metas de dinero en v1.</td><td><code>goals</code> enlaza hábitos, proyectos y cantidades manuales.</td></tr>
+      <tr><th scope="row">Q9 Dependencias</th><td>OK a <code>motion</code> y <code>canvas-confetti</code>.</td><td>Gestos de deslizar y confeti en hitos entran en el corte <code>polish</code>.</td></tr>
+      <tr><th scope="row">Q10 Montos</th><td>Sí en Telegram (con interruptor), no en el ICS.</td><td>Copy de los avisos con monto; el feed ICS solo nombre y fecha.</td></tr>
+      <tr><th scope="row">Dónde vive el bot</th><td>Dentro de <code>reminders</code>, como canal.</td><td>Un solo módulo nuevo; <code>core</code> no se reabre.</td></tr>
+      <tr><th scope="row">Cuándo se hace el pulido</th><td>Un corte <code>polish</code> corto antes de <code>reminders</code>.</td><td>8 ítems: mover a mañana, hora en tareas, lenguaje natural, saludos, saltar hoy, cuotas, cierre del día, celebración. ICS, checklist y vista anual al backlog.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="sources" aria-labelledby="h-sources">
+  <div class="sec-head"><span class="sec-num">11</span><h2 id="h-sources">Fuentes y método</h2></div>
+  <div class="grid grid--2">
+    <div class="card">
+      <h3>Fuentes de rimu</h3>
+      <ul>
+        <li><a href="https://www.rimuapp.com/" rel="noopener">https://www.rimuapp.com/</a>: HTML, metadatos (<code>&lt;title&gt;</code>, <code>og:*</code>, JSON-LD) y los bundles de Vite (<code>/assets/index-*.js</code> con los diccionarios ES, EN y PT; <code>motion-*.js</code>; <code>index-*.css</code>).</li>
+        <li>Recursos de la landing: 11 capturas de la app (<code>screens/*.webp</code>), 4 capturas de WhatsApp, 10 testimonios (<code>depoimento-*.webp</code>), videos <code>RIMUSITE-web.mp4</code> (2:17), <code>gantt.mp4</code>, <code>graph.mp4</code>, <code>habitos.mp4</code>, de los que se extrajeron fotogramas.</li>
+        <li><a href="https://www.rimuapp.com/terms" rel="noopener">/terms</a> y <a href="https://www.rimuapp.com/privacy" rel="noopener">/privacy</a> (última actualización 31 de agosto de 2026).</li>
+        <li>Búsqueda web (6 consultas el 2026-10-06): ninguna fuente externa sobre rimuapp.com; solo productos homónimos. No se inspeccionó su Instagram.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Fuentes de brahua-os</h3>
+      <ul>
+        <li><code>CAPABILITY-MAP.md</code>, <code>docs/principios-ux.md</code>, <code>SPEC-core.md</code>, <code>SPEC-projects.md</code>, <code>SPEC-tasks.md</code>, <code>SPEC-habits.md</code>, <code>SPEC-today.md</code>, <code>SPEC-finance.md</code>.</li>
+        <li><code>docs/HANDOFF.md</code> ("Estado" y "Siguiente: reminders") y el "Backlog técnico" de <code>tasks/todo.md</code>.</li>
+        <li>Código para confirmar: <code>package.json</code> (sin <code>motion</code>, <code>cmdk</code> ni <code>canvas-confetti</code>), <code>src/modules/habits/streak.ts</code> (hitos 7/30/90/365), <code>src/modules/today/today-copy.ts</code> (6 mensajes de cierre), tokens en <code>src/design-system/styles/tokens/</code>.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Cómo se leyó la landing</h3>
+      <ol>
+        <li>Descarga del HTML y de los bundles; extracción de todas las cadenas en español agrupadas por sección, incluidas secciones de una versión anterior que ya no se renderizan (marcadas como "bundle, no visible").</li>
+        <li>Recorrido con Chromium headless (Playwright del proyecto) en 1440×900 y 390×844, con scroll lento y captura de cada una de las 26 secciones; prueba de <code>?lang=en</code>, <code>prefers-color-scheme: light</code> y la variante <code>?v=term</code>.</li>
+        <li>Descripción de cada mockup y fotograma: jerarquía, densidad, copy, acciones visibles, estados.</li>
+        <li>Lectura de términos y privacidad para datos, terceros, IA y exportación.</li>
+        <li>Sin cuenta, sin checkout, sin correos, sin pagos.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>Límites y lo no verificado</h3>
+      <ul>
+        <li>La app real no se usó: todo "prometido" puede no existir o funcionar distinto.</li>
+        <li>Google Calendar, offline, comandos de WhatsApp, briefings por hora, asistente de IA, Gantt, importación y PDF: solo copy o mockups HTML.</li>
+        <li>Los toques y segundos de los flujos son estimaciones sobre lo visible.</li>
+        <li>Las puntuaciones son juicio del autor con la fórmula pedida; impacto y frecuencia se estimaron sobre el uso descrito en el mapa y las specs, no sobre datos de uso reales.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</main>
+</div>
+<footer>brahua-os × rimu · informe de benchmark · generado el 2026-10-06 · solo análisis, sin datos reales del owner</footer>
+<script>
+(function(){
+  'use strict';
+  var root=document.documentElement;
+  // ── Tema ──
+  var KEY='bo-benchmark-theme';
+  function readTheme(){try{return localStorage.getItem(KEY);}catch(e){return null;}}
+  function saveTheme(v){try{localStorage.setItem(KEY,v);}catch(e){}}
+  function current(){
+    var t=root.getAttribute('data-theme');
+    if(t) return t;
+    return (window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+  }
+  var stored=readTheme();
+  if(stored==='light'||stored==='dark') root.setAttribute('data-theme',stored);
+  var btn=document.getElementById('theme-btn');
+  function paint(){
+    var c=current();
+    btn.setAttribute('aria-pressed',c==='light'?'true':'false');
+    btn.textContent=c==='light'?'Tema: claro':'Tema: oscuro';
+  }
+  btn.addEventListener('click',function(){
+    var next=current()==='light'?'dark':'light';
+    root.setAttribute('data-theme',next); saveTheme(next); paint();
+  });
+  paint();
+
+  // ── Menú móvil ──
+  var menuBtn=document.getElementById('menu-btn'), mnav=document.getElementById('mobile-nav');
+  if(menuBtn&&mnav){
+    menuBtn.addEventListener('click',function(){
+      var open=mnav.classList.toggle('is-open');
+      menuBtn.setAttribute('aria-expanded',open?'true':'false');
+      menuBtn.textContent=open?'Cerrar':'Índice';
+    });
+    mnav.addEventListener('click',function(e){
+      if(e.target.closest('a')){mnav.classList.remove('is-open');menuBtn.setAttribute('aria-expanded','false');menuBtn.textContent='Índice';}
+    });
+  }
+
+  // ── Sección activa en el índice ──
+  var links=Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var sections=links.map(function(a){return document.getElementById(a.getAttribute('href').slice(1));}).filter(Boolean);
+  if('IntersectionObserver' in window&&sections.length){
+    var visible={};
+    var io=new IntersectionObserver(function(entries){
+      entries.forEach(function(en){visible[en.target.id]=en.isIntersecting?en.intersectionRatio:0;});
+      var best=null,bestV=0;
+      sections.forEach(function(s){if((visible[s.id]||0)>bestV){bestV=visible[s.id];best=s.id;}});
+      if(!best){ // fallback: la última sección por encima del tope
+        var y=window.scrollY+80; sections.forEach(function(s){if(s.offsetTop<=y)best=s.id;});
+      }
+      links.forEach(function(a){
+        var on=a.getAttribute('href')==='#'+best;
+        a.classList.toggle('is-active',on);
+        if(on)a.setAttribute('aria-current','true');else a.removeAttribute('aria-current');
+      });
+    },{rootMargin:'-64px 0px -60% 0px',threshold:[0,.1,.25,.5]});
+    sections.forEach(function(s){io.observe(s);});
+  }
+
+  // ── Filtros de oportunidades ──
+  var cat=document.getElementById('f-cat'), mod=document.getElementById('f-mod'), hor=document.getElementById('f-hor');
+  var cards=Array.prototype.slice.call(document.querySelectorAll('#opps .opp[data-cat]'));
+  var countEl=document.getElementById('f-count');
+  function applyFilters(){
+    var c=cat.value,m=mod.value,h=hor.value,n=0;
+    cards.forEach(function(card){
+      var ok=(c==='all'||card.dataset.cat===c)&&(m==='all'||card.dataset.mod===m)&&(h==='all'||card.dataset.hor===h);
+      card.classList.toggle('is-hidden',!ok); if(ok)n++;
+    });
+    countEl.textContent=n+' de '+cards.length;
+  }
+  if(cat&&mod&&hor){[cat,mod,hor].forEach(function(s){s.addEventListener('change',applyFilters);});applyFilters();}
+  var expAll=document.getElementById('expand-all'), colAll=document.getElementById('collapse-all');
+  function setAll(open){document.querySelectorAll('details.opp').forEach(function(d){d.open=open;});}
+  if(expAll)expAll.addEventListener('click',function(){setAll(true);});
+  if(colAll)colAll.addEventListener('click',function(){setAll(false);});
+  window.addEventListener('beforeprint',function(){setAll(true);});
+
+  // ── Ordenar tabla de priorización (ya viene ordenada; solo marca) ──
+})();
+</script>
+</body>
+</html>

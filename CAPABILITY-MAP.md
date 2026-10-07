@@ -39,12 +39,13 @@ brahua-os es mi "segundo cerebro" personal: una sola app (web responsive + PWA) 
 | `projects` | Proyectos con estado (idea / activo / pausado / terminado), área de vida, objetivo, fechas, notas y enlaces; progreso calculado a partir de sus tareas. | core |
 | `tasks` | Tareas sueltas o dentro de un proyecto, bandeja de entrada, prioridad, fecha límite, recurrencia, área de vida, importación de Tareas del Hogar. | core, projects |
 | `today` | Tablero diario: hábitos de hoy, tareas que vencen, proyectos que vencen o están bloqueados y lo que cada módulo exponga como "resumen de hoy". | core, habits, tasks, projects |
-| `reminders` | Motor genérico de avisos (push de la PWA y/o email) al que los módulos le programan recordatorios. Incluye un cron diario y el service worker de la PWA (diferido desde `core`). | core |
+| `reminders` | Motor genérico de avisos al que los módulos le programan recordatorios. Primer canal: un **bot de Telegram** (avisos y captura por texto fuera de la app); push web de la PWA (service worker, diferido desde `core`) en un corte posterior. Incluye un cron diario. Decisión del owner, 2026-10-06 (benchmark rimu). | core |
 | `finance` | Gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual, importación de Gastos. | core (avisos con `reminders` después) |
-| `goals` | Metas anuales y trimestrales y objetivo semanal, enlazadas a hábitos y proyectos, con revisión semanal guiada. | habits, projects |
+| `goals` | Metas anuales y trimestrales y objetivo semanal, enlazadas a hábitos, proyectos y cantidades manuales (libros, km), con ritmo como siguiente paso (nunca "atrasada"). Sin metas de dinero en v1 (decisión del owner, 2026-10-06). | habits, projects |
 | `weekly-review` | Ritual guiado para cerrar la semana (hábitos cumplidos, tareas, avance de proyectos y metas) y planear la siguiente con un objetivo semanal. | habits, tasks, projects, goals |
-| `learning` | Cursos, certificaciones y rutas de estudio (p. ej. AWS, Platzi, Career Roadmap) con avance, sesiones de estudio y enlace a metas. | core, goals |
-| `notes` | Daily log / journaling y notas de conocimiento con búsqueda. Es la parte de "segundo cerebro" propiamente dicha. | core |
+| `health` | Rutinas de ejercicio con plantillas, sesiones por series (peso y repeticiones) y récords; la sesión marca el hábito enlazado. Entró al mapa desde "Más adelante" el 2026-10-06 (decisión del owner tras el benchmark); sueño, alimentación y terapia quedan para después. | core, habits |
+| `learning` | Cursos, certificaciones y rutas de estudio (p. ej. AWS, Platzi, Career Roadmap) con avance, sesiones de estudio con cronómetro y enlace a metas. | core, goals |
+| `notes` | Daily log / journaling y notas de conocimiento con búsqueda, `[[enlaces]]` a entidades y "línea → tarea". Es la parte de "segundo cerebro" propiamente dicha. | core |
 
 **Fuera de alcance:** mascotas (se construye como una app aparte).
 
@@ -54,18 +55,20 @@ Ideas guardadas sin spec; se agregan al mapa cuando las pidas:
 
 | Id | Idea |
 |---|---|
-| `health` | Rutinas de ejercicio y registro de sesiones, terapia de rodilla, sueño y alimentación (unifica los 3 sistemas de ejercicio de Notion). |
 | `library` | Libros, artículos y videos para leer o ver después. |
 | `relationships` | Cumpleaños, fechas importantes y recordatorio de contactar a familia y amigos. |
 | `travel` | Planes, itinerarios y presupuesto de viaje. |
-| `budget` | Tope mensual por categoría frente a gasto real (extiende `finance`). |
-| `ai-assistant` | Asistente que consulta y resume tus datos de brahua-os. |
+| `budget` | Tope mensual por categoría frente a gasto real. Reducido a una columna y una marca en el resumen; se hace como corte de `finance` (backlog, 2026-10-06). |
+| `ai-assistant` | Asistente que consulta y resume tus datos de brahua-os. El canal de chat (Telegram) ya existe desde `reminders`; aquí entrarían lenguaje natural más allá de fechas y montos, y audio → texto. |
 
 ## Orden de construcción
 
 ```
-design-system → core → projects → tasks, habits → today → finance → reminders → goals → weekly-review → learning → notes
+design-system → core → projects → tasks, habits → today → finance → polish → reminders → goals → weekly-review → health → learning → notes
 ```
+
+- `polish` no es un módulo: es un corte corto de mejoras a módulos cerrados (`tasks/todo.md` → "Corte `polish`") que salió del benchmark de rimu (`docs/benchmark-rimu.html`); dos de sus ítems son prerequisito de `reminders`. Decisión del owner, 2026-10-06.
+- `health` entra al mapa después de `weekly-review` y antes que `learning` (decisión del owner, 2026-10-06): se usa varias veces por semana con las manos ocupadas; un curso se toca de forma esporádica. `notes` se queda al final: el owner no usaba el daily log de Notion.
 
 - El **MVP usable** llega al terminar `today`: ya puedo gestionar proyectos y registrar tareas y hábitos desde el celular a diario.
 - `finance` va antes que `goals` porque es lo único que hoy usas activamente en Notion y te permitiría dejarlo antes.

@@ -1,6 +1,21 @@
 # Tareas
 
-> Siguiente módulo: **`reminders`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: reminders"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Siguiente: el corte **`polish`** (abajo) y luego el módulo **`reminders`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: polish → reminders"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Corte `polish` (benchmark rimu, decidido con el owner el 2026-10-06)
+
+Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../docs/benchmark-rimu.html) (§7 "Oportunidades", con problema, propuesta, principios y criterio de aceptación de cada una). Se hacen **antes de `reminders`**, un PR por ítem, en este orden (prioridad = impacto × frecuencia ÷ esfuerzo). Dependencias nuevas aprobadas por el owner: `motion` y `canvas-confetti`.
+
+- [ ] **`postpone-one-tap` — "Mover a mañana" desde Hoy (16, S):** acción `postponeTask(id, to)` en `tasks`; tecla "Mañana" (44 px) y menú "Otro día…" en las filas de `/` y de la vista Hoy; deslizar a la izquierda en el celular (con `motion`, solo horizontal con umbral, el botón como alternativa accesible); optimista con "Deshacer"; una recurrente mueve solo esta ocurrencia. E2E con `@today-tasks`.
+- [ ] **`task-time` — Hora opcional en tareas (12, S):** columna aditiva `due_time` (hora de Lima); campo en el detalle; en `/` y en Hoy las tareas con hora van primero ordenadas por hora y la muestran; sin duración ni bloques. Prerequisito de `reminders`.
+- [ ] **`capture-nl-dates` — Lenguaje natural al capturar (10, M):** función pura `src/lib/natural-date.ts` (sin IA ni dependencia): "hoy", "mañana", "pasado", días de la semana, "el 15", "15 oct", "en 3 días", "10am", "16:30"; para gastos, el primer número con coma o punto es el monto ("12.50 café", "USD 95 claude"). Vista previa en la LCD bajo el campo ("→ Vence el vie 10 · 10:00"), cancelable con un toque; lo interpretado sale del título. Mismo parser en la bandeja y, con `reminders`, en el bot de Telegram. Tabla de casos grande (día de Lima, medianoche, cambio de mes).
+- [ ] **`greeting-variants` — Saludo con estado (10, S):** segunda línea bajo el saludo de `/` por franja (mañana / tarde / noche) y estado (nada hecho / algo / todo / vacío), 3–4 variantes por combinación con `variantForDay`; lista negra de palabras ("todavía", "solo", contadores de lo que falta) comprobada en un test.
+- [ ] **`habit-skip-day` — "Saltar hoy" (9, S):** tecla en la hoja "Ajustar" del pad que crea una pausa de un día (hoy, motivo "Descanso") reutilizando `habit_pauses`; LCD "«Gimnasio» descansa hoy · Deshacer"; no aparece si el día ya está en pausa; el detalle muestra "N días saltados este mes" como dato.
+- [ ] **`installments` — Cuotas que terminan solas (6, S):** columna aditiva `installments_total` en `finance_recurring_payments`; "Termina después de N pagos" en la hoja (mensual); `schedule.ts` no genera períodos tras el N-ésimo; lista "Cuota 3 de 6"; al pagar la última se archiva con "Deshacer"; editar N por debajo de las pagadas se rechaza (lección de F2).
+- [ ] **`evening-close-ritual` — Cierre del día cuando quedó algo (10, M):** desde las **20:00** (preferencia editable) la cabecera de `/` pasa a modo cierre: primero lo logrado ("Hoy: 4 hábitos · 3 tareas · 1 pago", NumberFlow), luego una sola pregunta "Quedan 2 tareas. ¿Las pasamos a mañana?" con "Mañana" (usa `postponeTask` en lote) y "Dejar aquí"; hábitos solo como "4 de 5"; mensajes variados sin culpa. Necesita `postpone-one-tap`.
+- [ ] **`celebration-milestones` — Hitos con movimiento (4, S):** `canvas-confetti` monocromo con el color del área en 30+ (≤ 800 ms, nunca con movimiento reducido); el número de racha con NumberFlow en cada toque. Cierra el ítem "Confeti en hitos de racha" del backlog.
+
+Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
 
@@ -21,7 +36,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Calendario de hábitos a 320 px** (de H5): cada día mide ~39 px (cumple WCAG AA, no los 44 px del principio 14). Revisarlo con el diseño.
 - [ ] **Hook único de pads de hábitos** (de D1): que `habits` exporte `useHabitPadsLog` (o un componente cliente que dibuje la grilla de pads con su registro) y `today` deje de importar `habit-list-optimistic`, `habits-copy` y `useHabitsScreen`, como `tasks` hizo en D2 con `taskCompletion` y `TaskTodayRow`.
 - [ ] **Áreas y la portada** (de D2): renombrar, cambiar el color o archivar un área (`core`) no revalida `/`; las tareas (y los hábitos) de la portada muestran el área vieja hasta la siguiente lectura. `core` no puede importar a `today`: que `core` revalide `/` directamente al cambiar un área.
-- [ ] **Confeti en hitos de racha** (de H4): sin `canvas-confetti` (dependencia nueva, pide OK del owner); hoy solo texto.
+- [ ] **Confeti en hitos de racha** (de H4): `canvas-confetti` aprobado por el owner el 2026-10-06; se hace en el corte `polish` (`celebration-milestones`).
 - [ ] **Clic perdido tras eliminar** (del Checkpoint final de `today`, 2026-10-03): justo después de eliminar una tarea o un hábito (aviso con "Deshacer" en pantalla), el primer clic en la página no hace nada y el segundo sí. Pasa en Tareas y en Hábitos, y también tras cerrar la hoja de captura en Finanzas (visto el 2026-10-05). Reproducir con una E2E y corregir (¿foco o capa del visor de avisos?).
 - [ ] **Grilla de hábitos que salta en el iPhone** (de D4): al cumplirse un hábito de cantidad su tarjeta crece y "Día completo" aparece arriba y empuja la grilla bajo el dedo. Si molesta en el uso diario: reservar alto o no empujar en vivo (opciones en HANDOFF → D4).
 - [ ] **E2E intermitente "Hito"** (`e2e/task-views.spec.ts`, escritorio; visto en local durante D4): tras elegir "Sin hito", `milestoneId` no vuelve a `null` en 5 s en corridas conjuntas. Estabilizar.
@@ -30,3 +45,11 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **`Key` con `aria-disabled` en Claude Design** (de F4): el estilo de una tecla en espera vive en `overrides.css` (`PENDING UPSTREAM`); aplicarlo en Claude Design y vaciar el override.
 - [ ] **Moneda de los recurrentes importados** (de F5): ChatGPT, DevTalles y Claude se pagan con un medio en USD pero entraron en PEN; el owner los corrige en la app si son en dólares.
 - [ ] **Flakes vistos durante `finance`:** `e2e/habits.spec.ts:97` (timeout de 30 s una vez en CI, PR #79) y `tests/app/project-notes-links.test.tsx` ("a refused reorder goes back", falló una vez en la suite completa). Vigilar; estabilizar si se repiten.
+
+### Del benchmark rimu (2026-10-06, menor prioridad; detalle en `docs/benchmark-rimu.html` §7)
+
+- [ ] **`ics-feed` — Calendario ICS de solo lectura (6, S):** ruta `/calendar/<token>.ics` con token revocable desde Ajustes; tareas con fecha, vencimientos de proyectos y pagos pendientes como eventos de día completo; **sin montos** (decisión del owner, 2026-10-06), solo nombre y fecha; se suscribe desde Calendario de iOS.
+- [ ] **`task-checklist` — Checklist dentro de la tarea (4,5, M):** las listas `- [ ]` de las notas Markdown de la tarea se vuelven interactivas en el detalle (toggle por índice, rechazado si el texto cambió) y la fila en Hoy muestra "2 de 6". El renderizador de `src/lib/markdown/` gana casillas que `projects` y `notes` reutilizan.
+- [ ] **`habit-heatmap-year` — Vista anual por hábito (3, M):** 26 semanas de `DayCell` pequeñas bajo el calendario del detalle, con "Llevas 118 días hechos desde abril"; `role="img"` con resumen; sin porcentajes ni vista de todos los hábitos a la vez.
+- [ ] **`budget-caps` — Tope mensual por categoría (4,5, M):** era el módulo `budget`; reducido a una columna aditiva `monthly_cap_cents` en `finance_categories` y una marca en la barra del resumen ("S/ 600 de S/ 670"; pasado el tope, color de señal, nunca rojo). Se toma como corte de `finance` cuando haya espacio.
+- **Descartados con el owner (2026-10-06):** tarjetas con cierre y vencimiento (paga mixto y no necesita separar la factura), importación de extractos CSV (se apuesta a la captura rápida; se retoma si en dos meses los gastos sueltos no se sostienen), tipo de cambio automático, ingresos/patrimonio, PDF, Google Calendar bidireccional, Kanban/Eisenhower/Gantt, grafo de notas.
