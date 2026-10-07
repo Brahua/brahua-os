@@ -172,6 +172,10 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 /* Tasks: an empty native date field on iOS is a blank box; "Sin fecha" shows over it there only
    (-webkit-touch-callout exists only in iOS Safari). Decorative: the label names the field. */
 .bo-date-empty { display: none; }
+/* Task time (polish -> task-time): the native time input shares the date field's box; its clear key
+   sits beside it and wraps under it at 320 px. */
+.bo-time-field__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bo-time-field__row > .relative { flex: 1 1 140px; min-width: 0; }
 @supports (-webkit-touch-callout: none) {
   .bo-date-empty { display: flex; position: absolute; inset-block: 0; inset-inline-start: 16px; align-items: center; pointer-events: none; color: var(--color-placeholder); }
 }

@@ -85,6 +85,13 @@
       "when": 1791343331302,
       "tag": "0011_finance_installments",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791347790603,
+      "tag": "0012_tasks_due_time",
+      "breakpoints": true
     }
   ]
 }

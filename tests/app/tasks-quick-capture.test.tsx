@@ -41,6 +41,7 @@ const saved = (title: string): TaskItem => ({
   title,
   priority: "medium",
   dueDate: null,
+  dueTime: null,
   doneAt: null,
   createdAt: new Date(),
   lifeAreaId: null,

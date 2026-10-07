@@ -27,6 +27,7 @@ import {
   type SpawnUndo,
 } from "./recurrence-db";
 import { writeTaskTags } from "./tag-links";
+import { normalizeDueTime } from "./task-time";
 import type {
   CreateTaskInput,
   DeletedTask,
@@ -78,6 +79,7 @@ const ROW = {
   title: tasks.title,
   priority: tasks.priority,
   dueDate: tasks.dueDate,
+  dueTime: tasks.dueTime,
   doneAt: tasks.doneAt,
   createdAt: tasks.createdAt,
   lifeAreaId: tasks.lifeAreaId,
@@ -107,6 +109,8 @@ export function toItem(row: Row): TaskItem {
     title: row.title,
     priority: row.priority,
     dueDate: row.dueDate,
+    // Postgres `time` reads "10:00:00": the app speaks HH:MM.
+    dueTime: normalizeDueTime(row.dueTime),
     doneAt: row.doneAt,
     createdAt: row.createdAt,
     lifeAreaId: row.lifeAreaId,
@@ -221,7 +225,12 @@ export async function selectTaskTargets(db: Database): Promise<TaskTargets> {
 }
 
 /** Why a placement was refused. */
-export type PlacementFailure = "areaUnavailable" | "projectUnavailable" | "milestoneUnavailable";
+export type PlacementFailure =
+  | "areaUnavailable"
+  | "projectUnavailable"
+  | "milestoneUnavailable"
+  /** polish -> task-time: a time was sent for a task without a day (an edit, not a placement). */
+  | "timeWithoutDate";
 
 /**
  * Checks where a task goes, locking what it goes into FOR SHARE until the transaction ends.
@@ -294,6 +303,8 @@ export async function insertTask(
         title: input.title,
         priority: input.priority,
         dueDate: input.dueDate,
+        // A time only with a day (the schema and `tasks_due_time_check` say so too).
+        dueTime: input.dueDate === null ? null : (input.dueTime ?? null),
         lifeAreaId: input.lifeAreaId,
         projectId: input.projectId,
         milestoneId: input.milestoneId,
@@ -309,7 +320,14 @@ export async function insertTask(
 /** The columns an edit writes (never `done_at`, `deleted_at` or the timestamps directly). */
 type TaskEdit = Pick<
   PgUpdateSetSource<typeof tasks>,
-  "title" | "priority" | "dueDate" | "lifeAreaId" | "projectId" | "milestoneId" | "isNextAction"
+  | "title"
+  | "priority"
+  | "dueDate"
+  | "dueTime"
+  | "lifeAreaId"
+  | "projectId"
+  | "milestoneId"
+  | "isNextAction"
 >;
 
 /**
@@ -340,6 +358,7 @@ export async function updateTask(
         lifeAreaId: tasks.lifeAreaId,
         projectId: tasks.projectId,
         milestoneId: tasks.milestoneId,
+        dueDate: tasks.dueDate,
       })
       .from(tasks)
       .where(and(eq(tasks.id, input.id), visibleTask))
@@ -350,6 +369,12 @@ export async function updateTask(
     if (input.title !== undefined) values.title = input.title;
     if (input.priority !== undefined) values.priority = input.priority;
     if (input.dueDate !== undefined) values.dueDate = input.dueDate;
+    // polish -> task-time: taking the day away takes the time with it; a time needs the day the
+    // task will have (the edit's, or the stored one).
+    const nextDay = input.dueDate !== undefined ? input.dueDate : current.dueDate;
+    if (input.dueTime != null && nextDay === null) return "timeWithoutDate";
+    if (input.dueDate === null) values.dueTime = null;
+    else if (input.dueTime !== undefined) values.dueTime = input.dueTime;
     if (placement) {
       const failure = await checkPlacement(tx, placement, current);
       if (failure) return failure;

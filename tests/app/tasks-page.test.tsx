@@ -109,6 +109,7 @@ function task(values: Partial<TaskItem>): TaskItem {
     title: `Tarea ${serial}`,
     priority: "medium",
     dueDate: null,
+    dueTime: null,
     doneAt: null,
     createdAt: NOW,
     lifeAreaId: null,
@@ -222,10 +223,11 @@ beforeEach(() => {
   vi.mocked(editTask)
     .mockReset()
     .mockImplementation(async (input) => {
-      const { id, placement, dueDate, priority, title } = input as {
+      const { id, placement, dueDate, dueTime, priority, title } = input as {
         id: string;
         placement?: { lifeAreaId: string | null };
         dueDate?: string | null;
+        dueTime?: string | null;
         priority?: TaskItem["priority"];
         title?: string;
       };
@@ -235,6 +237,9 @@ beforeEach(() => {
           ? { lifeAreaId: placement.lifeAreaId, area: placement.lifeAreaId ? HEALTH : null }
           : {}),
         ...(dueDate !== undefined ? { dueDate } : {}),
+        // Like the server: no day, no time.
+        ...(dueDate === null ? { dueTime: null } : {}),
+        ...(dueTime !== undefined ? { dueTime } : {}),
         ...(priority ? { priority } : {}),
         ...(title ? { title } : {}),
       });
@@ -447,8 +452,47 @@ describe("Clasificar", () => {
       id: PILAS.id,
       placement: { lifeAreaId: null, projectId: null, milestoneId: null },
       dueDate: "2026-09-30",
+      dueTime: null,
     });
     await server.answer();
+  });
+
+  test("taking the day away from a task with a time sends no time and drops it at once; Deshacer sends both back", async () => {
+    server.tasks = [task({ title: "ir al banco", dueDate: "2026-09-30", dueTime: "09:00" })];
+    const timed = server.tasks[0];
+    const user = userEvent.setup();
+    render(<Harness />);
+    expect(within(row("ir al banco")).getByRole("link")).toHaveAccessibleDescription(/a las 09:00/);
+    await user.click(screen.getByRole("button", { name: "Clasificar «ir al banco»" }));
+    const dialog = await screen.findByRole("dialog", { name: "Clasificar tarea" });
+    await user.clear(within(dialog).getByLabelText("Fecha límite"));
+    await user.selectOptions(
+      within(dialog).getByRole("combobox", { name: "Área o proyecto" }),
+      "Salud",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+    // No `dueTime` key: the server clears it with the day.
+    expect(editTask).toHaveBeenLastCalledWith({
+      id: timed.id,
+      placement: { lifeAreaId: HEALTH_ID, projectId: null, milestoneId: null },
+      dueDate: null,
+    });
+    await server.answer();
+    await user.click(await within(notices()).findByRole("button", { name: "Deshacer" }));
+    expect(editTask).toHaveBeenLastCalledWith({
+      id: timed.id,
+      placement: { lifeAreaId: null, projectId: null, milestoneId: null },
+      dueDate: "2026-09-30",
+      dueTime: "09:00",
+    });
+    // The optimistic row is back with its time (waiting out the rollback).
+    await waitFor(() =>
+      expect(within(row("ir al banco")).getByRole("link")).toHaveAccessibleDescription(
+        /a las 09:00/,
+      ),
+    );
+    await server.answer();
+    expect(server.tasks[0]).toMatchObject({ dueDate: "2026-09-30", dueTime: "09:00" });
   });
 
   test("only a date: it stays in the inbox with its new label", async () => {

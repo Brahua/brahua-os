@@ -407,11 +407,21 @@ export function TaskList({
       setClassifyOpen(false);
       return;
     }
-    const before: { placement: TaskPlacement; dueDate: string | null } = {
+    const before: { placement: TaskPlacement; dueDate: string | null; dueTime: string | null } = {
       placement: toPlacement(placementValue(task), task),
       dueDate: task.dueDate,
+      dueTime: task.dueTime,
     };
-    const patch = { ...placementPatch(targets, value, task), dueDate };
+    // Taking the day away takes the time with it (the server too); "Deshacer" puts both back.
+    // Known debt: like the placement it restores, this undo is unconditional (it does not compare
+    // what the task has by now, as `restoreTaskDueDate` does), so an edit made after "Clasificar"
+    // is overwritten. And a time added meanwhile to a task that had no day is lost: it can't
+    // outlive its day (`tasks_due_time_check`).
+    const patch = {
+      ...placementPatch(targets, value, task),
+      dueDate,
+      ...(dueDate === null ? { dueTime: null } : {}),
+    };
     const index = view.findIndex((item) => item.id === task.id);
     const leaves = !belongs({ ...task, ...patch });
     // The row's key leaves with it: the sheet hands focus to the neighbor instead.
@@ -444,12 +454,17 @@ export function TaskList({
   function unclassify(
     task: TaskItem,
     index: number,
-    before: { placement: TaskPlacement; dueDate: string | null },
+    before: { placement: TaskPlacement; dueDate: string | null; dueTime: string | null },
   ) {
     startSaving(async () => {
       apply({ type: "restore", task, index });
       const queued = await enqueue(`task:${task.id}:placement`, () =>
-        editTask({ id: task.id, placement: before.placement, dueDate: before.dueDate }),
+        editTask({
+          id: task.id,
+          placement: before.placement,
+          dueDate: before.dueDate,
+          dueTime: before.dueTime,
+        }),
       );
       if (queued.kind === "skipped" || queued.superseded) return;
       const result = queued.kind === "done" ? queued.value : fail(TASKS_COPY.checkConnection);

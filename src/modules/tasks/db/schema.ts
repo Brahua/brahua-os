@@ -8,6 +8,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -50,7 +51,9 @@ export const tasks = pgTable(
     title: text("title").notNull(), // 1–200, normalized like names
     notes: text("notes"), // ≤ 20 000, Markdown (rendered sanitized)
     priority: text("priority", { enum: TASK_PRIORITIES }).notNull().default("medium"),
-    dueDate: date("due_date"), // a day in Lima, no time (YYYY-MM-DD)
+    dueDate: date("due_date"), // a day in Lima (YYYY-MM-DD)
+    // Optional wall-clock time in Lima (no zone, minute precision), only with `due_date`.
+    dueTime: time("due_time"),
     doneAt: timestamp("done_at", { withTimezone: true }),
     // Only when there is no project: with one, the area is the project's (read through it).
     lifeAreaId: uuid("life_area_id").references(() => lifeAreas.id, { onDelete: "restrict" }),
@@ -99,6 +102,16 @@ export const tasks = pgTable(
     check(
       "tasks_next_action_check",
       sql`not ${table.isNextAction} or (${table.projectId} is not null and ${table.doneAt} is null)`,
+    ),
+    // A time only makes sense on a day, and it is HH:MM (no seconds, never 24:00).
+    check(
+      "tasks_due_time_check",
+      sql`${table.dueTime} is null or (
+        ${table.dueDate} is not null
+        and ${table.dueTime} >= time '00:00'
+        and ${table.dueTime} < time '24:00'
+        and extract(second from ${table.dueTime}) = 0
+      )`,
     ),
     check("tasks_spawned_from_check", sql`${table.spawnedFromId} <> ${table.id}`),
     check(

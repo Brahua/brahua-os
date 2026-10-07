@@ -36,6 +36,7 @@ const task = (values: Partial<TaskItem> = {}): TaskItem => ({
   title: "regar plantas",
   priority: "medium",
   dueDate: null,
+  dueTime: null,
   doneAt: null,
   createdAt: NOW,
   lifeAreaId: null,

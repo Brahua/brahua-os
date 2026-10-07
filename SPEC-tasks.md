@@ -122,6 +122,8 @@ export const taskTagLinks = pgTable("task_tag_links", {
 
 Los mismos de `SPEC-core`. Módulo en `src/modules/tasks/` (como `projects`), páginas en `src/app/(app)/tasks/`, captura global en `src/modules/tasks/components/quick-capture*` montada desde el shell por un punto de extensión (el shell de `core` no importa `tasks`: se registra como los manifiestos).
 
+**Hora (corte `polish`, `task-time`):** una tarea con fecha puede tener además una **hora** opcional (`due_time`, `HH:MM` de 24 h en hora de Lima, sin zona ni duración; solo con `due_date`: quitar la fecha la borra). Se edita en el detalle («Hora», con «Quitar hora»); la captura rápida aún no tiene campo (`createTask` ya la acepta). En Hoy, Próximas, Todas y en `/` el orden pasa a ser día → **hora** (las que la tienen primero, por hora) → prioridad → creación, y las filas la muestran («10:00»). Una recurrente copia la hora a la siguiente ocurrencia y `postponeTask` la conserva. `due_date` + `due_time` (Lima) es el instante del aviso que usará `reminders`. Sin calendario: ni duración ni bloques.
+
 **Posponer (corte `polish`, `postpone-one-tap`):** `postponeTask({ id, to })` (`to`: `"tomorrow"` o un día `YYYY-MM-DD`, nunca antes de hoy en Lima) mueve solo `due_date` de una tarea pendiente y visible (una recurrente mueve solo esa ocurrencia: sin copia y con su regla intacta) y es idempotente; `restoreTaskDueDate({ id, dueDate, expected })` es su "Deshacer" por id (devuelve el día exacto que tenía y no pisa una edición posterior). Las filas de `/` y de las vistas Hoy, Próximas y Todas llevan la tecla "Mañana", "Otro día…" y, en pantallas táctiles, el deslizamiento a la izquierda.
 
 ## Estrategia de pruebas

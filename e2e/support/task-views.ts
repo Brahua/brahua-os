@@ -75,6 +75,8 @@ type NewViewTask = {
   priority?: TaskPriority;
   /** Days from Lima's today. */
   due?: number;
+  /** HH:MM (24 h, Lima): polish → task-time. */
+  dueTime?: string;
   /** Done this many hours ago. */
   doneHoursAgo?: number;
   areaSlug?: string;
@@ -104,6 +106,7 @@ export async function insertViewTask(task: NewViewTask): Promise<string> {
         title: task.title,
         priority: task.priority ?? "medium",
         dueDate: task.due === undefined ? null : limaDay(task.due),
+        dueTime: task.dueTime ?? null,
         doneAt,
         lifeAreaId: area?.id ?? null,
         projectId: task.projectId ?? null,

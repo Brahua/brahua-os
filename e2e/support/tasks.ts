@@ -50,6 +50,7 @@ export async function readTask(id: string) {
         doneAt: tasks.doneAt,
         deletedAt: tasks.deletedAt,
         dueDate: tasks.dueDate,
+        dueTime: tasks.dueTime,
         priority: tasks.priority,
         areaSlug: lifeAreas.slug,
       })

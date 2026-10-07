@@ -123,6 +123,7 @@ function task(values: Partial<TaskItem>): TaskItem {
     title: `Tarea ${serial}`,
     priority: "medium",
     dueDate: null,
+    dueTime: null,
     doneAt: null,
     createdAt: NOW,
     lifeAreaId: null,

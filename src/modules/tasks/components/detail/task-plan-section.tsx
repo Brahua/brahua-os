@@ -4,8 +4,10 @@ import { useId } from "react";
 import { SectionLabel } from "@/design-system";
 import { placementPatch, placementValue, toPlacement } from "../../placement";
 import { taskDueState } from "../../task-due";
+import { isDueTime } from "../../task-time";
 import { TASKS_COPY } from "../../tasks-copy";
 import { DateField } from "../date-field";
+import { TimeField } from "../time-field";
 import { PlacementSelect } from "../placement-select";
 import { useSaveTaskField, useTaskDetail } from "./task-detail-context";
 import { TaskMilestoneField } from "./task-milestone-field";
@@ -57,9 +59,30 @@ export function TaskPlanSection() {
           if (value !== "" && !DAY.test(value)) return;
           const dueDate = value === "" ? null : value;
           if (dueDate === task.dueDate) return;
-          save("dueDate", { dueDate }, { dueDate }, { announceSaved: true });
+          // Taking the day away takes the time with it (the server does the same).
+          save(
+            "dueDate",
+            dueDate === null ? { dueDate, dueTime: null } : { dueDate },
+            { dueDate },
+            { announceSaved: true },
+          );
         }}
       />
+      {/* polish -> task-time: a time only makes sense on a day. */}
+      {task.dueDate !== null ? (
+        <TimeField
+          id={`${ids}-time`}
+          label={TASKS_COPY.timeLabel}
+          value={task.dueTime ?? ""}
+          help={TASKS_COPY.timeHelp}
+          onChange={(value) => {
+            if (value !== "" && !isDueTime(value)) return;
+            const dueTime = value === "" ? null : value;
+            if (dueTime === task.dueTime) return;
+            save("dueTime", { dueTime }, { dueTime }, { announceSaved: true });
+          }}
+        />
+      ) : null}
     </section>
   );
 }

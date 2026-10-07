@@ -21,6 +21,7 @@ export const TASK_FIELD_NAMES = {
   title: "el título",
   placement: "el área o proyecto",
   dueDate: "la fecha",
+  dueTime: "la hora",
   priority: "la prioridad",
 } as const;
 
@@ -59,6 +60,12 @@ export const TASKS_COPY = {
   dueLabel: "Fecha límite",
   dueHelp: "Opcional.",
   noDate: "Sin fecha",
+  timeLabel: "Hora",
+  timeHelp: "Opcional. Hora de Lima.",
+  noTime: "Sin hora",
+  clearTime: "Quitar hora",
+  /** What a row says in words ("a las 10:00"); the visible row shows just "10:00". */
+  atTime: (time: string) => `a las ${time}`,
   priorityLabel: "Prioridad",
   highPriority: "Prioridad alta",
   highPriorityShort: "Alta",
