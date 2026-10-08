@@ -24,9 +24,22 @@ export const POSTPONE_COPY = {
   moved: (title: string, day: string, today: string, tomorrow: string) =>
     `«${title}» pasa ${dayPhrase(day, today, tomorrow)}.`,
   undone: (title: string) => `«${title}» volvió a su día.`,
+  /** The batch of the evening close: "3 tareas pasan a mañana." */
+  movedManyTitle: "Tareas movidas",
+  movedMany: (count: number, day: string, today: string, tomorrow: string) =>
+    `${count} ${count === 1 ? "tarea pasa" : "tareas pasan"} ${dayPhrase(day, today, tomorrow)}.`,
+  undoneMany: (count: number) =>
+    count === 1 ? "La tarea volvió a su día." : `${count} tareas volvieron a su día.`,
 
   // Failures
   notMoved: "No se pudo mover la tarea; volvió a como estaba.",
+  /** Added to the batch's notice when some tasks moved and some did not. */
+  notMovedSome: (count: number) =>
+    count === 1 ? "Una no se pudo mover." : `${count} no se pudieron mover.`,
+  notMovedMany: (count: number) =>
+    count === 1
+      ? "No se pudo mover una tarea; volvió a como estaba."
+      : `No se pudieron mover ${count} tareas; volvieron a como estaban.`,
   notUndone: "No se pudo deshacer.",
   dateChanged: "La fecha ya cambió, así que la dejé como está.",
 } as const;

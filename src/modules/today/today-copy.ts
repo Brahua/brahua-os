@@ -51,6 +51,38 @@ export const TODAY_COPY = {
   dayCompleteAnnouncement: (achieved: string[]) =>
     achieved.length > 0 ? `Día completo: ${achieved.join(" y ")}.` : "Día completo.",
 
+  // ── Cierre del día (evening-close-ritual) ──
+  /**
+   * From 20:00 (Lima), when something is left: what was achieved first, then one question about
+   * the tasks left. Calm, never guilt nor a debt counter (principles 5 and 13): the tasks "pass
+   * to tomorrow", they are not "late". One question per day (`variantForDay`).
+   */
+  eveningClose: {
+    title: "Cierre del día",
+    /** "Hoy: 4 hábitos · 3 tareas" (the visible parts; the spoken one is `achievedSpoken`). */
+    achievedPrefix: "Hoy: ",
+    achievedSpoken: (parts: string[]) => `Hoy: ${parts.join(" y ")}.`,
+    habitsOf: (done: number, total: number) => `Hábitos: ${done} de ${total}`,
+    questions: [
+      (n: number) =>
+        n === 1
+          ? "Queda 1 tarea. ¿La pasamos a mañana?"
+          : `Quedan ${n} tareas. ¿Las pasamos a mañana?`,
+      (n: number) =>
+        n === 1
+          ? "Una tarea quedó para otro momento. ¿La movemos a mañana?"
+          : `${n} tareas quedaron para otro momento. ¿Las movemos a mañana?`,
+      (n: number) =>
+        n === 1
+          ? "Mañana hay espacio para esa tarea. ¿La movemos?"
+          : `Mañana hay espacio para esas ${n} tareas. ¿Las movemos?`,
+    ],
+    tomorrow: "Mañana",
+    keep: "Dejar aquí",
+    /** Said after "Dejar aquí" (the tasks stay where they are; nothing else changes). */
+    kept: "Las tareas se quedan en Hoy.",
+  },
+
   // ── Línea bajo el saludo (greeting-variants) ──
   /**
    * The second line under the greeting, by part of the Lima day and the day's state (`greeting.ts`).

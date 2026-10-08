@@ -12,7 +12,7 @@ import { usePostponePicker } from "@/modules/tasks/components/use-postpone-picke
 import { taskViewHref } from "@/modules/tasks/routes";
 import { taskCompletion } from "@/modules/tasks/task-completion";
 import { tomorrowOf, type PostponedTask, type PostponeTarget } from "@/modules/tasks/task-postpone";
-import { taskPostponement } from "@/modules/tasks/task-postponement";
+import { taskPostponement, type PostponedItem } from "@/modules/tasks/task-postponement";
 import type { TaskTodayItem } from "@/modules/tasks/today-summary";
 import {
   applyTodayTaskChange,
@@ -23,7 +23,7 @@ import {
   type TodayTaskChange,
 } from "../today-board";
 import { TODAY_COPY } from "../today-copy";
-import { useReportTasks } from "./today-progress";
+import { useRegisterPostponeAll, useReportTasks } from "./today-progress";
 
 /** Id of the section's heading (tabIndex -1): focus lands there if its target is gone. */
 export const TODAY_TASKS_HEADING_ID = "today-tasks-title";
@@ -162,6 +162,38 @@ export function TodayTasks({ tasks }: TodayTasksProps) {
       await postponement.undo(task, moved);
     });
   }
+
+  // ── The close of the day: every pending task to tomorrow, with one notice ──
+
+  /** Everything pending leaves "Hoy" at once; the one "Deshacer" brings them all back. */
+  function postponeAll() {
+    if (isCurrentDay && !isCurrentDay()) return;
+    const batch = view;
+    if (batch.length === 0) return;
+    startSaving(async () => {
+      for (const task of batch) {
+        apply({ type: "remove", id: task.id });
+        markPostponed(task.id);
+      }
+      // A failure rolls the rows back when this transition ends (useOptimistic).
+      await postponement.postponeMany(batch, "tomorrow", (moved) => undoPostponeAll(batch, moved));
+    });
+  }
+
+  /** "Deshacer" of the batch: the ones that moved are back in their places, on their own day. */
+  function undoPostponeAll(original: TaskTodayItem[], moved: PostponedItem[]) {
+    const ids = new Set(moved.map((item) => item.task.id));
+    startSaving(async () => {
+      original.forEach((task, index) => {
+        if (!ids.has(task.id)) return;
+        apply({ type: "restore", task, index });
+        markPostponed(task.id);
+        markRestoring(task.id);
+      });
+      await postponement.undoMany(moved);
+    });
+  }
+  useRegisterPostponeAll(postponeAll);
 
   const picker = usePostponePicker({
     onSave: (task, day) => {

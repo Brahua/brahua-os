@@ -10,3 +10,9 @@
 [data-greeting-line] {
   visibility: hidden !important;
 }
+
+/* The close of the day exists only from 20:00 (Lima), so a run at night would draw a block the
+   references don't have: out of the layout, whatever the hour. */
+[data-evening-close] {
+  display: none !important;
+}

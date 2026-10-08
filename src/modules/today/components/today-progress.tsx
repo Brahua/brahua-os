@@ -15,7 +15,7 @@
 //   that the server hasn't read yet: the rows its optimistic list is missing against its props
 //   (`doneDelta`, +1 on complete, −1 on undoing a completion the server already counted). Once
 //   the server's read lands, the props and the list agree again and the delta is 0.
-import { createContext, use, useLayoutEffect, useMemo, useState } from "react";
+import { createContext, use, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DayTally, HabitsTally, PaymentsTally } from "../today-board";
 
 /** What "Tareas" publishes: pending rows, and completions the server hasn't counted yet. */
@@ -36,6 +36,15 @@ type Publish = {
 const TallyContext = createContext<{ tally: DayTally; today: string } | null>(null);
 const PublishContext = createContext<Publish | null>(null);
 
+// Controls a section lends to the rest of the board (evening-close-ritual): "Tareas" registers
+// what moves every pending task to tomorrow, and the close of the day calls it. A ref, not state:
+// registering never re-renders anything, and the call always reaches the latest list.
+type Controls = {
+  register: (postponeAll: (() => void) | null) => void;
+  postponeAll: () => void;
+};
+const ControlsContext = createContext<Controls | null>(null);
+
 type TodayProgressProviderProps = {
   /** The Lima day the page was read for (YYYY-MM-DD). */
   today: string;
@@ -51,6 +60,16 @@ export function TodayProgressProvider({ today, initial, children }: TodayProgres
       habits: (habits) => setReports((current) => ({ ...current, habits })),
       tasks: (tasks) => setReports((current) => ({ ...current, tasks })),
       payments: (payments) => setReports((current) => ({ ...current, payments })),
+    }),
+    [],
+  );
+  const postponeAll = useRef<(() => void) | null>(null);
+  const controls = useMemo<Controls>(
+    () => ({
+      register: (run) => {
+        postponeAll.current = run;
+      },
+      postponeAll: () => postponeAll.current?.(),
     }),
     [],
   );
@@ -70,7 +89,9 @@ export function TodayProgressProvider({ today, initial, children }: TodayProgres
   );
   return (
     <PublishContext value={publish}>
-      <TallyContext value={value}>{children}</TallyContext>
+      <ControlsContext value={controls}>
+        <TallyContext value={value}>{children}</TallyContext>
+      </ControlsContext>
     </PublishContext>
   );
 }
@@ -108,4 +129,26 @@ export function useReportPayments({ blocking }: PaymentsTally) {
     publish.payments({ blocking });
     return () => publish.payments(null);
   }, [publish, blocking]);
+}
+
+/**
+ * "Tareas" lends the board its "pass everything to tomorrow" (the close of the day calls it).
+ * `run` may change on every render: the board keeps calling the latest one.
+ */
+export function useRegisterPostponeAll(run: () => void) {
+  const controls = use(ControlsContext);
+  const latest = useRef(run);
+  useLayoutEffect(() => {
+    latest.current = run;
+  });
+  useLayoutEffect(() => {
+    if (!controls) return;
+    controls.register(() => latest.current());
+    return () => controls.register(null);
+  }, [controls]);
+}
+
+/** The board's "pass every pending task to tomorrow", or null outside a board. */
+export function usePostponeAll(): (() => void) | null {
+  return use(ControlsContext)?.postponeAll ?? null;
 }

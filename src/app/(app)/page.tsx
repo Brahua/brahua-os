@@ -6,6 +6,7 @@ import { getHabitsDueToday } from "@/modules/habits/contracts";
 import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import { getTasksDoneTodayCount, getTasksTodaySummary } from "@/modules/tasks/contracts";
 import { GreetingLine } from "@/modules/today/components/greeting-line";
+import { isEveningCloseFor } from "@/modules/today/evening-close-server";
 import { TodayBoard } from "@/modules/today/components/today-board";
 import { TodayPayments } from "@/modules/today/components/today-payments";
 import { TodayProjects } from "@/modules/today/components/today-projects";
@@ -36,12 +37,15 @@ export default async function Home() {
     getFinanceTodaySummary(now),
   ]);
   const today = ownerDateKey(now);
+  // evening-close-ritual: from 20:00 (Lima) the header turns into the close of the day.
+  const closing = await isEveningCloseFor(now);
 
   return (
     // Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
     // notice, and the last row of pads must stay reachable under it at full scroll.
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-10 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
       <TodayBoard
+        closing={closing}
         header={
           // Inside the board's providers: the line under the greeting follows the live tally.
           <header className="flex flex-col gap-2">
@@ -52,7 +56,7 @@ export default async function Home() {
             <h1 id={TODAY_HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
               {greetingFor(now)}
             </h1>
-            <GreetingLine part={dayPartFor(now)} />
+            <GreetingLine part={dayPartFor(now)} closing={closing} />
           </header>
         }
         today={today}
