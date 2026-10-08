@@ -2,6 +2,7 @@
 
 import type { TransitionStartFunction } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
+import { celebrateStreak } from "@/lib/celebrate";
 import type { HabitItem } from "../habit-input";
 import { applyHabitListChange, donePatch, type HabitListChange } from "../habit-list-optimistic";
 import { todayCount } from "../habit-status";
@@ -80,6 +81,8 @@ export function useDayLog({ view, apply, startSaving, notSaved }: DayLogArgs) {
           text: STREAK_COPY.milestone(habit.name, milestone.count, progress),
           action: { label: HABITS_COPY.undo, run: () => logDay(habit, !done, false) },
         });
+        // 30 days or more: confetti in the area's color too (never under reduced motion).
+        void celebrateStreak(milestone.count, habit.area?.color);
       } else if (undoable) {
         push({
           title: avoid
