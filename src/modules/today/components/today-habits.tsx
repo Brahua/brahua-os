@@ -11,6 +11,7 @@ import { useDayLog } from "@/modules/habits/components/use-day-log";
 import type { TrackFocus } from "@/modules/habits/components/use-pause-flow";
 import { useSkipToday } from "@/modules/habits/components/use-skip-today";
 import { preloadAdjust, useQuantityLog } from "@/modules/habits/components/use-quantity-log";
+import { groupByDaypart, visualOrder } from "@/modules/habits/daypart-groups";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { applyHabitListChange, neighborOf } from "@/modules/habits/habit-list-optimistic";
 import { isPausedToday } from "@/modules/habits/habit-status";
@@ -104,7 +105,8 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
 
   /** Focus on the neighbor of a pad that is leaving, else on the heading (never <body>). */
   function focusNeighbor(id: string) {
-    const neighbor = neighborOf(shown, id);
+    // R4: the neighbor is the one next to it on screen, band by band when the pads are grouped.
+    const neighbor = neighborOf(visualOrder(shown), id);
     const pad = neighbor
       ? document.querySelector<HTMLElement>(habitPadSelector(neighbor.id))
       : null;
@@ -164,6 +166,58 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
   // Nothing due (or all resting): no section, but this component stays mounted (see the board).
   if (shown.length === 0) return null;
 
+  // R4: with a part of the day on any pad, the pads are grouped (Mañana, Tarde, Noche, Sin
+  // franja); with none, the same single grid as ever. The band decides the section a pad is in;
+  // the hooks, the optimistic list and the pads above do not change owner.
+  const bands = groupByDaypart(shown);
+
+  function padCell(habit: HabitItem) {
+    return (
+      <li key={habit.id} className="relative min-w-0" data-habit-cell={habit.id}>
+        <HabitPad
+          habit={habit}
+          onToggle={toggle}
+          onAdd={quantity.add}
+          reserveCorner={adjustable(habit) ? "wide" : canSkipToday(habit, today)}
+          // The corner key makes the first row taller: 112 px keeps a pad the same height
+          // when its streak line appears after a tap (nothing moves under the finger), and
+          // every pad of the grid (a habit to avoid has no key) fills its cell alike. Only
+          // the board's pads: /habits doesn't pass it.
+          className="h-full min-h-28!"
+        />
+        {/* 4 px from the corner, like the options key on /habits. No tooltip: it would
+            repeat the (possibly long) name over the next column at 320 px. */}
+        <div className="absolute top-1 right-1 flex gap-1">
+          {adjustable(habit) ? (
+            <IconKey
+              icon={SlidersHorizontal}
+              label={TODAY_COPY.adjust(habit.name)}
+              tooltip={false}
+              aria-haspopup="dialog"
+              onPointerEnter={preloadAdjust}
+              onFocus={preloadAdjust}
+              onTouchStart={preloadAdjust}
+              onClick={(event) => quantity.openAdjust(habit, event.currentTarget)}
+            />
+          ) : null}
+          {/* A habit to avoid has nothing to rest from: no corner key (decisión autónoma). */}
+          {canSkipToday(habit, today) ? (
+            <IconKey
+              icon={Ellipsis}
+              label={HABITS_COPY.options(habit.name)}
+              tooltip={false}
+              aria-haspopup="dialog"
+              onPointerEnter={preloadSkip}
+              onFocus={preloadSkip}
+              onTouchStart={preloadSkip}
+              onClick={(event) => openSkip(habit, event.currentTarget)}
+            />
+          ) : null}
+        </div>
+      </li>
+    );
+  }
+
   return (
     <section
       aria-labelledby={TODAY_HABITS_HEADING_ID}
@@ -186,56 +240,34 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
         </Link>
       </div>
 
-      {/* Same grid as Hábitos → Hoy: 2 columns on the phone. */}
-      <ul
-        aria-label={TODAY_COPY.habitsList}
-        className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
-      >
-        {shown.map((habit) => (
-          <li key={habit.id} className="relative min-w-0" data-habit-cell={habit.id}>
-            <HabitPad
-              habit={habit}
-              onToggle={toggle}
-              onAdd={quantity.add}
-              reserveCorner={adjustable(habit) ? "wide" : canSkipToday(habit, today)}
-              // The corner key makes the first row taller: 112 px keeps a pad the same height
-              // when its streak line appears after a tap (nothing moves under the finger), and
-              // every pad of the grid (a habit to avoid has no key) fills its cell alike. Only
-              // the board's pads: /habits doesn't pass it.
-              className="h-full min-h-28!"
-            />
-            {/* 4 px from the corner, like the options key on /habits. No tooltip: it would
-                repeat the (possibly long) name over the next column at 320 px. */}
-            <div className="absolute top-1 right-1 flex gap-1">
-              {adjustable(habit) ? (
-                <IconKey
-                  icon={SlidersHorizontal}
-                  label={TODAY_COPY.adjust(habit.name)}
-                  tooltip={false}
-                  aria-haspopup="dialog"
-                  onPointerEnter={preloadAdjust}
-                  onFocus={preloadAdjust}
-                  onTouchStart={preloadAdjust}
-                  onClick={(event) => quantity.openAdjust(habit, event.currentTarget)}
-                />
-              ) : null}
-              {/* A habit to avoid has nothing to rest from: no corner key (decisión autónoma). */}
-              {canSkipToday(habit, today) ? (
-                <IconKey
-                  icon={Ellipsis}
-                  label={HABITS_COPY.options(habit.name)}
-                  tooltip={false}
-                  aria-haspopup="dialog"
-                  onPointerEnter={preloadSkip}
-                  onFocus={preloadSkip}
-                  onTouchStart={preloadSkip}
-                  onClick={(event) => openSkip(habit, event.currentTarget)}
-                />
-              ) : null}
+      {bands ? (
+        <div className="flex flex-col gap-4" data-today-habit-bands="">
+          {bands.map((band) => (
+            <div key={band.key} className="flex flex-col gap-2" data-today-habit-band={band.key}>
+              <h3
+                id={`${TODAY_HABITS_HEADING_ID}-${band.key}`}
+                className="bo-text-label text-text-secondary"
+              >
+                {band.label}
+              </h3>
+              <ul
+                aria-labelledby={`${TODAY_HABITS_HEADING_ID}-${band.key}`}
+                className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+              >
+                {band.habits.map(padCell)}
+              </ul>
             </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      ) : (
+        /* Same grid as Hábitos → Hoy: 2 columns on the phone. */
+        <ul
+          aria-label={TODAY_COPY.habitsList}
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+        >
+          {shown.map(padCell)}
+        </ul>
+      )}
 
       {quantity.adjustSheet}
       {skipping ? (
