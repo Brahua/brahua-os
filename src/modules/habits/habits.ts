@@ -25,6 +25,7 @@ import { detailsColumns, startDateError } from "./details-input";
 import { HABITS_ADVISORY_SPACE, HABITS_ORDER_KEY } from "./lock-keys";
 import { frequencyColumns } from "./frequency-input";
 import { measureColumns } from "./measure-input";
+import { reminderColumns } from "./reminder-input";
 import type {
   CreateHabitInput,
   DeletedHabit,
@@ -95,6 +96,9 @@ const ROW = {
   // H5: shown on the habit's page and edited in "Más detalles".
   identity: habits.identity,
   cue: habits.cue,
+  // R4: the reminder time as `HH:MM` (Postgres' `time` would give `22:00:00`) and the part of day.
+  reminderTime: sql<string | null>`to_char(${habits.reminderTime}, 'HH24:MI')`,
+  daypart: habits.daypart,
   kind: habits.kind,
   measure: habits.measure,
   goal: habits.goal,
@@ -345,7 +349,9 @@ export type HabitFailure =
   /** polish: "Saltar hoy" on a habit that is not due today (fixed days of other weekdays). */
   | "notScheduledToday"
   /** H5: a new habit's start date in the future or more than 7 days back. */
-  | "startDateOutOfWindow";
+  | "startDateOutOfWindow"
+  /** R4: an edit that gives a habit to avoid a reminder time. */
+  | "avoidReminder";
 
 /**
  * Creates a habit at the end of the manual order, starting `today` (H5: or on the start date
@@ -386,6 +392,8 @@ export async function insertHabit(
         ...measureColumns(input),
         // H5 (details-input.ts): identity, cue and the start date (today when not given).
         ...detailsColumns(input, today),
+        // R4 (reminder-input.ts): the reminder time and the part of the day.
+        ...reminderColumns(input),
         sortOrder: next,
       })
       .returning({ id: habits.id });

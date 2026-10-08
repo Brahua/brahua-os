@@ -13,6 +13,13 @@ export type HabitMeasure = (typeof HABIT_MEASURES)[number];
 export const HABIT_FREQUENCIES = ["daily", "weekly_count", "weekdays"] as const;
 export type HabitFrequency = (typeof HABIT_FREQUENCIES)[number];
 
+/**
+ * R4: the part of the day a habit belongs to. It groups the pads on "Hoy" (Mañana, Tarde, Noche;
+ * a habit with none goes to "Sin franja") and carries no time of its own.
+ */
+export const HABIT_DAYPARTS = ["morning", "afternoon", "evening"] as const;
+export type HabitDaypart = (typeof HABIT_DAYPARTS)[number];
+
 export const HABIT_NAME_MAX_LENGTH = 80;
 export const HABIT_IDENTITY_MAX_LENGTH = 120;
 export const HABIT_CUE_MAX_LENGTH = 60;

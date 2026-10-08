@@ -27,6 +27,7 @@ import {
   type HabitFailure,
 } from "./habits";
 import type { UnarchiveHabitInput } from "./organize-input";
+import { reminderUpdateColumns } from "./reminder-input";
 import { applyMeasureUpdate } from "./quantity";
 
 /** The archived habits (not deleted) with `today`'s log, in their old order. */
@@ -62,6 +63,8 @@ export async function updateHabitById(
     if (habit.archivedAt !== null) return "archived";
     // H3: a habit to avoid is daily; only a quantity has a goal, unit and step.
     if (habit.kind === "avoid" && input.frequency !== "daily") return "avoidDaily";
+    // R4: a habit to avoid takes no reminder time (a part of the day is fine); clearing is.
+    if (habit.kind === "avoid" && typeof input.reminderTime === "string") return "avoidReminder";
     const measure =
       input.goal !== undefined && input.unit !== undefined
         ? { goal: input.goal, unit: input.unit, step: input.step ?? 1 }
@@ -83,6 +86,8 @@ export async function updateHabitById(
         ...frequencyColumns(input),
         // H5: identity and cue, when sent.
         ...detailsUpdateColumns(input),
+        // R4: reminder time and part of the day, when sent (null clears).
+        ...reminderUpdateColumns(input),
       })
       .where(eq(habits.id, input.id));
     if (measure) await applyMeasureUpdate(tx, input.id, measure, today);
