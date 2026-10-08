@@ -5,6 +5,7 @@ import * as coreSchema from "@/modules/core/db/schema";
 import * as financeSchema from "@/modules/finance/db/schema";
 import * as habitsSchema from "@/modules/habits/db/schema";
 import * as projectsSchema from "@/modules/projects/db/schema";
+import * as remindersSchema from "@/modules/reminders/db/schema";
 import * as tasksSchema from "@/modules/tasks/db/schema";
 import { poolConfig } from "./db-config";
 
@@ -15,6 +16,7 @@ export const schema = {
   ...tasksSchema,
   ...habitsSchema,
   ...financeSchema,
+  ...remindersSchema,
 };
 
 export type Database = NodePgDatabase<typeof schema> & { $client: Pool };

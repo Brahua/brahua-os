@@ -9,6 +9,7 @@ import { coreExportTables } from "@/modules/core/export";
 import { financeExportTables } from "@/modules/finance/export";
 import { habitsExportTables } from "@/modules/habits/export";
 import { projectsExportTables } from "@/modules/projects/export";
+import { REMINDERS_EXCLUDED_TABLES, remindersExportTables } from "@/modules/reminders/export";
 import { tasksExportTables } from "@/modules/tasks/export";
 import type { Database } from "./db";
 
@@ -33,12 +34,15 @@ export const EXPORTABLE_TABLES: readonly ExportableTable[] = [
   ...tasksExportTables,
   ...habitsExportTables,
   ...financeExportTables,
+  ...remindersExportTables,
 ];
 
 /**
  * Tables that are never exported: authentication state and secrets (sessions, password hashes,
  * passkeys, rate-limit counters, verification tokens) and the owner's account, which
  * `pnpm auth:owner` recreates. Restoring them would be a security risk and serves no purpose.
+ * Also the `reminders` tables that carry secrets (Telegram link-code hashes, push subscriptions):
+ * connecting Telegram and activating the device recreate them.
  */
 export const EXCLUDED_TABLES: readonly string[] = [
   "auth_users",
@@ -47,11 +51,13 @@ export const EXCLUDED_TABLES: readonly string[] = [
   "auth_verifications",
   "auth_passkeys",
   "auth_rate_limits",
+  ...REMINDERS_EXCLUDED_TABLES,
 ];
 
 const NOTE =
   "Exportación de datos de brahua-os. No incluye tablas de autenticación (usuario, sesiones, " +
-  "cuentas con hashes de contraseña, passkeys, límites de intentos ni verificaciones). " +
+  "cuentas con hashes de contraseña, passkeys, límites de intentos ni verificaciones) ni los " +
+  "códigos de vinculación de Telegram ni las suscripciones de push (llevan secretos). " +
   "Contiene datos personales: guárdalo en un lugar privado.";
 
 export type TableExport = {
