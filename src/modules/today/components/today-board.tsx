@@ -8,6 +8,7 @@ import { TASKS_PATH } from "@/modules/tasks/routes";
 import { habitsTally, isDayComplete, todaySections, type DayTally } from "../today-board";
 import { TODAY_COPY } from "../today-copy";
 import { DayComplete } from "./day-complete";
+import { EveningClose, EveningCloseWatch } from "./evening-close";
 import { TodayHabits } from "./today-habits";
 import { TodayProgressProvider } from "./today-progress";
 
@@ -58,6 +59,12 @@ export type TodayBoardProps = {
    * so the line under the greeting (`GreetingLine`) can follow the live tally.
    */
   header?: React.ReactNode;
+  /**
+   * evening-close-ritual: the page was read from 20:00 (Lima), so the close of the day goes
+   * between the header and the sections (it says nothing when the day has nothing to close).
+   * Before that, the board waits for the hour and reads the page again once.
+   */
+  closing?: boolean;
   /** The Lima day the page was read for (YYYY-MM-DD). */
   today: string;
   /** `getHabitsDueToday(now)`: the "Hábitos" section (D1). */
@@ -89,6 +96,7 @@ export type TodayBoardProps = {
  */
 export function TodayBoard({
   header,
+  closing = false,
   today,
   habits,
   dayComplete,
@@ -118,6 +126,7 @@ export function TodayBoard({
     >
       <TodayProgressProvider today={today} initial={tally}>
         {header}
+        {closing ? <EveningClose /> : <EveningCloseWatch />}
         <div className="flex flex-col gap-10" data-today-board="">
           {dayComplete ? <DayComplete /> : null}
           {sections.empty ? <EmptyDay /> : null}

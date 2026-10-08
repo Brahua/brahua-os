@@ -39,7 +39,25 @@ export type TaskPostponement = {
    * nothing is overwritten and it says so). Await it inside the transition that put the row back.
    */
   undo: (task: PostponableTask, moved: PostponedTask) => Promise<PostponeOutcome>;
+  /**
+   * `evening-close-ritual`: every task through its own queue key and its own server call (the
+   * idempotency and the undo are per task), but ONE notice: "3 tareas pasan a mañana" with a
+   * "Deshacer" that calls `onUndo` with the ones that really moved. `saved` if at least one
+   * moved, `unchanged` if none changed (all were already there), `failed` if none could be saved
+   * ("Sin guardar" says how many failed; the caller's optimistic rows roll back with the
+   * transition and the server's read decides which ones stay).
+   */
+  postponeMany: (
+    tasks: readonly PostponableTask[],
+    to: PostponeTarget,
+    onUndo: (moved: PostponedItem[]) => void,
+  ) => Promise<PostponeOutcome>;
+  /** "Deshacer" of the batch: one call per task, one announcement. */
+  undoMany: (items: readonly PostponedItem[]) => Promise<PostponeOutcome>;
 };
+
+/** A task that was moved, with what the server answered (the day it had, for "Deshacer"). */
+export type PostponedItem = { task: PostponableTask; moved: PostponedTask };
 
 /** Postponing with the screen's queue, notices and announcer. */
 export function taskPostponement({
@@ -93,6 +111,82 @@ export function taskPostponement({
         return "failed";
       }
       announce(POSTPONE_COPY.undone(task.title));
+      return "saved";
+    },
+
+    async postponeMany(tasks, to, onUndo) {
+      const results = await Promise.all(
+        tasks.map(async (task) => ({
+          task,
+          result: settled<PostponedTask>(
+            await enqueue(`task-postpone:${task.id}`, () => postponeTask({ id: task.id, to })),
+          ),
+        })),
+      );
+      const moved: PostponedItem[] = [];
+      let failed = 0;
+      let stale = 0;
+      let reason = "";
+      for (const { task, result } of results) {
+        if (result === "stale") stale += 1;
+        else if (!result.ok) {
+          failed += 1;
+          reason ||= failureReason(result);
+        } else if (result.data.changed) moved.push({ task, moved: result.data });
+      }
+      if (moved.length === 0) {
+        if (failed > 0) notSaved(POSTPONE_COPY.notMovedMany(failed), reason);
+        return failed > 0 ? "failed" : stale > 0 ? "stale" : "unchanged";
+      }
+      const now = new Date();
+      const day = moved[0].moved.dueDate;
+      const said =
+        moved.length === 1
+          ? POSTPONE_COPY.moved(moved[0].task.title, day, ownerDateKey(now), tomorrowOf(now))
+          : POSTPONE_COPY.movedMany(moved.length, day, ownerDateKey(now), tomorrowOf(now));
+      // The notices are shown one at a time and a "Deshacer" notice is replaced by the next one:
+      // what failed goes in the same notice, so the undo of what moved is never lost.
+      toaster.push({
+        title: moved.length === 1 ? POSTPONE_COPY.movedTitle : POSTPONE_COPY.movedManyTitle,
+        text: failed > 0 ? `${said} ${POSTPONE_COPY.notMovedSome(failed)}` : said,
+        action: { label: TASKS_COPY.undo, run: () => onUndo(moved) },
+      });
+      return "saved";
+    },
+
+    async undoMany(items) {
+      const results = await Promise.all(
+        items.map(async ({ task, moved }) => ({
+          moved,
+          result: settled<RestoredDueDate>(
+            await enqueue(`task-postpone:${task.id}`, () =>
+              restoreTaskDueDate({
+                id: task.id,
+                dueDate: moved.previousDueDate,
+                expected: moved.dueDate,
+              }),
+            ),
+          ),
+        })),
+      );
+      let restored = 0;
+      let failed = 0;
+      let changedMeanwhile = 0;
+      for (const { moved, result } of results) {
+        if (result === "stale") continue;
+        if (!result.ok) failed += 1;
+        else if (!result.data.restored && result.data.dueDate !== moved.previousDueDate) {
+          changedMeanwhile += 1;
+        } else restored += 1;
+      }
+      if (failed + changedMeanwhile > 0) {
+        notSaved(
+          POSTPONE_COPY.notUndone,
+          changedMeanwhile > 0 ? POSTPONE_COPY.dateChanged : "",
+        );
+      }
+      if (restored === 0) return failed + changedMeanwhile > 0 ? "failed" : "stale";
+      announce(POSTPONE_COPY.undoneMany(restored));
       return "saved";
     },
   };
