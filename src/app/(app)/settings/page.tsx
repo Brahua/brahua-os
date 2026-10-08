@@ -1,6 +1,7 @@
+import { Bell } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { SectionLabel } from "@/design-system";
+import { Icon, ListRow, SectionLabel } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
@@ -30,7 +31,7 @@ function SettingsSection({
   );
 }
 
-/** Ajustes: theme, keyboard shortcuts, passkeys and session. Preferences are per device. */
+/** Ajustes: theme, keyboard shortcuts, reminders, passkeys and session. Preferences are per device. */
 export default async function SettingsPage() {
   const session = await requireOwner();
   const [passkeys, cookieStore] = await Promise.all([
@@ -52,6 +53,17 @@ export default async function SettingsPage() {
 
       <SettingsSection id="settings-keyboard" title="Teclado">
         <ShortcutsSwitch initialEnabled={shortcutsEnabled} />
+      </SettingsSection>
+
+      <SettingsSection id="settings-reminders" title="Avisos">
+        <div className="bo-list">
+          <ListRow
+            href="/settings/reminders"
+            leading={<Icon icon={Bell} size="md" />}
+            title="Telegram y avisos del día"
+            subtitle="Conecta el bot y elige qué recibir"
+          />
+        </div>
       </SettingsSection>
 
       <PasskeySection passkeys={passkeys} />
