@@ -15,6 +15,7 @@ import {
   financeSettlements,
 } from "@/modules/finance/db/schema";
 import { selectUpcomingPayments } from "@/modules/finance/contracts";
+import { formatMoney } from "@/modules/finance/money";
 import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
 import { financeReminderSource } from "@/modules/finance/reminders-source";
 import type {
@@ -38,6 +39,12 @@ vi.mock("@/lib/db", async (importOriginal) => ({
 }));
 
 const CHAT_ID = 5_000_000_042;
+
+/**
+ * What `formatMoney` really writes (es-PE puts a NO-BREAK space after "S/", not a plain one): the
+ * expectations are built with it, never typed by hand.
+ */
+const FIFTY = formatMoney(5_000, "PEN");
 
 /** 07:35 in Lima on Thursday 2026-10-08: 5 minutes into the default briefing's window. */
 const MORNING = limaInstant("2026-10-08", "07:35");
@@ -298,7 +305,7 @@ describe("the briefing through the engine", () => {
 
     expect(sent).toEqual([
       {
-        text: "Buen día. Hoy: 1 hábito, 1 tarea y 1 pago (Netflix · S/ 50.00).",
+        text: `Buen día. Hoy: 1 hábito, 1 tarea y 1 pago (Netflix · ${FIFTY}).`,
         dedupeKey: "briefing:2026-10-08",
       },
     ]);
@@ -420,7 +427,7 @@ describe("the payment reminders through the engine", () => {
     await tick(MORNING, channel);
     await tick(new Date(MORNING.getTime() + 15 * 60_000), channel);
 
-    expect(sent.map((message) => message.text)).toEqual(["Mañana vence Netflix · S/ 50.00."]);
+    expect(sent.map((message) => message.text)).toEqual([`Mañana vence Netflix · ${FIFTY}.`]);
     // The briefing of that day had nothing to say (the payment is not due today).
     const rows = await deliveries();
     expect(rows.map((row) => [row.dedupeKey.split(":")[0], row.status])).toEqual([
@@ -611,7 +618,7 @@ describe("midnight and the owner's day", () => {
     await tick(limaInstant("2026-10-09", "00:30"), channel);
     expect(sent).toEqual([
       {
-        text: "Hoy vence Netflix · S/ 50.00.",
+        text: `Hoy vence Netflix · ${FIFTY}.`,
         dedupeKey: `payment_eve:${netflix.id}:2026-10-09`,
       },
     ]);
@@ -696,7 +703,7 @@ describe("the payments switch and the briefing", () => {
     const { channel, sent } = recordingChannel();
     await tick(MORNING, channel);
     expect(sent.map((message) => message.text)).toEqual([
-      "Buen día. Hoy: 1 hábito, 1 tarea y 1 pago (Netflix · S/ 50.00).",
+      `Buen día. Hoy: 1 hábito, 1 tarea y 1 pago (Netflix · ${FIFTY}).`,
     ]);
   });
 });

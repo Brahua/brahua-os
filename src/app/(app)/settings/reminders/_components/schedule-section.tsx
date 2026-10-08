@@ -242,7 +242,10 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
       />
 
       {/* Always rendered, so screen readers announce messages as soon as they appear. */}
-      <p role="status" className="bo-text-body-sm text-text-secondary">
+      {/* A fixed height: "Guardado." appearing and disappearing must not move the controls above
+          it (when the page is scrolled to its end the shift moves them under the pointer, and the
+          click that follows a blur-save lands elsewhere). */}
+      <p role="status" className="bo-text-body-sm min-h-6 text-text-secondary">
         {message?.tone === "status" ? message.text : ""}
       </p>
       <div role="alert" aria-atomic="true">

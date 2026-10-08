@@ -66,14 +66,18 @@ async function connect() {
     .where(eq(reminderSettings.id, true));
 }
 
-/** A source with one reminder due at 07:30 Lima on the clock's day, so the clock decides. */
+/**
+ * A source with one reminder due at 07:30 Lima on the clock's day, so the clock decides. Its key is
+ * its own: the real briefing source (registered by the route since R2) owns `briefing:<day>` and,
+ * on an empty database, claims it as `skipped` (empty), so a fixture sharing it would lose the claim.
+ */
 function dueSource(text: string | null = "Buen día."): ReminderSource {
   return {
     id: "route-test",
     candidates: async ({ today }) => [
       {
         kind: "briefing",
-        dedupeKey: `briefing:${today}`,
+        dedupeKey: `route-test:${today}`,
         dueAt: new Date(`${today}T12:30:00Z`),
         build: async () => text,
       },
@@ -153,9 +157,17 @@ describe("a tick through the route", () => {
     const messages = fake.calls.filter((call) => call.method === "sendMessage");
     expect(messages).toHaveLength(1);
     expect(messages[0].body.text).toBe("Buen día. Hoy: 2 tareas.\nhttps://os.example.test");
-    expect(await testDb.select().from(reminderDeliveries)).toMatchObject([
-      { dedupeKey: "briefing:2026-10-08", channel: "telegram", status: "sent" },
-    ]);
+    // The fixture's reminder was sent once; the real briefing source found an empty day (skipped).
+    expect(await testDb.select().from(reminderDeliveries)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dedupeKey: "route-test:2026-10-08",
+          channel: "telegram",
+          status: "sent",
+        }),
+        expect.objectContaining({ dedupeKey: "briefing:2026-10-08", status: "skipped" }),
+      ]),
+    );
   });
 
   test("the response carries counts only: no text, no chat id, no token", async () => {
