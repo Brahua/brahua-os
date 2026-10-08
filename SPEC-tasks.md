@@ -46,7 +46,7 @@ Fuera de este módulo: recordatorios push/email (`reminders`), tablero diario co
 
 ## Pantallas
 
-**Captura rápida (global):** la tecla naranja de la barra inferior (hoy "Próximamente") y la barra lateral abren un Sheet con el campo "¿Qué hay que hacer?" (con el foco) y, **visibles desde el inicio**, área o proyecto y fecha (opcionales; vacíos = bandeja). Enter guarda. Prioridad, etiquetas y recurrencia quedan en "Más detalles" (plegado). Atajo `C` en el escritorio (con las mismas reglas que los demás atajos). Tras guardar, el campo queda listo para otra.
+**Captura rápida (global):** la tecla naranja de la barra inferior (hoy "Próximamente") y la barra lateral abren un Sheet con el campo "¿Qué hay que hacer?" (con el foco) y, **visibles desde el inicio**, área o proyecto y fecha (opcionales; vacíos = bandeja). Enter guarda. Prioridad, etiquetas y recurrencia quedan en "Más detalles" (plegado). Atajo `C` en el escritorio (con las mismas reglas que los demás atajos). Tras guardar, el campo queda listo para otra. **Lenguaje natural (polish → capture-nl-dates):** el título se lee con `src/lib/natural-date.ts` («pilas mañana», «dentista vie 10am», «pagar el 15 oct»): una vista previa bajo el campo («→ Vence el vie 9 oct · 10:00») se cancela con un toque; al guardar, el título sale sin esas palabras y `dueDate`/`dueTime` van a la tarea. Una fecha elegida a mano manda. Reglas y decisiones en `docs/HANDOFF.md`.
 
 **Tareas (`/tasks`)** con pestañas (enlaces con `?vista=`):
 - **Bandeja:** sin área ni proyecto, con acciones rápidas para asignar área, proyecto y fecha.
