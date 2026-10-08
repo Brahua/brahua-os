@@ -39,10 +39,12 @@ Hecho en `feat/reminders-r2` (detalle, claves de deduplicación, decisiones aut�
 
 ### R4 — Hábitos con hora y franja
 
-- [ ] **R4.1 Datos y formulario:** migración aditiva `habits.reminder_time` y `daypart` (`CHECK` sin hábitos «a evitar»), campos «Hora del aviso» y «Franja» al crear/editar.
+Hecho en `feat/reminders-r4` (detalle, decisiones autónomas y puntos de extensión en `docs/HANDOFF.md` → "Cómo funciona reminders → R4"). E2E: un solo spec nuevo (`e2e/habits-dayparts.spec.ts`), sin captura nueva.
+
+- [x] **R4.1 Datos y formulario:** migración aditiva `habits.reminder_time` y `daypart` (`CHECK` sin hábitos «a evitar»), campos «Hora del aviso» y «Franja» al crear/editar.
   - Aceptación: Zod y `CHECK` rechazan hora en un hábito a evitar; sin valores todo queda como hoy.
   - Verificar: unitarias + integración (CI). Archivos: migración, `habits/db/schema.ts`, formulario, constantes.
-- [ ] **R4.2 Aviso `habit_time` y pads por franja:** aviso a su hora (no si está hecho o pausado) y pads de Hoy agrupados por franja con «Sin franja» al final.
+- [x] **R4.2 Aviso `habit_time` y pads por franja:** aviso a su hora (no si está hecho o pausado) y pads de Hoy agrupados por franja con «Sin franja» al final.
   - Aceptación: sin franjas, `/` queda idéntica; `@today-*` en las E2E.
   - Verificar: componente + E2E con captura (CI). Archivos: fuente, pads, `today`.
 
