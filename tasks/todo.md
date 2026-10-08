@@ -1,6 +1,69 @@
 # Tareas
 
-> Siguiente: el corte **`polish`** (abajo) y luego el módulo **`reminders`** (sin spec todavía; ver `docs/HANDOFF.md` → "Siguiente: polish → reminders"). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> En curso: el módulo **`reminders`** (spec aprobada v1.1, 2026-10-08; plan en [`plan.md`](plan.md)). El corte `polish` quedó completo. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Módulo `reminders` (spec: [`SPEC-reminders.md`](../SPEC-reminders.md), plan: [`plan.md`](plan.md))
+
+Un implementador a la vez. Verificación local = gate liviano; lo demás lo valida el CI.
+
+### R1 — Cimientos
+
+- [ ] **R1.1 Datos y contrato:** migración `0013_reminders.sql` (`reminder_settings` de fila única con `CHECK`, `telegram_link_codes`, `reminder_deliveries` con único `(dedupe_key, channel)`, `telegram_updates`, `telegram_captures`, `push_subscriptions`; `habits.reminder_time` y `daypart` se dejan para R4), exportación (sin `telegram_link_codes` ni `push_subscriptions`), `contracts.ts` (`registerReminderSource`, `ReminderChannel`), `slots.ts` puro.
+  - Aceptación: `CHECK` rechaza una segunda fila de settings; `slots.ts` calcula instantes y ventana de 2 h en Lima (23:59, medianoche).
+  - Verificar: unitarias de `slots.ts`; prettier de `drizzle/meta/*_snapshot.json`. Archivos: `reminders/db/schema.ts`, `drizzle/0013…`, `contracts.ts`, `slots.ts`, `core/export.ts`.
+- [ ] **R1.2 Telegram y vinculación:** `TelegramClient` (`sendMessage`, `answerCallbackQuery`, `setWebhook`, base configurable), servidor falso para pruebas, código de un solo uso (hash, 10 min, tope de 5 fallos), acciones «Conectar» (registra el webhook) y «Desconectar».
+  - Aceptación: código caducado, reutilizado o inválido se rechaza; el token no aparece en logs.
+  - Verificar: unitarias del código y del cliente con el servidor falso. Archivos: `reminders/channels/telegram/*`, `reminders/actions.ts`.
+- [ ] **R1.3 Motor y endpoint `tick`:** `engine.ts` (reclamar `dedupe_key`, ventana de gracia, reintentos ≤ 3, 403 desconecta), `POST /api/reminders/tick` con Bearer en tiempo constante (404 si no), `reminder-sources.ts`, `.github/workflows/reminders-tick.yml` (`*/15`, SHA fijados) y cron diario de Vercel en `vercel.json`.
+  - Aceptación: dos ticks a la vez → una entrega (con control positivo); fuera de ventana → `skipped`.
+  - Verificar: integración (CI) + unitarias del motor con reloj fijo; `vercel deploy --dry` por haber tocado `vercel.json`. Archivos: `engine.ts`, `route.ts`, workflow, `vercel.json`, raíz de composición.
+- [ ] **R1.4 Ajustes → Avisos (esqueleto):** `/settings/reminders` con estado de Telegram, Conectar/Desconectar, slots para R2 (interruptores y horas) y R5 (push y selector de canal), `aria-disabled` mientras guarda, regla ESLint de límites de importación.
+  - Aceptación: axe en 0 en ambos temas y 320 px; foco restaurado tras conectar.
+  - Verificar: componente + E2E con el servidor falso (CI). Archivos: página, componentes, `eslint.config.mjs`.
+
+### R2 — Avisos de la app
+
+- [ ] **R2.1 Fuentes de `finance` y `tasks`:** `getUpcomingPayments(from, to)`, fuente de pagos (víspera, +3 días) y fuente de resumen de hoy (tareas y pagos) usando `getTasksTodaySummary`.
+  - Aceptación: un pago pagado u omitido no avisa; con `show_amounts` apagado el texto no lleva monto.
+  - Verificar: unitarias + integración (CI). Archivos: `finance/contracts.ts`, `finance/reminders-source.ts`, `tasks/reminders-source.ts`, raíz.
+- [ ] **R2.2 Fuente de `habits`, briefing y repaso:** hábitos de hoy no hechos ni pausados; `briefing` (≤ 3 líneas, vacío → `skipped`) y `evening_review` («Te queda Leer. Si lo haces ahora, cuenta hoy.»).
+  - Aceptación: lista de cadenas prohibidas en cero; sin hábitos pendientes no hay repaso.
+  - Verificar: unitarias de `messages.ts` + integración (CI). Archivos: `habits/reminders-source.ts`, `messages.ts`, raíz.
+- [ ] **R2.3 Ajustes de avisos:** interruptores y horas (briefing, repaso), interruptor de montos, validación Zod, guardado con aviso.
+  - Aceptación: cambiar la hora mueve el aviso de hoy si aún no pasó.
+  - Verificar: componente + E2E (CI). Archivos: acciones, formulario, copy.
+
+### R4 — Hábitos con hora y franja
+
+- [ ] **R4.1 Datos y formulario:** migración aditiva `habits.reminder_time` y `daypart` (`CHECK` sin hábitos «a evitar»), campos «Hora del aviso» y «Franja» al crear/editar.
+  - Aceptación: Zod y `CHECK` rechazan hora en un hábito a evitar; sin valores todo queda como hoy.
+  - Verificar: unitarias + integración (CI). Archivos: migración, `habits/db/schema.ts`, formulario, constantes.
+- [ ] **R4.2 Aviso `habit_time` y pads por franja:** aviso a su hora (no si está hecho o pausado) y pads de Hoy agrupados por franja con «Sin franja» al final.
+  - Aceptación: sin franjas, `/` queda idéntica; `@today-*` en las E2E.
+  - Verificar: componente + E2E con captura (CI). Archivos: fuente, pads, `today`.
+
+### R3 — Captura por texto
+
+- [ ] **R3.1 Webhook:** `POST /api/telegram/webhook` (secreto, tamaño, `update_id`, un solo chat, `/start <código>`), `/ayuda`.
+  - Aceptación: sin secreto 401; chat ajeno no guarda nada; `update_id` repetido una sola vez.
+  - Verificar: integración con el servidor falso (CI). Archivos: `route.ts`, `webhook.ts`.
+- [ ] **R3.2 Clasificar y crear:** `bot-capture.ts` (raíz) con `parseTaskText`/`parseExpenseText`, `/tarea`, `/gasto`, `/hoy`; lo no entendido a la bandeja; respuesta con resumen y «Deshacer» sobre `telegram_captures`.
+  - Aceptación: «pilas mañana» → tarea con fecha; «12.50 café» → gasto; «café 12» → tarea; «Deshacer» exacto, sin pisar ediciones.
+  - Verificar: tabla de casos unitaria + integración (CI). Archivos: `bot-capture.ts`, `classify.ts`, `undo.ts`.
+
+### R5 — Push web
+
+- [ ] **R5.1 Canal y servicio:** dependencia `web-push`, `webPushChannel`, `push_subscriptions` (alta/baja, 404/410 revoca), `pnpm reminders:vapid` (imprime solo la pública), `public/sw.js` (solo `push` y `notificationclick`) con cabecera `no-cache`.
+  - Aceptación: una entrega por canal; un canal que falla no bloquea al otro; sin `fetch` en el service worker (test que lo lee).
+  - Verificar: unitarias + integración con servidor de push local (CI). Archivos: `channels/web-push.ts`, `sw.js`, script, `next.config` (build en CI por tocarlo).
+- [ ] **R5.2 Ajustes de push y selector:** «Activar en este dispositivo» (gesto, permiso, `subscribe`), explicación de instalación si no hay soporte, «Canal de avisos» (Push por defecto, respaldo a Telegram), montos de push apagados por defecto.
+  - Aceptación: sin dispositivo suscrito los avisos salen por Telegram si está conectado; Ajustes lo indica.
+  - Verificar: componente con `PushManager` simulado + E2E (CI). Archivos: formulario, acciones, copy.
+
+### R6 — Cierre
+
+- [ ] **R6.1 Puesta en marcha y documentación:** guía para el owner (BotFather, variables, `gh secret set`), HANDOFF («Cómo funciona reminders», decisiones autónomas), `SPEC-reminders.md` con las decisiones finales, backlog («Minutos de CI» con el tick de 15 min).
+- [ ] **R6.2 Checkpoint final:** recorrido en producción con el Chrome del owner y pruebas reales en el iPhone (Telegram y push); retrospectiva con reglas nuevas en `CLAUDE.md`.
 
 ## Corte `polish` (benchmark rimu, decidido con el owner el 2026-10-06)
 
