@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth";
-import { formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
+import { dayPartFor, formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { getFinanceTodaySummary } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import { getTasksDoneTodayCount, getTasksTodaySummary } from "@/modules/tasks/contracts";
+import { GreetingLine } from "@/modules/today/components/greeting-line";
 import { TodayBoard } from "@/modules/today/components/today-board";
 import { TodayPayments } from "@/modules/today/components/today-payments";
 import { TodayProjects } from "@/modules/today/components/today-projects";
@@ -40,16 +41,20 @@ export default async function Home() {
     // Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
     // notice, and the last row of pads must stay reachable under it at full scroll.
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-10 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
-      <header className="flex flex-col gap-2">
-        <p className="bo-text-label text-text-secondary">
-          <time dateTime={ownerDateKey(now)}>{formatLongDate(now)}</time>
-        </p>
-        {/* tabIndex -1: focus lands here when a whole section leaves (TodaySlot). */}
-        <h1 id={TODAY_HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
-          {greetingFor(now)}
-        </h1>
-      </header>
       <TodayBoard
+        header={
+          // Inside the board's providers: the line under the greeting follows the live tally.
+          <header className="flex flex-col gap-2">
+            <p className="bo-text-label text-text-secondary">
+              <time dateTime={ownerDateKey(now)}>{formatLongDate(now)}</time>
+            </p>
+            {/* tabIndex -1: focus lands here when a whole section leaves (TodaySlot). */}
+            <h1 id={TODAY_HEADING_ID} tabIndex={-1} className="bo-text-display outline-none">
+              {greetingFor(now)}
+            </h1>
+            <GreetingLine part={dayPartFor(now)} />
+          </header>
+        }
         today={today}
         habits={habits}
         tasks={{ count: tasks.length, content: <TodayTasks tasks={tasks} /> }}

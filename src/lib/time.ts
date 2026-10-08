@@ -34,12 +34,25 @@ export function ownerHour(date: Date): number {
 
 export type Greeting = "Buenos días" | "Buenas tardes" | "Buenas noches";
 
+/** The part of the Lima day: morning from 05:00, afternoon from 12:00, evening from 19:00. */
+export type DayPart = "morning" | "afternoon" | "evening";
+
+export function dayPartFor(date: Date): DayPart {
+  const hour = ownerHour(date);
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 19) return "afternoon";
+  return "evening";
+}
+
+const GREETINGS: Record<DayPart, Greeting> = {
+  morning: "Buenos días",
+  afternoon: "Buenas tardes",
+  evening: "Buenas noches",
+};
+
 /** Días from 05:00, tardes from 12:00, noches from 19:00 (Lima time). */
 export function greetingFor(date: Date): Greeting {
-  const hour = ownerHour(date);
-  if (hour >= 5 && hour < 12) return "Buenos días";
-  if (hour >= 12 && hour < 19) return "Buenas tardes";
-  return "Buenas noches";
+  return GREETINGS[dayPartFor(date)];
 }
 
 /** "Miércoles, 30 de setiembre" in Lima time. */

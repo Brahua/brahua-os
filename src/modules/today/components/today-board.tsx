@@ -53,6 +53,11 @@ export type DayCompleteSlot = {
 };
 
 export type TodayBoardProps = {
+  /**
+   * The page's header (greeting, date): rendered inside the board's providers, before the board,
+   * so the line under the greeting (`GreetingLine`) can follow the live tally.
+   */
+  header?: React.ReactNode;
   /** The Lima day the page was read for (YYYY-MM-DD). */
   today: string;
   /** `getHabitsDueToday(now)`: the "Hábitos" section (D1). */
@@ -83,6 +88,7 @@ export type TodayBoardProps = {
  * sections are client parts.
  */
 export function TodayBoard({
+  header,
   today,
   habits,
   dayComplete,
@@ -111,6 +117,7 @@ export function TodayBoard({
       day={{ today, changedMessage: TODAY_COPY.newDay }}
     >
       <TodayProgressProvider today={today} initial={tally}>
+        {header}
         <div className="flex flex-col gap-10" data-today-board="">
           {dayComplete ? <DayComplete /> : null}
           {sections.empty ? <EmptyDay /> : null}
