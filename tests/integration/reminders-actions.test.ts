@@ -10,6 +10,7 @@ import {
   connectTelegram,
   disconnectTelegramChat,
   getTelegramStatus,
+  updateReminderSettings,
 } from "@/modules/reminders/actions";
 import { hashLinkCode, redeemLinkCode } from "@/modules/reminders/channels/telegram/link";
 import { reminderSettings, telegramLinkCodes } from "@/modules/reminders/db/schema";
@@ -215,12 +216,95 @@ describe("authorization", () => {
       () => connectTelegram({}),
       () => disconnectTelegramChat({}),
       () => getTelegramStatus({}),
+      () => updateReminderSettings({ briefingEnabled: false, briefingTime: "09:00" }),
     ]) {
       expect(await call()).toEqual({ ok: false, error: UNAUTHORIZED_MESSAGE });
     }
-    // Still connected, no Telegram call, no code.
-    expect((await getSettings(testDb)).telegramChatId).toBe(5_000_000_001);
+    // Still connected, no Telegram call, no code, and the schedule is untouched.
+    const settings = await getSettings(testDb);
+    expect(settings.telegramChatId).toBe(5_000_000_001);
+    expect(settings.briefingEnabled).toBe(true);
+    expect(settings.briefingTime).toBe("07:30:00");
     expect(fake.calls).toHaveLength(0);
     expect(await liveCodes()).toEqual([]);
+  });
+});
+
+describe("updateReminderSettings", () => {
+  test("saves one field and returns the schedule as stored", async () => {
+    const result = await updateReminderSettings({ briefingEnabled: false });
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        briefingEnabled: false,
+        briefingTime: "07:30",
+        paymentsEnabled: true,
+        eveningEnabled: true,
+        eveningTime: "21:00",
+        showAmountsTelegram: true,
+      },
+    });
+    expect((await getSettings(testDb)).briefingEnabled).toBe(false);
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/reminders");
+  });
+
+  test("saves times and switches together; the rest stays as it was", async () => {
+    const result = await updateReminderSettings({
+      briefingTime: "08:15",
+      eveningTime: "22:00",
+      paymentsEnabled: false,
+      showAmountsTelegram: false,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        briefingEnabled: true,
+        briefingTime: "08:15",
+        paymentsEnabled: false,
+        eveningEnabled: true,
+        eveningTime: "22:00",
+        showAmountsTelegram: false,
+      },
+    });
+    const row = await getSettings(testDb);
+    // Stored without seconds (a CHECK would refuse them).
+    expect([row.briefingTime, row.eveningTime]).toEqual(["08:15:00", "22:00:00"]);
+  });
+
+  test("works on a fresh install (the settings row does not exist yet)", async () => {
+    expect(await testDb.select().from(reminderSettings)).toEqual([]);
+    const result = await updateReminderSettings({ eveningEnabled: false });
+    expect(result.ok).toBe(true);
+    expect((await getSettings(testDb)).eveningEnabled).toBe(false);
+  });
+
+  test("never touches the Telegram link", async () => {
+    await getSettings(testDb);
+    await connected();
+    await updateReminderSettings({ briefingEnabled: false });
+    expect((await getSettings(testDb)).telegramChatId).toBe(5_000_000_001);
+  });
+
+  test("invalid input is refused with the field's error and stores nothing", async () => {
+    await getSettings(testDb);
+    for (const input of [
+      { briefingTime: "7:30" },
+      { eveningTime: "21:00:30" },
+      { briefingEnabled: "yes" },
+      {},
+      { telegramChatId: 1 },
+      { deliveryChannel: "both" },
+      { showAmountsPush: true },
+    ]) {
+      const result = await updateReminderSettings(input);
+      expect(result.ok, JSON.stringify(input)).toBe(false);
+    }
+    const bad = await updateReminderSettings({ briefingTime: "25:00" });
+    expect(bad).toMatchObject({ ok: false, fieldErrors: { briefingTime: expect.any(Array) } });
+    const row = await getSettings(testDb);
+    expect(row.briefingTime).toBe("07:30:00");
+    expect(row.telegramChatId).toBeNull();
+    expect(row.deliveryChannel).toBe("push");
+    expect(row.showAmountsPush).toBe(false);
   });
 });

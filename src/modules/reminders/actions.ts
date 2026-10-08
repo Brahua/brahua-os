@@ -1,6 +1,6 @@
 "use server";
 
-// Server Actions of Ajustes → Avisos (R1: connect and disconnect Telegram). Each goes through
+// Server Actions of Ajustes → Avisos (R1: connect and disconnect Telegram; R2: the day's reminders). Each goes through
 // ownerAction() (owner first, Zod, an ActionResult). "Conectar" registers the webhook with the
 // bot token from the server's environment (nobody handles the token elsewhere) and issues the
 // one-use link. The token and the webhook secret never reach the client or the logs.
@@ -22,8 +22,10 @@ import {
   disconnectTelegram,
   getSettings,
   readTelegramStatus,
+  updateSchedule,
   type TelegramStatus,
 } from "./settings";
+import { updateReminderSettingsSchema, type ReminderSchedule } from "./settings-input";
 
 const REMINDERS_PATH = "/settings/reminders";
 
@@ -99,4 +101,24 @@ const readStatus = ownerAction(
 /** The Telegram state, polled by Ajustes while a link is waiting to be opened. */
 export async function getTelegramStatus(input: unknown): Promise<ActionResult<TelegramStatus>> {
   return readStatus(input);
+}
+
+const update = ownerAction(
+  updateReminderSettingsSchema,
+  async (patch): Promise<ActionResult<ReminderSchedule>> => {
+    const schedule = await updateSchedule(getDb(), patch);
+    revalidatePath(REMINDERS_PATH);
+    return ok(schedule);
+  },
+  { name: "updateReminderSettings" },
+);
+
+/**
+ * Switches and times of the day's reminders and the Telegram amounts switch (one or more fields).
+ * Returns the schedule as saved, so the screen shows what the server holds.
+ */
+export async function updateReminderSettings(
+  input: unknown,
+): Promise<ActionResult<ReminderSchedule>> {
+  return update(input);
 }

@@ -36,6 +36,7 @@ test.afterAll(async () => {
 });
 
 const telegram = (page: Page) => page.getByRole("region", { name: "Telegram" });
+const schedule = (page: Page) => page.getByRole("region", { name: "Avisos del día" });
 
 async function openReminders(page: Page) {
   await page.goto("/settings/reminders");
@@ -44,7 +45,28 @@ async function openReminders(page: Page) {
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
   await expect(page.getByRole("heading", { level: 1, name: "Avisos" })).toBeVisible();
   await telegramReady(page);
+  await scheduleReady(page);
   await fontsLoaded(page);
+}
+
+/** "Avisos del día" is hydrated too (it marks itself like Telegram does). */
+async function scheduleReady(page: Page) {
+  await expect(schedule(page)).toHaveAttribute("data-schedule-ready", "true");
+}
+
+/** Runs `action` and waits for the Server Action it triggers to answer (the save is done). */
+async function saved(page: Page, action: () => Promise<void>) {
+  const answer = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url().endsWith("/settings/reminders"),
+  );
+  await action();
+  expect((await answer).ok()).toBe(true);
+  // The page took the answer in: the controls are not "saving" any more (the guard is open).
+  await expect(schedule(page).getByRole("switch").first()).toHaveAttribute(
+    "aria-disabled",
+    "false",
+  );
 }
 
 /** The section is hydrated (it marks itself once its effects ran), so a click reaches React. */
@@ -99,6 +121,49 @@ test("Ajustes links to Avisos, which opens with its title, a way back and Telegr
   // The way back.
   await page.getByRole("main").getByRole("link", { name: "Ajustes" }).click();
   await expect(page).toHaveURL("/settings");
+});
+
+test("Avisos del día: the switches and the times save, say so, keep their focus and survive a reload", async ({
+  page,
+}) => {
+  await openReminders(page);
+  const region = schedule(page);
+  const briefing = region.getByRole("switch", { name: "Resumen de la mañana" });
+  const amounts = region.getByRole("switch", { name: "Montos en Telegram" });
+  const evening = region.getByLabel("Hora del repaso");
+
+  // A fresh install shows the defaults.
+  await expect(briefing).toHaveAttribute("aria-checked", "true");
+  await expect(region.getByLabel("Hora del resumen")).toHaveValue("07:30");
+  await expect(evening).toHaveValue("21:00");
+
+  // A switch saves when touched, announces it and keeps the focus.
+  await briefing.focus();
+  await saved(page, () => briefing.press("Space"));
+  await expect(briefing).toHaveAttribute("aria-checked", "false");
+  await expect(region.getByRole("status")).toHaveText("Guardado.");
+  await expect(briefing).toBeFocused();
+  await expect(briefing).not.toBeDisabled();
+
+  // A time saves when the field is confirmed.
+  await evening.fill("22:15");
+  await saved(page, () => evening.press("Enter"));
+  await saved(page, () => amounts.click());
+  await expect(amounts).toHaveAttribute("aria-checked", "false");
+
+  // The server has all of it.
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+  await scheduleReady(page);
+  await expect(briefing).toHaveAttribute("aria-checked", "false");
+  await expect(amounts).toHaveAttribute("aria-checked", "false");
+  await expect(evening).toHaveValue("22:15");
+  await expect(region.getByLabel("Hora del resumen")).toHaveValue("07:30");
+  // Positive control: what was not touched stayed on.
+  await expect(region.getByRole("switch", { name: "Avisos de pagos" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
 });
 
 test("connects with the one-use link: webhook registered, bot confirms, page shows Conectado, then disconnects", async ({
@@ -209,7 +274,7 @@ test("the tick endpoint answers 404 to anyone without the secret and counts only
     headers: { authorization: `Bearer ${E2E_TELEGRAM.cronSecret}` },
   });
   expect(ok.status()).toBe(200);
-  // Nothing is connected and no source is registered yet: it did nothing, and says so in counts.
+  // Nothing is connected, so the engine did nothing (it does not even ask the sources), and says so in counts.
   expect(await ok.json()).toEqual({
     ok: true,
     status: "no-channel",
@@ -232,6 +297,7 @@ for (const theme of THEMES) {
     await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
     await expect(telegram(page)).toBeVisible();
     await telegramReady(page);
+    await scheduleReady(page);
     await fontsLoaded(page);
     await afterSaveSettled(page);
 

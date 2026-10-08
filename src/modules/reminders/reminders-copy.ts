@@ -13,8 +13,32 @@ export const TELEGRAM_CONNECT_STEPS =
 export const TELEGRAM_CONNECTED_MESSAGE = "Telegram quedó conectado.";
 export const TELEGRAM_DISCONNECTED_MESSAGE = "Telegram quedó desconectado.";
 
-export const REMINDERS_SOON_MESSAGE =
-  "Aquí podrás elegir qué avisos recibir y a qué hora. Todavía no hay avisos activos.";
+// Avisos del día (R2): one switch per reminder, its time and the amounts switch.
+export const SCHEDULE_COPY = {
+  title: "Avisos del día",
+  intro:
+    "Elige qué avisos recibir y a qué hora. Si cambias una hora antes de que llegue, el aviso de hoy se mueve con ella.",
+  briefing: {
+    label: "Resumen de la mañana",
+    help: "Tus hábitos, tareas y pagos de hoy en una línea. Un día sin nada no manda nada.",
+    time: "Hora del resumen",
+  },
+  payments: {
+    label: "Avisos de pagos",
+    help: "Un día antes de que venza un pago y, si sigue pendiente, tres días después. Llegan a la hora del resumen.",
+  },
+  evening: {
+    label: "Repaso de la noche",
+    help: "Solo si te queda algún hábito de hoy por hacer.",
+    time: "Hora del repaso",
+  },
+  amounts: {
+    label: "Montos en Telegram",
+    help: "Muestra cuánto es en el resumen y en los avisos de pagos.",
+  },
+  saved: "Guardado.",
+  saveFailed: "No se pudo guardar. Inténtalo de nuevo.",
+} as const;
 
 export function telegramStateText(
   state: "disconnected" | "connected" | "blocked",
