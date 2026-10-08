@@ -46,6 +46,8 @@ vi.mock("@/modules/habits/contracts", () => ({
     // `day` set: the habit exists only that day (to tell today's read from yesterday's).
     return state.habits.filter((habit) => habit.day === undefined || habit.day === day);
   },
+  // R4: no habit has a reminder time in these cases (the habit_time source has its own tests).
+  selectTimedHabitsLeft: async () => [],
 }));
 vi.mock("@/modules/tasks/contracts", () => ({
   selectTasksTodaySummary: async (_db: unknown, at: Date) => {
