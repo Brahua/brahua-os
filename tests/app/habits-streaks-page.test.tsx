@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { celebrateStreak } from "@/lib/celebrate";
 import { HabitsScreen } from "@/modules/habits/components/habits-screen";
 import { HabitsToday } from "@/modules/habits/components/habits-today";
 import type { HabitItem } from "@/modules/habits/habit-input";
@@ -19,6 +20,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   useRouter: () => router,
 }));
+vi.mock("@/lib/celebrate", () => ({ celebrateStreak: vi.fn() }));
 vi.mock("@/modules/habits/actions", () => ({
   createHabit: vi.fn(),
   deleteHabit: vi.fn(),
@@ -164,6 +166,7 @@ const NEW_PAUSE = {
 };
 
 beforeEach(() => {
+  vi.mocked(celebrateStreak).mockReset();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
   window.matchMedia = vi.fn((query: string) => ({
@@ -231,7 +234,8 @@ afterEach(async () => {
 });
 
 const pad = (name: string) => screen.getByRole("button", { name });
-const streakLine = (name: string) => pad(name).querySelector("[data-habit-streak]")?.textContent;
+const streakLine = (name: string) =>
+  pad(name).querySelector("[data-habit-streak]")?.getAttribute("data-habit-streak");
 const count = () => document.querySelector("[data-habits-count]")?.textContent;
 const notices = () => screen.getByRole("region", { name: "Avisos" });
 
@@ -640,6 +644,37 @@ describe("more milestones and other days", () => {
     await user.click(pad("Gimnasio"));
     await server.answer();
     expect(within(notices()).getByText("¡7 semanas seguidas!")).toBeVisible();
+  });
+
+  test("reaching 30 also celebrates with confetti in the area's color (celebration-milestones)", async () => {
+    server.habits = [
+      habit({
+        name: "Correr",
+        area: { id: "a", slug: "salud", name: "Salud", color: "health", icon: "heart-pulse" },
+        streak: { unit: "days", done: 30, notDone: 29 },
+      }),
+    ];
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(pad("Correr"));
+    await server.answer();
+    expect(within(notices()).getByText("¡30 días seguidos!")).toBeVisible();
+    expect(celebrateStreak).toHaveBeenCalledTimes(1);
+    expect(celebrateStreak).toHaveBeenCalledWith(30, "health");
+  });
+
+  test("no confetti when the save fails, nor from a plain tap", async () => {
+    server.habits = [
+      habit({ name: "Correr", streak: { unit: "days", done: 30, notDone: 29 } }),
+      habit({ name: "Nadar", streak: { unit: "days", done: 12, notDone: 11 } }),
+    ];
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(pad("Correr"));
+    await server.answer(fail("No."));
+    await user.click(pad("Nadar"));
+    await server.answer();
+    expect(celebrateStreak).not.toHaveBeenCalled();
   });
 
   test("a failed tap that would reach 7: no celebration, the streak back", async () => {

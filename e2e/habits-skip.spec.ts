@@ -87,7 +87,7 @@ test("Hoy: two taps rest the pad (En pausa, 'Descanso'), the day is neutral for 
   await insertHabit({ name: other, sortOrder: 1 });
   await openHabits(page);
   await expect(habitsCount(page)).toHaveText("1 de 2 hoy");
-  await expect(streak(page, name)).toHaveText("RACHA 4");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 4");
   expect(await pageStreak(page, id)).toBe("4");
 
   // Tap 1: the options. Tap 2: "Saltar hoy".
@@ -114,12 +114,12 @@ test("Hoy: two taps rest the pad (En pausa, 'Descanso'), the day is neutral for 
   await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
   await expect(pad(page, name)).toBeVisible();
   await expect(pad(page, name)).toBeFocused();
-  await expect(streak(page, name)).toHaveText("RACHA 4");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 4");
   await expect(habitsCount(page)).toHaveText("1 de 2 hoy");
   await expect.poll(() => readPauses(id)).toEqual([]);
   expect(await pageStreak(page, id)).toBe("4");
   await page.reload();
-  await expect(streak(page, name)).toHaveText("RACHA 4");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 4");
 });
 
 test("Hoy: resting the last pad leaves focus on its Reanudar; a quantity with a partial value keeps it", async ({

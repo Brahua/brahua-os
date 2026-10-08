@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef, useState, type TransitionStartFunction } from "react";
 import { fail, type ActionResult } from "@/lib/action-result";
+import { celebrateStreak } from "@/lib/celebrate";
 import type { HabitItem } from "../habit-input";
 import {
   applyHabitListChange,
@@ -163,6 +164,8 @@ export function useQuantityLog({
             ? undefined
             : { label: HABITS_COPY.undo, run: () => addDelta(habit, -applied, false) },
       });
+      // 30 days or more: confetti in the area's color too (never under reduced motion).
+      if (milestone) void celebrateStreak(milestone.count, habit.area?.color);
     });
   }
 

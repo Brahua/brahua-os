@@ -1,5 +1,6 @@
 "use client";
 
+import NumberFlow from "@number-flow/react";
 import { useId } from "react";
 import { AREA_ICONS, Icon, Key, Led, SegmentBar } from "@/design-system";
 import { cn } from "@/lib/cn";
@@ -65,6 +66,20 @@ export function padStreakLine(habit: HabitItem): string | null {
   return streak.count > 0 ? STREAK_COPY.pad(streak.count, streak.unit) : null;
 }
 
+/**
+ * The streak line split around its number, for `NumberFlow` (celebration-milestones): the digits
+ * roll on every tap, and `prefix + count + suffix` is always `padStreakLine`.
+ */
+export function padStreakParts(
+  habit: HabitItem,
+): { count: number; prefix: string; suffix: string } | null {
+  const line = padStreakLine(habit);
+  if (line === null) return null;
+  const { count } = padStreak(habit);
+  const at = line.indexOf(String(count));
+  return { count, prefix: line.slice(0, at), suffix: line.slice(at + String(count).length) };
+}
+
 type HabitPadProps = {
   habit: HabitItem;
   /**
@@ -116,6 +131,7 @@ export function HabitPad({
   const segments = quantity ? padSegments(habit.quantity, habit.target) : null;
   // H4: "RACHA 8" under the name (a habit to avoid says its clean days in its status line).
   const streakLine = padStreakLine(habit);
+  const streakParts = padStreakParts(habit);
   const streak = padStreak(habit);
   // A yes/no's status ("HECHO", H4's "RACHA 8") is short: it fits the top row.
   const ownLine = quantity || avoid;
@@ -212,9 +228,16 @@ export function HabitPad({
             {weekText}
           </span>
         ) : null}
-        {streakLine ? (
-          <span className="bo-key__sub" aria-hidden data-habit-streak="">
-            {streakLine}
+        {streakLine && streakParts ? (
+          // The attribute carries the line as text (NumberFlow draws its digits in a shadow root);
+          // screen readers get it from the description below.
+          <span className="bo-key__sub" aria-hidden data-habit-streak={streakLine}>
+            <NumberFlow
+              value={streakParts.count}
+              prefix={streakParts.prefix}
+              suffix={streakParts.suffix}
+              respectMotionPreference
+            />
           </span>
         ) : null}
       </Key>

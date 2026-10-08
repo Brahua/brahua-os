@@ -292,7 +292,9 @@ describe("skipping today", () => {
     await server.answer();
     await waitFor(() => expect(pad("Gimnasio")).toHaveFocus());
     // The streak (open day: 4) was never touched by the rest.
-    expect(pad("Gimnasio").querySelector("[data-habit-streak]")?.textContent).toBe("RACHA 4");
+    expect(
+      pad("Gimnasio").querySelector("[data-habit-streak]")?.getAttribute("data-habit-streak"),
+    ).toBe("RACHA 4");
   });
 
   test("a failure rolls back with 'Sin guardar' and the pad returns", async () => {

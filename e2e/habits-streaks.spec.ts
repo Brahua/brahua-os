@@ -56,11 +56,11 @@ test("the streak on the pad: RACHA 3, a tap makes it 4 at once and it is saved",
   const name = unique("Leer", testInfo);
   await insertHabit({ name, doneDays: [-3, -2, -1] });
   await openHabits(page);
-  await expect(streak(page, name)).toHaveText("RACHA 3");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 3");
   await untilSaved(page, () => pad(page, name).click());
-  await expect(streak(page, name)).toHaveText("RACHA 4");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 4");
   await page.reload();
-  await expect(streak(page, name)).toHaveText("RACHA 4");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 4");
 });
 
 test("pause from the options, then Reanudar; Deshacer pauses it again", async ({
@@ -128,7 +128,7 @@ test("Registrar otro día: yesterday marked from the options joins the streak", 
   await expect.poll(() => readDay(id, -1)).toBe(1);
   // Today untouched; the streak counts the three days now.
   await expect(pad(page, name)).toHaveAttribute("aria-pressed", "false");
-  await expect(streak(page, name)).toHaveText("RACHA 3");
+  await expect(streak(page, name)).toHaveAttribute("data-habit-streak", "RACHA 3");
   await expect.poll(() => readDay(id, 0)).toBeNull();
 });
 
