@@ -231,7 +231,9 @@ export function HabitPad({
         {streakLine && streakParts ? (
           // The attribute carries the line as text (NumberFlow draws its digits in a shadow root);
           // screen readers get it from the description below.
-          <span className="bo-key__sub" aria-hidden data-habit-streak={streakLine}>
+          // The line keeps its own height (`1lh`, the sub line's 14 px): NumberFlow's box is a little
+          // taller and would grow the row, and with it the pad, by a pixel.
+          <span className="bo-key__sub block h-[1lh]" aria-hidden data-habit-streak={streakLine}>
             <NumberFlow
               value={streakParts.count}
               prefix={streakParts.prefix}
