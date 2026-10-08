@@ -7,6 +7,7 @@ import {
   reminderDeliveries,
   reminderSettings,
   telegramCaptures,
+  telegramLinkAttempts,
   telegramLinkCodes,
   telegramUpdates,
 } from "@/modules/reminders/db/schema";
@@ -202,7 +203,7 @@ describe("reminder_deliveries", () => {
 });
 
 describe("telegram_link_codes", () => {
-  test("a code hash is unique and attempts never go negative", async () => {
+  test("a code hash is unique (and a different one is fine)", async () => {
     const values = { codeHash: "a".repeat(64), expiresAt: new Date("2026-10-08T12:40:00Z") };
     await testDb.insert(telegramLinkCodes).values(values);
     expect(await violation(() => testDb.insert(telegramLinkCodes).values(values))).toEqual(
@@ -210,11 +211,18 @@ describe("telegram_link_codes", () => {
     );
     expect(
       await violation(() =>
-        testDb
-          .insert(telegramLinkCodes)
-          .values({ ...values, codeHash: "b".repeat(64), failedAttempts: -1 }),
+        testDb.insert(telegramLinkCodes).values({ ...values, codeHash: "b".repeat(64) }),
       ),
-    ).toEqual(check("telegram_link_codes_attempts_check"));
+    ).toBeNull();
+  });
+});
+
+describe("telegram_link_attempts", () => {
+  test("stores a chat id beyond 32 bits and its moment, and never a code", async () => {
+    await testDb.insert(telegramLinkAttempts).values({ chatId: 5_000_000_001 });
+    const [row] = await testDb.select().from(telegramLinkAttempts);
+    expect(row.chatId).toBe(5_000_000_001);
+    expect(Object.keys(row).sort()).toEqual(["chatId", "createdAt", "id"]);
   });
 });
 

@@ -1,7 +1,7 @@
 // @vitest-environment node
 // R1.2 of `reminders`: linking the Telegram chat with a one-use code, against Postgres: valid,
-// expired, reused and malformed codes, the 5-failure limit, a chat that is already linked, and two
-// chats racing for the same code.
+// expired, reused and malformed codes, the per-chat and global throttles (which never close the
+// owner's live code), a chat that is already linked, and two chats racing for the same code.
 import { eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import {
@@ -9,9 +9,16 @@ import {
   issueLinkCode,
   redeemLinkCode,
 } from "@/modules/reminders/channels/telegram/link";
-import { reminderSettings, telegramLinkCodes } from "@/modules/reminders/db/schema";
 import {
+  reminderSettings,
+  telegramLinkAttempts,
+  telegramLinkCodes,
+} from "@/modules/reminders/db/schema";
+import {
+  LINK_CHAT_WINDOW_MS,
   LINK_CODE_TTL_MS,
+  LINK_GLOBAL_MAX_ATTEMPTS,
+  LINK_GLOBAL_WINDOW_MS,
   LINK_MAX_FAILED_ATTEMPTS,
 } from "@/modules/reminders/reminders-constants";
 import { disconnectTelegram, getSettings } from "@/modules/reminders/settings";
@@ -40,7 +47,7 @@ describe("issueLinkCode", () => {
     const [row] = await codes();
     expect(row.codeHash).toBe(hashLinkCode(code));
     expect(JSON.stringify(row)).not.toContain(code);
-    expect(row).toMatchObject({ usedAt: null, failedAttempts: 0 });
+    expect(row.usedAt).toBeNull();
   });
 
   test("a new code invalidates the live one: only one is ever live", async () => {
@@ -124,32 +131,99 @@ describe("redeemLinkCode", () => {
       .select()
       .from(telegramLinkCodes)
       .where(eq(telegramLinkCodes.codeHash, hashLinkCode(stray)));
-    expect(row).toMatchObject({ usedAt: null, failedAttempts: 0 });
+    expect(row.usedAt).toBeNull();
   });
 });
 
-describe("wrong guesses", () => {
-  test(`after ${LINK_MAX_FAILED_ATTEMPTS} wrong codes the live code is closed, even for the right one`, async () => {
+const attempts = () => testDb.select().from(telegramLinkAttempts);
+const minutes = (value: number) => value * 60_000;
+
+describe("wrong guesses are throttled per chat and never close the owner's code", () => {
+  test(`a stranger's ${LINK_MAX_FAILED_ATTEMPTS}+ wrong codes do NOT close the owner's live code`, async () => {
     const { code } = await issued();
-    for (let attempt = 1; attempt < LINK_MAX_FAILED_ATTEMPTS; attempt++) {
-      expect(await redeem("ABCDEFGH")).toBe("invalid");
-      expect((await codes())[0]).toMatchObject({ failedAttempts: attempt, usedAt: null });
+    for (let attempt = 0; attempt < LINK_MAX_FAILED_ATTEMPTS + 3; attempt++) {
+      expect(await redeem("ABCDEFGH", OTHER_CHAT)).toBe("invalid");
     }
-    expect(await redeem("ABCDEFGH")).toBe("invalid");
-    expect((await codes())[0]).toMatchObject({ failedAttempts: LINK_MAX_FAILED_ATTEMPTS });
-    expect((await codes())[0].usedAt).not.toBeNull();
-    // The right code no longer works...
-    expect(await redeem(code)).toBe("invalid");
-    expect((await settings()).telegramChatId).toBeNull();
-    // ...and a new one does (positive control).
-    const fresh = await issued(new Date(NOW.getTime() + 1000));
-    expect(await redeem(fresh.code, CHAT, new Date(NOW.getTime() + 2000))).toBe("linked");
+    // The code is intact...
+    expect((await codes())[0].usedAt).toBeNull();
+    // ...and the owner's chat (another chat) links with it.
+    expect(await redeem(code, CHAT)).toBe("linked");
   });
 
-  test("four wrong codes still leave the right one working (positive control)", async () => {
+  test(`after ${LINK_MAX_FAILED_ATTEMPTS} wrong codes that chat is ignored, even with the right code`, async () => {
     const { code } = await issued();
-    for (let attempt = 1; attempt < LINK_MAX_FAILED_ATTEMPTS; attempt++) await redeem("ABCDEFGH");
+    for (let attempt = 0; attempt < LINK_MAX_FAILED_ATTEMPTS; attempt++) {
+      expect(await redeem("ABCDEFGH", OTHER_CHAT)).toBe("invalid");
+    }
+    expect(await attempts()).toHaveLength(LINK_MAX_FAILED_ATTEMPTS);
+    // Past the limit the right code is refused for that chat, and nothing more is recorded.
+    expect(await redeem(code, OTHER_CHAT)).toBe("invalid");
+    expect(await attempts()).toHaveLength(LINK_MAX_FAILED_ATTEMPTS);
+    expect((await settings()).telegramChatId).toBeNull();
+    expect((await codes())[0].usedAt).toBeNull();
+    // Another chat is not affected (positive control).
+    expect(await redeem(code, CHAT)).toBe("linked");
+  });
+
+  test("an hour later that chat is heard again", async () => {
+    await issued();
+    for (let attempt = 0; attempt < LINK_MAX_FAILED_ATTEMPTS; attempt++) {
+      await redeem("ABCDEFGH", OTHER_CHAT);
+    }
+    const later = new Date(NOW.getTime() + LINK_CHAT_WINDOW_MS + 1000);
+    // The code expired meanwhile: a fresh one, issued at that moment, works for that chat.
+    const fresh = await issued(later);
+    expect(await redeem(fresh.code, OTHER_CHAT, later)).toBe("linked");
+  });
+
+  test("a malformed code counts as an attempt of its chat", async () => {
+    await issued();
+    for (const raw of ["", "short", "ABCD2345X", "ABCD2340", "ÁÉÍÓÚ"]) {
+      expect(await redeem(raw, OTHER_CHAT)).toBe("invalid");
+    }
+    expect((await attempts()).map((row) => row.chatId)).toEqual(
+      Array(LINK_MAX_FAILED_ATTEMPTS).fill(OTHER_CHAT),
+    );
+  });
+
+  test("four wrong codes still leave the chat able to link (positive control)", async () => {
+    const { code } = await issued();
+    for (let attempt = 1; attempt < LINK_MAX_FAILED_ATTEMPTS; attempt++) {
+      await redeem("ABCDEFGH");
+    }
     expect(await redeem(code)).toBe("linked");
+  });
+
+  test(`a global limit: ${LINK_GLOBAL_MAX_ATTEMPTS} wrong codes from many chats in 10 minutes → everything is "invalid", codes untouched`, async () => {
+    const { code } = await issued();
+    // 30 chats, one wrong code each: no chat is over its own limit.
+    await testDb.insert(telegramLinkAttempts).values(
+      Array.from({ length: LINK_GLOBAL_MAX_ATTEMPTS }, (_, index) => ({
+        chatId: 6_000_000_000 + index,
+        createdAt: new Date(NOW.getTime() - minutes(5)),
+      })),
+    );
+    // The owner's chat, with the right code, is answered "invalid" while the rate is over...
+    expect(await redeem(code, CHAT)).toBe("invalid");
+    expect((await settings()).telegramChatId).toBeNull();
+    // ...the code is intact (nobody closed it)...
+    expect((await codes())[0].usedAt).toBeNull();
+    // ...and once the attempts have left the window it links (positive control, with a fresh code
+    // because the first one expired meanwhile).
+    const later = new Date(NOW.getTime() + LINK_GLOBAL_WINDOW_MS + 1000);
+    const fresh = await issued(later);
+    expect(await redeem(fresh.code, CHAT, later)).toBe("linked");
+  });
+
+  test("one attempt below the global limit does not block", async () => {
+    const { code } = await issued();
+    await testDb.insert(telegramLinkAttempts).values(
+      Array.from({ length: LINK_GLOBAL_MAX_ATTEMPTS - 1 }, (_, index) => ({
+        chatId: 6_000_000_000 + index,
+        createdAt: new Date(NOW.getTime() - minutes(5)),
+      })),
+    );
+    expect(await redeem(code, CHAT)).toBe("linked");
   });
 });
 
@@ -161,6 +235,29 @@ describe("concurrency", () => {
     expect(results.filter((result) => result !== "linked")).toHaveLength(1);
     const row = await settings();
     expect([CHAT, OTHER_CHAT]).toContain(row.telegramChatId);
+  });
+
+  test("a late 403 about chat A, after chat B was linked, does not touch B or the codes", async () => {
+    // B is linked now; a tick that still saw A gets A's 403 and asks to disconnect A.
+    await getSettings(testDb);
+    await testDb
+      .update(reminderSettings)
+      .set({ telegramChatId: OTHER_CHAT, linkedAt: NOW })
+      .where(eq(reminderSettings.id, true));
+    await testDb.insert(telegramLinkCodes).values({
+      codeHash: hashLinkCode("ZZZZ2222"),
+      expiresAt: new Date(NOW.getTime() + 60_000),
+    });
+
+    expect(await disconnectTelegram(testDb, "blocked", NOW, CHAT)).toBe(false);
+    const row = await settings();
+    expect(row).toMatchObject({ telegramChatId: OTHER_CHAT, telegramBlockedAt: null });
+    expect((await codes())[0].usedAt).toBeNull();
+
+    // Positive control: the same call for the chat that IS linked does disconnect it.
+    expect(await disconnectTelegram(testDb, "blocked", NOW, OTHER_CHAT)).toBe(true);
+    expect(await settings()).toMatchObject({ telegramChatId: null, telegramBlockedAt: NOW });
+    expect((await codes())[0].usedAt).toEqual(NOW);
   });
 
   test("disconnecting closes the live codes and clears the chat", async () => {

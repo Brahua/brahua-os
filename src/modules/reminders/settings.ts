@@ -2,7 +2,7 @@
 // the state Ajustes shows. Server-only: callers have already checked the owner (a page's
 // `requireOwner()`, an action's `ownerAction()`) or are the authenticated tick/webhook.
 import "server-only";
-import { eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { formatOwnerDay } from "@/lib/time";
 import { pushSubscriptions, reminderSettings, telegramLinkCodes } from "./db/schema";
@@ -33,25 +33,35 @@ export async function countActivePushDevices(db: Database): Promise<number> {
 /**
  * Disconnects the Telegram chat and invalidates every live link code, in one transaction under
  * the settings row lock (the same one a code redemption takes, so the two never interleave).
- * `blocked` records that Telegram refused (403) so Ajustes can say so; `owner` clears it.
+ * `blocked` records that Telegram refused (403) so Ajustes can say so; `owner` clears it. With
+ * `expectedChatId` it only acts if that chat is still the linked one (returns whether it did).
  */
 export async function disconnectTelegram(
   db: Database,
   reason: "owner" | "blocked",
   now: Date,
-): Promise<void> {
+  expectedChatId?: number,
+): Promise<boolean> {
   await ensureSettings(db);
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await tx.select().from(reminderSettings).where(eq(reminderSettings.id, true)).for("update");
-    await tx
+    const changed = await tx
       .update(reminderSettings)
       .set({
         telegramChatId: null,
         linkedAt: null,
         telegramBlockedAt: reason === "blocked" ? now : null,
       })
-      .where(eq(reminderSettings.id, true));
+      .where(
+        expectedChatId === undefined
+          ? eq(reminderSettings.id, true)
+          : and(eq(reminderSettings.id, true), eq(reminderSettings.telegramChatId, expectedChatId)),
+      )
+      .returning({ id: reminderSettings.id });
+    // A late answer about another chat (it was unlinked and B linked meanwhile) changes nothing.
+    if (changed.length === 0) return false;
     await tx.update(telegramLinkCodes).set({ usedAt: now }).where(isNull(telegramLinkCodes.usedAt));
+    return true;
   });
 }
 
@@ -65,12 +75,14 @@ export type TelegramStatus = {
   problems: string[];
 };
 
-export function telegramStatusOf(settings: ReminderSettings): TelegramStatus {
+/** `undefined` = the row does not exist yet: a fresh install, not connected. */
+export function telegramStatusOf(settings: ReminderSettings | undefined): TelegramStatus {
   const env = resolveTelegramEnv();
-  const connected = settings.telegramChatId !== null;
+  const connected = settings?.telegramChatId != null;
   return {
-    state: connected ? "connected" : settings.telegramBlockedAt ? "blocked" : "disconnected",
-    linkedLabel: settings.linkedAt && connected ? formatOwnerDay(settings.linkedAt, "short") : null,
+    state: connected ? "connected" : settings?.telegramBlockedAt ? "blocked" : "disconnected",
+    linkedLabel:
+      settings?.linkedAt && connected ? formatOwnerDay(settings.linkedAt, "short") : null,
     configured: env.ok,
     problems: env.ok ? [] : env.problems,
   };
@@ -78,5 +90,7 @@ export function telegramStatusOf(settings: ReminderSettings): TelegramStatus {
 
 /** The status for Ajustes (and for the action that polls it while a link is pending). */
 export async function readTelegramStatus(db: Database): Promise<TelegramStatus> {
-  return telegramStatusOf(await getSettings(db));
+  // Read only (no INSERT): the status is polled and shown on page loads.
+  const [row] = await db.select().from(reminderSettings).where(eq(reminderSettings.id, true));
+  return telegramStatusOf(row);
 }

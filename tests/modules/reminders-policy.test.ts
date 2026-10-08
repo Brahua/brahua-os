@@ -31,11 +31,44 @@ describe("selectChannels", () => {
         selectChannels({
           deliveryChannel: delivery,
           hasPushDevices: push,
+          pushAvailable: true,
           telegramConnected: telegram,
         }),
       ).toEqual(expected);
     },
   );
+
+  // Devices subscribed but push cannot send (no channel, VAPID keys missing): they don't count.
+  test.each(CASES)(
+    "%s, devices %s but push unavailable, telegram %s → as if there were no devices",
+    (delivery, push, telegram) => {
+      const without = selectChannels({
+        deliveryChannel: delivery,
+        hasPushDevices: false,
+        pushAvailable: true,
+        telegramConnected: telegram,
+      });
+      expect(
+        selectChannels({
+          deliveryChannel: delivery,
+          hasPushDevices: push,
+          pushAvailable: false,
+          telegramConnected: telegram,
+        }),
+      ).toEqual(without);
+    },
+  );
+
+  test("the fallback to Telegram works when push exists as a device but is not available", () => {
+    expect(
+      selectChannels({
+        deliveryChannel: "push",
+        hasPushDevices: true,
+        pushAvailable: false,
+        telegramConnected: true,
+      }),
+    ).toEqual(["telegram"]);
+  });
 });
 
 describe("isKindEnabled", () => {

@@ -6,20 +6,25 @@ export type ChannelState = {
   deliveryChannel: DeliveryChannel;
   /** At least one push subscription that was not revoked. */
   hasPushDevices: boolean;
+  /** Push can actually send (its channel exists and its keys are set), not only a device row. */
+  pushAvailable: boolean;
   /** A Telegram chat is linked. */
   telegramConnected: boolean;
 };
 
 /**
  * The channels to send through, in order:
- * - `push`: the device(s); while there is none, Telegram if it is connected (the default is
- *   push, and nothing should be lost just because the owner has not activated the phone yet).
+ * - `push`: the device(s); while there is none (or push cannot send), Telegram if it is connected
+ *   (the default is push, and nothing should be lost just because the owner has not activated the
+ *   phone yet).
  * - `telegram`: Telegram, if connected.
  * - `both`: each one that is available.
  * With no channel available nothing is sent.
  */
 export function selectChannels(state: ChannelState): ChannelId[] {
-  const { deliveryChannel, hasPushDevices, telegramConnected } = state;
+  const { deliveryChannel, telegramConnected } = state;
+  // A subscribed device is useless without a working push channel: Telegram takes over.
+  const hasPushDevices = state.hasPushDevices && state.pushAvailable;
   if (deliveryChannel === "telegram") return telegramConnected ? ["telegram"] : [];
   if (deliveryChannel === "both") {
     return [

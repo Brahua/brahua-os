@@ -14,7 +14,7 @@ import {
 } from "@/modules/reminders/channels/telegram/webhook";
 import {
   telegramCaptures,
-  telegramLinkCodes,
+  telegramLinkAttempts,
   telegramUpdates,
 } from "@/modules/reminders/db/schema";
 import { disconnectTelegram, getSettings } from "@/modules/reminders/settings";
@@ -126,8 +126,10 @@ describe("authentication", () => {
   });
 
   test("the right secret gets through (positive control)", async () => {
-    expect((await handle(post(update({ text: "hola" })))).status).toBe(200);
-    expect(await updates()).toHaveLength(1);
+    expect((await handle(post(update({ text: "/start ABCDEFGH", updateId: 4001 })))).status).toBe(
+      200,
+    );
+    expect((await updates()).map((row) => row.updateId)).toEqual([4001]);
   });
 });
 
@@ -135,6 +137,23 @@ describe("the body", () => {
   test("a body over the limit is refused with 413 before being parsed", async () => {
     const big = JSON.stringify({ update_id: 1, pad: "x".repeat(MAX_WEBHOOK_BODY_BYTES) });
     expect((await handle(post(big))).status).toBe(413);
+    expect(await updates()).toEqual([]);
+  });
+
+  test("a declared content-length over the limit is a 413 without touching the body", async () => {
+    let bodyTouched = false;
+    const request = {
+      headers: new Headers({
+        [WEBHOOK_SECRET_HEADER]: SECRET,
+        "content-length": String(MAX_WEBHOOK_BODY_BYTES + 1),
+      }),
+      get body() {
+        bodyTouched = true;
+        return null;
+      },
+    } as unknown as Request;
+    expect((await handle(request)).status).toBe(413);
+    expect(bodyTouched).toBe(false);
     expect(await updates()).toEqual([]);
   });
 
@@ -165,9 +184,9 @@ describe("the body", () => {
     expect(await updates()).toEqual([]);
   });
 
-  test("an update with no message (an edit, a poll…) is recorded and ignored", async () => {
+  test("an update with no message (an edit, a poll…) is ignored and leaves no row", async () => {
     expect((await handle(post({ update_id: 321 }))).status).toBe(200);
-    expect((await updates()).map((row) => row.updateId)).toEqual([321]);
+    expect(await updates()).toEqual([]);
     expect(sent()).toHaveLength(0);
   });
 });
@@ -187,22 +206,28 @@ describe("linking with /start <code>", () => {
 
   test("a wrong code from an unknown chat: 200, no reply, nothing linked, nothing created", async () => {
     await liveCode();
-    const response = await handle(post(update({ chatId: STRANGER_CHAT, text: "/start ABCDEFGH" })));
+    const response = await handle(
+      post(update({ chatId: STRANGER_CHAT, text: "/start ABCDEFGH", updateId: 5001 })),
+    );
     expect(response.status).toBe(200);
     expect(sent()).toHaveLength(0);
     const settings = await getSettings(testDb);
     expect(settings.telegramChatId).toBeNull();
+    // Only the update itself is recorded (it was /start-shaped); no capture, no entity.
+    expect((await updates()).map((row) => row.updateId)).toEqual([5001]);
+    // TODO(R3): when capture exists, assert here that no task or expense was created either.
     expect(await testDb.select().from(telegramCaptures)).toEqual([]);
   });
 
-  test("five wrong /start in a row close the live code, even for the right one", async () => {
+  test("a stranger's wrong /start, however many, never close the owner's code", async () => {
     const code = await liveCode();
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       await handle(post(update({ chatId: STRANGER_CHAT, text: "/start ABCDEFGH" })));
     }
+    // The owner's chat still links with the same code.
     await handle(post(update({ text: `/start ${code}` })));
-    expect((await getSettings(testDb)).telegramChatId).toBeNull();
-    expect(sent()).toHaveLength(0);
+    expect((await getSettings(testDb)).telegramChatId).toBe(OWNER_CHAT);
+    expect(sent()).toHaveLength(1);
   });
 
   test("an expired code does not link", async () => {
@@ -245,11 +270,19 @@ describe("linking with /start <code>", () => {
     expect((await getSettings(testDb)).telegramChatId).toBe(OWNER_CHAT);
   });
 
-  test("plain text from the unknown chat is ignored: no reply, nothing stored but the update id", async () => {
+  test("plain text from the unknown chat is ignored: no reply and NOTHING stored, not even its update id", async () => {
     await handle(post(update({ chatId: STRANGER_CHAT, text: "pilas mañana" })));
     expect(sent()).toHaveLength(0);
+    // TODO(R3): when capture exists, assert here that no task or expense was created either.
     expect(await testDb.select().from(telegramCaptures)).toEqual([]);
-    expect(await updates()).toHaveLength(1);
+    expect(await updates()).toEqual([]);
+  });
+
+  test("the linked chat's messages are claimed (positive control of the above)", async () => {
+    const code = await liveCode();
+    await handle(post(update({ text: `/start ${code}`, updateId: 6001 })));
+    await handle(post(update({ text: "pilas mañana", updateId: 6002 })));
+    expect((await updates()).map((row) => row.updateId)).toEqual([6001, 6002]);
   });
 
   test("a failure sending the reply does not undo the link", async () => {
@@ -267,8 +300,7 @@ describe("Telegram's retries", () => {
     expect((await handle(post(repeated))).status).toBe(200);
     expect((await handle(post(repeated))).status).toBe(200);
     expect((await handle(post(repeated))).status).toBe(200);
-    const [row] = await testDb.select().from(telegramLinkCodes);
-    expect(row.failedAttempts).toBe(1);
+    expect(await testDb.select().from(telegramLinkAttempts)).toHaveLength(1);
     expect((await updates()).filter((u) => u.updateId === 777)).toHaveLength(1);
   });
 
@@ -276,8 +308,7 @@ describe("Telegram's retries", () => {
     await liveCode();
     await handle(post(update({ chatId: STRANGER_CHAT, text: "/start ABCDEFGH" })));
     await handle(post(update({ chatId: STRANGER_CHAT, text: "/start ABCDEFGH" })));
-    const [row] = await testDb.select().from(telegramLinkCodes);
-    expect(row.failedAttempts).toBe(2);
+    expect(await testDb.select().from(telegramLinkAttempts)).toHaveLength(2);
   });
 
   test("the update id is not claimed when handling fails (Telegram's retry gets a fair go)", async () => {

@@ -43,9 +43,13 @@ export function TelegramSection({ initialStatus }: { initialStatus: TelegramStat
   const disconnectRef = useRef<HTMLButtonElement>(null);
   const linkRef = useRef<HTMLAnchorElement>(null);
   const focusAfterRender = useRef<FocusTarget | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     mounted.current = true;
+    // Hydration marker: the handlers are attached from here on (the E2E waits for it before the
+    // first click, which would be lost before hydration). Set on the DOM, not through state.
+    sectionRef.current?.setAttribute("data-telegram-ready", "true");
     return () => {
       mounted.current = false;
     };
@@ -156,7 +160,11 @@ export function TelegramSection({ initialStatus }: { initialStatus: TelegramStat
   const connected = status.state === "connected";
 
   return (
-    <section aria-labelledby={headingId} className="flex w-full max-w-100 flex-col gap-4">
+    <section
+      ref={sectionRef}
+      aria-labelledby={headingId}
+      className="flex w-full max-w-100 flex-col gap-4"
+    >
       <SectionLabel as="h2" id={headingId} tabIndex={-1} title="Telegram" />
       <p className="bo-text-body-sm text-text-secondary">
         Recibe tus avisos en un chat con el bot de brahua-os.

@@ -136,8 +136,21 @@ describe("a tick against Postgres", () => {
     });
     expect(row.scheduledFor).toEqual(DUE);
     expect(row.sentAt).toEqual(NOW);
-    // The table never holds the text.
-    expect(JSON.stringify(row)).not.toContain("hábitos");
+    // Guard on the shape: the table has no column that could hold the text or an amount.
+    expect(Object.keys(row).sort()).toEqual([
+      "attempts",
+      "channel",
+      "createdAt",
+      "dedupeKey",
+      "errorCode",
+      "id",
+      "kind",
+      "scheduledFor",
+      "sentAt",
+      "status",
+      "telegramMessageId",
+      "updatedAt",
+    ]);
   });
 
   test("two ticks at the same time send ONE reminder (the claim)", async () => {
@@ -321,11 +334,11 @@ describe("channels", () => {
     await testDb
       .insert(pushSubscriptions)
       .values({ endpoint: "https://push.example.test/live", p256dh: "k", auth: "a" });
-    // A live device and push chosen: push is the channel, and R1 has no push implementation, so
-    // nothing goes out through Telegram (R5 adds the channel).
+    // A live device row and push chosen, but R1 has no push channel able to send: Telegram takes
+    // over (nothing is lost because a device row exists without a working push).
     const summary = await tick([source(candidate())]);
-    expect(summary.status).toBe("no-channel");
-    expect(sentMessages()).toHaveLength(0);
+    expect(summary).toMatchObject({ status: "ok", sent: 1 });
+    expect(sentMessages()).toHaveLength(1);
   });
 
   test("a delivery row per channel: both → push and Telegram, each on its own", async () => {

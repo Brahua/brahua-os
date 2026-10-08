@@ -5,8 +5,9 @@
 // Order matters: the secret header is checked BEFORE the body is read (a caller without it gets a
 // 401 and costs nothing), the body is size-bounded, and an update is claimed by `update_id` in the
 // same transaction that handles it, so a failure rolls both back and Telegram's retry is not
-// mistaken for a duplicate. Only a valid `/start <code>` is answered; everything else from an
-// unknown chat gets a bare 200 and nothing is stored. Logs carry no chat ids, no text, no codes.
+// mistaken for a duplicate. Only the linked chat's messages and `/start <code>`-shaped ones are
+// claimed at all; only a valid `/start <code>` is answered; everything else from an unknown chat
+// gets a bare 200 and nothing is stored. Logs carry no chat ids, no text, no codes.
 import "server-only";
 import { z } from "zod";
 import type { Database } from "@/lib/db";
@@ -14,7 +15,7 @@ import { describeError } from "@/lib/describe-error";
 import { telegramUpdates } from "../../db/schema";
 import { isWebhookAuthorized } from "../../env";
 import { logEvent } from "../../log";
-import { ensureSettings } from "../../settings";
+import { getSettings } from "../../settings";
 import type { TelegramClient } from "./client";
 import { BOT_LINKED_MESSAGE } from "./copy";
 import { parseStartCommand, redeemLinkCodeIn } from "./link";
@@ -91,10 +92,19 @@ export async function handleTelegramWebhook(
   if (!parsed.success) return respond(200);
   const update = parsed.data;
 
-  // 3. Claim the update and handle it in one transaction.
+  // 3. Claim the update and handle it in one transaction, but only an update that can matter: one
+  // from the linked chat, or shaped like `/start <code>`. Anything else (a stranger's chatter, an
+  // edit, a poll) gets a bare 200 and leaves no row, so strangers cannot grow `telegram_updates`.
   let outcome: Outcome;
   try {
-    await ensureSettings(deps.db);
+    const linkedChat = (await getSettings(deps.db)).telegramChatId;
+    const incoming = update.message;
+    const relevant =
+      incoming?.chat.type === "private" &&
+      (incoming.chat.id === linkedChat ||
+        (incoming.text !== undefined && parseStartCommand(incoming.text) !== null));
+    if (!relevant) return respond(200);
+
     outcome = await deps.db.transaction(async (tx): Promise<Outcome> => {
       const claimed = await tx
         .insert(telegramUpdates)

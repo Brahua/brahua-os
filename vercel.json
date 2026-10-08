@@ -4,5 +4,5 @@
   "git": {
     "deploymentEnabled": false
   },
-  "crons": [{ "path": "/api/reminders/tick", "schedule": "30 12 * * *" }]
+  "crons": [{ "path": "/api/reminders/tick", "schedule": "0 13 * * *" }]
 }

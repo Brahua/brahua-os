@@ -66,6 +66,8 @@ export default defineConfig({
         storageState: OWNER_STORAGE_STATE,
       },
       dependencies: ["setup"],
+      // `reminder_settings` is a single row shared by the whole app: its spec runs in one project.
+      testIgnore: /reminders\.spec\.ts/,
     },
     {
       name: "desktop",

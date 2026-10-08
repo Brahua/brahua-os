@@ -54,6 +54,14 @@ describe("the state", () => {
     expect(screen.queryByRole("button", { name: "Desconectar" })).toBeNull();
   });
 
+  test("marks itself hydrated once its effects have run (the E2E waits for it before clicking)", () => {
+    render(<TelegramSection initialStatus={DISCONNECTED} />);
+    expect(screen.getByRole("region", { name: "Telegram" })).toHaveAttribute(
+      "data-telegram-ready",
+      "true",
+    );
+  });
+
   test("a connected bot says since when and offers to disconnect", () => {
     render(<TelegramSection initialStatus={CONNECTED} />);
     expect(screen.getByText("Conectado desde el 3 oct. 2026.")).toBeVisible();

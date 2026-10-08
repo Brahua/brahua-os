@@ -124,3 +124,52 @@ describe("webhook authorization", () => {
     expect(isWebhookAuthorized("anything", {})).toBe(false);
   });
 });
+
+describe("secrets as the owner pastes them", () => {
+  const SECRET = "tick-secret-0123456789abcdef";
+
+  test("a tick secret with a trailing newline or spaces still matches the header Actions sends", () => {
+    expect(tickSecrets({ REMINDERS_CRON_SECRET: `${SECRET}\n` })).toEqual([SECRET]);
+    expect(isTickAuthorized(`Bearer ${SECRET}`, { REMINDERS_CRON_SECRET: `${SECRET}\n` })).toBe(
+      true,
+    );
+    expect(isTickAuthorized(`Bearer ${SECRET}`, { CRON_SECRET: `  ${SECRET}  ` })).toBe(true);
+  });
+
+  test("only whitespace, or a short secret once trimmed, is not a secret", () => {
+    expect(tickSecrets({ REMINDERS_CRON_SECRET: "                \n" })).toEqual([]);
+    expect(tickSecrets({ CRON_SECRET: "short   \n" })).toEqual([]);
+  });
+
+  test("the webhook secret follows the same 16–256 rule as resolveTelegramEnv", () => {
+    const strong = "a-webhook-secret-0123456789";
+    expect(isWebhookAuthorized(strong, { TELEGRAM_WEBHOOK_SECRET: `${strong}\n` })).toBe(true);
+    // Too short, too long and a forbidden character: the endpoint accepts nothing, even the
+    // exact value (a weak configured secret must not be what protects it).
+    for (const weak of ["short", "x".repeat(257), "has spaces in it 0123456789"]) {
+      expect(isWebhookAuthorized(weak, { TELEGRAM_WEBHOOK_SECRET: weak })).toBe(false);
+    }
+    expect(isWebhookAuthorized("x".repeat(256), { TELEGRAM_WEBHOOK_SECRET: "x".repeat(256) })).toBe(
+      true,
+    );
+  });
+});
+
+describe("TELEGRAM_API_BASE in production", () => {
+  test("a Vercel production deployment refuses a plain http base (the token is in the URL)", () => {
+    const http = { ...GOOD, TELEGRAM_API_BASE: "http://127.0.0.1:4000" };
+    const refused = resolveTelegramEnv({ ...http, VERCEL_ENV: "production" });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.problems.join(" ")).toMatch(/TELEGRAM_API_BASE/);
+    // Positive controls: https in production, and http where it is not a Vercel production.
+    expect(
+      resolveTelegramEnv({
+        ...GOOD,
+        TELEGRAM_API_BASE: "https://telegram.example.test",
+        VERCEL_ENV: "production",
+      }).ok,
+    ).toBe(true);
+    expect(resolveTelegramEnv({ ...http, VERCEL_ENV: "preview" }).ok).toBe(true);
+    expect(resolveTelegramEnv(http).ok).toBe(true);
+  });
+});

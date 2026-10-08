@@ -1,5 +1,5 @@
 {
-  "id": "ae85fcd0-ad84-4ce3-9f60-d596a48667c6",
+  "id": "325e4e60-82e7-4676-95fc-c8814e912b5b",
   "prevId": "eef1fc62-e9bb-4fa2-849d-9ba03bc9ef48",
   "version": "7",
   "dialect": "postgresql",
@@ -2461,6 +2461,61 @@
       },
       "isRLSEnabled": false
     },
+    "public.telegram_link_attempts": {
+      "name": "telegram_link_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "chat_id": {
+          "name": "chat_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "telegram_link_attempts_chat_created_idx": {
+          "name": "telegram_link_attempts_chat_created_idx",
+          "columns": [
+            {
+              "expression": "chat_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.telegram_link_codes": {
       "name": "telegram_link_codes",
       "schema": "",
@@ -2490,13 +2545,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "failed_attempts": {
-          "name": "failed_attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2516,12 +2564,7 @@
         }
       },
       "policies": {},
-      "checkConstraints": {
-        "telegram_link_codes_attempts_check": {
-          "name": "telegram_link_codes_attempts_check",
-          "value": "\"telegram_link_codes\".\"failed_attempts\" >= 0"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.telegram_updates": {

@@ -10,7 +10,8 @@
 // 2. ReminderChannel: how a message leaves the app. The engine knows only this interface;
 //    Telegram implements it in R1, push web in R5.
 //
-// The types are plain data (no server-only imports), so a source file stays easy to test.
+// The types are plain data (this file imports `server-only` for the registry, nothing else), so a
+// source file stays easy to test.
 import "server-only";
 import type { ChannelId, ReminderKind } from "./reminders-constants";
 
@@ -22,6 +23,12 @@ export type ReminderContext = {
   now: Date;
   /** The owner's day (America/Lima) of `now`, YYYY-MM-DD. */
   today: string;
+  /**
+   * The owner's previous day, YYYY-MM-DD. A reminder's window is 2 h and can cross midnight (a
+   * habit at 23:30 is still open at 00:30): sources return candidates for yesterday too, and the
+   * engine decides by `dueAt` whether each is still open.
+   */
+  yesterday: string;
   /**
    * The owner's configured times, "HH:MM" in Lima: the briefing (and the payment reminders that
    * ride on it) and the evening review. A habit has its own time.
@@ -79,6 +86,8 @@ export type ChannelSendResult =
       code: string;
       /** The destination is gone for good (Telegram 403: the bot was blocked): disconnect it. */
       unreachable?: boolean;
+      /** The service asked to slow down (rate limit): no more sends through it in this tick. */
+      backoff?: boolean;
     };
 
 export type ReminderChannel = {

@@ -46,5 +46,25 @@ export const USER_AGENT_MAX_LENGTH = 200;
 /** Telegram link codes: 8 characters from a 32-letter alphabet, 10 minutes, one use. */
 export const LINK_CODE_LENGTH = 8;
 export const LINK_CODE_TTL_MS = 10 * 60 * 1000;
-/** After this many wrong codes the live codes are invalidated and the owner asks for a new one. */
+/**
+ * Wrong codes from ONE chat before that chat is ignored (for LINK_CHAT_WINDOW_MS). It never
+ * touches the live codes: a third party must not be able to switch the owner's linking off.
+ */
 export const LINK_MAX_FAILED_ATTEMPTS = 5;
+export const LINK_CHAT_WINDOW_MS = 60 * 60 * 1000;
+/** Wrong codes from ANY chat in LINK_GLOBAL_WINDOW_MS before every attempt is answered "invalid". */
+export const LINK_GLOBAL_MAX_ATTEMPTS = 30;
+export const LINK_GLOBAL_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * The `error_code`s of a `failed` delivery that the next tick may try again: the service answered
+ * with an error, so nothing was sent (a server error, a bad request that may pass, a rate limit)
+ * or the text was never built. AMBIGUOUS failures (`telegram_network`, `send_threw`: a timeout may
+ * have delivered the message anyway) are NOT here: a duplicate reminder is worse than a missed one.
+ */
+export const RETRYABLE_ERROR_CODES: readonly string[] = [
+  "telegram_server",
+  "telegram_bad_request",
+  "telegram_rate_limited",
+  "build_failed",
+];

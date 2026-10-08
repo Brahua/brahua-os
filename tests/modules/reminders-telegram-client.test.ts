@@ -153,6 +153,23 @@ describe("the Telegram channel", () => {
   });
 });
 
+test("never follows a redirect (the token is in the URL) and a redirect is just a `network` failure", async () => {
+  let init: RequestInit | undefined;
+  const redirecting = createTelegramClient({
+    token: TOKEN,
+    apiBase: fake.url,
+    fetch: async (_input, options) => {
+      init = options;
+      throw new TypeError("redirect mode is set to error");
+    },
+  });
+  expect(await redirecting.sendMessage({ chatId: 1, text: "x" })).toEqual({
+    ok: false,
+    kind: "network",
+  });
+  expect(init?.redirect).toBe("error");
+});
+
 test("the real fetch is used when none is injected", async () => {
   const spy = vi.spyOn(globalThis, "fetch");
   await client().answerCallbackQuery("x");

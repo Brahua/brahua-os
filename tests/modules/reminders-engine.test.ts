@@ -10,7 +10,11 @@ import type {
 } from "@/modules/reminders/contracts";
 import type { ReminderSettings } from "@/modules/reminders/db/schema";
 import { runTick } from "@/modules/reminders/engine";
-import type { ChannelId, ReminderKind } from "@/modules/reminders/reminders-constants";
+import {
+  RETRYABLE_ERROR_CODES,
+  type ChannelId,
+  type ReminderKind,
+} from "@/modules/reminders/reminders-constants";
 import { limaInstant } from "@/modules/reminders/slots";
 
 type Row = {
@@ -26,13 +30,16 @@ const store = vi.hoisted(() => ({
   pushDevices: 0,
   rows: [] as Row[],
   disconnects: [] as string[],
+  disconnectedChats: [] as (number | undefined)[],
 }));
 
 vi.mock("@/modules/reminders/settings", () => ({
   getSettings: async () => store.settings,
   countActivePushDevices: async () => store.pushDevices,
-  disconnectTelegram: async (_db: unknown, reason: string) => {
+  disconnectTelegram: async (_db: unknown, reason: string, _now: Date, expectedChatId?: number) => {
     store.disconnects.push(reason);
+    store.disconnectedChats.push(expectedChatId);
+    return true;
   },
 }));
 
@@ -57,7 +64,8 @@ vi.mock("@/modules/reminders/deliveries", () => {
       if (
         existing.status === "failed" &&
         existing.attempts < 3 &&
-        existing.errorCode !== "unreachable"
+        existing.errorCode !== null &&
+        RETRYABLE_ERROR_CODES.includes(existing.errorCode)
       ) {
         existing.status = "pending";
         existing.attempts++;
@@ -176,6 +184,7 @@ beforeEach(() => {
   store.pushDevices = 0;
   store.rows = [];
   store.disconnects = [];
+  store.disconnectedChats = [];
 });
 
 describe("a tick", () => {
@@ -207,8 +216,68 @@ describe("a tick", () => {
       telegram: fakeChannel("telegram").channel,
     });
     expect(seen).toEqual([
-      { now: NOW, today: "2026-10-08", times: { briefing: "08:15", evening: "20:45" } },
+      {
+        now: NOW,
+        today: "2026-10-08",
+        yesterday: "2026-10-07",
+        times: { briefing: "08:15", evening: "20:45" },
+      },
     ]);
+  });
+
+  // The Lima day is not the UTC day: from 19:00 to 23:59 Lima it is already the next day in UTC.
+  test.each([
+    [
+      "22:30 on the 8th in Lima (03:30 UTC of the 9th)",
+      limaInstant("2026-10-08", "22:30"),
+      "2026-10-08",
+      "2026-10-07",
+    ],
+    [
+      "00:15 on the 9th in Lima (05:15 UTC of the 9th)",
+      limaInstant("2026-10-09", "00:15"),
+      "2026-10-09",
+      "2026-10-08",
+    ],
+    [
+      "23:59 on the 31st in Lima (04:59 UTC of the 1st)",
+      limaInstant("2026-10-31", "23:59"),
+      "2026-10-31",
+      "2026-10-30",
+    ],
+    ["00:00 on Jan 1st in Lima", limaInstant("2027-01-01", "00:00"), "2027-01-01", "2026-12-31"],
+  ])("today and yesterday are the owner's days at %s", async (_label, now, today, yesterday) => {
+    const seen: ReminderContext[] = [];
+    await tick(
+      [{ id: "spy", candidates: async (context) => (seen.push(context), []) }],
+      { telegram: fakeChannel("telegram").channel },
+      now,
+    );
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ now, today, yesterday });
+  });
+
+  test("a reminder of yesterday at 23:30 is still open at 00:30 today (the window crosses midnight)", async () => {
+    const telegram = fakeChannel("telegram");
+    const lateHabit = candidate({
+      kind: "habit_time",
+      dedupeKey: "habit_time:leer:2026-10-08",
+      dueAt: limaInstant("2026-10-08", "23:30"),
+    });
+    const summary = await tick(
+      [source(lateHabit)],
+      { telegram: telegram.channel },
+      limaInstant("2026-10-09", "00:30"),
+    );
+    expect(summary.sent).toBe(1);
+    // ...and no longer at 01:30 (2 h after 23:30): skipped.
+    store.rows = [];
+    const expired = await tick(
+      [source(lateHabit)],
+      { telegram: telegram.channel },
+      limaInstant("2026-10-09", "01:30"),
+    );
+    expect(expired).toMatchObject({ sent: 0, skipped: 1 });
   });
 
   test("a reminder that is not due yet is left alone (no row)", async () => {
@@ -314,13 +383,21 @@ describe("channels", () => {
     expect(telegram.sent).toHaveLength(1);
   });
 
-  test("push chosen with a device but no push implementation yet: nothing sent, nothing lost on Telegram", async () => {
+  test("push chosen with a device row but no push channel able to send: Telegram takes over", async () => {
     store.settings = settings({ deliveryChannel: "push" });
     store.pushDevices = 1;
     const telegram = fakeChannel("telegram");
     const summary = await tick([source(candidate())], { telegram: telegram.channel });
+    expect(summary).toMatchObject({ status: "ok", sent: 1 });
+    expect(telegram.sent).toHaveLength(1);
+    expect(store.rows).toMatchObject([{ channel: "telegram", status: "sent" }]);
+  });
+
+  test("push chosen, a device row, no push channel and no Telegram: nothing is sent", async () => {
+    store.settings = settings({ deliveryChannel: "push", telegramChatId: null, linkedAt: null });
+    store.pushDevices = 1;
+    const summary = await tick([source(candidate())], {});
     expect(summary.status).toBe("no-channel");
-    expect(telegram.sent).toHaveLength(0);
   });
 
   test("both: one row per channel, and a channel that fails does not block the other", async () => {
@@ -360,7 +437,7 @@ describe("failures", () => {
   test("a retry that works settles the reminder as sent", async () => {
     let fail = true;
     const telegram = fakeChannel("telegram", () =>
-      fail ? { ok: false, code: "telegram_network" } : { ok: true, messageId: 9 },
+      fail ? { ok: false, code: "telegram_server" } : { ok: true, messageId: 9 },
     );
     const sources = [source(candidate())];
     await tick(sources, { telegram: telegram.channel });
@@ -375,6 +452,70 @@ describe("failures", () => {
     // And it does not go out a third time.
     await tick(sources, { telegram: telegram.channel }, new Date(NOW.getTime() + 30 * 60_000));
     expect(telegram.sent).toHaveLength(2);
+  });
+
+  test("an AMBIGUOUS failure (a timeout may have delivered it) is never retried: no duplicate", async () => {
+    for (const code of ["telegram_network", "send_threw", "telegram_unauthorized"]) {
+      store.rows = [];
+      const telegram = fakeChannel("telegram", { ok: false, code });
+      const sources = [source(candidate())];
+      for (let index = 0; index < 3; index++) {
+        await tick(
+          sources,
+          { telegram: telegram.channel },
+          new Date(NOW.getTime() + index * 15 * 60_000),
+        );
+      }
+      expect(telegram.sent, code).toHaveLength(1);
+      expect(store.rows, code).toMatchObject([{ status: "failed", attempts: 1, errorCode: code }]);
+    }
+  });
+
+  test("a channel that throws is recorded as send_threw and not retried", async () => {
+    let calls = 0;
+    const throwing: ReminderChannel = {
+      id: "telegram",
+      send: async () => {
+        calls++;
+        throw new Error("socket hang up");
+      },
+    };
+    const sources = [source(candidate())];
+    await tick(sources, { telegram: throwing });
+    await tick(sources, { telegram: throwing }, new Date(NOW.getTime() + 15 * 60_000));
+    expect(calls).toBe(1);
+    expect(store.rows).toMatchObject([{ status: "failed", errorCode: "send_threw" }]);
+  });
+
+  test("rate limited: the channel is left alone for the rest of the tick and retried by the next one", async () => {
+    const limited = fakeChannel("telegram", {
+      ok: false,
+      code: "telegram_rate_limited",
+      backoff: true,
+    });
+    const second = candidate({
+      dedupeKey: "briefing:2026-10-09",
+      dueAt: limaInstant("2026-10-08", "07:00"),
+    });
+    const sources = [source(candidate(), second)];
+    const first = await tick(sources, { telegram: limited.channel });
+    // Only the first candidate was tried; the second never reached the channel in this tick.
+    expect(limited.sent).toHaveLength(1);
+    expect(first).toMatchObject({ sent: 0, failed: 1 });
+    expect(store.disconnects).toEqual([]);
+
+    // Next tick: the failed one is retried (it provably sent nothing), and so is the other.
+    const ok = fakeChannel("telegram");
+    const next = await tick(
+      sources,
+      { telegram: ok.channel },
+      new Date(NOW.getTime() + 15 * 60_000),
+    );
+    expect(next.sent).toBe(2);
+    expect(store.rows.map((row) => [row.key, row.status, row.attempts])).toEqual([
+      ["briefing:2026-10-08", "sent", 2],
+      ["briefing:2026-10-09", "sent", 1],
+    ]);
   });
 
   test("a retry is not made once the window has closed", async () => {
@@ -397,6 +538,8 @@ describe("failures", () => {
     expect(blocked.sent).toHaveLength(1);
     expect(summary.failed).toBe(1);
     expect(store.disconnects).toEqual(["blocked"]);
+    // The disconnect is conditional on the chat the tick saw (a late 403 of A must not unlink B).
+    expect(store.disconnectedChats).toEqual([42]);
     expect(store.rows).toMatchObject([{ status: "failed", errorCode: "unreachable" }]);
 
     // A later tick (the fake still lists the chat as connected) does not retry the unreachable

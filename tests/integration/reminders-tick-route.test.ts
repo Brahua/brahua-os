@@ -90,6 +90,8 @@ describe("authentication", () => {
     ["a Basic header", `Basic ${ACTIONS_SECRET}`],
   ])("%s: 404 with no body, and nothing runs", async (_, authorization) => {
     await connect();
+    // Inside the briefing's window, so a tick that WAS authorized would send (the control below).
+    vi.useFakeTimers({ now: new Date("2026-10-08T12:35:00Z"), toFake: ["Date"] });
     unregister = registerReminderSource(dueSource());
     for (const call of [POST, GET]) {
       const response = await call(tickRequest(authorization, call === POST ? "POST" : "GET"));
@@ -98,6 +100,11 @@ describe("authentication", () => {
     }
     expect(await testDb.select().from(reminderDeliveries)).toEqual([]);
     expect(fake.calls).toHaveLength(0);
+
+    // Positive control: the same setup with the right secret does send, once.
+    const ok = await POST(tickRequest(`Bearer ${ACTIONS_SECRET}`));
+    expect(ok.status).toBe(200);
+    expect(fake.calls.filter((call) => call.method === "sendMessage")).toHaveLength(1);
   });
 
   test("with no secret configured on the server every call is a 404 (even `Bearer undefined`)", async () => {

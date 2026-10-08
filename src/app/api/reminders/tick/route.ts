@@ -3,7 +3,9 @@
 // Callers:
 // - GitHub Actions (.github/workflows/reminders-tick.yml, every 15 minutes) with POST and
 //   `Authorization: Bearer $REMINDERS_CRON_SECRET`.
-// - Vercel Cron (vercel.json, once a day: the safety net if Actions does not run) with GET and
+// - Vercel Cron (vercel.json, once a day at 13:00 UTC = ~08:00 in Lima: Hobby only guarantees the
+//   hour, so 08:00-08:59, inside the 07:30-09:30 window of the default briefing; the safety net
+//   if Actions does not run) with GET and
 //   `Authorization: Bearer $CRON_SECRET`. Vercel Cron can only send GET and only that variable
 //   name, so the endpoint accepts both methods and both secrets (the owner sets them to the same
 //   value; see docs/HANDOFF.md "Cómo funciona reminders → R1").

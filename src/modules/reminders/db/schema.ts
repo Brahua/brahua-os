@@ -94,20 +94,29 @@ export const reminderSettings = pgTable(
   ],
 );
 
-export const telegramLinkCodes = pgTable(
-  "telegram_link_codes",
+export const telegramLinkCodes = pgTable("telegram_link_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // SHA-256 of the code, never the code itself.
+  codeHash: text("code_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  // Used or invalidated (a new code, a disconnect). Rows are kept.
+  // "One live code" is kept by link.ts under the settings row lock, not by an index.
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// One row per wrong `/start <code>` attempt, by chat. Guessing a code is limited per chat (5 in an
+// hour: that chat is then ignored) and globally (30 in 10 minutes: every attempt is answered
+// "invalid"), and NEITHER closes the owner's live code: a third party must not be able to switch
+// the linking off. Throttling records, not exported; never stores the code that was tried.
+export const telegramLinkAttempts = pgTable(
+  "telegram_link_attempts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // SHA-256 of the code, never the code itself.
-    codeHash: text("code_hash").notNull().unique(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    // Used or invalidated (a new code, a disconnect, too many wrong guesses). Rows are kept.
-    // "One live code" is kept by link.ts under the settings row lock, not by an index.
-    usedAt: timestamp("used_at", { withTimezone: true }),
-    failedAttempts: integer("failed_attempts").notNull().default(0),
+    chatId: bigint("chat_id", { mode: "number" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [check("telegram_link_codes_attempts_check", sql`${table.failedAttempts} >= 0`)],
+  (table) => [index("telegram_link_attempts_chat_created_idx").on(table.chatId, table.createdAt)],
 );
 
 export const pushSubscriptions = pgTable(

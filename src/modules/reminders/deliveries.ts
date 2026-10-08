@@ -4,15 +4,15 @@
 //
 // A row is at-most-once by design: if a tick dies between the claim and the send, the reminder is
 // not sent again (a missed reminder beats a duplicate). Only a `failed` row, the service having
-// answered with an error, is claimed again, up to MAX_DELIVERY_ATTEMPTS and never when the chat
-// is unreachable. The table never stores the text of a reminder or its amounts.
+// answered with a retryable error (RETRYABLE_ERROR_CODES), is claimed again, up to
+// MAX_DELIVERY_ATTEMPTS; an ambiguous failure (a timeout) and an unreachable chat never are. The table never stores the text of a reminder or its amounts.
 import "server-only";
-import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { reminderDeliveries } from "./db/schema";
 import {
   MAX_DELIVERY_ATTEMPTS,
-  UNREACHABLE_ERROR_CODE,
+  RETRYABLE_ERROR_CODES,
   type ChannelId,
   type ReminderKind,
 } from "./reminders-constants";
@@ -47,10 +47,9 @@ export async function claimDelivery(db: Database, target: DeliveryTarget): Promi
         eq(reminderDeliveries.channel, target.channel),
         eq(reminderDeliveries.status, "failed"),
         lt(reminderDeliveries.attempts, MAX_DELIVERY_ATTEMPTS),
-        or(
-          isNull(reminderDeliveries.errorCode),
-          ne(reminderDeliveries.errorCode, UNREACHABLE_ERROR_CODE),
-        ),
+        // Only a failure that provably sent nothing. An ambiguous one (a timeout: the message may
+        // have arrived) and an unreachable chat are never tried again.
+        inArray(reminderDeliveries.errorCode, [...RETRYABLE_ERROR_CODES]),
       ),
     )
     .returning({ id: reminderDeliveries.id });

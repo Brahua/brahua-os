@@ -4,7 +4,10 @@
 // - The code: 8 characters from a 32-letter alphabet (`crypto.randomBytes`), valid 10 minutes,
 //   one use. Only its SHA-256 is stored.
 // - One live code: issuing a new one (and disconnecting) invalidates the others.
-// - 5 wrong codes invalidate the live ones, so a code can't be guessed by trying.
+// - Guessing is throttled WITHOUT touching the codes (a stranger must not be able to switch the
+//   owner's linking off): 5 wrong codes from one chat in an hour and that chat is ignored; 30
+//   wrong codes from anyone in 10 minutes and every attempt is answered "invalid". A malformed
+//   code counts as an attempt of its chat.
 // - A chat that is already linked ignores `/start` from anyone else: nothing is consumed.
 //
 // Issuing and redeeming run in a transaction that first locks the settings row (`FOR UPDATE`), so
@@ -14,10 +17,13 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
-import { reminderSettings, telegramLinkCodes } from "../../db/schema";
+import { reminderSettings, telegramLinkAttempts, telegramLinkCodes } from "../../db/schema";
 import {
+  LINK_CHAT_WINDOW_MS,
   LINK_CODE_LENGTH,
   LINK_CODE_TTL_MS,
+  LINK_GLOBAL_MAX_ATTEMPTS,
+  LINK_GLOBAL_WINDOW_MS,
   LINK_MAX_FAILED_ATTEMPTS,
 } from "../../reminders-constants";
 import { ensureSettings } from "../../settings";
@@ -101,6 +107,16 @@ export async function redeemLinkCodeIn(
   const settings = await lockSettings(tx);
   if (settings.telegramChatId !== null) return "already-linked";
 
+  // Throttle first, and never through the codes: a chat past its limit is ignored, and past the
+  // global rate everything is answered "invalid"; neither closes the owner's live code.
+  const [{ chat, global }] = await tx
+    .select({
+      chat: sql<number>`count(*) filter (where ${telegramLinkAttempts.chatId} = ${chatId} and ${telegramLinkAttempts.createdAt} > ${new Date(now.getTime() - LINK_CHAT_WINDOW_MS).toISOString()}::timestamptz)::int`,
+      global: sql<number>`count(*) filter (where ${telegramLinkAttempts.createdAt} > ${new Date(now.getTime() - LINK_GLOBAL_WINDOW_MS).toISOString()}::timestamptz)::int`,
+    })
+    .from(telegramLinkAttempts);
+  if (chat >= LINK_MAX_FAILED_ATTEMPTS || global >= LINK_GLOBAL_MAX_ATTEMPTS) return "invalid";
+
   const code = normalizeLinkCode(input.code);
   const used = code
     ? await tx
@@ -117,14 +133,8 @@ export async function redeemLinkCodeIn(
     : [];
 
   if (used.length === 0) {
-    // A wrong guess: count it against the live codes, and close them at the limit.
-    await tx
-      .update(telegramLinkCodes)
-      .set({
-        failedAttempts: sql`${telegramLinkCodes.failedAttempts} + 1`,
-        usedAt: sql`case when ${telegramLinkCodes.failedAttempts} + 1 >= ${LINK_MAX_FAILED_ATTEMPTS} then ${now.toISOString()}::timestamptz else null end`,
-      })
-      .where(and(isNull(telegramLinkCodes.usedAt), gt(telegramLinkCodes.expiresAt, now)));
+    // A wrong (or malformed) guess counts against its chat, not against the codes.
+    await tx.insert(telegramLinkAttempts).values({ chatId, createdAt: now });
     return "invalid";
   }
 
@@ -137,7 +147,8 @@ export async function redeemLinkCodeIn(
 
 /**
  * Uses a code to link `chatId`. "invalid" covers a wrong, expired, used or malformed code (and
- * counts as a failed attempt); "already-linked" leaves the code untouched.
+ * counts as an attempt of that chat, and a chat or a rate over the limit is "invalid" too, with
+ * the codes untouched); "already-linked" leaves the code untouched.
  */
 export async function redeemLinkCode(
   db: Database,

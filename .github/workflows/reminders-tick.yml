@@ -2,7 +2,7 @@ name: Reminders tick
 
 # Fires the reminder engine (SPEC-reminders "Motor de avisos") every 15 minutes: POST
 # /api/reminders/tick on production with `Authorization: Bearer $REMINDERS_CRON_SECRET`. Vercel
-# Hobby only gives one cron a day (vercel.json, 12:30 UTC = 7:30 in Lima: the safety net), so
+# Hobby only gives one cron a day (vercel.json, 13:00 UTC = 08:00 in Lima, with Hobby precision of the hour: 08:00-08:59, inside the 07:30-09:30 window of the default briefing: the safety net), so
 # the frequent trigger is this workflow. The engine is idempotent (a `dedupe_key` claim per
 # reminder and channel), so overlapping or repeated runs never send a reminder twice.
 #

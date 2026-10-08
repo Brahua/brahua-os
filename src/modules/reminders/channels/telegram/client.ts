@@ -79,6 +79,8 @@ export function createTelegramClient(options: TelegramClientOptions): TelegramCl
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(timeoutMs),
         cache: "no-store",
+        // The token is in the URL: never follow a redirect to somewhere else with it.
+        redirect: "error",
       });
     } catch {
       // The error of a failed fetch can carry the URL (and so the token): drop it.

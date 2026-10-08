@@ -23,7 +23,11 @@ export function createTelegramChannel(options: {
       if (result.kind === "forbidden") {
         return { ok: false, code: UNREACHABLE_ERROR_CODE, unreachable: true };
       }
-      return { ok: false, code: `telegram_${result.kind}` };
+      return {
+        ok: false,
+        code: `telegram_${result.kind}`,
+        ...(result.kind === "rate_limited" ? { backoff: true } : {}),
+      };
     },
   };
 }

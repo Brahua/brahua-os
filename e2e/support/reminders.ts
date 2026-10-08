@@ -46,6 +46,44 @@ export function textUpdate(text: string, chatId: number = E2E_CHAT_ID) {
   };
 }
 
+export type ReminderSettingsSnapshot = {
+  /** `telegram_chat_id`, null while no chat is linked (or the row does not exist yet). */
+  telegramChatId: number | null;
+  /** The live link codes: not used and not expired. `usedAt` is null by construction. */
+  liveCodes: { usedAt: string | null }[];
+  /** Every code row, spent or not (to tell "closed" from "never issued"). */
+  codes: { usedAt: string | null }[];
+};
+
+/**
+ * What the database says right now about the link, so a spec can assert a state instead of
+ * sleeping until a poll would have noticed it.
+ */
+export async function readReminderSettings(): Promise<ReminderSettingsSnapshot> {
+  const db = createDb(testDatabaseUrl());
+  try {
+    const settings = await db.$client.query<{ telegram_chat_id: string | null }>(
+      "select telegram_chat_id from reminder_settings",
+    );
+    const codes = await db.$client.query<{ used_at: Date | null; expired: boolean }>(
+      "select used_at, expires_at <= now() as expired from telegram_link_codes",
+    );
+    const rows = codes.rows.map((row) => ({ usedAt: row.used_at?.toISOString() ?? null }));
+    return {
+      telegramChatId:
+        settings.rows[0]?.telegram_chat_id == null
+          ? null
+          : Number(settings.rows[0].telegram_chat_id),
+      liveCodes: codes.rows
+        .filter((row) => row.used_at === null && !row.expired)
+        .map((row) => ({ usedAt: row.used_at?.toISOString() ?? null })),
+      codes: rows,
+    };
+  } finally {
+    await db.$client.end();
+  }
+}
+
 /**
  * Leaves the reminders state as a fresh install: no chat, no pending code, no deliveries. Specs
  * call it before and after, because the settings row is shared by every spec.

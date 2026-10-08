@@ -17,8 +17,12 @@ export const remindersExportTables: ExportableTable[] = [
   { table: telegramCaptures, orderBy: [telegramCaptures.createdAt, telegramCaptures.id] },
 ];
 
-/** Never exported: they hold secrets (link-code hashes, push endpoints and keys). */
+/**
+ * Never exported: they hold secrets (link-code hashes, push endpoints and keys) or are throttling
+ * records (`telegram_link_attempts`).
+ */
 export const REMINDERS_EXCLUDED_TABLES: readonly string[] = [
   "telegram_link_codes",
+  "telegram_link_attempts",
   "push_subscriptions",
 ];

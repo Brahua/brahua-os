@@ -65,6 +65,11 @@ export function resolveTelegramEnv(env: Env = process.env): TelegramEnvResult {
   const apiBaseRaw = env.TELEGRAM_API_BASE?.trim();
   const apiBase = apiBaseRaw ? parseHttpUrl(apiBaseRaw) : new URL(DEFAULT_TELEGRAM_API_BASE);
   if (!apiBase) problems.push("TELEGRAM_API_BASE no es una URL");
+  // The token travels in the URL of every call: in a Vercel production deployment the base must be
+  // https (a fake server on http is for tests and local runs only; `VERCEL_ENV` is not set there).
+  else if (env.VERCEL_ENV === "production" && apiBase.protocol !== "https:") {
+    problems.push("TELEGRAM_API_BASE debe ser https en producción");
+  }
 
   if (problems.length > 0 || !token || !webhookSecret || !botUsername || !origin || !apiBase) {
     return { ok: false, problems };
@@ -110,9 +115,10 @@ export function bearerToken(header: string | null): string | null {
  * exact name, so `CRON_SECRET` is accepted too (the owner sets it to the same value).
  */
 export function tickSecrets(env: Env = process.env): string[] {
-  return [env.REMINDERS_CRON_SECRET, env.CRON_SECRET].filter(
-    (value): value is string => typeof value === "string" && value.trim().length >= 16,
-  );
+  // Trimmed: a value pasted with a trailing newline must still match the header Actions sends.
+  return [env.REMINDERS_CRON_SECRET, env.CRON_SECRET]
+    .map((value) => value?.trim() ?? "")
+    .filter((value) => value.length >= 16);
 }
 
 /**
@@ -128,9 +134,13 @@ export function isTickAuthorized(authorization: string | null, env: Env = proces
   return matched;
 }
 
-/** Whether the webhook's secret header matches `TELEGRAM_WEBHOOK_SECRET`. */
+/**
+ * Whether the webhook's secret header matches `TELEGRAM_WEBHOOK_SECRET`. A configured secret that
+ * breaks the rule `resolveTelegramEnv` applies (16–256 characters of A-Za-z0-9_-) accepts
+ * nothing, so a weak one cannot be what protects the endpoint.
+ */
 export function isWebhookAuthorized(header: string | null, env: Env = process.env): boolean {
   const expected = env.TELEGRAM_WEBHOOK_SECRET?.trim();
-  if (!header || !expected) return false;
+  if (!header || !expected || !WEBHOOK_SECRET.test(expected)) return false;
   return safeEqual(header, expected);
 }

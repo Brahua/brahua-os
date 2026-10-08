@@ -61,15 +61,19 @@ CREATE TABLE "telegram_captures" (
 	CONSTRAINT "telegram_captures_entity_kind_check" CHECK ("telegram_captures"."entity_kind" in ('task', 'expense'))
 );
 --> statement-breakpoint
+CREATE TABLE "telegram_link_attempts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"chat_id" bigint NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "telegram_link_codes" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"code_hash" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"used_at" timestamp with time zone,
-	"failed_attempts" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "telegram_link_codes_code_hash_unique" UNIQUE("code_hash"),
-	CONSTRAINT "telegram_link_codes_attempts_check" CHECK ("telegram_link_codes"."failed_attempts" >= 0)
+	CONSTRAINT "telegram_link_codes_code_hash_unique" UNIQUE("code_hash")
 );
 --> statement-breakpoint
 CREATE TABLE "telegram_updates" (
@@ -79,4 +83,5 @@ CREATE TABLE "telegram_updates" (
 --> statement-breakpoint
 ALTER TABLE "telegram_captures" ADD CONSTRAINT "telegram_captures_update_id_telegram_updates_update_id_fk" FOREIGN KEY ("update_id") REFERENCES "public"."telegram_updates"("update_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "reminder_deliveries_dedupe_channel_unique" ON "reminder_deliveries" USING btree ("dedupe_key","channel");--> statement-breakpoint
-CREATE INDEX "reminder_deliveries_scheduled_for_idx" ON "reminder_deliveries" USING btree ("scheduled_for");
+CREATE INDEX "reminder_deliveries_scheduled_for_idx" ON "reminder_deliveries" USING btree ("scheduled_for");--> statement-breakpoint
+CREATE INDEX "telegram_link_attempts_chat_created_idx" ON "telegram_link_attempts" USING btree ("chat_id","created_at");

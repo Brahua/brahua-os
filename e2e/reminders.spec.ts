@@ -8,6 +8,7 @@ import {
   E2E_TELEGRAM,
   failNextTelegramCall,
   fakeTelegramCalls,
+  readReminderSettings,
   resetFakeTelegram,
   resetReminders,
   textUpdate,
@@ -16,16 +17,16 @@ import {
 import { expectScreenshot } from "./support/screenshots";
 
 // Ajustes → Avisos (R1 of `reminders`) against the fake Telegram Bot API (TELEGRAM_API_BASE, see
-// playwright.config.ts). `reminder_settings` is ONE row for the whole app, so these tests run in
-// one project (desktop; the 320 px checks resize it), one at a time, and leave it as a fresh
-// install. The real Telegram and Apple Push are never reached from CI.
+// playwright.config.ts). `reminder_settings` is ONE row for the whole app, so this file runs in
+// the desktop project only (playwright.config.ts `testIgnore`s it in mobile; the 320 px checks
+// resize the window), one test at a time, and leaves the row as a fresh install. The real
+// Telegram and Apple Push are never reached from CI.
 test.describe.configure({ mode: "serial" });
 
 const THEMES = ["dark", "light"] as const;
 const HIDE_APP_NAV = path.join(__dirname, "support/hide-app-nav.css");
 
-test.beforeEach(async ({}, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "Shared single-row settings: one project only");
+test.beforeEach(async () => {
   await resetReminders();
   await resetFakeTelegram();
 });
@@ -42,11 +43,18 @@ async function openReminders(page: Page) {
   // Hydrated: the handlers are attached (AppNav marks <html> once its effects run).
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
   await expect(page.getByRole("heading", { level: 1, name: "Avisos" })).toBeVisible();
+  await telegramReady(page);
   await fontsLoaded(page);
+}
+
+/** The section is hydrated (it marks itself once its effects ran), so a click reaches React. */
+async function telegramReady(page: Page) {
+  await expect(telegram(page)).toHaveAttribute("data-telegram-ready", "true");
 }
 
 /** Presses "Conectar Telegram" and returns the one-use code from the link it shows. */
 async function connect(page: Page): Promise<string> {
+  await telegramReady(page);
   await telegram(page).getByRole("button", { name: "Conectar Telegram" }).click();
   const link = telegram(page).getByRole("link", { name: "Abrir Telegram" });
   await expect(link).toBeVisible();
@@ -82,6 +90,7 @@ test("Ajustes links to Avisos, which opens with its title, a way back and Telegr
   await expect(page.getByRole("heading", { level: 1, name: "Avisos" })).toBeVisible();
   await expect(telegram(page)).toBeVisible();
   await expect(telegram(page).getByText("Sin conectar.")).toBeVisible();
+  await telegramReady(page);
   // Ajustes stays the current section in the navigation (the sidebar, on desktop).
   await expect(page.getByRole("banner").getByRole("link", { name: "Ajustes" })).toHaveAttribute(
     "aria-current",
@@ -136,7 +145,7 @@ test("connects with the one-use link: webhook registered, bot confirms, page sho
   await expect(telegram(page).getByRole("button", { name: "Conectar Telegram" })).toBeFocused();
 });
 
-test("the link is one use: a spent code, a wrong secret and a wrong code link nothing", async ({
+test("a wrong secret, no secret and a wrong code link nothing; the right code with the right secret does", async ({
   page,
 }) => {
   await openReminders(page);
@@ -147,13 +156,17 @@ test("the link is one use: a spent code, a wrong secret and a wrong code link no
   // No secret at all.
   const bare = await page.request.post("/api/telegram/webhook", { data: textUpdate("hola") });
   expect(bare.status()).toBe(401);
-  // A wrong code from a stranger is answered with nothing.
-  expect((await startFromTelegram(page, "ABCDEFGH")).status()).toBe(200);
+  // A wrong code from a stranger is answered with nothing...
   await resetFakeTelegram();
-  await page.waitForTimeout(3_500); // one poll: still waiting
-  await expect(telegram(page).getByRole("link", { name: "Abrir Telegram" })).toBeVisible();
-  await expect(telegram(page).getByText("Sin conectar.")).toBeVisible();
+  expect((await startFromTelegram(page, "ABCDEFGH")).status()).toBe(200);
+  // ...and the database says so (no sleeping until a poll would have noticed): no chat is linked
+  // and the owner's code is still live and unspent.
+  const afterWrong = await readReminderSettings();
+  expect(afterWrong.telegramChatId).toBeNull();
+  expect(afterWrong.liveCodes).toEqual([{ usedAt: null }]);
+  expect(afterWrong.codes).toHaveLength(1);
   expect((await fakeTelegramCalls()).filter((call) => call.method === "sendMessage")).toEqual([]);
+  await expect(telegram(page).getByRole("link", { name: "Abrir Telegram" })).toBeVisible();
 
   // Positive control: the right code with the right secret links.
   expect((await startFromTelegram(page, code)).status()).toBe(200);
@@ -208,7 +221,7 @@ test("the tick endpoint answers 404 to anyone without the secret and counts only
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations, at 320 px too, and the reference screenshot`, async ({
+  test(`${theme} theme: no accessibility violations (not connected, link waiting, connected; 320 px too) and the reference screenshot`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -218,32 +231,39 @@ for (const theme of THEMES) {
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
     await expect(telegram(page)).toBeVisible();
+    await telegramReady(page);
     await fontsLoaded(page);
     await afterSaveSettled(page);
 
-    // Not connected.
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    const clean = async () =>
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    const noSidewaysScroll = async (width: number) =>
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+
+    // Not connected, on desktop.
+    await clean();
     await expectScreenshot(page.getByRole("main"), `reminders-${theme}.png`, {
       stylePath: HIDE_APP_NAV,
     });
 
-    // With the link waiting to be opened.
+    // The link waiting to be opened, on desktop.
     const code = await connect(page);
     await afterSaveSettled(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await clean();
 
-    // Connected.
-    await startFromTelegram(page, code);
+    // The same state at 320 px: no sideways scroll and still clean.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await expect(telegram(page).getByRole("link", { name: "Abrir Telegram" })).toBeVisible();
+    await noSidewaysScroll(320);
+    await clean();
+
+    // Connected, at 320 px too.
+    expect((await startFromTelegram(page, code)).status()).toBe(200);
     await expect(telegram(page).getByText(/^Conectado desde el /)).toBeVisible({ timeout: 15_000 });
     await afterSaveSettled(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-
-    // 320 px: no sideways scroll and still clean.
-    await page.setViewportSize({ width: 320, height: 640 });
-    await expect(telegram(page).getByRole("button", { name: "Desconectar" })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      320,
-    );
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await noSidewaysScroll(320);
+    await clean();
   });
 }

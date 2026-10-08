@@ -29,7 +29,7 @@ import { logEvent } from "./log";
 import { isKindEnabled, selectChannels, showAmountsFor } from "./policy";
 import { EMPTY_ERROR_CODE, WINDOW_EXPIRED_ERROR_CODE, type ChannelId } from "./reminders-constants";
 import { countActivePushDevices, disconnectTelegram, getSettings } from "./settings";
-import { limaDayOf, toHourMinute, windowState } from "./slots";
+import { addDaysToKey, limaDayOf, toHourMinute, windowState } from "./slots";
 
 export type TickDeps = {
   db: Database;
@@ -72,15 +72,18 @@ export async function runTick(deps: TickDeps): Promise<TickSummary> {
   let active = selectChannels({
     deliveryChannel: settings.deliveryChannel,
     hasPushDevices,
+    pushAvailable: available.push !== undefined,
     telegramConnected: settings.telegramChatId !== null,
   }).filter((id) => available[id] !== undefined);
 
   const summary: TickSummary = { status: "ok", candidates: 0, sent: 0, skipped: 0, failed: 0 };
   if (active.length === 0) return { ...summary, status: "no-channel" };
 
+  const today = limaDayOf(now);
   const context: ReminderContext = {
     now,
-    today: limaDayOf(now),
+    today,
+    yesterday: addDaysToKey(today, -1),
     times: {
       briefing: toHourMinute(settings.briefingTime),
       evening: toHourMinute(settings.eveningTime),
@@ -113,7 +116,13 @@ export async function runTick(deps: TickDeps): Promise<TickSummary> {
         if (outcome.counter) summary[outcome.counter]++;
         if (outcome.unreachable) {
           active = active.filter((id) => id !== channelId);
-          if (channelId === "telegram") await disconnectTelegram(db, "blocked", now);
+          // Only if that chat is still the linked one: a late 403 of chat A must not unlink B.
+          if (channelId === "telegram") {
+            await disconnectTelegram(db, "blocked", now, settings.telegramChatId ?? undefined);
+          }
+        } else if (outcome.backoff) {
+          // Rate limited: leave this channel alone for the rest of the tick (the next one retries).
+          active = active.filter((id) => id !== channelId);
         }
       } catch (error) {
         // One candidate or channel never stops the rest.
@@ -131,7 +140,11 @@ export async function runTick(deps: TickDeps): Promise<TickSummary> {
 }
 
 /** `counter: null`: another tick holds this reminder, so this one counts nothing. */
-type DeliverOutcome = { counter: "sent" | "skipped" | "failed" | null; unreachable?: boolean };
+type DeliverOutcome = {
+  counter: "sent" | "skipped" | "failed" | null;
+  unreachable?: boolean;
+  backoff?: boolean;
+};
 
 async function deliverOne(input: {
   db: Database;
@@ -184,5 +197,5 @@ async function deliverOne(input: {
     channel: channel.id,
     code: result.code,
   });
-  return { counter: "failed", unreachable: result.unreachable };
+  return { counter: "failed", unreachable: result.unreachable, backoff: result.backoff };
 }
