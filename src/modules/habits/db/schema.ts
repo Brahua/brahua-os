@@ -7,6 +7,7 @@ import {
   pgTable,
   primaryKey,
   text,
+  time,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -14,6 +15,7 @@ import {
 import { lifeAreas } from "@/modules/core/db/schema";
 import {
   HABIT_CUE_MAX_LENGTH,
+  HABIT_DAYPARTS,
   HABIT_FREQUENCIES,
   HABIT_GOAL_MAX,
   HABIT_IDENTITY_MAX_LENGTH,
@@ -61,6 +63,10 @@ export const habits = pgTable(
     frequency: text("frequency", { enum: HABIT_FREQUENCIES }).notNull(),
     weeklyTarget: integer("weekly_target"), // 1–6, weekly_count only
     weekdays: integer("weekdays").array(), // ISO 1–7 strictly increasing, 1–6 items, weekdays only
+    // R4: the habit's own reminder time (Lima, minute precision) and its part of the day. Both
+    // optional; a habit to avoid has no time (nothing to do "now"), see the CHECKs below.
+    reminderTime: time("reminder_time"),
+    daypart: text("daypart", { enum: HABIT_DAYPARTS }),
     // A day in Lima (YYYY-MM-DD): no scheduled days and no logs before it.
     startDate: date("start_date").notNull(),
     // Manual order (Hoy); contiguous among the active ones under the order lock (habits.ts).
@@ -100,6 +106,18 @@ export const habits = pgTable(
       "habits_avoid_check",
       sql`coalesce(${table.kind} <> 'avoid' or (${table.measure} = 'check' and ${table.frequency} = 'daily'), false)`,
     ),
+    // R4: a reminder time is a whole minute of the day and only for habits to keep. A NULL time
+    // passes; `kind` is NOT NULL, so the combined rule needs no coalesce.
+    check(
+      "habits_reminder_time_check",
+      sql`${table.reminderTime} is null or (
+        ${table.kind} <> 'avoid'
+        and ${table.reminderTime} >= time '00:00'
+        and ${table.reminderTime} < time '24:00'
+        and extract(second from ${table.reminderTime}) = 0
+      )`,
+    ),
+    check("habits_daypart_check", sql`${table.daypart} in (${sqlList(HABIT_DAYPARTS)})`),
     // check: goal 1, step 1, no unit. quantity: a unit, a goal of 1–10 000 and a step of 1–goal.
     check(
       "habits_measure_rule_check",

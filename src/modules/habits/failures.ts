@@ -4,6 +4,7 @@ import { fail, INVALID_FIELDS_MESSAGE, type ActionResult } from "@/lib/action-re
 import { HABIT_ERRORS } from "./habit-input";
 import { MEASURE_ERRORS } from "./measure-copy";
 import { DETAILS_ERRORS } from "./history-copy";
+import { REMINDER_ERRORS } from "./reminder-copy";
 import { PAUSE_ERRORS } from "./pause-copy";
 import { SKIP_COPY } from "./skip-copy";
 import type { HabitFailure } from "./habits";
@@ -22,6 +23,14 @@ export function refused<T>(failure: HabitFailure): ActionResult<T> {
       ok: false,
       error: INVALID_FIELDS_MESSAGE,
       fieldErrors: { frequency: [MEASURE_ERRORS.avoidDaily] },
+    };
+  }
+  // R4: a habit to avoid takes no reminder time, on its field.
+  if (failure === "avoidReminder") {
+    return {
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { reminderTime: [REMINDER_ERRORS.timeAvoid] },
     };
   }
   if (failure === "notQuantity") return fail(MEASURE_ERRORS.notQuantity);

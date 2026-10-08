@@ -105,7 +105,7 @@ Migración aditiva `drizzle/0013_reminders.sql`; sin borrados físicos de datos 
 | `payment_eve` | la víspera, a `briefing_time` | Pagos que vencen mañana. |
 | `payment_followup` | 3 días después, a `briefing_time` | Un único aviso si sigue pendiente. |
 | `evening_review` | `evening_time` | Solo si hay hábitos de hoy sin cumplir y no pausados. |
-| `habit_time` | `reminder_time` del hábito | Solo si le toca hoy, no está hecho ni pausado. |
+| `habit_time` | `reminder_time` del hábito | «Es hora de Leer.» Solo si le toca hoy, no está hecho ni pausado. **Un aviso por hábito** (clave `habit:<hábitoId>:<día>`), aunque varios compartan el minuto: ninguna clave se reclama en nombre de otro. |
 
 **Cruce de medianoche (R2).** La ventana de 2 h puede cruzar la medianoche, pero un aviso «del día» no se rehace para ayer: `briefing` y `evening_review` solo se ofrecen para el día de Lima en curso (un repaso de las 23:30 sale si el tick llega antes de la medianoche, p. ej. a las 23:45; a las 00:30 ya no se manda, porque hablaría de un día que terminó). `payment_eve` conserva el cruce («Hoy vence …») porque su fecha de vencimiento no cambia; `habit_time` (R4) también, porque la hora del hábito pertenece al día que termina. El interruptor «Avisos de pagos» gobierna solo `payment_eve` y `payment_followup`: los pagos que vencen **hoy** siguen en el `briefing`, que tiene el suyo.
 

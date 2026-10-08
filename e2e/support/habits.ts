@@ -83,6 +83,9 @@ type NewHabit = {
   /** H5: "Más detalles". */
   identity?: string;
   cue?: string;
+  /** R4: the reminder time (HH:MM, Lima) and the part of the day. */
+  reminderTime?: string;
+  daypart?: "morning" | "afternoon" | "evening";
 };
 
 /**
@@ -123,6 +126,8 @@ export function insertHabit(habit: NewHabit): Promise<string> {
         startDate: habit.startDate ?? limaDay(-(habit.startedDaysAgo ?? 7)),
         identity: habit.identity ?? null,
         cue: habit.cue ?? null,
+        reminderTime: habit.reminderTime ?? null,
+        daypart: habit.daypart ?? null,
         sortOrder: habit.sortOrder ?? 1_000 + Math.floor(Math.random() * 1_000),
       })
       .returning({ id: habits.id });
@@ -249,6 +254,14 @@ export function areaIdOf(slug: string): Promise<string> {
   });
 }
 
+/** How many habits (deleted ones too) carry this name: 1 after a create, never 2 after a double Enter. */
+export function countHabitsByName(name: string) {
+  return withDb(async (db) => {
+    const rows = await db.select({ id: habits.id }).from(habits).where(eq(habits.name, name));
+    return rows.length;
+  });
+}
+
 /** The habit with this (unique) name, as stored; undefined if none. */
 export function readHabitByName(name: string) {
   return withDb(async (db) => {
@@ -260,6 +273,8 @@ export function readHabitByName(name: string) {
         frequency: habits.frequency,
         weeklyTarget: habits.weeklyTarget,
         weekdays: habits.weekdays,
+        reminderTime: habits.reminderTime,
+        daypart: habits.daypart,
       })
       .from(habits)
       .where(eq(habits.name, name));

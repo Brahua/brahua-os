@@ -100,6 +100,15 @@ export function paymentFollowupText(payment: Pick<PaymentFact, "name">, dueOn: s
   return `${payment.name} sigue pendiente desde el ${shortDayLabel(dueOn)}.`;
 }
 
+/**
+ * A habit at its own time (R4): «Es hora de Leer.». One sentence per habit: habits that share a
+ * minute get one notice each (every habit owns its `dedupe_key`, so a failed send or a habit
+ * marked done never costs another habit its reminder). Calm: no «te falta», no counting.
+ */
+export function habitTimeText(habitName: string): string {
+  return `Es hora de ${habitName}.`;
+}
+
 /** How many habits the evening review names before saying «y N más». */
 const EVENING_NAMED = 3;
 

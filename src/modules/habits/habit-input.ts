@@ -12,6 +12,12 @@ import {
 } from "./frequency-input";
 import { DETAILS_FIELDS, detailsInputShape, detailsUpdateShape } from "./details-input";
 import {
+  REMINDER_FIELDS,
+  refineReminder,
+  reminderInputShape,
+  reminderUpdateShape,
+} from "./reminder-input";
+import {
   measureInputShape,
   measureUpdateShape,
   refineMeasure,
@@ -20,6 +26,7 @@ import {
 import type { StreakChoice } from "./streak";
 import {
   HABIT_NAME_MAX_LENGTH,
+  type HabitDaypart,
   type HabitFrequency,
   type HabitKind,
   type HabitMeasure,
@@ -103,6 +110,12 @@ export type HabitItem = {
   identity: string | null;
   /** H5: the cue ("Después del desayuno"), or null. */
   cue: string | null;
+  /**
+   * R4: the reminder time (Lima, `HH:MM`) and the part of the day; null or missing: none. Optional
+   * in the type only so that the many fixtures of the screens need not name them.
+   */
+  reminderTime?: string | null;
+  daypart?: HabitDaypart | null;
 };
 
 /** A pause as the screens show it (H4). Days in Lima, both ends included. */
@@ -160,12 +173,16 @@ export const createHabitInputSchema = z
     ...measureInputShape,
     // H5: identity, cue and start date ("Más detalles"; details-input.ts).
     ...detailsInputShape,
+    // R4: the reminder time and the part of the day (reminder-input.ts).
+    ...reminderInputShape,
   })
   // H2: each frequency with exactly its own field (frequency-input.ts).
   .superRefine(refineFrequency)
   // H3's rules across fields (quantity needs goal and unit; "a evitar ⇒ sí/no diario", which
   // reads the frequency).
-  .superRefine(refineMeasure);
+  .superRefine(refineMeasure)
+  // R4: a habit to avoid takes no reminder time.
+  .superRefine(refineReminder);
 
 export type CreateHabitInput = z.output<typeof createHabitInputSchema>;
 
@@ -184,6 +201,8 @@ export const updateHabitInputSchema = z
     ...measureUpdateShape,
     // H5: identity and cue (the start date never changes).
     ...detailsUpdateShape,
+    // R4: reminder time and part of the day (missing leaves them; null clears).
+    ...reminderUpdateShape,
   })
   .superRefine(refineFrequency)
   .superRefine(refineMeasureUpdate);
@@ -201,6 +220,8 @@ export const CREATE_HABIT_FIELDS = [
   "unit",
   ...FREQUENCY_FIELDS,
   "lifeAreaId",
+  // R4: "Hora del aviso" and "Franja" (reminder-input.ts), under the area.
+  ...REMINDER_FIELDS,
   // H5: "Más detalles" (identity, cue, start date), last in the form.
   ...DETAILS_FIELDS,
 ] as const;

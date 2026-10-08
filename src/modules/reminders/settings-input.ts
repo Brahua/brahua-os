@@ -1,7 +1,8 @@
 // Validation of Ajustes → Avisos' writes (SPEC-reminders "Pantallas"). Client-safe: the screen
 // runs the same schema before it calls the Server Action. R2 owns the day's reminders (briefing,
-// payments, evening review) and the Telegram amounts switch; `habit_times_enabled`,
-// `delivery_channel` and `show_amounts_push` come with R4 and R5 and are NOT accepted here yet.
+// payments, evening review) and the Telegram amounts switch; R4 adds `habit_times_enabled` (the
+// habits' own times). `delivery_channel` and `show_amounts_push` come with R5 and are NOT accepted
+// here yet.
 import { z } from "zod";
 import { DEFAULT_BRIEFING_TIME, DEFAULT_EVENING_TIME } from "./reminders-constants";
 
@@ -27,6 +28,7 @@ export const updateReminderSettingsSchema = z
     paymentsEnabled: z.boolean(),
     eveningEnabled: z.boolean(),
     eveningTime: time,
+    habitTimesEnabled: z.boolean(),
     showAmountsTelegram: z.boolean(),
   })
   .partial()
@@ -43,6 +45,7 @@ export type ReminderSchedule = {
   paymentsEnabled: boolean;
   eveningEnabled: boolean;
   eveningTime: string;
+  habitTimesEnabled: boolean;
   showAmountsTelegram: boolean;
 };
 
@@ -53,6 +56,7 @@ export const DEFAULT_SCHEDULE: ReminderSchedule = {
   paymentsEnabled: true,
   eveningEnabled: true,
   eveningTime: DEFAULT_EVENING_TIME,
+  habitTimesEnabled: true,
   showAmountsTelegram: true,
 };
 
@@ -63,6 +67,7 @@ export function scheduleOf(row: {
   paymentsEnabled: boolean;
   eveningEnabled: boolean;
   eveningTime: string;
+  habitTimesEnabled: boolean;
   showAmountsTelegram: boolean;
 }): ReminderSchedule {
   return {
@@ -71,6 +76,7 @@ export function scheduleOf(row: {
     paymentsEnabled: row.paymentsEnabled,
     eveningEnabled: row.eveningEnabled,
     eveningTime: row.eveningTime.slice(0, 5),
+    habitTimesEnabled: row.habitTimesEnabled,
     showAmountsTelegram: row.showAmountsTelegram,
   };
 }

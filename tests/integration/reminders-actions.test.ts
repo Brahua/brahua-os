@@ -246,6 +246,7 @@ describe("updateReminderSettings", () => {
         paymentsEnabled: true,
         eveningEnabled: true,
         eveningTime: "21:00",
+        habitTimesEnabled: true,
         showAmountsTelegram: true,
       },
     });

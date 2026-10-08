@@ -9,7 +9,7 @@
 // exports nobody uses.
 //
 // R2: `financeReminderSource` (payment_eve / payment_followup), `tasksReminderSource` (the tasks
-// of the day, for the briefing), `habitsReminderSource` (evening_review; `habit_time` comes in R4)
+// of the day, for the briefing), `habitsReminderSource` (evening_review and, from R4, habit_time)
 // and `briefingSource` (`reminders`' own: the one message that merges every module's
 // `briefingFacts`, so it needs the others registered but imports none of them).
 import "server-only";

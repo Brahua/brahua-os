@@ -40,6 +40,12 @@ import {
   type DetailsFieldsHandle,
 } from "./details-fields";
 import {
+  ReminderFields,
+  reminderDraftOf,
+  reminderValues,
+  type ReminderFieldsHandle,
+} from "./reminder-fields";
+import {
   MeasureFields,
   measureDraft,
   measureEditValues,
@@ -139,6 +145,9 @@ export function HabitFormSheet({
   // H5: "Más detalles" (identity, cue and, creating, the start date).
   const [details, setDetails] = useState(() => detailsDraftOf(habit, today));
   const detailsFields = useRef<DetailsFieldsHandle>(null);
+  // R4: "Hora del aviso" (not for a habit to avoid) and "Franja".
+  const [reminder, setReminder] = useState(() => reminderDraftOf(habit));
+  const reminderFields = useRef<ReminderFieldsHandle>(null);
 
   useEffect(() => {
     if (!focusFirstInvalid.current) return;
@@ -148,6 +157,8 @@ export function HabitFormSheet({
     else if (first === "lifeAreaId") focusRadioGrid(areaGroup.current);
     else if (first === "frequency" || first === "weeklyTarget" || first === "weekdays") {
       focusFrequencyField(frequencyGroup.current, first);
+    } else if (first === "reminderTime" || first === "daypart") {
+      reminderFields.current?.focus(first);
     } else if (first === "identity" || first === "cue" || first === "startDate") {
       detailsFields.current?.focus(first);
     } else if (first) measureFields.current?.focus(first);
@@ -184,6 +195,7 @@ export function HabitFormSheet({
       ...sentFrequency,
       ...measureValues,
       ...detailsValues(details, habit, today),
+      ...reminderValues(reminder, habit, !avoid),
     };
     const parsed = habit
       ? updateHabitInputSchema.safeParse({ id: habit.id, ...values })
@@ -369,6 +381,18 @@ export function HabitFormSheet({
           </span>
           {errors.lifeAreaId ? <FieldError id={areaErrorId} message={errors.lifeAreaId} /> : null}
         </div>
+
+        {/* R4: "Hora del aviso" and "Franja" (optional; reminder-input.ts). */}
+        <ReminderFields
+          ref={reminderFields}
+          value={reminder}
+          onChange={setReminder}
+          errors={errors}
+          offerTime={!avoid}
+          onEdit={(field) => {
+            if (errors[field]) clearError(field);
+          }}
+        />
 
         {/* H5 ("Más detalles"): identity, cue and, creating, the start date. */}
         <DetailsFields

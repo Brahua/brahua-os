@@ -688,9 +688,10 @@ describe("create", () => {
     await user.click(screen.getByRole("button", { name: "Nuevo hábito" }));
     const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
     const name = within(dialog).getByRole("textbox", { name: "Nombre" });
-    await user.type(name, "Estirar{Enter}");
+    await user.type(name, "Estirar");
+    await user.click(within(dialog).getByRole("button", { name: "Crear hábito" }));
+    // A second activation of the (aria-disabled) key does nothing.
     await user.click(within(dialog).getByRole("button", { name: "Creando…" }));
-    await user.type(name, "{Enter}");
     expect(createHabit).toHaveBeenCalledTimes(1);
     await user.keyboard("{Escape}");
     await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
@@ -707,7 +708,8 @@ describe("create", () => {
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Nuevo hábito" }));
     const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
-    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Estirar{Enter}");
+    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Estirar");
+    await user.click(within(dialog).getByRole("button", { name: "Crear hábito" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "No se pudo guardar. Revisa tu conexión",
     );
@@ -728,7 +730,8 @@ describe("create", () => {
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Crear un hábito" }));
     const dialog = await screen.findByRole("dialog", { name: "Nuevo hábito" });
-    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Primero{Enter}");
+    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Primero");
+    await user.click(within(dialog).getByRole("button", { name: "Crear hábito" }));
     // The server answers before its revalidation reaches the page.
     await act(async () => answer());
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

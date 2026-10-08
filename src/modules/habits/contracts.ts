@@ -15,7 +15,7 @@
 // host's queue, notices and announcer through `ScreenServicesContext`; `areas` only feeds the
 // create form, which a pad never opens: `[]` is fine). Link with `habitPath(id)` (routes.ts).
 import "server-only";
-import { and, lte, type SQL } from "drizzle-orm";
+import { and, isNotNull, lte, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
@@ -25,7 +25,13 @@ import { activeHabit, selectItems } from "./habits";
 import { selectHabitsWeek } from "./history";
 import { weekStart as mondayOf } from "./schedule";
 import type { HabitItem } from "./habit-input";
-import { buildHabitsTodaySummary, habitsDueToday, type HabitTodayItem } from "./today-summary";
+import {
+  buildHabitsTodaySummary,
+  habitsDueToday,
+  timedHabitsLeft,
+  type HabitTodayItem,
+  type TimedHabit,
+} from "./today-summary";
 import { buildHabitsWeekSummary, type HabitsWeekSummary } from "./week-summary";
 
 export type { HabitTodayArea, HabitTodayItem } from "./today-summary";
@@ -109,4 +115,24 @@ export async function getHabitsWeekSummary(
 ): Promise<HabitsWeekSummary> {
   await requireOwner();
   return selectHabitsWeekSummary(getDb(), weekStart, now);
+}
+
+export type { TimedHabit } from "./today-summary";
+
+/**
+ * For `reminders` (R4, the `habit_time` reminder): the habits with a reminder time that are due on
+ * the Lima day of `at`, started, active (neither archived nor deleted), not paused that day and
+ * not met yet (`countsAsDone`: the day's quantity reached its target, or the week's quota is met
+ * for "X veces por semana"), in the manual order. A habit to avoid never has a time. One query
+ * when no habit has a time (the filter is in SQL), else the usual three. Trusts its caller (the
+ * tick has no session).
+ */
+export async function selectTimedHabitsLeft(db: Database, at: Date): Promise<TimedHabit[]> {
+  const today = ownerDateKey(at);
+  const where = and(
+    activeHabit,
+    lte(habits.startDate, today),
+    isNotNull(habits.reminderTime),
+  ) as SQL;
+  return timedHabitsLeft(await selectItems(db, today, where), at);
 }

@@ -26,13 +26,14 @@ export {
   addDaysToKey,
   briefingSlot,
   eveningReviewSlot,
+  habitTimeSlot,
   limaDayOf,
   limaInstant,
   paymentEveSlot,
   paymentFollowupSlot,
   windowState,
 } from "./slots";
-export { eveningReviewText, paymentEveText, paymentFollowupText } from "./messages";
+export { eveningReviewText, habitTimeText, paymentEveText, paymentFollowupText } from "./messages";
 
 /** What a source is told when the engine asks for candidates. */
 export type ReminderContext = {

@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import {
   briefingText,
   eveningReviewText,
+  habitTimeText,
   paymentEveText,
   paymentFollowupText,
   shortDayLabel,
@@ -123,6 +124,17 @@ describe("eveningReviewText", () => {
   });
 });
 
+describe("habitTimeText (R4)", () => {
+  test("one habit, one sentence: «Es hora de Leer.»", () => {
+    expect(habitTimeText("Leer")).toBe("Es hora de Leer.");
+    expect(habitTimeText("Meditar 10 min")).toBe("Es hora de Meditar 10 min.");
+  });
+
+  test("one line, whatever the name", () => {
+    expect(habitTimeText("Hábito ".repeat(10).trim()).split("\n")).toHaveLength(1);
+  });
+});
+
 describe("no forbidden word or sign", () => {
   test("in any sentence a reminder can say", () => {
     const texts = [
@@ -136,6 +148,8 @@ describe("no forbidden word or sign", () => {
       eveningReviewText(["Leer"]),
       eveningReviewText(["Leer", "Meditar"]),
       eveningReviewText(["Leer", "Meditar", "Correr", "Agua", "Yoga"]),
+      habitTimeText("Leer"),
+      habitTimeText("Meditar 10 min"),
     ] as string[];
     const found = texts.flatMap((text) =>
       FORBIDDEN.filter((word) => text.toLowerCase().includes(word)).map((word) => ({ text, word })),

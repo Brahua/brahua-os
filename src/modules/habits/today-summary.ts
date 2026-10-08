@@ -62,6 +62,27 @@ export function habitsDueToday<T extends HabitItem>(habits: readonly T[], now: D
   return dueOn(habits, ownerDateKey(now));
 }
 
+/** A habit with a reminder time that is still to do on a day (R4: `habit_time`). */
+export type TimedHabit = { id: string; name: string; reminderTime: string };
+
+/**
+ * R4: of the active habits read for the Lima day of `at`, the ones that get a `habit_time`
+ * reminder: due that day and not paused (`habitsDueToday`), a habit to keep (one to avoid has no
+ * time), with a reminder time, and not met yet (`countsAsDone`: the day's quantity reached its
+ * target, or, for "X veces por semana", the week's quota is met). The order given (the manual one).
+ */
+export function timedHabitsLeft(habits: readonly HabitItem[], at: Date): TimedHabit[] {
+  return habitsDueToday(habits, at)
+    .filter(
+      (habit) => habit.kind === "build" && Boolean(habit.reminderTime) && !countsAsDone(habit),
+    )
+    .map((habit) => ({
+      id: habit.id,
+      name: habit.name,
+      reminderTime: habit.reminderTime as string,
+    }));
+}
+
 /** One habit's DTO (its day as read). */
 export function habitTodayItem(habit: HabitItem): HabitTodayItem {
   const dayDone = isDayDone(habit);
