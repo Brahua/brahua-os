@@ -13,9 +13,26 @@
 // The types are plain data (this file imports `server-only` for the registry, nothing else), so a
 // source file stays easy to test.
 import "server-only";
+import type { BriefingFacts } from "./messages";
 import type { ChannelId, ReminderKind } from "./reminders-constants";
 
 export type { ChannelId, ReminderKind } from "./reminders-constants";
+export type { BriefingFacts, PaymentFact } from "./messages";
+
+// R2: what a source needs to decide and to speak, so `tasks`, `habits` and `finance` import only
+// this file. The slots are pure (Lima by arithmetic), the sentences live in messages.ts (one place
+// for the forbidden-words test).
+export {
+  addDaysToKey,
+  briefingSlot,
+  eveningReviewSlot,
+  limaDayOf,
+  limaInstant,
+  paymentEveSlot,
+  paymentFollowupSlot,
+  windowState,
+} from "./slots";
+export { eveningReviewText, paymentEveText, paymentFollowupText } from "./messages";
 
 /** What a source is told when the engine asks for candidates. */
 export type ReminderContext = {
@@ -75,6 +92,13 @@ export type ReminderSource = {
   /** Stable id of the provider (e.g. "finance"). Registering the same id again replaces it. */
   id: string;
   candidates(context: ReminderContext): Promise<readonly ReminderCandidate[]>;
+  /**
+   * What this module knows about the owner's day that contains the instant `at`, for the morning
+   * briefing (one message that spans modules: the briefing source of `reminders` merges every
+   * source's facts). `at` is `now`, or `now` minus a day when a window crossed midnight. Called
+   * after the briefing is claimed; read only. A source with nothing to say omits it.
+   */
+  briefingFacts?(at: Date): Promise<BriefingFacts>;
 };
 
 /** Why a channel could not send. */
