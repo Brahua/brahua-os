@@ -65,7 +65,8 @@ const report = {
 function run(file: string, env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [SCRIPT, file], {
     encoding: "utf8",
-    env: { PATH: process.env.PATH ?? "", ...env },
+    // An empty GITHUB_STEP_SUMMARY (CI sets it) keeps the default "print to stdout" path.
+    env: { ...process.env, GITHUB_STEP_SUMMARY: "", ...env },
   });
 }
 
