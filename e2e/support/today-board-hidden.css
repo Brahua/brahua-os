@@ -4,3 +4,9 @@
 [data-today-board] {
   display: none !important;
 }
+
+/* The line under the greeting depends on the hour, the day and the state: hidden but still laid
+   out (its height is reserved), so the reference never depends on them. */
+[data-greeting-line] {
+  visibility: hidden !important;
+}
