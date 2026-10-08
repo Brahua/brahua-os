@@ -203,9 +203,12 @@ jobs:
     # not in `needs`: it is skipped on push (the only event that deploys), and checks, e2e and
     # integration run after it with `!failure() && !cancelled()`, so a dispatch or a pull_request
     # never deploys (the event/ref test) and a push is not held back by a skipped guard.
-    # `success()` is kept so the job never runs after any needed job failed or was skipped.
+    # No `success()` here: it also looks at the ancestors of the needed jobs, and `guard` is
+    # skipped on push, so it was false and the first push to main after the gate (9615b12) did not
+    # deploy. `!cancelled()` replaces the implicit success() on purpose; the three explicit
+    # `== 'success'` results below are what block a failed, cancelled or skipped needed job.
     if: >-
-      ${{ success()
+      ${{ !cancelled()
       && github.event_name == 'push' && github.ref == 'refs/heads/main'
       && needs.checks.result == 'success'
       && needs.e2e.result == 'success'
@@ -269,10 +272,11 @@ jobs:
   smoke:
     name: Production smoke test
     needs: deploy
-    # Same rule as deploy: only after a deploy that ended in exactly `success` (not skipped or
-    # cancelled, e.g. a deploy that never ran because the E2E timed out).
+    # Same rule as deploy (and the same reason for `!cancelled()` instead of `success()`): only
+    # after a deploy that ended in exactly `success` (not skipped or cancelled, e.g. a deploy that
+    # never ran because the E2E timed out).
     if: >-
-      ${{ success()
+      ${{ !cancelled()
       && github.event_name == 'push' && github.ref == 'refs/heads/main'
       && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
