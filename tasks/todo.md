@@ -25,13 +25,15 @@ Hecho en `feat/reminders-r1` (detalle, decisiones autónomas y puntos de extensi
 
 ### R2 — Avisos de la app
 
-- [ ] **R2.1 Fuentes de `finance` y `tasks`:** `getUpcomingPayments(from, to)`, fuente de pagos (víspera, +3 días) y fuente de resumen de hoy (tareas y pagos) usando `getTasksTodaySummary`.
+Hecho en `feat/reminders-r2` (detalle, claves de deduplicación, decisiones autónomas y puntos de extensión en `docs/HANDOFF.md` → "Cómo funciona reminders → R2").
+
+- [x] **R2.1 Fuentes de `finance` y `tasks`:** `getUpcomingPayments(from, to)`, fuente de pagos (víspera, +3 días) y fuente de resumen de hoy (tareas y pagos) usando el resumen de `tasks` (`selectTasksTodaySummary`: el tick no tiene sesión).
   - Aceptación: un pago pagado u omitido no avisa; con `show_amounts` apagado el texto no lleva monto.
   - Verificar: unitarias + integración (CI). Archivos: `finance/contracts.ts`, `finance/reminders-source.ts`, `tasks/reminders-source.ts`, raíz.
-- [ ] **R2.2 Fuente de `habits`, briefing y repaso:** hábitos de hoy no hechos ni pausados; `briefing` (≤ 3 líneas, vacío → `skipped`) y `evening_review` («Te queda Leer. Si lo haces ahora, cuenta hoy.»).
+- [x] **R2.2 Fuente de `habits`, briefing y repaso:** hábitos de hoy no hechos ni pausados; `briefing` (≤ 3 líneas, vacío → `skipped`) y `evening_review` («Te queda Leer. Si lo haces ahora, cuenta hoy.»).
   - Aceptación: lista de cadenas prohibidas en cero; sin hábitos pendientes no hay repaso.
   - Verificar: unitarias de `messages.ts` + integración (CI). Archivos: `habits/reminders-source.ts`, `messages.ts`, raíz.
-- [ ] **R2.3 Ajustes de avisos:** interruptores y horas (briefing, repaso), interruptor de montos, validación Zod, guardado con aviso.
+- [x] **R2.3 Ajustes de avisos:** interruptores y horas (briefing, repaso), interruptor de montos, validación Zod, guardado con aviso.
   - Aceptación: cambiar la hora mueve el aviso de hoy si aún no pasó.
   - Verificar: componente + E2E (CI). Archivos: acciones, formulario, copy.
 
@@ -83,6 +85,16 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+### `reminders` R2 → pendientes de la revisión del PR #96
+- E2E/axe con «Guardado.» y con la alerta de error visibles en la sección «Avisos del día».
+- Revisar el solape de textos de «Avisos del día» a 320 px (ayudas largas junto al interruptor).
+- Rollback de un guardado fallido probado en un navegador real (hoy solo en componente).
+- Aserción de integración de un pago de hace 61 días (borde de la ventana de pendientes de 60 días) con la fuente de pagos.
+- Longitud máxima de los textos (Telegram 4096) y nombres con `\n` en hábitos o pagos dentro del resumen y los avisos.
+- Documentado, sin cambio: una tarea añadida después de un resumen vacío ya reclamado no lo rehace.
+- Cachear `briefingFacts` por tick cuando el canal sea «Ambos» (R5).
+- Fila `skipped` inconsistente de pagos vencidos tras cambiar la hora del resumen (la ventana cerrada deja fila o no según cuándo se cambie).
 
 Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre módulos o cuando algo las vuelva urgentes.
 

@@ -8,6 +8,12 @@ import { formatOwnerDay } from "@/lib/time";
 import { pushSubscriptions, reminderSettings, telegramLinkCodes } from "./db/schema";
 import { resolveTelegramEnv } from "./env";
 import type { ReminderSettings } from "./db/schema";
+import {
+  DEFAULT_SCHEDULE,
+  scheduleOf,
+  type ReminderSchedule,
+  type UpdateReminderSettingsInput,
+} from "./settings-input";
 
 /** Creates the one settings row with its defaults the first time (never overwrites it). */
 export async function ensureSettings(db: Database): Promise<void> {
@@ -93,4 +99,29 @@ export async function readTelegramStatus(db: Database): Promise<TelegramStatus> 
   // Read only (no INSERT): the status is polled and shown on page loads.
   const [row] = await db.select().from(reminderSettings).where(eq(reminderSettings.id, true));
   return telegramStatusOf(row);
+}
+
+/** The switches and times Ajustes edits. Read only (no INSERT): a fresh install shows defaults. */
+export async function readSchedule(db: Database): Promise<ReminderSchedule> {
+  const [row] = await db.select().from(reminderSettings).where(eq(reminderSettings.id, true));
+  return row ? scheduleOf(row) : DEFAULT_SCHEDULE;
+}
+
+/**
+ * Applies a change of the day's reminders (already validated) and returns the schedule as it is
+ * now. The engine reads the times on every tick, so a new time also moves today's reminder when
+ * it has not gone out yet (and one already sent today stays sent: its `dedupe_key` is claimed).
+ * One UPDATE of the single row: atomic, no ordering to protect, so no advisory lock.
+ */
+export async function updateSchedule(
+  db: Database,
+  patch: UpdateReminderSettingsInput,
+): Promise<ReminderSchedule> {
+  await ensureSettings(db);
+  const [row] = await db
+    .update(reminderSettings)
+    .set(patch)
+    .where(eq(reminderSettings.id, true))
+    .returning();
+  return scheduleOf(row);
 }

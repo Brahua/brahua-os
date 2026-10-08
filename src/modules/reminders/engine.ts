@@ -27,7 +27,13 @@ import {
 } from "./deliveries";
 import { logEvent } from "./log";
 import { isKindEnabled, selectChannels, showAmountsFor } from "./policy";
-import { EMPTY_ERROR_CODE, WINDOW_EXPIRED_ERROR_CODE, type ChannelId } from "./reminders-constants";
+import {
+  EMPTY_ERROR_CODE,
+  REMINDER_KINDS,
+  WINDOW_EXPIRED_ERROR_CODE,
+  type ChannelId,
+  type ReminderKind,
+} from "./reminders-constants";
 import { countActivePushDevices, disconnectTelegram, getSettings } from "./settings";
 import { addDaysToKey, limaDayOf, toHourMinute, windowState } from "./slots";
 
@@ -88,6 +94,9 @@ export async function runTick(deps: TickDeps): Promise<TickSummary> {
       briefing: toHourMinute(settings.briefingTime),
       evening: toHourMinute(settings.eveningTime),
     },
+    enabled: Object.fromEntries(
+      REMINDER_KINDS.map((kind) => [kind, isKindEnabled(settings, kind)]),
+    ) as Record<ReminderKind, boolean>,
   };
   const candidates = await collectCandidates(deps.sources, context);
   summary.candidates = candidates.length;

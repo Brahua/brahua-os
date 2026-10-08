@@ -210,7 +210,11 @@ describe("a tick", () => {
   });
 
   test("passes the context: the Lima day and the configured times", async () => {
-    store.settings = settings({ briefingTime: "08:15:00", eveningTime: "20:45:00" });
+    store.settings = settings({
+      briefingTime: "08:15:00",
+      eveningTime: "20:45:00",
+      paymentsEnabled: false,
+    });
     const seen: ReminderContext[] = [];
     await tick([{ id: "spy", candidates: async (context) => (seen.push(context), []) }], {
       telegram: fakeChannel("telegram").channel,
@@ -221,6 +225,14 @@ describe("a tick", () => {
         today: "2026-10-08",
         yesterday: "2026-10-07",
         times: { briefing: "08:15", evening: "20:45" },
+        // Which kinds are on (here the payments are off), so a source can skip its queries.
+        enabled: {
+          briefing: true,
+          payment_eve: false,
+          payment_followup: false,
+          evening_review: true,
+          habit_time: true,
+        },
       },
     ]);
   });
