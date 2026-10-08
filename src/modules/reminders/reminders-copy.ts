@@ -32,6 +32,10 @@ export const SCHEDULE_COPY = {
     help: "Solo si te queda algún hábito de hoy por hacer.",
     time: "Hora del repaso",
   },
+  habitTimes: {
+    label: "Hábitos a su hora",
+    help: "A la hora que le pongas a un hábito, te aviso si ese día le toca y aún no lo hiciste.",
+  },
   amounts: {
     label: "Montos en Telegram",
     help: "Muestra cuánto es en el resumen y en los avisos de pagos.",

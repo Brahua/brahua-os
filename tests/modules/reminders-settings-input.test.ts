@@ -20,6 +20,7 @@ describe("updateReminderSettingsSchema", () => {
         paymentsEnabled: false,
         eveningEnabled: true,
         eveningTime: "00:00",
+        habitTimesEnabled: false,
         showAmountsTelegram: false,
       }).success,
     ).toBe(true);
@@ -54,6 +55,8 @@ describe("updateReminderSettingsSchema", () => {
     expect(parse({ briefingEnabled: "true" }).success).toBe(false);
     expect(parse({ paymentsEnabled: 1 }).success).toBe(false);
     expect(parse({ showAmountsTelegram: null }).success).toBe(false);
+    expect(parse({ habitTimesEnabled: "false" }).success).toBe(false);
+    expect(parse({ habitTimesEnabled: 0 }).success).toBe(false);
   });
 
   test("an empty change, or one of undefined values, is refused", () => {
@@ -62,13 +65,7 @@ describe("updateReminderSettingsSchema", () => {
   });
 
   test("fields the owner does not edit here are rejected, not ignored", () => {
-    for (const key of [
-      "telegramChatId",
-      "deliveryChannel",
-      "showAmountsPush",
-      "habitTimesEnabled",
-      "id",
-    ]) {
+    for (const key of ["telegramChatId", "deliveryChannel", "showAmountsPush", "id"]) {
       expect(parse({ briefingEnabled: true, [key]: key === "id" ? false : "x" }).success, key).toBe(
         false,
       );
@@ -85,6 +82,7 @@ describe("scheduleOf", () => {
         paymentsEnabled: true,
         eveningEnabled: false,
         eveningTime: "22:00:00",
+        habitTimesEnabled: false,
         showAmountsTelegram: false,
       }),
     ).toEqual({
@@ -93,6 +91,7 @@ describe("scheduleOf", () => {
       paymentsEnabled: true,
       eveningEnabled: false,
       eveningTime: "22:00",
+      habitTimesEnabled: false,
       showAmountsTelegram: false,
     });
   });
@@ -101,5 +100,7 @@ describe("scheduleOf", () => {
     expect(DEFAULT_SCHEDULE).toMatchObject({ briefingTime: "07:30", eveningTime: "21:00" });
     expect(DEFAULT_SCHEDULE.briefingEnabled).toBe(true);
     expect(DEFAULT_SCHEDULE.showAmountsTelegram).toBe(true);
+    // The habits' own times are on by default, like the column.
+    expect(DEFAULT_SCHEDULE.habitTimesEnabled).toBe(true);
   });
 });

@@ -28,6 +28,7 @@ beforeEach(() => {
 const briefingSwitch = () => screen.getByRole("switch", { name: "Resumen de la mañana" });
 const paymentsSwitch = () => screen.getByRole("switch", { name: "Avisos de pagos" });
 const eveningSwitch = () => screen.getByRole("switch", { name: "Repaso de la noche" });
+const habitTimesSwitch = () => screen.getByRole("switch", { name: "Hábitos a su hora" });
 const amountsSwitch = () => screen.getByRole("switch", { name: "Montos en Telegram" });
 const briefingTime = () => screen.getByLabelText("Hora del resumen") as HTMLInputElement;
 const eveningTime = () => screen.getByLabelText("Hora del repaso") as HTMLInputElement;
@@ -39,6 +40,7 @@ describe("what it shows", () => {
     expect(briefingSwitch()).toHaveAttribute("aria-checked", "true");
     expect(paymentsSwitch()).toHaveAttribute("aria-checked", "true");
     expect(eveningSwitch()).toHaveAttribute("aria-checked", "true");
+    expect(habitTimesSwitch()).toHaveAttribute("aria-checked", "true");
     expect(amountsSwitch()).toHaveAttribute("aria-checked", "true");
     expect(briefingTime()).toHaveValue("07:30");
     expect(eveningTime()).toHaveValue("21:00");
@@ -51,11 +53,13 @@ describe("what it shows", () => {
           ...SAVED,
           briefingEnabled: false,
           eveningTime: "22:15",
+          habitTimesEnabled: false,
           showAmountsTelegram: false,
         }}
       />,
     );
     expect(briefingSwitch()).toHaveAttribute("aria-checked", "false");
+    expect(habitTimesSwitch()).toHaveAttribute("aria-checked", "false");
     expect(eveningTime()).toHaveValue("22:15");
     expect(amountsSwitch()).toHaveAttribute("aria-checked", "false");
   });
@@ -74,6 +78,7 @@ describe("what it shows", () => {
     expect(briefingSwitch()).toHaveAccessibleName("Resumen de la mañana");
     expect(paymentsSwitch()).toHaveAccessibleName("Avisos de pagos");
     expect(eveningSwitch()).toHaveAccessibleName("Repaso de la noche");
+    expect(habitTimesSwitch()).toHaveAccessibleName("Hábitos a su hora");
     expect(amountsSwitch()).toHaveAccessibleName("Montos en Telegram");
     expect(briefingTime()).toHaveAccessibleName("Hora del resumen");
     expect(eveningTime()).toHaveAccessibleName("Hora del repaso");
@@ -81,6 +86,7 @@ describe("what it shows", () => {
     expect(briefingSwitch()).toHaveAccessibleDescription(/hábitos, tareas y pagos de hoy/);
     expect(paymentsSwitch()).toHaveAccessibleDescription(/un día antes/i);
     expect(eveningSwitch()).toHaveAccessibleDescription(/algún hábito de hoy/);
+    expect(habitTimesSwitch()).toHaveAccessibleDescription(/hora que le pongas a un hábito/);
     expect(amountsSwitch()).toHaveAccessibleDescription(/cuánto es/);
   });
 
@@ -108,6 +114,7 @@ describe("a switch", () => {
     for (const [control, field] of [
       [paymentsSwitch, "paymentsEnabled"],
       [eveningSwitch, "eveningEnabled"],
+      [habitTimesSwitch, "habitTimesEnabled"],
       [amountsSwitch, "showAmountsTelegram"],
     ] as const) {
       actions.updateReminderSettings.mockClear();

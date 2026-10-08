@@ -35,6 +35,7 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
     payments: useId(),
     evening: useId(),
     eveningTime: useId(),
+    habitTimes: useId(),
     amounts: useId(),
   };
   const [saved, setSaved] = useState(initial);
@@ -230,6 +231,15 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
         onKeyDown={(event) => {
           if (event.key === "Enter") commitTimes();
         }}
+      />
+
+      <SwitchRow
+        id={ids.habitTimes}
+        label={SCHEDULE_COPY.habitTimes.label}
+        help={SCHEDULE_COPY.habitTimes.help}
+        checked={saved.habitTimesEnabled}
+        pending={pending}
+        onChange={(next) => toggle("habitTimesEnabled", next)}
       />
 
       <SwitchRow
