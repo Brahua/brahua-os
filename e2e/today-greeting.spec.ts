@@ -100,11 +100,8 @@ test("the same state gives the same line on every load of the day", async ({ pag
   await expect(line(page)).toHaveText(text!);
 });
 
-test("an empty day has no line (its own block says it)", async ({ page }) => {
-  await openToday(page);
-  await expect(page.getByRole("region", { name: "Nada programado para hoy" })).toBeVisible();
-  await expect(line(page)).toHaveText("");
-});
+// The empty day (no line) is covered by tests/app/today-greeting.test.tsx: in the E2E database "/"
+// is never empty (the fixture projects are due today), as in e2e/today.spec.ts.
 
 test("the line is static text: no live region on it (positive control: the board's announcer is)", async ({
   page,
