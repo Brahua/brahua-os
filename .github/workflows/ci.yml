@@ -67,7 +67,11 @@ jobs:
     needs: guard
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Healthy runs take 14-19 min and timed out at 20 three times on 2026-10-08. 30 is a cushion
+    # while the CI plan (SHARDS / mobile only where it matters) is applied: see "Backlog técnico"
+    # in tasks/todo.md. Do not raise it again without that plan; the deploy gate below makes a
+    # timeout block the deploy.
+    timeout-minutes: 30
     # Same Linux image here and in update-screenshots.yml, so screenshots match
     # (e2e/support/screenshot-env.ts only compares them inside it). Keep the two in sync.
     container:
@@ -111,6 +115,25 @@ jobs:
       - run: pnpm test:e2e
         env:
           HOME: /root
+      # Timing summary from playwright-results.json (written by the json reporter, playwright.config.ts).
+      # always(): also when the tests failed; it needs only the file, so a timeout (which kills the
+      # job before this step) is the one case without a summary. Never fails the job.
+      - name: E2E timing summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f playwright-results.json ]; then
+            node scripts/e2e-timing-summary.mjs playwright-results.json || echo "::warning::Could not build the E2E timing summary"
+          else
+            echo "No playwright-results.json (the run ended before the reporter wrote it)"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: playwright-results
+          path: playwright-results.json
+          retention-days: 7
+          if-no-files-found: ignore
       # Full suite in the image: every committed reference must have been compared.
       - name: No orphan screenshots
         run: node scripts/check-screenshot-orphans.mjs
@@ -172,7 +195,21 @@ jobs:
   deploy:
     name: Deploy to production
     needs: [checks, e2e, integration]
-    if: ${{ !failure() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    # Deploy only when all three jobs ended in exactly `success`, on a push to main.
+    # `!failure() && !cancelled()` is NOT enough: a needed job that hits its timeout-minutes ends
+    # as `cancelled` (not `failure`), and `!cancelled()` only looks at the whole run being
+    # cancelled, so such a job did not block the deploy (2026-10-08: E2E timed out on main and the
+    # deploy still went out). Spelling out each result also blocks `skipped`. The `guard` job is
+    # not in `needs`: it is skipped on push (the only event that deploys), and checks, e2e and
+    # integration run after it with `!failure() && !cancelled()`, so a dispatch or a pull_request
+    # never deploys (the event/ref test) and a push is not held back by a skipped guard.
+    # `success()` is kept so the job never runs after any needed job failed or was skipped.
+    if: >-
+      ${{ success()
+      && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.checks.result == 'success'
+      && needs.e2e.result == 'success'
+      && needs.integration.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -232,7 +269,12 @@ jobs:
   smoke:
     name: Production smoke test
     needs: deploy
-    if: ${{ !failure() && !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    # Same rule as deploy: only after a deploy that ended in exactly `success` (not skipped or
+    # cancelled, e.g. a deploy that never ran because the E2E timed out).
+    if: >-
+      ${{ success()
+      && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     # Worst case: about 3 min waiting for the domain plus about 7 min of smoke rounds.
     timeout-minutes: 15

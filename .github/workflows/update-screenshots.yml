@@ -21,7 +21,9 @@ jobs:
     name: Render screenshots (Playwright image)
     if: github.ref_type == 'branch' && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Cushion while the CI plan (SHARDS / mobile only where it matters) is applied: same suite as
+    # the e2e job of ci.yml (30 min there). See "Backlog técnico" in tasks/todo.md.
+    timeout-minutes: 30
     # Runs the test suite (third-party code): read-only token. The commit happens in another job.
     permissions:
       contents: read
