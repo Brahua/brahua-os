@@ -9,7 +9,7 @@ import { hasNotice } from "@/lib/toast/queue";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { applyOrder, moveId } from "@/modules/core/life-area-order";
 import { deleteHabit, restoreHabit } from "../actions";
-import { groupByDaypart, visualOrder } from "../daypart-groups";
+import { bandListLabel, groupByDaypart, visualOrder } from "../daypart-groups";
 import type { DeletedHabit, HabitItem } from "../habit-input";
 import { applyHabitListChange, neighborOf } from "../habit-list-optimistic";
 import { dueOn, isPausedToday, notDueOn, pausedOn, todayCount } from "../habit-status";
@@ -118,7 +118,11 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
   // ── Focus that has to wait for a commit (a created habit's pad, before its revalidation) ──
   // Expires: if the pad never shows up (a failed revalidation), a later render must not take
   // focus away from wherever the person went meanwhile.
-  const pendingFocus = useRef<{ selector: string; until: number } | null>(null);
+  // `keep` (R4): the element was focused already but may be unmounted and mounted again in
+  // another place by the revalidation (a pad that changes franja moves to another list): if focus
+  // is lost meanwhile (<body>), it goes back to the element; if the person moved it elsewhere, we
+  // stand down.
+  const pendingFocus = useRef<{ selector: string; until: number; keep?: boolean } | null>(null);
   useEffect(() => {
     const pending = pendingFocus.current;
     if (!pending) return;
@@ -127,6 +131,14 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
       return;
     }
     const element = document.querySelector<HTMLElement>(pending.selector);
+    if (pending.keep) {
+      const active = document.activeElement;
+      const lost = active === null || active === document.body;
+      if (!lost) {
+        if (!element || !element.contains(active)) pendingFocus.current = null;
+        return;
+      }
+    }
     if (!element || !isShown(element)) return;
     pendingFocus.current = null;
     element.focus();
@@ -136,10 +148,12 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
    * Focus `selector` now if it is there; otherwise the heading for now (never <body>) and
    * `selector` as soon as it shows up (within a few seconds).
    */
-  function focusWhenReady(selector: string) {
+  function focusWhenReady(selector: string, options: { keep?: boolean } = {}) {
     const element = document.querySelector<HTMLElement>(selector);
     if (element && isShown(element)) {
       element.focus();
+      if (options.keep)
+        pendingFocus.current = { selector, until: pendingFocusExpiry(), keep: true };
       return;
     }
     document.getElementById(headingId)?.focus();
@@ -442,7 +456,8 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
     // Not due today (fixed days of another day): "No tocan hoy" opens, so the pad can be seen
     // (H4: a paused one is in "En pausa").
     const grid = gridOf(habit);
-    focusWhenReady(revealSelector(habit));
+    // `keep`: saving a franja moves the pad to another list, so it may be remounted after this.
+    focusWhenReady(revealSelector(habit), { keep: true });
     const message = formHabit ? ORGANIZE_COPY.updated(habit.name) : HABITS_COPY.created(habit.name);
     // Its pad moved to the folded section (or was born there): say where it is.
     announce(grid === "not-due" ? `${message} ${ORGANIZE_COPY.nowNotDue}` : message);
@@ -570,13 +585,10 @@ export function HabitsToday({ habits, viewSwitch, headingId }: HabitsTodayProps)
       return (
         <div className="flex flex-col gap-4" data-habits-bands="">
           {bands.map((band) => {
-            const bandHeadingId = `${headingId}-band-${band.key}`;
             return (
               <div key={band.key} className="flex flex-col gap-2" data-habits-band={band.key}>
-                <h3 id={bandHeadingId} className="bo-text-label text-text-secondary">
-                  {band.label}
-                </h3>
-                {padList(band.habits, grid, { id: bandHeadingId })}
+                <h3 className="bo-text-label text-text-secondary">{band.label}</h3>
+                {padList(band.habits, grid, { text: bandListLabel(band) })}
               </div>
             );
           })}

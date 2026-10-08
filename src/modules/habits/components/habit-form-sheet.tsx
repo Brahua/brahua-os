@@ -321,13 +321,6 @@ export function HabitFormSheet({
             setName(event.target.value);
             if (errors.name) clearError("name");
           }}
-          // R4: the time field is a second field that blocks implicit submission (the submit key
-          // is in the footer, outside the form's markup), so Enter in «Nombre» submits by hand.
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
-          }}
         />
 
         {/* H3 (Tipo y Medición): its fields go in createHabitInputSchema (measure-input.ts). */}

@@ -100,20 +100,13 @@ export function paymentFollowupText(payment: Pick<PaymentFact, "name">, dueOn: s
   return `${payment.name} sigue pendiente desde el ${shortDayLabel(dueOn)}.`;
 }
 
-/** How many habits a shared-time reminder names before saying «y N más». */
-const HABIT_TIME_NAMED = 3;
-
 /**
- * A habit at its own time (R4): «Es hora de Leer.». Habits that share the very same time come in
- * ONE sentence, «Es hora de Leer y Meditar.», so two habits never buzz the phone twice. Null when
- * there is none (the caller sends nothing). Plain and calm: no «te falta», no counting.
+ * A habit at its own time (R4): «Es hora de Leer.». One sentence per habit: habits that share a
+ * minute get one notice each (every habit owns its `dedupe_key`, so a failed send or a habit
+ * marked done never costs another habit its reminder). Calm: no «te falta», no counting.
  */
-export function habitTimeText(habitNames: readonly string[]): string | null {
-  if (habitNames.length === 0) return null;
-  const shown = habitNames.slice(0, HABIT_TIME_NAMED);
-  const rest = habitNames.length - shown.length;
-  const list = rest > 0 ? `${shown.join(", ")} y ${rest} más` : naturalList(shown);
-  return `Es hora de ${list}.`;
+export function habitTimeText(habitName: string): string {
+  return `Es hora de ${habitName}.`;
 }
 
 /** How many habits the evening review names before saying «y N más». */

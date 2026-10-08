@@ -88,6 +88,13 @@ Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `
 
 ## Backlog técnico
 
+### `reminders` R4 → pendientes de la revisión del PR #98
+- Captura de los pads agrupados por franja y del formulario con «Hora del aviso» y «Franja» abierto.
+- Un hábito «a evitar» con hora (imposible por el `CHECK`) no muestra error en un campo visible: el `CHECK` es el último muro.
+- Prueba de Enter con IME (composición) en «Nombre».
+- Decidir qué pasa con el borrador de la hora al volver de «A evitar» a «A cumplir» (hoy se conserva; no se envía mientras está en «A evitar»).
+- Si el owner prefiere un solo mensaje para varios hábitos a la misma hora: agruparlos en el motor (p. ej. `coversKeys`), no en la fuente.
+
 ### `reminders` R2 → pendientes de la revisión del PR #96
 - E2E/axe con «Guardado.» y con la alerta de error visibles en la sección «Avisos del día».
 - Revisar el solape de textos de «Avisos del día» a 320 px (ayudas largas junto al interruptor).

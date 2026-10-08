@@ -19,6 +19,13 @@ const reminderTime = z
   .regex(TIME, REMINDER_ERRORS.timeInvalid);
 const daypart = z.enum(HABIT_DAYPARTS, { error: REMINDER_ERRORS.daypartInvalid });
 
+/**
+ * What the form sends for a time left half-edited (one segment of the native input emptied: the
+ * input says `value === ""` with `validity.badInput`). It matches no time, so validation refuses
+ * it on the field («Escribe una hora válida…») instead of silently keeping the previous time.
+ */
+export const INCOMPLETE_TIME = "--:--";
+
 /** "" or null: not given (the form sends "" for an empty field). */
 const blankIsMissing = (value: unknown) => (value === "" || value === null ? undefined : value);
 /** "" is null: clears the value. Missing stays missing. */

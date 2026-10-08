@@ -2,7 +2,7 @@
 // «Quitar hora») and «Franja» (Mañana / Tarde / Noche / Sin franja), creating and editing. The
 // form is rendered alone with the actions mocked; the pads grouped by franja are in
 // habits-dayparts.test.tsx.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ok } from "@/lib/action-result";
@@ -105,15 +105,6 @@ describe("creating", () => {
     expect(sent.daypart).toBeUndefined();
   });
 
-  test("Enter in «Nombre» still submits (the time field is a second field that blocks implicit submission)", async () => {
-    vi.mocked(createHabit).mockResolvedValue(ok(habit()));
-    const user = userEvent.setup();
-    renderForm();
-    const dialog = await dialogOf();
-    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Leer{Enter}");
-    expect(createHabit).toHaveBeenCalledTimes(1);
-  });
-
   test("the time is a native 48 px time input with minute precision, described by its help", async () => {
     renderForm();
     const dialog = await dialogOf();
@@ -160,6 +151,44 @@ describe("creating", () => {
     expect(timeInput(dialog)).toHaveValue("");
     expect(timeInput(dialog)).toHaveFocus();
     expect(clearKey(dialog)).toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("a half-edited time keeps «Quitar hora» working and blocks saving on the field", async () => {
+    vi.mocked(createHabit).mockResolvedValue(ok(habit()));
+    const user = userEvent.setup();
+    renderForm();
+    const dialog = await dialogOf();
+    await user.type(within(dialog).getByRole("textbox", { name: "Nombre" }), "Leer");
+    const input = timeInput(dialog);
+    await user.type(input, "0930");
+    // One segment emptied: the input reads "" but it is not empty (validity.badInput).
+    Object.defineProperty(input, "validity", { value: { badInput: true }, configurable: true });
+    fireEvent.change(input, { target: { value: "" } });
+    expect(clearKey(dialog)).not.toHaveAttribute("aria-disabled");
+
+    await user.click(within(dialog).getByRole("button", { name: "Crear hábito" }));
+    expect(createHabit).not.toHaveBeenCalled();
+    await waitFor(() => expect(input).toHaveAccessibleDescription(REMINDER_ERRORS.timeInvalid));
+    await waitFor(() => expect(input).toHaveFocus());
+
+    // The key clears it for good: now it saves with no time.
+    await user.click(clearKey(dialog));
+    expect(clearKey(dialog)).toHaveAttribute("aria-disabled", "true");
+    await user.click(within(dialog).getByRole("button", { name: "Crear hábito" }));
+    const sent = vi.mocked(createHabit).mock.calls[0][0] as Record<string, unknown>;
+    expect(sent.reminderTime).toBeUndefined();
+  });
+
+  test("a half-edited time on edit is refused too, instead of keeping the saved one", async () => {
+    const user = userEvent.setup();
+    renderForm(habit({ reminderTime: "21:30" }));
+    const dialog = await dialogOf();
+    const input = timeInput(dialog);
+    Object.defineProperty(input, "validity", { value: { badInput: true }, configurable: true });
+    fireEvent.change(input, { target: { value: "" } });
+    await user.click(within(dialog).getByRole("button", { name: "Guardar cambios" }));
+    expect(updateHabit).not.toHaveBeenCalled();
+    await waitFor(() => expect(input).toHaveAccessibleDescription(REMINDER_ERRORS.timeInvalid));
   });
 
   test("a habit to avoid has no time field (and sends none), but keeps the franja", async () => {

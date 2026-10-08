@@ -12,7 +12,7 @@ import {
 } from "@/modules/core/components/radio-grid";
 import { HABIT_DAYPARTS, type HabitDaypart } from "../habit-constants";
 import { DAYPART_LABELS, REMINDER_COPY } from "../reminder-copy";
-import type { ReminderField } from "../reminder-input";
+import { INCOMPLETE_TIME, type ReminderField } from "../reminder-input";
 
 /** "Hora del aviso" and "Franja" as typed: `""` is none. */
 export type ReminderDraft = { time: string; daypart: HabitDaypart | "" };
@@ -42,10 +42,12 @@ const NO_DAYPART = "";
  * markup and classes.
  *
  * A half-edited time (one segment emptied) makes the input say `value === ""` with
- * `validity.badInput`: that is NOT "no time", so it reports nothing until the time is complete
- * again or the key clears it. The input keeps a draft of its own so React never rewrites what
- * the person is in the middle of typing. "Quitar hora" is always rendered (aria-disabled while
- * empty): a key never unmounts under focus.
+ * `validity.badInput`: that is NOT "no time". Decision (R4 review): it is reported as an
+ * incomplete time (`INCOMPLETE_TIME`), so saving is blocked with the field's error instead of
+ * silently keeping the previous time, and "Quitar hora" stays operative meanwhile. The input
+ * keeps a draft of its own so React never rewrites what the person is in the middle of typing.
+ * "Quitar hora" is always rendered (aria-disabled only while there is nothing to remove): a key
+ * never unmounts under focus.
  */
 export function ReminderFields({
   ref,
@@ -62,13 +64,11 @@ export function ReminderFields({
   const daypartErrorId = `${ids}-daypart-error`;
   const timeInput = useRef<HTMLInputElement>(null);
   const daypartGroup = useRef<HTMLDivElement>(null);
+  // The form mounts this fresh for every opening, so the draft starts from the value and only
+  // this component changes it afterwards.
   const [draft, setDraft] = useState(value.time);
-  const [seen, setSeen] = useState(value.time);
-  if (value.time !== seen) {
-    // The value changed under us (a reset): it becomes the draft.
-    setSeen(value.time);
-    setDraft(value.time);
-  }
+  // The input holds a half-edited time (its `value` reads "" but it is not empty).
+  const [incomplete, setIncomplete] = useState(false);
 
   useImperativeHandle(ref, () => ({
     focus(field) {
@@ -115,9 +115,10 @@ export function ReminderFields({
                 aria-describedby={timeDescribedBy}
                 onChange={(event) => {
                   const next = event.target.value;
+                  const half = next === "" && event.target.validity.badInput;
                   setDraft(next);
-                  if (next === "" && event.target.validity.badInput) return;
-                  onChange({ ...value, time: next });
+                  setIncomplete(half);
+                  onChange({ ...value, time: half ? INCOMPLETE_TIME : next });
                   onEdit("reminderTime");
                 }}
               />
@@ -130,11 +131,14 @@ export function ReminderFields({
             <Key
               variant="ghost"
               icon={X}
-              aria-disabled={draft === "" || undefined}
+              aria-disabled={(draft === "" && !incomplete) || undefined}
               data-reminder-time-clear=""
               onClick={() => {
-                if (draft === "") return;
+                if (draft === "" && !incomplete) return;
+                // React won't touch an input whose value stays "": empty a half-edited one by hand.
+                if (timeInput.current) timeInput.current.value = "";
                 setDraft("");
+                setIncomplete(false);
                 onChange({ ...value, time: "" });
                 onEdit("reminderTime");
                 timeInput.current?.focus();

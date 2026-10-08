@@ -125,25 +125,13 @@ describe("eveningReviewText", () => {
 });
 
 describe("habitTimeText (R4)", () => {
-  test("one habit: «Es hora de Leer.»", () => {
-    expect(habitTimeText(["Leer"])).toBe("Es hora de Leer.");
+  test("one habit, one sentence: «Es hora de Leer.»", () => {
+    expect(habitTimeText("Leer")).toBe("Es hora de Leer.");
+    expect(habitTimeText("Meditar 10 min")).toBe("Es hora de Meditar 10 min.");
   });
 
-  test("habits at the same time come in one natural sentence, not one notice each", () => {
-    expect(habitTimeText(["Leer", "Meditar"])).toBe("Es hora de Leer y Meditar.");
-    expect(habitTimeText(["Leer", "Meditar", "Correr"])).toBe("Es hora de Leer, Meditar y Correr.");
-    expect(habitTimeText(["Leer", "Meditar", "Correr", "Agua", "Yoga"])).toBe(
-      "Es hora de Leer, Meditar, Correr y 2 más.",
-    );
-  });
-
-  test("none: nothing to say", () => {
-    expect(habitTimeText([])).toBeNull();
-  });
-
-  test("one line, whatever the number of habits", () => {
-    const names = Array.from({ length: 20 }, (_, i) => `Hábito ${i}`);
-    expect(habitTimeText(names)!.split("\n")).toHaveLength(1);
+  test("one line, whatever the name", () => {
+    expect(habitTimeText("Hábito ".repeat(10).trim()).split("\n")).toHaveLength(1);
   });
 });
 
@@ -160,9 +148,8 @@ describe("no forbidden word or sign", () => {
       eveningReviewText(["Leer"]),
       eveningReviewText(["Leer", "Meditar"]),
       eveningReviewText(["Leer", "Meditar", "Correr", "Agua", "Yoga"]),
-      habitTimeText(["Leer"]),
-      habitTimeText(["Leer", "Meditar"]),
-      habitTimeText(["Leer", "Meditar", "Correr", "Agua", "Yoga"]),
+      habitTimeText("Leer"),
+      habitTimeText("Meditar 10 min"),
     ] as string[];
     const found = texts.flatMap((text) =>
       FORBIDDEN.filter((word) => text.toLowerCase().includes(word)).map((word) => ({ text, word })),

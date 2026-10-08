@@ -1,6 +1,6 @@
 // R4 of `reminders`: the `habit_time` candidates of the `habits` source on a fixed clock: keys, the
 // instant each is due, the 2 h window (23:59 and 00:15 Lima, the exact edges), what crosses
-// midnight, the switch, and several habits at the same minute in ONE sentence. Which habits get
+// midnight, the switch, and several habits at the same minute, one notice each. Which habits get
 // a candidate at all (done, paused, a evitar, other weekdays) is `timedHabitsLeft`'s, tested in
 // habits-reminder.test.ts; the database side in tests/integration/reminders-habit-times.test.ts.
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -72,17 +72,18 @@ describe("habitTimeCandidates (pure)", () => {
     expect(candidate.dueAt.toISOString()).toBe("2026-10-09T03:00:00.000Z");
   });
 
-  test("habits at the same minute: ONE sentence from the first, the others say nothing", async () => {
+  test("habits at the same minute: each its own key and its own sentence, none speaks for another", async () => {
     const candidates = habitTimeCandidates("2026-10-08", [LEER, YOGA, MEDITAR]);
     const options = { channel: "telegram", showAmounts: true } as const;
     const texts = await Promise.all(candidates.map((candidate) => candidate.build(options)));
-    // Keys stay one per habit (as the spec says); only the first of the group speaks.
     expect(candidates.map((candidate) => candidate.dedupeKey)).toEqual([
       `habit:${LEER.id}:2026-10-08`,
       `habit:${YOGA.id}:2026-10-08`,
       `habit:${MEDITAR.id}:2026-10-08`,
     ]);
-    expect(texts).toEqual(["Es hora de Leer y Meditar.", "Es hora de Yoga.", null]);
+    expect(texts).toEqual(["Es hora de Leer.", "Es hora de Yoga.", "Es hora de Meditar."]);
+    // Both 22:00 habits are due at the very same instant.
+    expect(candidates[0].dueAt.getTime()).toBe(candidates[2].dueAt.getTime());
   });
 
   test("a different minute is a different sentence (positive control)", async () => {

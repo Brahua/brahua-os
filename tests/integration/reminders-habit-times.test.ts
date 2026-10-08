@@ -1,9 +1,11 @@
 // @vitest-environment node
 // R4 of `reminders`: a habit's reminder time and part of the day against Postgres. The CHECKs with
 // raw inserts (defense in depth behind Zod), the real `habits` source (who gets a `habit_time`
-// candidate: done, paused, archived, deleted, a evitar, other weekdays, not started), the edit
-// refusing a time on a habit to avoid, the engine sending ONE notice for habits at the same
-// minute and two ticks at once sending one per habit (with a positive control), the switch, and
+// candidate: done, paused, archived, deleted, other weekdays, not started; "a evitar" can't even
+// hold a time: the CHECK and the unit test cover it), the edit
+// refusing a time on a habit to avoid, the engine sending one notice per habit at the same
+// minute (one notice each, none depends on another) and two ticks at once sending one per habit
+// (with a positive control), the switch, and
 // the export carrying the two columns.
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -173,27 +175,134 @@ describe("the source: who gets a habit_time candidate", () => {
     ]);
   });
 
-  test("none of: no time, done, paused, archived, deleted, a evitar, other weekday, not started", async () => {
-    await habit({ name: "Sin hora" });
-    const done = await habit({ name: "Hecho", reminderTime: "22:00" });
-    const paused = await habit({ name: "Pausado", reminderTime: "22:00" });
-    await habit({ name: "Archivado", reminderTime: "22:00", archivedAt: new Date() });
-    await habit({ name: "Eliminado", reminderTime: "22:00", deletedAt: new Date() });
-    await habit({ name: "No fumar", kind: "avoid", daypart: "evening" });
-    await habit({
-      name: "Lunes",
-      reminderTime: "22:00",
-      frequency: "weekdays",
-      weekdays: [1],
-    });
-    await habit({ name: "Futuro", reminderTime: "22:00", startDate: "2026-10-09" });
-    await habit({ name: "Pendiente", reminderTime: "22:00" });
-    await testDb.insert(habitLogs).values({ habitId: done, day: DAY, quantity: 1, target: 1 });
+  /** Each case adds one habit that must NOT be offered, next to "Pendiente" (the control that is). */
+  const EXCLUDED: [string, () => Promise<void>][] = [
+    ["no time", async () => void (await habit({ name: "Sin hora" }))],
+    [
+      "done today",
+      async () => {
+        const id = await habit({ name: "Hecho", reminderTime: "22:00" });
+        await testDb.insert(habitLogs).values({ habitId: id, day: DAY, quantity: 1, target: 1 });
+      },
+    ],
+    [
+      "paused today",
+      async () => {
+        const id = await habit({ name: "Pausado", reminderTime: "22:00" });
+        await testDb
+          .insert(habitPauses)
+          .values({ habitId: id, startDate: "2026-10-07", endDate: "2026-10-09" });
+      },
+    ],
+    [
+      "a pause that ends today (inclusive)",
+      async () => {
+        const id = await habit({ name: "Pausa hasta hoy", reminderTime: "22:00" });
+        await testDb
+          .insert(habitPauses)
+          .values({ habitId: id, startDate: "2026-10-05", endDate: DAY });
+      },
+    ],
+    [
+      "archived",
+      async () =>
+        void (await habit({ name: "Archivado", reminderTime: "22:00", archivedAt: new Date() })),
+    ],
+    [
+      "deleted",
+      async () =>
+        void (await habit({ name: "Eliminado", reminderTime: "22:00", deletedAt: new Date() })),
+    ],
+    [
+      "another weekday",
+      async () =>
+        void (await habit({
+          name: "Lunes",
+          reminderTime: "22:00",
+          frequency: "weekdays",
+          weekdays: [1],
+        })),
+    ],
+    [
+      "not started yet",
+      async () =>
+        void (await habit({ name: "Futuro", reminderTime: "22:00", startDate: "2026-10-09" })),
+    ],
+    [
+      "weekly: marked today (the day counts) with the quota still open",
+      async () => {
+        const id = await habit({
+          name: "Semanal hecho hoy",
+          reminderTime: "22:00",
+          frequency: "weekly_count",
+          weeklyTarget: 3,
+        });
+        await testDb.insert(habitLogs).values({ habitId: id, day: DAY, quantity: 1, target: 1 });
+      },
+    ],
+    [
+      "weekly: the quota was met earlier this week",
+      async () => {
+        const id = await habit({
+          name: "Semanal cumplido",
+          reminderTime: "22:00",
+          frequency: "weekly_count",
+          weeklyTarget: 2,
+        });
+        await testDb.insert(habitLogs).values([
+          { habitId: id, day: "2026-10-05", quantity: 1, target: 1 },
+          { habitId: id, day: "2026-10-06", quantity: 1, target: 1 },
+        ]);
+      },
+    ],
+  ];
+
+  test.each(EXCLUDED)(
+    "%s gets no candidate (and 'Pendiente' still does)",
+    async (_label, setup) => {
+      await setup();
+      await habit({ name: "Pendiente", reminderTime: "22:00" });
+      expect(await names(AT_22)).toEqual(["Pendiente"]);
+    },
+  );
+
+  test("a pause that ended yesterday no longer holds the habit back", async () => {
+    const id = await habit({ name: "Pausa de ayer", reminderTime: "22:00" });
     await testDb
       .insert(habitPauses)
-      .values({ habitId: paused, startDate: "2026-10-07", endDate: "2026-10-09" });
+      .values({ habitId: id, startDate: "2026-10-04", endDate: "2026-10-07" });
+    expect(await names(AT_22)).toEqual(["Pausa de ayer"]);
+  });
 
-    expect(await names(AT_22)).toEqual(["Pendiente"]);
+  test("weekly with the quota open (one done earlier this week of three) still gets one", async () => {
+    const id = await habit({
+      name: "Semanal abierto",
+      reminderTime: "22:00",
+      frequency: "weekly_count",
+      weeklyTarget: 3,
+    });
+    await testDb
+      .insert(habitLogs)
+      .values({ habitId: id, day: "2026-10-05", quantity: 1, target: 1 });
+    expect(await names(AT_22)).toEqual(["Semanal abierto"]);
+  });
+
+  test("the week turns on Monday: Sunday's log does not meet Monday's quota, Monday's does meet Tuesday's", async () => {
+    const id = await habit({
+      name: "Semanal",
+      reminderTime: "22:00",
+      frequency: "weekly_count",
+      weeklyTarget: 1,
+    });
+    // Sunday 2026-10-11 belongs to the week that ended; Monday 12th opens a new one.
+    await testDb
+      .insert(habitLogs)
+      .values({ habitId: id, day: "2026-10-11", quantity: 1, target: 1 });
+    expect(await names(limaInstant("2026-10-12", "22:05"))).toEqual(["Semanal"]);
+    await testDb
+      .insert(habitLogs)
+      .values({ habitId: id, day: "2026-10-12", quantity: 1, target: 1 });
+    expect(await names(limaInstant("2026-10-13", "22:05"))).toEqual([]);
   });
 
   test("another day's log does not make today done (control for the one above)", async () => {
@@ -237,8 +346,9 @@ function recordingChannel(delayMs = 0) {
 const tick = (now: Date, channel: ReminderChannel) =>
   runTick({ db: testDb, now, sources: SOURCES, channelsFor: () => ({ telegram: channel }) });
 
-/** Only the habit_time notices: the evening review at 21:00 also rides these ticks. */
-const habitSent = (sent: { text: string }[]) => sent.filter((m) => m.text.startsWith("Es hora"));
+/** Only the habit_time notices (keys `habit:<id>:<day>`): the evening review also rides these ticks. */
+const habitSent = <T extends { dedupeKey: string }>(sent: T[]) =>
+  sent.filter((m) => m.dedupeKey.startsWith("habit:"));
 
 describe("the engine", () => {
   test("«Es hora de Leer.» once at its time; the next ticks of the window send nothing more", async () => {
@@ -292,36 +402,91 @@ describe("the engine", () => {
     ]);
   });
 
-  test("habits at the same minute: ONE message naming both, and each key is claimed", async () => {
-    const leer = await habit({ name: "Leer", reminderTime: "22:00" });
-    const meditar = await habit({ name: "Meditar", reminderTime: "22:00" });
+  test("a tick at 23:59 still tells a 22:00 habit (1 h 59 into its window)", async () => {
+    const id = await habit({ name: "Leer", reminderTime: "22:00" });
     const { channel, sent } = recordingChannel();
-    await tick(AT_22, channel);
-    await tick(limaInstant(DAY, "22:20"), channel);
+    await tick(limaInstant(DAY, "23:59"), channel);
     expect(habitSent(sent)).toEqual([
-      { text: "Es hora de Leer y Meditar.", dedupeKey: `habit:${leer}:${DAY}` },
+      { text: "Es hora de Leer.", dedupeKey: `habit:${id}:${DAY}` },
     ]);
-    const claimed = (await testDb.select().from(reminderDeliveries))
-      .filter((row) => row.kind === "habit_time")
-      .map((row) => [row.dedupeKey, row.status]);
-    expect(claimed.sort()).toEqual(
-      [
-        [`habit:${leer}:${DAY}`, "sent"],
-        [`habit:${meditar}:${DAY}`, "skipped"],
-      ].sort(),
-    );
   });
 
-  test("two ticks at once send ONE notice per habit; two habits at different times send two", async () => {
-    await habit({ name: "Leer", reminderTime: "22:00" });
-    const { channel, sent } = recordingChannel(150);
-    await Promise.all([tick(AT_22, channel), tick(AT_22, channel)]);
-    expect(habitSent(sent)).toHaveLength(1);
+  test("a log for the day that just ended (00:10) silences the 23:30 habit's 00:15 notice", async () => {
+    const id = await habit({ name: "Leer", reminderTime: "23:30" });
+    await testDb.insert(habitLogs).values({ habitId: id, day: DAY, quantity: 1, target: 1 });
+    const { channel, sent } = recordingChannel();
+    await tick(limaInstant("2026-10-09", "00:15"), channel);
+    expect(habitSent(sent)).toEqual([]);
+  });
 
-    // Positive control: another habit at another time is another notice.
-    await habit({ name: "Meditar", reminderTime: "22:01" });
-    await Promise.all([tick(AT_22, channel), tick(AT_22, channel)]);
-    expect(habitSent(sent).map((m) => m.text)).toEqual(["Es hora de Leer.", "Es hora de Meditar."]);
+  describe("habits at the same minute: one notice each", () => {
+    test("two habits at 22:00 are two sends, one per key", async () => {
+      const leer = await habit({ name: "Leer", reminderTime: "22:00" });
+      const meditar = await habit({ name: "Meditar", reminderTime: "22:00" });
+      const { channel, sent } = recordingChannel();
+      await tick(AT_22, channel);
+      await tick(limaInstant(DAY, "22:20"), channel);
+      expect(habitSent(sent).sort((a, b) => a.text.localeCompare(b.text))).toEqual([
+        { text: "Es hora de Leer.", dedupeKey: `habit:${leer}:${DAY}` },
+        { text: "Es hora de Meditar.", dedupeKey: `habit:${meditar}:${DAY}` },
+      ]);
+      const rows = (await testDb.select().from(reminderDeliveries)).filter(
+        (row) => row.kind === "habit_time",
+      );
+      expect(rows.map((row) => row.status)).toEqual(["sent", "sent"]);
+    });
+
+    test("if the send of one fails the other still goes out, and the failed one is retried", async () => {
+      const leer = await habit({ name: "Leer", reminderTime: "22:00" });
+      const meditar = await habit({ name: "Meditar", reminderTime: "22:00" });
+      const sent: string[] = [];
+      let failLeer = true;
+      const channel: ReminderChannel = {
+        id: "telegram",
+        send: async (message): Promise<ChannelSendResult> => {
+          if (message.dedupeKey === `habit:${leer}:${DAY}` && failLeer) {
+            return { ok: false, code: "telegram_server" };
+          }
+          sent.push(message.dedupeKey);
+          return { ok: true, messageId: sent.length };
+        },
+      };
+      await tick(AT_22, channel);
+      expect(sent.filter((key) => key.startsWith("habit:"))).toEqual([`habit:${meditar}:${DAY}`]);
+      // The retryable failure is tried again inside the window and now succeeds.
+      failLeer = false;
+      await tick(limaInstant(DAY, "22:20"), channel);
+      expect(sent.filter((key) => key.startsWith("habit:")).sort()).toEqual(
+        [`habit:${leer}:${DAY}`, `habit:${meditar}:${DAY}`].sort(),
+      );
+    });
+
+    test("marking one done does not affect the other", async () => {
+      const leer = await habit({ name: "Leer", reminderTime: "22:00" });
+      const meditar = await habit({ name: "Meditar", reminderTime: "22:00" });
+      await testDb.insert(habitLogs).values({ habitId: leer, day: DAY, quantity: 1, target: 1 });
+      const { channel, sent } = recordingChannel();
+      await tick(AT_22, channel);
+      expect(habitSent(sent)).toEqual([
+        { text: "Es hora de Meditar.", dedupeKey: `habit:${meditar}:${DAY}` },
+      ]);
+    });
+
+    test("two ticks at once send exactly two notices for two habits (positive control: a third at another minute adds one)", async () => {
+      await habit({ name: "Leer", reminderTime: "22:00" });
+      await habit({ name: "Meditar", reminderTime: "22:00" });
+      const { channel, sent } = recordingChannel(150);
+      await Promise.all([tick(AT_22, channel), tick(AT_22, channel)]);
+      expect(habitSent(sent)).toHaveLength(2);
+
+      await habit({ name: "Yoga", reminderTime: "22:01" });
+      await Promise.all([tick(AT_22, channel), tick(AT_22, channel)]);
+      expect(
+        habitSent(sent)
+          .map((m) => m.text)
+          .sort(),
+      ).toEqual(["Es hora de Leer.", "Es hora de Meditar.", "Es hora de Yoga."]);
+    });
   });
 });
 

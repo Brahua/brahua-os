@@ -21,11 +21,9 @@
 // «Es hora de Leer.» is still true then (its time has come and it is not done, and a day can be
 // logged back for a week). Past the window nothing is offered for yesterday: no query is made.
 //
-// Habits that share the very same minute come in ONE message («Es hora de Leer y Meditar.»), so two
-// habits never buzz the phone twice. Their keys stay one per habit, as the spec says: the first
-// habit of the group (the manual order) carries the sentence for all, the others build nothing and
-// are recorded as skipped (`empty`), which also claims their key for the day. The group is fixed
-// when the candidates are listed, so two ticks agree on who speaks.
+// Every habit gets its OWN notice and key, also when several share a minute: no key is ever
+// claimed on behalf of another habit, so a failed send or a habit marked done costs only itself.
+// (Grouping them in one message would belong to the engine, e.g. with `coversKeys`.)
 import "server-only";
 import { getDb } from "@/lib/db";
 import {
@@ -47,29 +45,20 @@ async function habitsLeft(at: Date) {
 }
 
 /**
- * The `habit_time` candidates of one Lima day from its timed habits still to do (pure, so the
- * grouping and the keys are tested with a fixed clock). `habits` keep the manual order.
+ * The `habit_time` candidates of one Lima day from its timed habits still to do (pure, so the keys
+ * and the clock are tested without a database). One candidate per habit, each with its own key
+ * and its own sentence, even when several share a minute: no habit's reminder depends on another's.
  */
 export function habitTimeCandidates(
   day: string,
   habits: readonly TimedHabit[],
 ): ReminderCandidate[] {
-  const byTime = new Map<string, TimedHabit[]>();
-  for (const habit of habits) {
-    const time = habit.reminderTime.slice(0, 5);
-    byTime.set(time, [...(byTime.get(time) ?? []), habit]);
-  }
-  return habits.map((habit) => {
-    const group = byTime.get(habit.reminderTime.slice(0, 5)) ?? [habit];
-    const leader = group[0].id === habit.id;
-    return {
-      kind: "habit_time" as const,
-      dedupeKey: `habit:${habit.id}:${day}`,
-      dueAt: habitTimeSlot(day, habit.reminderTime.slice(0, 5)),
-      // The followers say nothing: the leader's sentence names them.
-      build: async () => (leader ? habitTimeText(group.map((member) => member.name)) : null),
-    };
-  });
+  return habits.map((habit) => ({
+    kind: "habit_time" as const,
+    dedupeKey: `habit:${habit.id}:${day}`,
+    dueAt: habitTimeSlot(day, habit.reminderTime.slice(0, 5)),
+    build: async () => habitTimeText(habit.name),
+  }));
 }
 
 export const habitsReminderSource: ReminderSource = {

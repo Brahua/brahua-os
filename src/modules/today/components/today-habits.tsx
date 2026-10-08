@@ -11,7 +11,7 @@ import { useDayLog } from "@/modules/habits/components/use-day-log";
 import type { TrackFocus } from "@/modules/habits/components/use-pause-flow";
 import { useSkipToday } from "@/modules/habits/components/use-skip-today";
 import { preloadAdjust, useQuantityLog } from "@/modules/habits/components/use-quantity-log";
-import { groupByDaypart, visualOrder } from "@/modules/habits/daypart-groups";
+import { bandListLabel, groupByDaypart, visualOrder } from "@/modules/habits/daypart-groups";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { applyHabitListChange, neighborOf } from "@/modules/habits/habit-list-optimistic";
 import { isPausedToday } from "@/modules/habits/habit-status";
@@ -244,14 +244,9 @@ function HabitsGrid({ habits }: { habits: HabitItem[] }) {
         <div className="flex flex-col gap-4" data-today-habit-bands="">
           {bands.map((band) => (
             <div key={band.key} className="flex flex-col gap-2" data-today-habit-band={band.key}>
-              <h3
-                id={`${TODAY_HABITS_HEADING_ID}-${band.key}`}
-                className="bo-text-label text-text-secondary"
-              >
-                {band.label}
-              </h3>
+              <h3 className="bo-text-label text-text-secondary">{band.label}</h3>
               <ul
-                aria-labelledby={`${TODAY_HABITS_HEADING_ID}-${band.key}`}
+                aria-label={bandListLabel(band)}
                 className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
               >
                 {band.habits.map(padCell)}

@@ -254,6 +254,14 @@ export function areaIdOf(slug: string): Promise<string> {
   });
 }
 
+/** How many habits (deleted ones too) carry this name: 1 after a create, never 2 after a double Enter. */
+export function countHabitsByName(name: string) {
+  return withDb(async (db) => {
+    const rows = await db.select({ id: habits.id }).from(habits).where(eq(habits.name, name));
+    return rows.length;
+  });
+}
+
 /** The habit with this (unique) name, as stored; undefined if none. */
 export function readHabitByName(name: string) {
   return withDb(async (db) => {

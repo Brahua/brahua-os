@@ -16,6 +16,15 @@ export type DaypartBand<T> = {
   habits: T[];
 };
 
+/**
+ * The accessible name of a band's list: «Hábitos de la franja mañana» / «Hábitos sin franja», so
+ * the list says what it holds even when a screen reader jumps straight to it (the `h3` above it
+ * is the visible title).
+ */
+export function bandListLabel(band: Pick<DaypartBand<unknown>, "key" | "label">): string {
+  return band.key === "none" ? REMINDER_COPY.noDaypartList : REMINDER_COPY.bandList(band.label);
+}
+
 /** The bands of `habits`, or null when no habit has a part of the day (nothing to group). */
 export function groupByDaypart<T extends { daypart?: HabitDaypart | null }>(
   habits: readonly T[],
