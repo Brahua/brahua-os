@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
+import { E2E_TELEGRAM, FAKE_TELEGRAM_PORT } from "./e2e/support/reminders-env";
 import { isGitHubActions, screenshotsEnabled } from "./e2e/support/screenshot-env";
 
 // E2E_PORT lets parallel local runs (several worktrees) use different ports; CI uses the default.
@@ -19,6 +20,13 @@ const appEnv = {
   OWNER_EMAIL: E2E_OWNER.email,
   // Builds and enables the test-only routes that force errors (src/lib/e2e-error-routes.ts).
   E2E_ERROR_ROUTES: "1",
+  // `reminders`: test-only bot values and the fake Telegram Bot API started below. The app talks
+  // to it through the same TELEGRAM_API_BASE the production code reads (no test branches).
+  TELEGRAM_BOT_TOKEN: E2E_TELEGRAM.token,
+  TELEGRAM_WEBHOOK_SECRET: E2E_TELEGRAM.webhookSecret,
+  TELEGRAM_BOT_USERNAME: E2E_TELEGRAM.botUsername,
+  REMINDERS_CRON_SECRET: E2E_TELEGRAM.cronSecret,
+  TELEGRAM_API_BASE: `http://127.0.0.1:${FAKE_TELEGRAM_PORT}`,
 };
 
 const desktopChrome = devices["Desktop Chrome"];
@@ -58,6 +66,8 @@ export default defineConfig({
         storageState: OWNER_STORAGE_STATE,
       },
       dependencies: ["setup"],
+      // `reminder_settings` is a single row shared by the whole app: its spec runs in one project.
+      testIgnore: /reminders\.spec\.ts/,
     },
     {
       name: "desktop",
@@ -69,11 +79,21 @@ export default defineConfig({
       dependencies: ["setup"],
     },
   ],
-  webServer: {
-    command: `pnpm build && pnpm start --port ${PORT}`,
-    url: `${baseURL}/login`,
-    reuseExistingServer: false,
-    timeout: 180_000,
-    env: appEnv,
-  },
+  webServer: [
+    // The fake Telegram Bot API (reminders): the app's TELEGRAM_API_BASE points here.
+    {
+      command: "pnpm exec tsx e2e/support/fake-telegram-server.ts",
+      url: `http://127.0.0.1:${FAKE_TELEGRAM_PORT}/__health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      env: { E2E_TELEGRAM_PORT: String(FAKE_TELEGRAM_PORT) },
+    },
+    {
+      command: `pnpm build && pnpm start --port ${PORT}`,
+      url: `${baseURL}/login`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+      env: appEnv,
+    },
+  ],
 });

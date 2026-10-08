@@ -169,3 +169,83 @@ test("the finance contract stays closed to the other modules", async () => {
   // The home page reads it (positive control).
   expect(await restricted(code, "src/app/(app)/page.tsx")).toEqual([]);
 });
+
+// SPEC-reminders "Contratos": `reminders` depends on `core` only. `tasks`, `habits` and `finance`
+// register their reminder sources through `reminders/contracts` and nothing else of it; the
+// composition root (src/lib/reminder-sources.ts) and the app (pages, routes) import it freely.
+const REMINDERS_CONTRACT = `import { registerReminderSource } from "@/modules/reminders/contracts";
+export const register = registerReminderSource;
+`;
+const REMINDERS_INTERNALS = [
+  `import { runTick } from "@/modules/reminders/engine";\nexport const x = runTick;\n`,
+  `import { getSettings } from "@/modules/reminders/settings";\nexport const x = getSettings;\n`,
+  `import { reminderDeliveries } from "@/modules/reminders/db/schema";\nexport const x = reminderDeliveries;\n`,
+  `import { createTelegramChannel } from "@/modules/reminders/channels/telegram/channel";\nexport const x = createTelegramChannel;\n`,
+  `import * as reminders from "@/modules/reminders";\nexport const x = reminders;\n`,
+];
+const REMINDER_SOURCE_FILES = [
+  "src/modules/tasks/reminders-source.ts",
+  "src/modules/habits/reminders-source.ts",
+  "src/modules/finance/reminders-source.ts",
+];
+
+test.each(REMINDER_SOURCE_FILES)(
+  "%s may import the reminders contract (positive control)",
+  async (file) => {
+    expect(await restricted(REMINDERS_CONTRACT, file)).toEqual([]);
+  },
+);
+
+test.each(REMINDER_SOURCE_FILES.flatMap((file) => REMINDERS_INTERNALS.map((code) => [file, code])))(
+  "%s cannot import anything else of reminders %#",
+  async (file, code) => {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`reminders` depende de `core`");
+  },
+);
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/today/today-board.ts",
+])("%s cannot import reminders' internals either", async (file) => {
+  for (const code of REMINDERS_INTERNALS) {
+    expect(await restricted(code, file)).toHaveLength(1);
+  }
+});
+
+test("reminders itself, the composition root and the app may import it", async () => {
+  expect(await restricted(REMINDERS_INTERNALS[0], "src/modules/reminders/channels/x.ts")).toEqual(
+    [],
+  );
+  expect(await restricted(REMINDERS_CONTRACT, "src/lib/reminder-sources.ts")).toEqual([]);
+  expect(
+    await restricted(REMINDERS_INTERNALS[1], "src/app/(app)/settings/reminders/page.tsx"),
+  ).toEqual([]);
+  expect(await restricted(REMINDERS_INTERNALS[0], "src/app/api/reminders/tick/route.ts")).toEqual(
+    [],
+  );
+});
+
+test("reminders only depends on core", async () => {
+  const file = "src/modules/reminders/engine.ts";
+  for (const code of [
+    `import { getTasksTodaySummary } from "@/modules/tasks/contracts";\nexport const x = getTasksTodaySummary;\n`,
+    `import { getHabitsTodaySummary } from "@/modules/habits/contracts";\nexport const x = getHabitsTodaySummary;\n`,
+    `import { getFinanceTodaySummary } from "@/modules/finance/contracts";\nexport const x = getFinanceTodaySummary;\n`,
+    `import { listProjects } from "@/modules/projects/queries";\nexport const x = listProjects;\n`,
+    `import { buildBoard } from "@/modules/today/today-board";\nexport const x = buildBoard;\n`,
+  ]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`reminders` solo depende de `core`");
+  }
+  // core is allowed (positive control).
+  expect(
+    await restricted(
+      `import { listLifeAreas } from "@/modules/core/queries";\nexport const x = listLifeAreas;\n`,
+      file,
+    ),
+  ).toEqual([]);
+});

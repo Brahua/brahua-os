@@ -50,7 +50,7 @@ const screenshotsThroughHelper = {
   },
 };
 
-// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks; core ← habits; core ← finance). A module never imports one that
+// Module boundaries (CAPABILITY-MAP: core ← projects ← tasks; core ← habits; core ← finance; core ← reminders). A module never imports one that
 // depends on it: cross-module features go through registered contracts and the composition roots
 // in src/lib (progress-sources.ts, project-extensions.ts, capture-providers.tsx).
 const TASKS_IMPORT = {
@@ -116,30 +116,81 @@ const FINANCE_FOR_TODAY = {
 };
 // An exact path (a pattern would match everything under it).
 const FINANCE_BARREL_FOR_TODAY = { name: "@/modules/finance", message: FINANCE_FOR_TODAY.message };
+// `reminders` depends on `core` only (SPEC-reminders "Contratos"): it imports no other module, and
+// `tasks`, `habits` and `finance` import nothing of it but its contracts (`registerReminderSource`
+// and the types). Everything else (engine, channels, settings) is private to `reminders`.
+const REMINDERS_MESSAGE =
+  "`reminders` depende de `core`: los demás módulos solo importan `@/modules/reminders/contracts` (registerReminderSource y sus tipos).";
+// Same gotcha as FINANCE_FOR_TODAY: a file can only be let back in when its folder isn't left
+// out, so the folder itself (the barrel) is an exact path and only its children are a pattern.
+const REMINDERS_IMPORT = {
+  group: ["@/modules/reminders/*", "!@/modules/reminders/contracts"],
+  message: REMINDERS_MESSAGE,
+};
+const REMINDERS_BARREL = { name: "@/modules/reminders", message: REMINDERS_MESSAGE };
+const REMINDERS_ONLY_CORE = {
+  group: [
+    "@/modules/projects",
+    "@/modules/projects/*",
+    "@/modules/tasks",
+    "@/modules/tasks/*",
+    "@/modules/habits",
+    "@/modules/habits/*",
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/today",
+    "@/modules/today/*",
+  ],
+  message:
+    "`reminders` solo depende de `core`: no importa otros módulos (ellos le registran sus fuentes por `contracts`).",
+};
 const moduleBoundaries = [
   {
     files: ["src/modules/today/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: [FINANCE_BARREL_FOR_TODAY], patterns: [FINANCE_FOR_TODAY] },
+        {
+          paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL],
+          patterns: [FINANCE_FOR_TODAY, REMINDERS_IMPORT],
+        },
       ],
     },
   },
   {
+    files: ["src/modules/reminders/**/*.{ts,tsx}"],
+    rules: { "no-restricted-imports": ["error", { patterns: [REMINDERS_ONLY_CORE] }] },
+  },
+  {
     files: ["src/modules/finance/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT] }] },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [REMINDERS_BARREL],
+          patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT, REMINDERS_IMPORT],
+        },
+      ],
+    },
   },
   {
     files: ["src/modules/habits/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [FINANCE_IMPORT, TODAY_IMPORT] }] },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [REMINDERS_BARREL], patterns: [FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT] },
+      ],
+    },
   },
   {
     files: ["src/modules/tasks/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT] },
+        {
+          paths: [REMINDERS_BARREL],
+          patterns: [HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT],
+        },
       ],
     },
   },
@@ -148,7 +199,10 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [TASKS_IMPORT, HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT] },
+        {
+          paths: [REMINDERS_BARREL],
+          patterns: [TASKS_IMPORT, HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT],
+        },
       ],
     },
   },
@@ -157,7 +211,17 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [TASKS_IMPORT, PROJECTS_IMPORT, HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT] },
+        {
+          paths: [REMINDERS_BARREL],
+          patterns: [
+            TASKS_IMPORT,
+            PROJECTS_IMPORT,
+            HABITS_IMPORT,
+            FINANCE_IMPORT,
+            TODAY_IMPORT,
+            REMINDERS_IMPORT,
+          ],
+        },
       ],
     },
   },

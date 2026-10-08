@@ -237,10 +237,13 @@ for (const theme of THEMES) {
     );
     expect(knob.split(",")[0].trim()).toBe("0s");
 
-    // The whole page minus the passkey list, which changes with other specs (passkey.spec.ts).
-    await page
-      .getByRole("region", { name: /^Passkeys/ })
-      .evaluate((element: HTMLElement) => (element.style.display = "none"));
+    // The whole page minus the passkey list, which changes with other specs (passkey.spec.ts), and
+    // the "Avisos" entry (reminders.spec.ts covers it), so this reference stays as it was.
+    for (const name of [/^Passkeys/, "Avisos"]) {
+      await page
+        .getByRole("region", { name })
+        .evaluate((element: HTMLElement) => (element.style.display = "none"));
+    }
     await expectScreenshot(page.getByRole("main"), `settings-${theme}.png`, {
       stylePath: HIDE_APP_NAV,
     });
