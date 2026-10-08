@@ -8,16 +8,18 @@ Un implementador a la vez. Verificación local = gate liviano; lo demás lo vali
 
 ### R1 — Cimientos
 
-- [ ] **R1.1 Datos y contrato:** migración `0013_reminders.sql` (`reminder_settings` de fila única con `CHECK`, `telegram_link_codes`, `reminder_deliveries` con único `(dedupe_key, channel)`, `telegram_updates`, `telegram_captures`, `push_subscriptions`; `habits.reminder_time` y `daypart` se dejan para R4), exportación (sin `telegram_link_codes` ni `push_subscriptions`), `contracts.ts` (`registerReminderSource`, `ReminderChannel`), `slots.ts` puro.
+Hecho en `feat/reminders-r1` (detalle, decisiones autónomas y puntos de extensión en `docs/HANDOFF.md` → "Cómo funciona reminders → R1"). `vercel deploy --dry` no se corrió (orden del corte).
+
+- [x] **R1.1 Datos y contrato:** migración `0013_reminders.sql` (`reminder_settings` de fila única con `CHECK`, `telegram_link_codes`, `reminder_deliveries` con único `(dedupe_key, channel)`, `telegram_updates`, `telegram_captures`, `push_subscriptions`; `habits.reminder_time` y `daypart` se dejan para R4), exportación (sin `telegram_link_codes` ni `push_subscriptions`), `contracts.ts` (`registerReminderSource`, `ReminderChannel`), `slots.ts` puro.
   - Aceptación: `CHECK` rechaza una segunda fila de settings; `slots.ts` calcula instantes y ventana de 2 h en Lima (23:59, medianoche).
   - Verificar: unitarias de `slots.ts`; prettier de `drizzle/meta/*_snapshot.json`. Archivos: `reminders/db/schema.ts`, `drizzle/0013…`, `contracts.ts`, `slots.ts`, `core/export.ts`.
-- [ ] **R1.2 Telegram y vinculación:** `TelegramClient` (`sendMessage`, `answerCallbackQuery`, `setWebhook`, base configurable), servidor falso para pruebas, código de un solo uso (hash, 10 min, tope de 5 fallos), acciones «Conectar» (registra el webhook) y «Desconectar».
+- [x] **R1.2 Telegram y vinculación:** `TelegramClient` (`sendMessage`, `answerCallbackQuery`, `setWebhook`, base configurable), servidor falso para pruebas, código de un solo uso (hash, 10 min, tope de 5 fallos), acciones «Conectar» (registra el webhook) y «Desconectar».
   - Aceptación: código caducado, reutilizado o inválido se rechaza; el token no aparece en logs.
   - Verificar: unitarias del código y del cliente con el servidor falso. Archivos: `reminders/channels/telegram/*`, `reminders/actions.ts`.
-- [ ] **R1.3 Motor y endpoint `tick`:** `engine.ts` (reclamar `dedupe_key`, ventana de gracia, reintentos ≤ 3, 403 desconecta), `POST /api/reminders/tick` con Bearer en tiempo constante (404 si no), `reminder-sources.ts`, `.github/workflows/reminders-tick.yml` (`*/15`, SHA fijados) y cron diario de Vercel en `vercel.json`.
+- [x] **R1.3 Motor y endpoint `tick`:** `engine.ts` (reclamar `dedupe_key`, ventana de gracia, reintentos ≤ 3, 403 desconecta), `POST /api/reminders/tick` con Bearer en tiempo constante (404 si no), `reminder-sources.ts`, `.github/workflows/reminders-tick.yml` (`*/15`, SHA fijados) y cron diario de Vercel en `vercel.json`.
   - Aceptación: dos ticks a la vez → una entrega (con control positivo); fuera de ventana → `skipped`.
   - Verificar: integración (CI) + unitarias del motor con reloj fijo; `vercel deploy --dry` por haber tocado `vercel.json`. Archivos: `engine.ts`, `route.ts`, workflow, `vercel.json`, raíz de composición.
-- [ ] **R1.4 Ajustes → Avisos (esqueleto):** `/settings/reminders` con estado de Telegram, Conectar/Desconectar, slots para R2 (interruptores y horas) y R5 (push y selector de canal), `aria-disabled` mientras guarda, regla ESLint de límites de importación.
+- [x] **R1.4 Ajustes → Avisos (esqueleto):** `/settings/reminders` con estado de Telegram, Conectar/Desconectar, slots para R2 (interruptores y horas) y R5 (push y selector de canal), `aria-disabled` mientras guarda, regla ESLint de límites de importación.
   - Aceptación: axe en 0 en ambos temas y 320 px; foco restaurado tras conectar.
   - Verificar: componente + E2E con el servidor falso (CI). Archivos: página, componentes, `eslint.config.mjs`.
 
