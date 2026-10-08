@@ -12,6 +12,7 @@ next-env.d.ts
 # testing
 /coverage
 /playwright-report/
+/playwright-results.json
 /test-results/
 
 # env files

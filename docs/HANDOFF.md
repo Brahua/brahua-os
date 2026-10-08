@@ -1641,6 +1641,49 @@ No hay chequeo de Lighthouse en CI: la accesibilidad ya la cubre axe en cada E2E
 - **Repo público y `main` protegida (2026-10-02).** Se agotaron los 2.000 min/mes de Actions del plan gratuito; con el OK del owner el repo pasó a **público** (Actions gratis) hasta que se renueve el cupo (~2026-11-01), y entonces vuelve a privado. Mientras sea público, el ruleset **"Protect main"** (id 24365031) exige PR y los 3 checks, y bloquea borrar `main` o `force push`. El ruleset solo cuenta el run `pull_request` del PR: tras un commit del bot de capturas ese run queda en `action_required` y hay que aprobarlo (`gh api -X POST repos/Brahua/brahua-os/actions/runs/<id>/approve`). Las ramas se borran solas al integrar. Al volver a privado el ruleset deja de aplicarse (plan gratuito) y rige otra vez lo de abajo.
 - **`main` sin protección (repo privado): decisión aceptada por el owner (2026-10-01).** El repo es privado en el plan gratuito, que no tiene protección de rama ni rulesets, y el owner decidió no pagar GitHub Pro. La regla "merge solo con CI verde" se cumple por proceso: antes de cada merge, el agente comprueba que los 3 checks (`Lint, types, unit tests, build`, `E2E (Playwright + axe)` e `Integration tests (Postgres)`) están en verde, y nunca hace push directo a `main`. El deploy además exige que el run de ese push pase todos los checks.
 
+## CI: E2E y el gate del deploy
+
+**Qué cambió (`chore/ci-deploy-gate`, 2026-10-08).**
+
+- **Gate del deploy.** El 2026-10-08 el job `e2e` (20 min) se cortó por timeout en `main` tres veces y el `deploy` salió igual: un job que alcanza su `timeout-minutes` termina `cancelled` (no `failure`) y `!failure() && !cancelled()` solo mira si se canceló el run entero. Ahora `deploy` exige `success()` más `needs.checks.result`, `needs.e2e.result` y `needs.integration.result` iguales a `success` exacto (y push a `main`); `smoke` exige `needs.deploy.result == 'success'`. `guard` no está en los `needs` del deploy: se salta en `push` (el único evento que despliega) y `checks`, `e2e` e `integration` corren igual con `!failure() && !cancelled()`; un `workflow_dispatch` o un `pull_request` nunca despliegan por la condición de evento/ref. Un deploy saltado o cancelado por esto deja el run en rojo o gris: se arregla y se vuelve a empujar a `main` (no hay que "re-ejecutar el deploy" a mano). `update-screenshots.yml` solo despacha `ci.yml` en una rama, donde el deploy nunca corre; no usa esta condición.
+- **Colchón.** `timeout-minutes` del E2E de 20 a 30 en `ci.yml` y de 25 a 30 en `update-screenshots.yml`, mientras se aplica el plan de `tasks/todo.md` («Minutos de CI y E2E lento»).
+- **Medición.** En CI, Playwright escribe además `playwright-results.json` (reporter `json`; el reporte HTML en fallos y el reporter `github` siguen igual). Un paso `E2E timing summary` (`if: always()`, solo si el JSON existe) corre `scripts/e2e-timing-summary.mjs` y deja el resumen en la pestaña Summary del run; el JSON se sube como artefacto `playwright-results` (7 días).
+
+**Cómo leer el resumen de tiempos** (Summary del run → job «E2E»):
+
+- «Duración total (reloj)» es lo que paga el job (sin instalar ni arrancar contenedores); «Arranque hasta el primer test» es la diferencia entre el inicio del run y el primer test: aproxima `pnpm build` + `pnpm start` del `webServer`.
+- «Por proyecto» suma las duraciones de todos los tests de `desktop` y `mobile` (más `setup`); suma trabajo de los workers, no reloj. Sirve para decidir el paso 2 (cuánto cuesta `mobile`).
+- «Los 20 tests más lentos» y «Los 10 specs con más tiempo» (suma de intentos, reintentos incluidos) y «Reintentos» (flaky o que siguen fallando) dicen dónde recortar.
+- Si el job se corta por timeout no hay resumen (mata el job antes del paso); en ese caso mirar el log del paso `pnpm test:e2e`.
+- **Medir `pnpm build` dentro del `webServer`:** no se cambió el `webServer` (hace `pnpm build && pnpm start`; `reuseExistingServer` es `false` a propósito y un build previo duplicaría el costo). Formas de medirlo: (1) la cifra «Arranque hasta el primer test» del resumen; (2) el job `checks` ya mide `pnpm build` aparte (mediana 0,6 min); (3) en un PR de prueba, anteponer `time pnpm build` en el paso y comparar. El paso 2 del plan lo comparte entre jobs.
+
+**Línea base histórica** (45 runs completados de `ci.yml`, 2026-10-07 04:15 a 2026-10-08 19:03 UTC, `main`, PRs y dispatches; duración de cada job en min, de `gh api repos/Brahua/brahua-os/actions/runs/<id>/jobs`; mediana y máx. solo de los que terminaron en `success`):
+
+| Job | Runs | success | failure | cancelled (de ellos, por timeout) | Mediana | Máx. (success) | Máx. (cualquiera) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `checks` (15 min de límite) | 45 | 38 | 6 | 1 (0) | 3,7 | 4,1 | 4,1 |
+| `e2e` (20 min de límite) | 45 | 25 | 7 | 13 (9, con ≥ 19,5 min) | 17,3 | 19,8 | 20,1 |
+| `integration` (15 min de límite) | 45 | 42 | 2 | 1 (0) | 4,3 | 5,2 | 5,2 |
+| `deploy` | 45 | 9 | 0 | 5 (0) | 1,2 | 1,5 | 1,5 |
+| `smoke` | 45 | 9 | 0 | 5 (0) | 0,5 | 1,3 | 1,3 |
+
+Los 13 `e2e` cancelados incluyen los cortes por timeout (9, entre ellos 3 en `main` el 2026-10-08 a las 07:27, 09:14 y 17:24 UTC) y los PR superados por un push nuevo. Los 3 cortes en `main` salieron a producción antes de este cambio.
+
+Pasos principales (mediana / máx. de los runs en `success`):
+
+| Job | Paso | Mediana | Máx. |
+| --- | --- | ---: | ---: |
+| `e2e` | `pnpm test:e2e` (incluye `pnpm build` + `pnpm start` del `webServer`) | 15,8 | 18,8 |
+| `e2e` | Initialize containers (Postgres) | 0,7 | 0,9 |
+| `e2e` | `pnpm install --frozen-lockfile` + checkout + setup | ≈ 0,2 | 0,3 |
+| `checks` | `pnpm test` (unitarias) | 2,0 | 2,3 |
+| `checks` | `pnpm build` | 0,6 | 0,6 |
+| `checks` | `lint` + `typecheck` + `format:check` | 0,3 + 0,3 + 0,2 | 0,4 + 0,3 + 0,2 |
+| `integration` | `pnpm test:integration` | 3,7 | 4,5 |
+| `integration` | Initialize containers + instalación + migraciones | ≈ 0,5 | 0,6 |
+
+Lectura: el E2E es el cuello de botella (≈ 70 % del tiempo de un run, y el único que supera los 15 min); casi todo es el paso `pnpm test:e2e` (build del `webServer` ≈ 0,6 min según `checks`, el resto son los ≈ 311 tests en dos proyectos con 2 vCPU). Instalar, checkout y contenedores suman menos de 1 min. Con 25 runs sanos entre 14,5 y 19,8 min, el timeout de 20 min dejaba 0,2 min de margen en el peor caso: bastó una racha lenta para cortarlo.
+
 ## Decisiones recientes a respetar
 
 - Driver: `pg` + Drizzle + `attachDatabasePool` (ADR-002). Migraciones con `DATABASE_URL_UNPOOLED`.
