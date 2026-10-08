@@ -26,6 +26,9 @@ import { reminderDeliveries, reminderSettings } from "@/modules/reminders/db/sch
 import { runTick } from "@/modules/reminders/engine";
 import { getSettings } from "@/modules/reminders/settings";
 import { addDaysToKey, limaDayOf, limaInstant } from "@/modules/reminders/slots";
+import { ownerDateKey } from "@/lib/time";
+import { selectHabitsTodaySummary } from "@/modules/habits/contracts";
+import { selectTasksTodaySummary } from "@/modules/tasks/contracts";
 import { tasks } from "@/modules/tasks/db/schema";
 import { testDb } from "./test-db";
 
@@ -118,6 +121,13 @@ function context(now: Date): ReminderContext {
     today,
     yesterday: addDaysToKey(today, -1),
     times: { briefing: "07:30", evening: "21:00" },
+    enabled: {
+      briefing: true,
+      payment_eve: true,
+      payment_followup: true,
+      evening_review: true,
+      habit_time: true,
+    },
   };
 }
 
@@ -333,7 +343,10 @@ describe("the briefing through the engine", () => {
     ]);
   });
 
-  test("overdue tasks and tasks of other days are not counted; done or paused habits neither", async () => {
+  test("overdue tasks and tasks of other days are not counted; done, paused, off-day and not-started habits neither", async () => {
+    await habit({ name: "Pendiente" }); // the control: this one does count
+    await habit({ name: "Solo viernes", frequency: "weekdays", weekdays: [5] }); // today is Thursday
+    await habit({ name: "Empieza luego", startDate: "2026-10-20" });
     await task({ title: "vieja", dueDate: "2026-10-01" });
     await task({ title: "mañana", dueDate: "2026-10-09" });
     const done = await habit({ name: "Meditar" });
@@ -346,6 +359,14 @@ describe("the briefing through the engine", () => {
       .values({ habitId: paused, startDate: "2026-10-07", endDate: "2026-10-09" });
     await task({ title: "hoy", dueDate: "2026-10-08" });
 
+    const { channel, sent } = recordingChannel();
+    await tick(MORNING, channel);
+    expect(sent.map((message) => message.text)).toEqual(["Buen día. Hoy: 1 hábito y 1 tarea."]);
+  });
+
+  test("a task with a due time counts by its date", async () => {
+    await task({ title: "a las tres", dueDate: "2026-10-08", dueTime: "15:00" });
+    await task({ title: "otro día", dueDate: "2026-10-09", dueTime: "08:00" });
     const { channel, sent } = recordingChannel();
     await tick(MORNING, channel);
     expect(sent.map((message) => message.text)).toEqual(["Buen día. Hoy: 1 tarea."]);
@@ -445,12 +466,15 @@ describe("the payment reminders through the engine", () => {
     expect(sent).toHaveLength(1);
   });
 
-  test("once paid, the follow-up does not go out (control: pending, it does)", async () => {
+  test("once paid, the follow-up does not go out (control: the pending one, in the same tick, does)", async () => {
     const paid = await recurring({ name: "Pagado", dayOfMonth: 5 });
+    const pending = await recurring({ name: "Pendiente", dayOfMonth: 5 });
     await settle(paid.id, "2026-10-05", "paid");
     const { channel, sent } = recordingChannel();
     await tick(MORNING, channel);
-    expect(sent).toEqual([]);
+    expect(sent.map((message) => message.dedupeKey)).toEqual([
+      `payment_followup:${pending.id}:2026-10-05`,
+    ]);
   });
 
   test("with payment reminders switched off neither the eve nor the follow-up goes out", async () => {
@@ -506,13 +530,173 @@ describe("the evening review through the engine", () => {
     expect(sent).toEqual([]);
   });
 
-  test("a review at 23:30 is still sent at 00:30 and is about the day that ended", async () => {
+  test("a review at 23:30 goes out at 23:45; at 00:30 nothing false is said about the day that ended", async () => {
     await setSettings({ eveningTime: "23:30:00", briefingEnabled: false });
     await habit({ name: "Leer" });
     const { channel, sent } = recordingChannel();
+    // 00:30 of the 9th: yesterday's review is NOT offered and today's is not due yet.
     await tick(limaInstant("2026-10-09", "00:30"), channel);
+    expect(sent).toEqual([]);
+    expect(await deliveries()).toEqual([]);
+    // Control: at 23:45 of the 8th it does go out.
+    await tick(limaInstant("2026-10-08", "23:45"), channel);
     expect(sent.map((message) => [message.dedupeKey, message.text])).toEqual([
       ["evening:2026-10-08", "Te queda Leer. Si lo haces ahora, cuenta hoy."],
+    ]);
+  });
+
+  test("the window's exact edges: 23:00 is skipped, never sent", async () => {
+    await habit({ name: "Leer" });
+    const { channel, sent } = recordingChannel();
+    await tick(limaInstant("2026-10-08", "23:00"), channel);
+    expect(sent).toEqual([]);
+    expect(await deliveries()).toMatchObject([
+      { dedupeKey: "briefing:2026-10-08", status: "skipped", errorCode: "window_expired" },
+      { dedupeKey: "evening:2026-10-08", status: "skipped", errorCode: "window_expired" },
+    ]);
+  });
+
+  test("22:59 is still inside the review's window (control for the edge above)", async () => {
+    await habit({ name: "Leer" });
+    const { channel, sent } = recordingChannel();
+    await tick(limaInstant("2026-10-08", "22:59"), channel);
+    expect(sent.map((message) => message.dedupeKey)).toEqual(["evening:2026-10-08"]);
+  });
+
+  test("two ticks at the same time send ONE review", async () => {
+    await habit({ name: "Leer" });
+    const { channel, sent } = recordingChannel(150);
+    const [first, second] = await Promise.all([tick(EVENING, channel), tick(EVENING, channel)]);
+    expect(first.sent + second.sent).toBe(1);
+    expect(sent.map((message) => message.dedupeKey)).toEqual(["evening:2026-10-08"]);
+  });
+});
+
+describe("the whole morning at once", () => {
+  test("two ticks at the same time send exactly 3 reminders, one per key (briefing, eve, follow-up)", async () => {
+    await busyDay();
+    const eve = await recurring({ name: "Luz", dayOfMonth: 9 });
+    const follow = await recurring({ name: "Agua", dayOfMonth: 5 });
+    const { channel, sent } = recordingChannel(150);
+    const [first, second] = await Promise.all([tick(MORNING, channel), tick(MORNING, channel)]);
+    expect(first.sent + second.sent).toBe(3);
+    expect(sent.map((message) => message.dedupeKey).sort()).toEqual(
+      [
+        "briefing:2026-10-08",
+        `payment_eve:${eve.id}:2026-10-09`,
+        `payment_followup:${follow.id}:2026-10-05`,
+      ].sort(),
+    );
+  });
+});
+
+describe("the payment windows' exact edges", () => {
+  test("the follow-up is skipped at 09:30 and goes out at 09:29", async () => {
+    const netflix = await recurring({ name: "Netflix", dayOfMonth: 5 });
+    const { channel, sent } = recordingChannel();
+    await tick(limaInstant("2026-10-08", "09:30"), channel);
+    expect(sent).toEqual([]);
+    await tick(limaInstant("2026-10-08", "09:29"), channel);
+    expect(sent.map((message) => message.dedupeKey)).toEqual([
+      `payment_followup:${netflix.id}:2026-10-05`,
+    ]);
+  });
+});
+
+describe("midnight and the owner's day", () => {
+  test("the eve of a payment due the 9th, with the briefing at 23:00, still goes out at 00:30 and says «Hoy»", async () => {
+    const netflix = await recurring({ name: "Netflix", dayOfMonth: 9 });
+    await setSettings({ briefingTime: "23:00:00", briefingEnabled: false });
+    const { channel, sent } = recordingChannel();
+    await tick(limaInstant("2026-10-09", "00:30"), channel);
+    expect(sent).toEqual([
+      {
+        text: "Hoy vence Netflix · S/ 50.00.",
+        dedupeKey: `payment_eve:${netflix.id}:2026-10-09`,
+      },
+    ]);
+  });
+
+  test("the day the sources ask about is the owner's: 23:59 is still the 8th, 00:15 is the 9th", async () => {
+    const leer = await habit({ name: "Leer" });
+    await testDb
+      .insert(habitLogs)
+      .values({ habitId: leer, day: "2026-10-08", quantity: 1, target: 1 });
+    await task({ title: "del 8", dueDate: "2026-10-08" });
+
+    const late = limaInstant("2026-10-08", "23:59");
+    const early = limaInstant("2026-10-09", "00:15");
+    for (const [instant, day] of [
+      [late, "2026-10-08"],
+      [early, "2026-10-09"],
+    ] as const) {
+      expect(limaDayOf(instant)).toBe(day);
+      expect(ownerDateKey(instant)).toBe(day);
+    }
+    // Habits: the log of the 8th counts at 23:59 and not at 00:15.
+    expect((await selectHabitsTodaySummary(testDb, late)).map((h) => [h.name, h.done])).toEqual([
+      ["Leer", true],
+    ]);
+    expect((await selectHabitsTodaySummary(testDb, early)).map((h) => [h.name, h.done])).toEqual([
+      ["Leer", false],
+    ]);
+    // Tasks: due that very day at 23:59, already past at 00:15.
+    expect((await selectTasksTodaySummary(testDb, late)).map((t) => t.due.kind)).toEqual(["today"]);
+    expect((await selectTasksTodaySummary(testDb, early)).map((t) => t.due.kind)).toEqual([
+      "overdue",
+    ]);
+  });
+});
+
+describe("installments", () => {
+  test("a plan with ONE installment still due reminds (positive)", async () => {
+    const plan = await recurring({ name: "Cuota final", dayOfMonth: 9, installmentsTotal: 1 });
+    const candidates = await financeReminderSource.candidates(context(MORNING));
+    expect(candidates.map((candidate) => candidate.dedupeKey)).toEqual([
+      `payment_eve:${plan.id}:2026-10-09`,
+    ]);
+  });
+
+  test("a plan whose installments are all behind generates neither an eve nor a follow-up (negative)", async () => {
+    // One installment, due 2026-09-09: nothing is generated after it.
+    await recurring({
+      name: "Cumplida",
+      dayOfMonth: 9,
+      installmentsTotal: 1,
+      startDate: "2026-09-01",
+    });
+    // Two installments, the last one due 2026-09-09.
+    await recurring({
+      name: "Dos cuotas",
+      dayOfMonth: 9,
+      installmentsTotal: 2,
+      startDate: "2026-08-01",
+    });
+    for (const when of [
+      MORNING,
+      limaInstant("2026-10-09", "07:35"),
+      limaInstant("2026-10-12", "07:35"),
+    ]) {
+      expect(await financeReminderSource.candidates(context(when))).toEqual([]);
+    }
+  });
+
+  test("the last installment, once paid, reminds no more (control: unpaid, it does)", async () => {
+    const plan = await recurring({ name: "Cuota final", dayOfMonth: 9, installmentsTotal: 1 });
+    expect(await financeReminderSource.candidates(context(MORNING))).toHaveLength(1);
+    await settle(plan.id, "2026-10-09", "paid");
+    expect(await financeReminderSource.candidates(context(MORNING))).toEqual([]);
+  });
+});
+
+describe("the payments switch and the briefing", () => {
+  test("with «Avisos de pagos» off the payments due TODAY stay in the briefing (it has its own switch)", async () => {
+    await busyDay();
+    await setSettings({ paymentsEnabled: false });
+    const { channel, sent } = recordingChannel();
+    await tick(MORNING, channel);
+    expect(sent.map((message) => message.text)).toEqual([
+      "Buen día. Hoy: 1 hábito, 1 tarea y 1 pago (Netflix · S/ 50.00).",
     ]);
   });
 });

@@ -54,7 +54,7 @@ async function scheduleReady(page: Page) {
   await expect(schedule(page)).toHaveAttribute("data-schedule-ready", "true");
 }
 
-/** Runs `action` and waits for the Server Action it triggers to answer (the save is done). */
+/** Runs `action` and waits for the Server Action it triggers to answer, and for the page to say so. */
 async function saved(page: Page, action: () => Promise<void>) {
   const answer = page.waitForResponse(
     (response) =>
@@ -62,11 +62,35 @@ async function saved(page: Page, action: () => Promise<void>) {
   );
   await action();
   expect((await answer).ok()).toBe(true);
-  // The page took the answer in: the controls are not "saving" any more (the guard is open).
-  await expect(schedule(page).getByRole("switch").first()).toHaveAttribute(
-    "aria-disabled",
-    "false",
-  );
+  // The page took the answer in and announced it (it clears the message when a save starts).
+  await expect(schedule(page).getByRole("status")).toHaveText("Guardado.");
+}
+
+/** Counts the saves ("Avisos del día" posts to its own page) from now on. */
+function countSaves(page: Page): () => number {
+  let count = 0;
+  page.on("response", (response) => {
+    if (response.request().method() === "POST" && response.url().endsWith("/settings/reminders")) {
+      count++;
+    }
+  });
+  return () => count;
+}
+
+/**
+ * Touch targets: the time fields are at least 48 px high and so is each switch's row (the design
+ * system's switch is 30 px; its row, with the label that toggles it, is the target).
+ */
+async function expectTouchTargets(page: Page) {
+  const region = schedule(page);
+  for (const label of ["Hora del resumen", "Hora del repaso"]) {
+    const box = await region.getByLabel(label).boundingBox();
+    expect(box!.height, label).toBeGreaterThanOrEqual(48);
+  }
+  for (const control of await region.getByRole("switch").all()) {
+    const row = await control.locator("xpath=..").boundingBox();
+    expect(row!.height).toBeGreaterThanOrEqual(48);
+  }
 }
 
 /** The section is hydrated (it marks itself once its effects ran), so a click reaches React. */
@@ -129,41 +153,56 @@ test("Avisos del día: the switches and the times save, say so, keep their focus
   await openReminders(page);
   const region = schedule(page);
   const briefing = region.getByRole("switch", { name: "Resumen de la mañana" });
+  const payments = region.getByRole("switch", { name: "Avisos de pagos" });
+  const eveningSwitch = region.getByRole("switch", { name: "Repaso de la noche" });
   const amounts = region.getByRole("switch", { name: "Montos en Telegram" });
-  const evening = region.getByLabel("Hora del repaso");
+  const briefingTime = region.getByLabel("Hora del resumen");
+  const eveningTime = region.getByLabel("Hora del repaso");
 
   // A fresh install shows the defaults.
   await expect(briefing).toHaveAttribute("aria-checked", "true");
-  await expect(region.getByLabel("Hora del resumen")).toHaveValue("07:30");
-  await expect(evening).toHaveValue("21:00");
+  await expect(briefingTime).toHaveValue("07:30");
+  await expect(eveningTime).toHaveValue("21:00");
+  await expectTouchTargets(page);
 
   // A switch saves when touched, announces it and keeps the focus.
   await briefing.focus();
   await saved(page, () => briefing.press("Space"));
   await expect(briefing).toHaveAttribute("aria-checked", "false");
-  await expect(region.getByRole("status")).toHaveText("Guardado.");
   await expect(briefing).toBeFocused();
   await expect(briefing).not.toBeDisabled();
 
-  // A time saves when the field is confirmed.
-  await evening.fill("22:15");
-  await saved(page, () => evening.press("Enter"));
-  await saved(page, () => amounts.click());
+  // A time saves with Intro and the field keeps the focus.
+  await briefingTime.fill("08:30");
+  await saved(page, () => briefingTime.press("Enter"));
+  await expect(briefingTime).toBeFocused();
+
+  // The other two switches.
+  await saved(page, () => payments.click());
+  await saved(page, () => eveningSwitch.click());
+  await expect(payments).toHaveAttribute("aria-checked", "false");
+  await expect(eveningSwitch).toHaveAttribute("aria-checked", "false");
+
+  // A time typed and then a click on a switch, with no Intro in between: leaving the field saves
+  // the time and the click on the switch (made while that save is in flight) is not lost.
+  const saves = countSaves(page);
+  await eveningTime.fill("22:15");
+  await amounts.click();
+  await expect.poll(saves).toBe(2);
+  await expect(region.getByRole("status")).toHaveText("Guardado.");
   await expect(amounts).toHaveAttribute("aria-checked", "false");
+  await expect(eveningTime).toHaveValue("22:15");
 
   // The server has all of it.
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
   await scheduleReady(page);
   await expect(briefing).toHaveAttribute("aria-checked", "false");
+  await expect(briefingTime).toHaveValue("08:30");
+  await expect(payments).toHaveAttribute("aria-checked", "false");
+  await expect(eveningSwitch).toHaveAttribute("aria-checked", "false");
   await expect(amounts).toHaveAttribute("aria-checked", "false");
-  await expect(evening).toHaveValue("22:15");
-  await expect(region.getByLabel("Hora del resumen")).toHaveValue("07:30");
-  // Positive control: what was not touched stayed on.
-  await expect(region.getByRole("switch", { name: "Avisos de pagos" })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
+  await expect(eveningTime).toHaveValue("22:15");
 });
 
 test("connects with the one-use link: webhook registered, bot confirms, page shows Conectado, then disconnects", async ({
@@ -324,6 +363,7 @@ for (const theme of THEMES) {
     await expect(telegram(page).getByRole("link", { name: "Abrir Telegram" })).toBeVisible();
     await noSidewaysScroll(320);
     await clean();
+    await expectTouchTargets(page);
 
     // Connected, at 320 px too.
     expect((await startFromTelegram(page, code)).status()).toBe(200);

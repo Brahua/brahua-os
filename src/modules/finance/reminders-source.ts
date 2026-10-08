@@ -41,12 +41,19 @@ export const financeReminderSource: ReminderSource = {
 
   async candidates(ctx) {
     const { today, now } = ctx;
-    const db = getDb();
-    // The eve of what is due today or tomorrow; the follow-up of what was due 3 or 4 days ago.
-    const [eves, followups] = await Promise.all([
-      selectUpcomingPayments(db, today, addDaysToKey(today, 1), today),
-      selectUpcomingPayments(db, addDaysToKey(today, -4), addDaysToKey(today, -3), today),
-    ]);
+    // Nothing to ask while the owner has both payment reminders off (the briefing's payments come
+    // through `briefingFacts`, at build time).
+    if (!ctx.enabled.payment_eve && !ctx.enabled.payment_followup) return [];
+    // ONE read covering both windows: what is due today or tomorrow (the eve; today's only
+    // matters when the window crossed midnight) and what was due 3 or 4 days ago (the follow-up).
+    const upcoming = await selectUpcomingPayments(
+      getDb(),
+      addDaysToKey(today, -4),
+      addDaysToKey(today, 1),
+      today,
+    );
+    const eves = upcoming.filter((payment) => payment.dueOn >= today);
+    const followups = upcoming.filter((payment) => payment.dueOn <= addDaysToKey(today, -3));
     const out: ReminderCandidate[] = [];
 
     for (const payment of eves) {

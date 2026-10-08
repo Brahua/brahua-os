@@ -47,6 +47,8 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
   const sectionRef = useRef<HTMLElement>(null);
   const mounted = useRef(true);
   const busy = useRef(false);
+  // Switches touched while a save is in flight, merged; the save's `finally` sends them.
+  const queued = useRef<UpdateReminderSettingsInput>({});
   // The latest values, for the save that runs after another one (state would be stale there).
   const savedRef = useRef(saved);
   const draftsRef = useRef(drafts);
@@ -103,7 +105,8 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
       const result = await updateReminderSettings(parsed.data);
       if (!mounted.current) return;
       if (result.ok) {
-        show(result.data, patch);
+        // A switch touched meanwhile (queued) stays shown as the owner left it.
+        show({ ...result.data, ...queued.current }, patch);
         setMessage({ tone: "status", text: SCHEDULE_COPY.saved });
       } else {
         show(revert(before, patch), patch);
@@ -120,25 +123,39 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
         setPending(false);
         // The save may have left the focus nowhere (a re-render): put it back where it was.
         if (had?.isConnected && document.activeElement === document.body) had.focus();
-        // A time left while this one was saving still has to be saved.
+        // What was touched while this one was saving (a switch, a time left) goes out now, in one.
         commitTimes();
+      } else {
+        queued.current = {};
       }
     }
   }
 
-  /** Saves the times whose draft differs from the saved one (a complete, valid time only). */
+  /**
+   * Saves what is waiting: the switches touched while another save was in flight (`queued`,
+   * merged) plus the times whose draft differs from the saved one. One save, no duplicates (a
+   * time already sent has its draft equal to the saved value).
+   */
   function commitTimes() {
-    const patch: UpdateReminderSettingsInput = {};
+    const patch: UpdateReminderSettingsInput = { ...queued.current };
     for (const field of ["briefingTime", "eveningTime"] as const) {
       const draft = draftsRef.current[field];
       if (draft !== savedRef.current[field]) patch[field] = draft;
     }
-    if (Object.keys(patch).length > 0) void save(patch);
+    if (Object.keys(patch).length === 0) return;
+    if (busy.current) return; // the running save's `finally` comes back here
+    queued.current = {};
+    void save(patch);
   }
 
   function toggle(field: SwitchField, next: boolean) {
-    // aria-disabled keeps the switch focusable, so the guard lives here.
-    if (busy.current) return;
+    // aria-disabled keeps the switch focusable, so the guard lives here: a switch touched while a
+    // save is in flight is shown at once and queued, merged with what is already waiting.
+    if (busy.current) {
+      queued.current = { ...queued.current, [field]: next };
+      show({ ...savedRef.current, [field]: next }, {});
+      return;
+    }
     void save({ [field]: next });
   }
 
@@ -256,7 +273,9 @@ function SwitchRow({
 }) {
   const helpId = `${id}-help`;
   return (
-    <div className="flex items-start justify-between gap-4">
+    // The design system's switch is 30 px high: the row is the 48 px touch target (the label is a
+    // real <label>, so tapping its text toggles the switch too).
+    <div className="flex min-h-12 items-center justify-between gap-4">
       <div className="flex flex-col gap-1">
         {/* A real <label>: it names the switch and clicking it toggles the switch too. */}
         <label htmlFor={id} className="bo-text-body-strong cursor-pointer">

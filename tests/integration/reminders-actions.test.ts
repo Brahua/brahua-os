@@ -12,7 +12,12 @@ import {
   getTelegramStatus,
   updateReminderSettings,
 } from "@/modules/reminders/actions";
+import { ensureReminderSources, SOURCES } from "@/lib/reminder-sources";
 import { hashLinkCode, redeemLinkCode } from "@/modules/reminders/channels/telegram/link";
+import type { ReminderChannel } from "@/modules/reminders/contracts";
+import { runTick } from "@/modules/reminders/engine";
+import { limaInstant } from "@/modules/reminders/slots";
+import { tasks } from "@/modules/tasks/db/schema";
 import { reminderSettings, telegramLinkCodes } from "@/modules/reminders/db/schema";
 import {
   TELEGRAM_ALREADY_CONNECTED_MESSAGE,
@@ -276,6 +281,36 @@ describe("updateReminderSettings", () => {
     const result = await updateReminderSettings({ eveningEnabled: false });
     expect(result.ok).toBe(true);
     expect((await getSettings(testDb)).eveningEnabled).toBe(false);
+  });
+
+  test("round trip: a new briefing time moves today's briefing (08:30 → nothing at 08:05, sent at 08:35)", async () => {
+    await getSettings(testDb);
+    await connected();
+    await testDb.insert(tasks).values({ title: "pilas", dueDate: "2026-10-08" });
+    ensureReminderSources();
+    const sent: string[] = [];
+    const channel: ReminderChannel = {
+      id: "telegram",
+      send: async (message) => {
+        sent.push(message.dedupeKey);
+        return { ok: true, messageId: sent.length };
+      },
+    };
+    const tick = (hour: string) =>
+      runTick({
+        db: testDb,
+        now: limaInstant("2026-10-08", hour),
+        sources: SOURCES,
+        channelsFor: () => ({ telegram: channel }),
+      });
+
+    expect((await updateReminderSettings({ briefingTime: "08:30" })).ok).toBe(true);
+    // 08:05 is before the new time (and the old 07:30 window is gone): nothing is sent.
+    await tick("08:05");
+    expect(sent).toEqual([]);
+    // 08:35 is inside the new window.
+    await tick("08:35");
+    expect(sent).toEqual(["briefing:2026-10-08"]);
   });
 
   test("never touches the Telegram link", async () => {

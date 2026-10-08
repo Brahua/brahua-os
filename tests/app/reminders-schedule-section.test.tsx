@@ -17,11 +17,12 @@ function deferred<T>() {
 
 beforeEach(() => {
   actions.updateReminderSettings.mockReset();
-  // By default the server answers with what it was sent, merged into the defaults.
-  actions.updateReminderSettings.mockImplementation(async (patch: Partial<ReminderSchedule>) => ({
-    ok: true,
-    data: { ...SAVED, ...patch },
-  }));
+  // A server that remembers: each save merges into what it holds and answers with all of it.
+  const server = { ...SAVED };
+  actions.updateReminderSettings.mockImplementation(async (patch: Partial<ReminderSchedule>) => {
+    Object.assign(server, patch);
+    return { ok: true, data: { ...server } };
+  });
 });
 
 const briefingSwitch = () => screen.getByRole("switch", { name: "Resumen de la mañana" });
@@ -67,10 +68,20 @@ describe("what it shows", () => {
     }
   });
 
-  test("every control has an accessible name and the switches say what they do", () => {
+  test("every control is named by its visible label and described by its help text", () => {
     render(<ScheduleSection initial={SAVED} />);
+    // Names come from the real <label>, not from an aria-label.
+    expect(briefingSwitch()).toHaveAccessibleName("Resumen de la mañana");
+    expect(paymentsSwitch()).toHaveAccessibleName("Avisos de pagos");
+    expect(eveningSwitch()).toHaveAccessibleName("Repaso de la noche");
+    expect(amountsSwitch()).toHaveAccessibleName("Montos en Telegram");
+    expect(briefingTime()).toHaveAccessibleName("Hora del resumen");
+    expect(eveningTime()).toHaveAccessibleName("Hora del repaso");
+    // Each switch says what it does.
     expect(briefingSwitch()).toHaveAccessibleDescription(/hábitos, tareas y pagos de hoy/);
     expect(paymentsSwitch()).toHaveAccessibleDescription(/un día antes/i);
+    expect(eveningSwitch()).toHaveAccessibleDescription(/algún hábito de hoy/);
+    expect(amountsSwitch()).toHaveAccessibleDescription(/cuánto es/);
   });
 
   test("marks itself hydrated once its effects have run (the E2E waits for it before clicking)", () => {
@@ -201,6 +212,10 @@ describe("a time", () => {
     await waitFor(() =>
       expect(actions.updateReminderSettings).toHaveBeenCalledWith({ eveningTime: "21:30" }),
     );
+    // Leaving the field afterwards (the blur follows Intro) must not save it a second time.
+    fireEvent.blur(eveningTime());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado."));
+    expect(actions.updateReminderSettings).toHaveBeenCalledTimes(1);
   });
 
   test("an unchanged time sends nothing", () => {
@@ -267,17 +282,84 @@ describe("a time", () => {
   });
 });
 
+describe("a switch touched while a time is saving", () => {
+  test("is applied after the first save, once, together with nothing lost", async () => {
+    const first = deferred<unknown>();
+    actions.updateReminderSettings.mockReturnValueOnce(first.promise);
+    // The second save is answered with everything the server holds by then.
+    actions.updateReminderSettings.mockResolvedValueOnce({
+      ok: true,
+      data: { ...SAVED, eveningTime: "20:45", showAmountsTelegram: false },
+    });
+    render(<ScheduleSection initial={SAVED} />);
+
+    // The owner edits the time and clicks away: the blur starts a save...
+    fireEvent.change(eveningTime(), { target: { value: "20:45" } });
+    fireEvent.blur(eveningTime());
+    expect(actions.updateReminderSettings).toHaveBeenCalledTimes(1);
+    // ...and the next click lands on a switch while it is in flight: it is not lost.
+    fireEvent.click(amountsSwitch());
+    expect(amountsSwitch()).toHaveAttribute("aria-checked", "false");
+    expect(actions.updateReminderSettings).toHaveBeenCalledTimes(1);
+
+    await act(async () => first.resolve({ ok: true, data: { ...SAVED, eveningTime: "20:45" } }));
+    await waitFor(() => expect(actions.updateReminderSettings).toHaveBeenCalledTimes(2));
+    expect(actions.updateReminderSettings.mock.calls).toEqual([
+      [{ eveningTime: "20:45" }],
+      [{ showAmountsTelegram: false }],
+    ]);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado."));
+    expect(amountsSwitch()).toHaveAttribute("aria-checked", "false");
+    expect(eveningTime()).toHaveValue("20:45");
+    // Nothing is sent a third time.
+    expect(actions.updateReminderSettings).toHaveBeenCalledTimes(2);
+  });
+
+  test("several touches while saving are merged into one save (the last value of each wins)", async () => {
+    const first = deferred<unknown>();
+    actions.updateReminderSettings.mockReturnValueOnce(first.promise);
+    render(<ScheduleSection initial={SAVED} />);
+    fireEvent.click(briefingSwitch());
+    fireEvent.click(paymentsSwitch());
+    fireEvent.click(amountsSwitch());
+    fireEvent.click(amountsSwitch()); // back on: the last value wins
+    await act(async () => first.resolve({ ok: true, data: { ...SAVED, briefingEnabled: false } }));
+    await waitFor(() => expect(actions.updateReminderSettings).toHaveBeenCalledTimes(2));
+    expect(actions.updateReminderSettings.mock.calls[1]).toEqual([
+      { paymentsEnabled: false, showAmountsTelegram: true },
+    ]);
+  });
+
+  test("if the first save fails the queued switch still goes out and the failed one is put back", async () => {
+    const first = deferred<unknown>();
+    actions.updateReminderSettings.mockReturnValueOnce(first.promise);
+    render(<ScheduleSection initial={SAVED} />);
+    fireEvent.click(briefingSwitch());
+    fireEvent.click(amountsSwitch());
+    await act(async () => first.resolve({ ok: false, error: "No se pudo guardar." }));
+    await waitFor(() => expect(actions.updateReminderSettings).toHaveBeenCalledTimes(2));
+    expect(actions.updateReminderSettings.mock.calls[1]).toEqual([{ showAmountsTelegram: false }]);
+    await waitFor(() => expect(amountsSwitch()).toHaveAttribute("aria-checked", "false"));
+    expect(briefingSwitch()).toHaveAttribute("aria-checked", "true");
+  });
+});
+
 describe("leaving the page", () => {
-  test("a save that answers after unmounting touches nothing (no state update, no error)", async () => {
+  test("a save that answers after unmounting touches nothing and nothing more is sent", async () => {
     const pending = deferred<unknown>();
-    actions.updateReminderSettings.mockReturnValue(pending.promise);
+    actions.updateReminderSettings.mockReturnValueOnce(pending.promise);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const { unmount } = render(<ScheduleSection initial={SAVED} />);
     fireEvent.click(briefingSwitch());
+    // Something is waiting (a time typed, a switch touched) when the page goes away.
+    fireEvent.change(eveningTime(), { target: { value: "20:10" } });
+    fireEvent.click(amountsSwitch());
     unmount();
     await act(async () =>
       pending.resolve({ ok: true, data: { ...SAVED, briefingEnabled: false } }),
     );
+    // Only the first save was ever sent: the queued work is dropped with the page.
+    expect(actions.updateReminderSettings).toHaveBeenCalledTimes(1);
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });

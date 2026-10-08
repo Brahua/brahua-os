@@ -9,13 +9,14 @@ import { formatMoney } from "@/modules/finance/money";
 import { financeReminderSource } from "@/modules/finance/reminders-source";
 import { habitsReminderSource } from "@/modules/habits/reminders-source";
 import { tasksReminderSource } from "@/modules/tasks/reminders-source";
-import { createBriefingSource } from "@/modules/reminders/briefing-source";
+import { collectBriefingFacts, createBriefingSource } from "@/modules/reminders/briefing-source";
 import type {
   ReminderCandidate,
   ReminderContext,
+  ReminderKind,
   ReminderSource,
 } from "@/modules/reminders/contracts";
-import { addDaysToKey, limaDayOf, limaInstant } from "@/modules/reminders/slots";
+import { addDaysToKey, limaDayOf, limaInstant, windowState } from "@/modules/reminders/slots";
 
 const state = vi.hoisted(() => ({
   payments: [] as UpcomingPayment[],
@@ -60,9 +61,23 @@ function context(
   day: string,
   time: string,
   times: { briefing: string; evening: string } = { briefing: "07:30", evening: "21:00" },
+  off: ReminderKind[] = [],
 ): ReminderContext {
   const now = limaInstant(day, time);
-  return { now, today: limaDayOf(now), yesterday: addDaysToKey(limaDayOf(now), -1), times };
+  return {
+    now,
+    today: limaDayOf(now),
+    yesterday: addDaysToKey(limaDayOf(now), -1),
+    times,
+    enabled: {
+      briefing: true,
+      payment_eve: true,
+      payment_followup: true,
+      evening_review: true,
+      habit_time: true,
+      ...Object.fromEntries(off.map((kind) => [kind, false])),
+    },
+  };
 }
 
 function payment(overrides: Partial<UpcomingPayment> = {}): UpcomingPayment {
@@ -119,15 +134,38 @@ describe("finance: the eve of a payment", () => {
     expect(eve.dueAt).toEqual(limaInstant("2026-10-08", "08:00"));
   });
 
-  test("asks finance for the pending periods of today and tomorrow, and of 3 and 4 days ago", async () => {
+  test("asks finance ONCE, for a range that covers both windows, anchored on today", async () => {
     await financeReminderSource.candidates(context("2026-10-08", "07:35"));
-    // Eve range, follow-up range; both anchored on today.
-    expect(state.paymentCalls).toEqual(
-      expect.arrayContaining([
-        ["2026-10-08", "2026-10-09", "2026-10-08"],
-        ["2026-10-04", "2026-10-05", "2026-10-08"],
-      ]),
+    expect(state.paymentCalls).toEqual([["2026-10-04", "2026-10-09", "2026-10-08"]]);
+  });
+
+  test("asks nothing while both payment reminders are off (control: with one on it asks)", async () => {
+    state.payments = [payment()];
+    const off = await financeReminderSource.candidates(
+      context("2026-10-08", "07:35", undefined, ["payment_eve", "payment_followup"]),
     );
+    expect(off).toEqual([]);
+    expect(state.paymentCalls).toEqual([]);
+
+    const eveOnly = await financeReminderSource.candidates(
+      context("2026-10-08", "07:35", undefined, ["payment_followup"]),
+    );
+    expect(keys(eveOnly)).toEqual(["payment_eve:pay-1:2026-10-09"]);
+    expect(state.paymentCalls).toHaveLength(1);
+  });
+
+  test("the one read is split in memory: an eve and a follow-up come out of the same answer", async () => {
+    state.payments = [
+      payment({ recurringId: "eve", dueOn: "2026-10-09" }),
+      payment({ recurringId: "follow", dueOn: "2026-10-05" }),
+      payment({ recurringId: "between", dueOn: "2026-10-06" }),
+    ];
+    const candidates = await financeReminderSource.candidates(context("2026-10-08", "07:35"));
+    expect(keys(candidates).sort()).toEqual([
+      "payment_eve:eve:2026-10-09",
+      "payment_followup:follow:2026-10-05",
+    ]);
+    expect(state.paymentCalls).toHaveLength(1);
   });
 
   test("a payment that is not due tomorrow does not remind (control: tomorrow's does)", async () => {
@@ -189,6 +227,10 @@ describe("finance: the single follow-up", () => {
 
   test("never again: once its 2-hour window has passed the payment gives no candidate", async () => {
     state.payments = [payment({ dueOn: "2026-10-05" })];
+    // The exact edge of the window [07:30, 09:30): 09:29 is in, 09:30 is out.
+    expect(keys(await financeReminderSource.candidates(context("2026-10-08", "09:29")))).toEqual([
+      "payment_followup:pay-1:2026-10-05",
+    ]);
     expect(await financeReminderSource.candidates(context("2026-10-08", "09:30"))).toEqual([]);
     expect(await financeReminderSource.candidates(context("2026-10-09", "07:35"))).toEqual([]);
     expect(await financeReminderSource.candidates(context("2026-10-12", "07:35"))).toEqual([]);
@@ -271,30 +313,26 @@ describe("habits: the evening review", () => {
     expect(review.dueAt).toEqual(limaInstant("2026-10-08", "22:00"));
   });
 
-  test("a window that crosses midnight offers yesterday's review too, read as of yesterday", async () => {
-    state.habits = [
-      { name: "Ayer", kind: "build", done: false, day: "2026-10-08" },
-      { name: "Hoy", kind: "build", done: false, day: "2026-10-09" },
-    ];
-    const candidates = await habitsReminderSource.candidates(
-      context("2026-10-09", "00:30", { briefing: "07:30", evening: "23:30" }),
-    );
-    expect(keys(candidates)).toEqual(["evening:2026-10-08", "evening:2026-10-09"]);
-    const [yesterday, today] = candidates;
-    expect(yesterday.dueAt).toEqual(limaInstant("2026-10-08", "23:30"));
-    expect(await build(yesterday)).toBe("Te queda Ayer. Si lo haces ahora, cuenta hoy.");
-    expect(await build(today)).toBe("Te queda Hoy. Si lo haces ahora, cuenta hoy.");
+  test("never offers yesterday's review: at 00:30 with the review at 23:30 only today's (not yet due) exists", async () => {
+    evening("Leer");
+    const times = { briefing: "07:30", evening: "23:30" };
+    const after = await habitsReminderSource.candidates(context("2026-10-09", "00:30", times));
+    expect(keys(after)).toEqual(["evening:2026-10-09"]);
+    expect(windowState(after[0].dueAt, limaInstant("2026-10-09", "00:30"))).toBe("early");
+
+    // Control: at 23:45 the same review is due and open.
+    const before = await habitsReminderSource.candidates(context("2026-10-08", "23:45", times));
+    expect(keys(before)).toEqual(["evening:2026-10-08"]);
+    expect(windowState(before[0].dueAt, limaInstant("2026-10-08", "23:45"))).toBe("open");
+    expect(await build(before[0])).toBe("Te queda Leer. Si lo haces ahora, cuenta hoy.");
   });
 
-  test("yesterday's review is not offered once its window closed (control: it is while open)", async () => {
-    const closed = await habitsReminderSource.candidates(
-      context("2026-10-09", "01:45", { briefing: "07:30", evening: "23:30" }),
-    );
-    expect(keys(closed)).toEqual(["evening:2026-10-09"]);
-    const open = await habitsReminderSource.candidates(
-      context("2026-10-09", "01:15", { briefing: "07:30", evening: "23:30" }),
-    );
-    expect(keys(open)).toEqual(["evening:2026-10-08", "evening:2026-10-09"]);
+  test("the window's exact edges for the 21:00 review: 22:59 is open, 23:00 is closed", async () => {
+    const [review] = await habitsReminderSource.candidates(context("2026-10-08", "21:05"));
+    expect(windowState(review.dueAt, limaInstant("2026-10-08", "20:59"))).toBe("early");
+    expect(windowState(review.dueAt, limaInstant("2026-10-08", "21:00"))).toBe("open");
+    expect(windowState(review.dueAt, limaInstant("2026-10-08", "22:59"))).toBe("open");
+    expect(windowState(review.dueAt, limaInstant("2026-10-08", "23:00"))).toBe("expired");
   });
 
   test("the briefing's fact is the number of habits left", async () => {
@@ -392,7 +430,7 @@ describe("the briefing source", () => {
     await expect(build(briefing)).rejects.toThrow("boom");
   });
 
-  test("the facts are asked for the candidate's own day: yesterday's, across midnight, as of yesterday", async () => {
+  test("never offers yesterday's briefing: at 00:30 with the briefing at 23:30 only today's (not yet due) exists", async () => {
     const asked: string[] = [];
     const source = createBriefingSource(() => [
       {
@@ -404,20 +442,39 @@ describe("the briefing source", () => {
         },
       },
     ]);
-    const candidates = await source.candidates(
-      context("2026-10-09", "00:30", { briefing: "23:30", evening: "21:00" }),
-    );
-    expect(keys(candidates)).toEqual(["briefing:2026-10-08", "briefing:2026-10-09"]);
-    await build(candidates[0]);
-    await build(candidates[1]);
-    expect(asked).toEqual(["2026-10-08", "2026-10-09"]);
+    const times = { briefing: "23:30", evening: "21:00" };
+    const after = await source.candidates(context("2026-10-09", "00:30", times));
+    expect(keys(after)).toEqual(["briefing:2026-10-09"]);
+    expect(windowState(after[0].dueAt, limaInstant("2026-10-09", "00:30"))).toBe("early");
+
+    // Control: at 23:45 the same briefing is due and open, and asks for that very day.
+    const before = await source.candidates(context("2026-10-08", "23:45", times));
+    expect(keys(before)).toEqual(["briefing:2026-10-08"]);
+    expect(windowState(before[0].dueAt, limaInstant("2026-10-08", "23:45"))).toBe("open");
+    await build(before[0]);
+    expect(asked).toEqual(["2026-10-08"]);
   });
 
-  test("yesterday's briefing is not offered once its window closed", async () => {
-    const source = createBriefingSource(() => []);
-    const candidates = await source.candidates(
-      context("2026-10-09", "01:45", { briefing: "23:30", evening: "21:00" }),
-    );
-    expect(keys(candidates)).toEqual(["briefing:2026-10-09"]);
+  test("collectBriefingFacts: a source that throws makes the whole collection throw", async () => {
+    const broken: ReminderSource = {
+      id: "broken",
+      candidates: async () => [],
+      briefingFacts: async () => {
+        throw new Error("boom");
+      },
+    };
+    await expect(
+      collectBriefingFacts(
+        [fact("habits", { habitsToday: 3 }), broken],
+        limaInstant("2026-10-08", "07:35"),
+      ),
+    ).rejects.toThrow("boom");
+    // Control: without the broken one it merges.
+    expect(
+      await collectBriefingFacts(
+        [fact("habits", { habitsToday: 3 }), fact("tasks", { tasksDueToday: 2 })],
+        limaInstant("2026-10-08", "07:35"),
+      ),
+    ).toEqual({ habitsToday: 3, tasksDueToday: 2, paymentsDueToday: [] });
   });
 });

@@ -86,6 +86,16 @@ Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `
 
 ## Backlog técnico
 
+### `reminders` R2 → pendientes de la revisión del PR #96
+- E2E/axe con «Guardado.» y con la alerta de error visibles en la sección «Avisos del día».
+- Revisar el solape de textos de «Avisos del día» a 320 px (ayudas largas junto al interruptor).
+- Rollback de un guardado fallido probado en un navegador real (hoy solo en componente).
+- Aserción de integración de un pago de hace 61 días (borde de la ventana de pendientes de 60 días) con la fuente de pagos.
+- Longitud máxima de los textos (Telegram 4096) y nombres con `\n` en hábitos o pagos dentro del resumen y los avisos.
+- Documentado, sin cambio: una tarea añadida después de un resumen vacío ya reclamado no lo rehace.
+- Cachear `briefingFacts` por tick cuando el canal sea «Ambos» (R5).
+- Fila `skipped` inconsistente de pagos vencidos tras cambiar la hora del resumen (la ventana cerrada deja fila o no según cuándo se cambie).
+
 Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre módulos o cuando algo las vuelva urgentes.
 
 - [ ] **LCP con datos reales:** medir el LCP con datos reales (Vercel Speed Insights o Lighthouse con *throttling* real de DevTools) en vez del Lighthouse simulado. Si supera 2,5 s, autoalojar las fuentes recortadas (prototipo: ~0,15 s). Ver "Rendimiento de `/login` (LCP)" en `docs/HANDOFF.md` (cómo medir, hallazgos y siguientes palancas). Origen: criterio de Calidad de `SPEC-core.md`, aceptado por el owner el 2026-10-01.

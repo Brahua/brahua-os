@@ -51,6 +51,11 @@ export type ReminderContext = {
    * ride on it) and the evening review. A habit has its own time.
    */
   times: { briefing: string; evening: string };
+  /**
+   * Which kinds the owner left switched on. The engine drops a disabled kind's candidates anyway;
+   * a source reads this to skip the queries that only feed them.
+   */
+  enabled: Record<ReminderKind, boolean>;
 };
 
 /** How a message is built for one channel. */
