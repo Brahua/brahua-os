@@ -25,13 +25,15 @@ Hecho en `feat/reminders-r1` (detalle, decisiones autónomas y puntos de extensi
 
 ### R2 — Avisos de la app
 
-- [ ] **R2.1 Fuentes de `finance` y `tasks`:** `getUpcomingPayments(from, to)`, fuente de pagos (víspera, +3 días) y fuente de resumen de hoy (tareas y pagos) usando `getTasksTodaySummary`.
+Hecho en `feat/reminders-r2` (detalle, claves de deduplicación, decisiones autónomas y puntos de extensión en `docs/HANDOFF.md` → "Cómo funciona reminders → R2").
+
+- [x] **R2.1 Fuentes de `finance` y `tasks`:** `getUpcomingPayments(from, to)`, fuente de pagos (víspera, +3 días) y fuente de resumen de hoy (tareas y pagos) usando el resumen de `tasks` (`selectTasksTodaySummary`: el tick no tiene sesión).
   - Aceptación: un pago pagado u omitido no avisa; con `show_amounts` apagado el texto no lleva monto.
   - Verificar: unitarias + integración (CI). Archivos: `finance/contracts.ts`, `finance/reminders-source.ts`, `tasks/reminders-source.ts`, raíz.
-- [ ] **R2.2 Fuente de `habits`, briefing y repaso:** hábitos de hoy no hechos ni pausados; `briefing` (≤ 3 líneas, vacío → `skipped`) y `evening_review` («Te queda Leer. Si lo haces ahora, cuenta hoy.»).
+- [x] **R2.2 Fuente de `habits`, briefing y repaso:** hábitos de hoy no hechos ni pausados; `briefing` (≤ 3 líneas, vacío → `skipped`) y `evening_review` («Te queda Leer. Si lo haces ahora, cuenta hoy.»).
   - Aceptación: lista de cadenas prohibidas en cero; sin hábitos pendientes no hay repaso.
   - Verificar: unitarias de `messages.ts` + integración (CI). Archivos: `habits/reminders-source.ts`, `messages.ts`, raíz.
-- [ ] **R2.3 Ajustes de avisos:** interruptores y horas (briefing, repaso), interruptor de montos, validación Zod, guardado con aviso.
+- [x] **R2.3 Ajustes de avisos:** interruptores y horas (briefing, repaso), interruptor de montos, validación Zod, guardado con aviso.
   - Aceptación: cambiar la hora mueve el aviso de hoy si aún no pasó.
   - Verificar: componente + E2E (CI). Archivos: acciones, formulario, copy.
 
