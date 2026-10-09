@@ -8,6 +8,8 @@ import {
   E2E_TELEGRAM,
   failNextTelegramCall,
   fakeTelegramCalls,
+  readDeliveryChannel,
+  readPushSubscriptions,
   readReminderSettings,
   resetFakeTelegram,
   resetReminders,
@@ -37,6 +39,7 @@ test.afterAll(async () => {
 
 const telegram = (page: Page) => page.getByRole("region", { name: "Telegram" });
 const schedule = (page: Page) => page.getByRole("region", { name: "Avisos del día" });
+const channel = (page: Page) => page.getByRole("region", { name: "Canal de avisos" });
 
 async function openReminders(page: Page) {
   await page.goto("/settings/reminders");
@@ -46,7 +49,13 @@ async function openReminders(page: Page) {
   await expect(page.getByRole("heading", { level: 1, name: "Avisos" })).toBeVisible();
   await telegramReady(page);
   await scheduleReady(page);
+  await channelReady(page);
   await fontsLoaded(page);
+}
+
+/** "Canal de avisos" is hydrated and knows the state of this device (it marks itself when it does). */
+async function channelReady(page: Page) {
+  await expect(channel(page)).toHaveAttribute("data-push-ready", "true");
 }
 
 /** "Avisos del día" is hydrated too (it marks itself like Telegram does). */
@@ -205,6 +214,152 @@ test("Avisos del día: the switches and the times save, say so, keep their focus
   await expect(eveningTime).toHaveValue("22:15");
 });
 
+/**
+ * A browser with push, simulated (the real service worker and push services cannot be driven
+ * reliably from Playwright, and CI never reaches Apple's or Google's). The subscription lives in
+ * localStorage so it survives a reload, like a real one; the endpoint is a host the server's
+ * allowlist accepts. The server side (actions, database, channel selection) is the real one.
+ */
+async function simulatePush(page: Page, options: { permission?: "default" | "denied" } = {}) {
+  await page.addInitScript(
+    ({ endpoint, keys, permission }) => {
+      const SUBSCRIPTION = "e2e-push-subscription";
+      const define = (target: object, key: string, value: unknown) =>
+        Object.defineProperty(target, key, { value, configurable: true, writable: true });
+      const current = () =>
+        localStorage.getItem(SUBSCRIPTION)
+          ? {
+              endpoint,
+              options: { applicationServerKey: null },
+              toJSON: () => ({ endpoint, keys }),
+              unsubscribe: async () => {
+                localStorage.removeItem(SUBSCRIPTION);
+                return true;
+              },
+            }
+          : null;
+      const registration = {
+        pushManager: {
+          getSubscription: async () => current(),
+          subscribe: async () => {
+            localStorage.setItem(SUBSCRIPTION, "1");
+            return current();
+          },
+        },
+      };
+      define(navigator, "serviceWorker", {
+        register: async () => registration,
+        ready: Promise.resolve(registration),
+        getRegistration: async () => registration,
+      });
+      define(window, "PushManager", class PushManager {});
+      let state: string = permission;
+      define(window, "Notification", {
+        get permission() {
+          return state;
+        },
+        requestPermission: async () => {
+          state = permission === "denied" ? "denied" : "granted";
+          return state;
+        },
+      });
+    },
+    {
+      endpoint: "https://web.push.apple.com/e2e-device",
+      keys: { p256dh: "B".padEnd(87, "p"), auth: "a".repeat(22) },
+      permission: options.permission ?? "default",
+    },
+  );
+}
+
+test("Canal de avisos: the choice saves; this device turns push on and off; amounts in push start off", async ({
+  page,
+}) => {
+  await simulatePush(page);
+  await openReminders(page);
+  const region = channel(page);
+  const note = region.getByText(
+    /^Los avisos llegan|^Todavía no hay|^Ahora mismo|^Telegram no está/,
+  );
+
+  // A fresh install: Push is the default, and with nothing connected nothing is sent (and it says so).
+  await expect(region.getByRole("radio", { name: "Push" })).toHaveAttribute("aria-checked", "true");
+  await expect(note).toContainText("no se envía ningún aviso");
+  await expect(region.getByText("Este dispositivo no recibe avisos por push.")).toBeVisible();
+  for (const radio of await region.getByRole("radio").all()) {
+    expect((await radio.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Activate this device: the browser asks, subscribes, and the server records it.
+  const activate = region.getByRole("button", { name: "Activar este dispositivo" });
+  await activate.click();
+  const deactivate = region.getByRole("button", { name: "Desactivar este dispositivo" });
+  await expect(deactivate).toBeVisible();
+  await expect(deactivate).toBeFocused();
+  await expect(region.getByRole("status")).toHaveText("Este dispositivo quedó activado.");
+  await expect(region.getByText("Este dispositivo recibe avisos por push.")).toBeVisible();
+  await expect(note).toHaveText("Los avisos llegan por push (1 dispositivo).");
+  await expect(region.getByRole("list", { name: "Dispositivos con push" })).toContainText(
+    /· Chrome · desde el /,
+  );
+  expect(await readPushSubscriptions()).toEqual([
+    { endpoint: "https://web.push.apple.com/e2e-device", revoked: false },
+  ]);
+
+  // The choice saves and survives a reload together with the device.
+  await region.getByRole("radio", { name: "Ambos" }).click();
+  await expect(region.getByRole("radio", { name: "Ambos" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(region.getByRole("status")).toHaveText("Guardado.");
+  await expect(note).toContainText("Conecta Telegram");
+  expect(await readDeliveryChannel()).toBe("both");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
+  await channelReady(page);
+  await expect(region.getByRole("radio", { name: "Ambos" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(region.getByText("Este dispositivo recibe avisos por push.")).toBeVisible();
+  await expect(region.getByRole("button", { name: "Desactivar este dispositivo" })).toBeVisible();
+  await afterSaveSettled(page);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  // Montos en push: off by default, saves like the other switches.
+  const amountsPush = schedule(page).getByRole("switch", { name: "Montos en push" });
+  await scheduleReady(page);
+  await expect(amountsPush).toHaveAttribute("aria-checked", "false");
+  await saved(page, () => amountsPush.click());
+  await expect(amountsPush).toHaveAttribute("aria-checked", "true");
+
+  // Desactivar: the device stops receiving (the row stays, revoked) and the key comes back.
+  await region.getByRole("button", { name: "Desactivar este dispositivo" }).click();
+  await expect(region.getByRole("button", { name: "Activar este dispositivo" })).toBeFocused();
+  await expect(region.getByRole("status")).toHaveText("Este dispositivo quedó desactivado.");
+  await expect(region.getByText("Este dispositivo no recibe avisos por push.")).toBeVisible();
+  await expect(region.getByRole("list", { name: "Dispositivos con push" })).toHaveCount(0);
+  expect(await readPushSubscriptions()).toEqual([
+    { endpoint: "https://web.push.apple.com/e2e-device", revoked: true },
+  ]);
+  // A reload agrees: the browser's own subscription is gone too.
+  await page.reload();
+  await channelReady(page);
+  await expect(region.getByRole("button", { name: "Activar este dispositivo" })).toBeVisible();
+});
+
+test("a blocked notification permission is explained, with no key that cannot work", async ({
+  page,
+}) => {
+  await simulatePush(page, { permission: "denied" });
+  await openReminders(page);
+  const region = channel(page);
+  await expect(region.getByText(/El permiso de notificaciones está bloqueado/)).toBeVisible();
+  await expect(region.getByRole("button", { name: /Activar este dispositivo/ })).toHaveCount(0);
+  expect(await readPushSubscriptions()).toEqual([]);
+});
+
 test("connects with the one-use link: webhook registered, bot confirms, page shows Conectado, then disconnects", async ({
   page,
 }) => {
@@ -337,6 +492,7 @@ for (const theme of THEMES) {
     await expect(telegram(page)).toBeVisible();
     await telegramReady(page);
     await scheduleReady(page);
+    await channelReady(page);
     await fontsLoaded(page);
     await afterSaveSettled(page);
 

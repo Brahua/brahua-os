@@ -40,6 +40,10 @@ export const SCHEDULE_COPY = {
     label: "Montos en Telegram",
     help: "Muestra cuánto es en el resumen y en los avisos de pagos.",
   },
+  amountsPush: {
+    label: "Montos en push",
+    help: "Muestra cuánto es en las notificaciones. Se leen en la pantalla bloqueada, por eso empieza apagado.",
+  },
   saved: "Guardado.",
   saveFailed: "No se pudo guardar. Inténtalo de nuevo.",
 } as const;

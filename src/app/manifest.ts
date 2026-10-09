@@ -3,7 +3,8 @@ import { brandHex } from "@/design-system/brand-colors";
 import { APP_DESCRIPTION, APP_NAME, MANIFEST_ICONS } from "@/lib/pwa";
 
 /**
- * SPEC-core "PWA": installable, standalone, no service worker (that arrives with `reminders`).
+ * SPEC-core "PWA": installable, standalone. The only service worker is push-only (public/sw.js,
+ * `reminders`), registered from Ajustes → Avisos; it has no fetch handler, so it caches nothing.
  * Served at /manifest.webmanifest without a session: it sits outside (app), whose layout is the
  * only thing that asks for one.
  */

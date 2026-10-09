@@ -42,6 +42,11 @@ describe("what it shows", () => {
     expect(eveningSwitch()).toHaveAttribute("aria-checked", "true");
     expect(habitTimesSwitch()).toHaveAttribute("aria-checked", "true");
     expect(amountsSwitch()).toHaveAttribute("aria-checked", "true");
+    // Amounts in push start off: a push is read on the lock screen.
+    expect(screen.getByRole("switch", { name: "Montos en push" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
     expect(briefingTime()).toHaveValue("07:30");
     expect(eveningTime()).toHaveValue("21:00");
   });

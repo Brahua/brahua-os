@@ -37,6 +37,7 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
     eveningTime: useId(),
     habitTimes: useId(),
     amounts: useId(),
+    amountsPush: useId(),
   };
   const [saved, setSaved] = useState(initial);
   const [drafts, setDrafts] = useState({
@@ -249,6 +250,15 @@ export function ScheduleSection({ initial }: { initial: ReminderSchedule }) {
         checked={saved.showAmountsTelegram}
         pending={pending}
         onChange={(next) => toggle("showAmountsTelegram", next)}
+      />
+
+      <SwitchRow
+        id={ids.amountsPush}
+        label={SCHEDULE_COPY.amountsPush.label}
+        help={SCHEDULE_COPY.amountsPush.help}
+        checked={saved.showAmountsPush}
+        pending={pending}
+        onChange={(next) => toggle("showAmountsPush", next)}
       />
 
       {/* Always rendered, so screen readers announce messages as soon as they appear. */}

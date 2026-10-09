@@ -31,6 +31,7 @@
     "db:test:start": "tsx scripts/test-db.ts start",
     "db:test:stop": "tsx scripts/test-db.ts stop",
     "db:test:reset": "tsx scripts/test-db.ts reset",
+    "reminders:vapid": "tsx scripts/reminders-vapid.ts",
     "auth:owner": "tsx scripts/auth-owner.ts",
     "auth:check-env": "tsx scripts/check-auth-env.ts",
     "icons:build": "tsx scripts/build-icons.tsx",
@@ -62,6 +63,7 @@
     "rehype-sanitize": "6.0.0",
     "remark-gfm": "4.0.1",
     "tailwind-merge": "^3.7.0",
+    "web-push": "3.6.7",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -77,6 +79,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "3.6.4",
     "@vitejs/plugin-react": "^6.1.1",
     "drizzle-kit": "^0.31.11",
     "embedded-postgres": "18.4.0-beta.17",

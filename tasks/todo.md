@@ -61,10 +61,10 @@ Hecho en `feat/reminders-r3` (detalle, decisiones autónomas y qué revisar en s
 
 ### R5 — Push web
 
-- [ ] **R5.1 Canal y servicio:** dependencia `web-push`, `webPushChannel`, `push_subscriptions` (alta/baja, 404/410 revoca), `pnpm reminders:vapid` (imprime solo la pública), `public/sw.js` (solo `push` y `notificationclick`) con cabecera `no-cache`.
+- [x] **R5.1 Canal y servicio:** dependencia `web-push`, `webPushChannel`, `push_subscriptions` (alta/baja, 404/410 revoca), `pnpm reminders:vapid` (solo en la terminal del owner), `public/sw.js` (solo `push` y `notificationclick`) con cabecera `no-cache`. Hecho en `feat/reminders-r5` (detalle en HANDOFF → "R5 — Push web").
   - Aceptación: una entrega por canal; un canal que falla no bloquea al otro; sin `fetch` en el service worker (test que lo lee).
   - Verificar: unitarias + integración con servidor de push local (CI). Archivos: `channels/web-push.ts`, `sw.js`, script, `next.config` (build en CI por tocarlo).
-- [ ] **R5.2 Ajustes de push y selector:** «Activar en este dispositivo» (gesto, permiso, `subscribe`), explicación de instalación si no hay soporte, «Canal de avisos» (Push por defecto, respaldo a Telegram), montos de push apagados por defecto.
+- [x] **R5.2 Ajustes de push y selector:** «Activar en este dispositivo» (gesto, permiso, `subscribe`), explicación de instalación si no hay soporte, «Canal de avisos» (Push por defecto, respaldo a Telegram), montos de push apagados por defecto.
   - Aceptación: sin dispositivo suscrito los avisos salen por Telegram si está conectado; Ajustes lo indica.
   - Verificar: componente con `PushManager` simulado + E2E (CI). Archivos: formulario, acciones, copy.
 

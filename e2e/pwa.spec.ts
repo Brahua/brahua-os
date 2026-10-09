@@ -46,6 +46,22 @@ test("the manifest is public, installable and its icons exist", async ({ request
   }
 });
 
+test("the push-only service worker is public, never cached and has no fetch handler", async ({
+  request,
+}) => {
+  const response = await request.get("/sw.js", { maxRedirects: 0 });
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toMatch(/^application\/javascript/);
+  expect(response.headers()["cache-control"]).toContain("no-cache");
+  for (const { key, value } of SECURITY_HEADERS)
+    expect(response.headers()[key.toLowerCase()]).toBe(value);
+  const source = await response.text();
+  expect(source).toContain('addEventListener("push"');
+  expect(source).toContain('addEventListener("notificationclick"');
+  // A fetch handler would let the worker serve old pages after a deploy.
+  expect(source).not.toMatch(/addEventListener\(\s*["']fetch["']/);
+});
+
 test("/login links the manifest, the icons and the theme colors", async ({ page, request }) => {
   await page.goto("/login");
 

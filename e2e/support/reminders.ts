@@ -84,6 +84,32 @@ export async function readReminderSettings(): Promise<ReminderSettingsSnapshot> 
   }
 }
 
+/** The push subscriptions the database holds (endpoints are not secrets in the throwaway E2E app). */
+export async function readPushSubscriptions(): Promise<{ endpoint: string; revoked: boolean }[]> {
+  const db = createDb(testDatabaseUrl());
+  try {
+    const result = await db.$client.query<{ endpoint: string; revoked: boolean }>(
+      "select endpoint, revoked_at is not null as revoked from push_subscriptions order by created_at",
+    );
+    return result.rows;
+  } finally {
+    await db.$client.end();
+  }
+}
+
+/** The channel the owner chose (`delivery_channel`), or null while the settings row does not exist. */
+export async function readDeliveryChannel(): Promise<string | null> {
+  const db = createDb(testDatabaseUrl());
+  try {
+    const result = await db.$client.query<{ delivery_channel: string }>(
+      "select delivery_channel from reminder_settings",
+    );
+    return result.rows[0]?.delivery_channel ?? null;
+  } finally {
+    await db.$client.end();
+  }
+}
+
 /**
  * Leaves the reminders state as a fresh install: no chat, no pending code, no deliveries. Specs
  * call it before and after, because the settings row is shared by every spec.
@@ -95,6 +121,7 @@ export async function resetReminders(): Promise<void> {
     await db.$client.query("delete from telegram_updates");
     await db.$client.query("delete from telegram_link_codes");
     await db.$client.query("delete from reminder_deliveries");
+    await db.$client.query("delete from push_subscriptions");
     await db.$client.query("delete from reminder_settings");
   } finally {
     await db.$client.end();

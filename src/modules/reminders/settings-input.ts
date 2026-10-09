@@ -1,13 +1,17 @@
 // Validation of Ajustes → Avisos' writes (SPEC-reminders "Pantallas"). Client-safe: the screen
 // runs the same schema before it calls the Server Action. R2 owns the day's reminders (briefing,
 // payments, evening review) and the Telegram amounts switch; R4 adds `habit_times_enabled` (the
-// habits' own times). `delivery_channel` and `show_amounts_push` come with R5 and are NOT accepted
-// here yet.
+// habits' own times); R5 adds the push amounts switch and, on its own schema, "Canal de avisos".
 import { z } from "zod";
-import { DEFAULT_BRIEFING_TIME, DEFAULT_EVENING_TIME } from "./reminders-constants";
+import {
+  DEFAULT_BRIEFING_TIME,
+  DEFAULT_EVENING_TIME,
+  DELIVERY_CHANNELS,
+} from "./reminders-constants";
 
 export const SETTINGS_ERRORS = {
   timeInvalid: "Escribe una hora válida, como 07:30.",
+  channelInvalid: "Elige Push, Telegram o Ambos.",
   empty: "No hay nada que guardar.",
 } as const;
 
@@ -30,6 +34,7 @@ export const updateReminderSettingsSchema = z
     eveningTime: time,
     habitTimesEnabled: z.boolean(),
     showAmountsTelegram: z.boolean(),
+    showAmountsPush: z.boolean(),
   })
   .partial()
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
@@ -37,6 +42,11 @@ export const updateReminderSettingsSchema = z
   });
 
 export type UpdateReminderSettingsInput = z.output<typeof updateReminderSettingsSchema>;
+
+/** "Canal de avisos" (R5): its own schema, so the schedule's writes can never change it. */
+export const updateDeliveryChannelSchema = z.strictObject({
+  deliveryChannel: z.enum(DELIVERY_CHANNELS, { error: SETTINGS_ERRORS.channelInvalid }),
+});
 
 /** What Ajustes shows and edits (times as `HH:MM`). */
 export type ReminderSchedule = {
@@ -47,6 +57,7 @@ export type ReminderSchedule = {
   eveningTime: string;
   habitTimesEnabled: boolean;
   showAmountsTelegram: boolean;
+  showAmountsPush: boolean;
 };
 
 /** A fresh install: what the row has before the owner touches anything. */
@@ -58,6 +69,8 @@ export const DEFAULT_SCHEDULE: ReminderSchedule = {
   eveningTime: DEFAULT_EVENING_TIME,
   habitTimesEnabled: true,
   showAmountsTelegram: true,
+  // A push shows on the lock screen: amounts are off until the owner asks for them.
+  showAmountsPush: false,
 };
 
 /** The schedule of a settings row (Postgres' `07:30:00` → `07:30`). */
@@ -69,6 +82,7 @@ export function scheduleOf(row: {
   eveningTime: string;
   habitTimesEnabled: boolean;
   showAmountsTelegram: boolean;
+  showAmountsPush: boolean;
 }): ReminderSchedule {
   return {
     briefingEnabled: row.briefingEnabled,
@@ -78,5 +92,6 @@ export function scheduleOf(row: {
     eveningTime: row.eveningTime.slice(0, 5),
     habitTimesEnabled: row.habitTimesEnabled,
     showAmountsTelegram: row.showAmountsTelegram,
+    showAmountsPush: row.showAmountsPush,
   };
 }
