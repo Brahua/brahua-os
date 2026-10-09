@@ -64,6 +64,14 @@ describe("implicit capture: an expense only with decimals or a currency mark", (
   });
 });
 
+describe("NUL bytes", () => {
+  test("a NUL is dropped before anything reads the text (Postgres refuses it in text)", () => {
+    expect(classifyMessage("pil\u0000as mañana")).toEqual(task("pilas mañana"));
+    expect(classifyMessage("/tarea\u0000 pilas")).toEqual(task("pilas", true));
+    expect(classifyMessage("\u0000\u0000")).toEqual({ kind: "ignore" });
+  });
+});
+
 describe("commands", () => {
   test("/start, /ayuda (and /help) and /hoy", () => {
     expect(classifyMessage("/start")).toEqual({ kind: "start" });

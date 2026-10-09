@@ -37,7 +37,9 @@ export function looksLikeExpense(text: string): boolean {
 }
 
 export function classifyMessage(raw: string): BotIntent {
-  const text = raw.trim();
+  // Postgres refuses a NUL byte in text: an update carrying one would fail the same way on every
+  // retry. It carries no meaning, so it goes before anything reads or stores the text.
+  const text = raw.replaceAll("\0", "").trim();
   if (text === "") return { kind: "ignore" };
 
   if (text.startsWith("/")) {

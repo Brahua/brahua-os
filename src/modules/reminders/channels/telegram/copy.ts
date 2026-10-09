@@ -54,6 +54,8 @@ export const BOT_INVALID_MESSAGE = "No pude guardarlo. Prueba de nuevo con otras
 export const BOT_UNDO_BUTTON = "Deshacer";
 export const BOT_UNDONE_MESSAGE = "Deshecho.";
 export const BOT_UNDO_CHANGED_MESSAGE = "Ya lo cambiaste en la app, así que no lo toqué.";
+export const BOT_UNDO_EXPIRED_MESSAGE =
+  "Ya pasó más de un día. Si quieres quitarlo, hazlo desde la app.";
 export const BOT_UNDO_GONE_MESSAGE = "Ya no estaba en la app.";
 
 /** Longest piece of the owner's text echoed back in a reply (Telegram allows 4096 characters). */
@@ -93,4 +95,5 @@ export const BOT_MESSAGES: readonly string[] = [
   BOT_UNDONE_MESSAGE,
   BOT_UNDO_CHANGED_MESSAGE,
   BOT_UNDO_GONE_MESSAGE,
+  BOT_UNDO_EXPIRED_MESSAGE,
 ];

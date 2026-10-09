@@ -1301,7 +1301,7 @@ Ninguna entra en el build (no rompen el deploy si faltan). Orden para poner en m
 - **R6:** guía de puesta en marcha, backlog "Minutos de CI" con el tick de 15 min, retrospectiva.
 
 **R1 → pendientes** (anotados en la revisión del PR #95; también en `tasks/todo.md` → Backlog técnico):
-- Purga de `telegram_updates` (hoy crece con cada mensaje relevante; sin retención).
+- ~~Purga de `telegram_updates`~~ (hecho en R3: `retention.ts`, ver su sección).
 - Registrar «sin configurar» una sola vez por instancia (hoy se registra en cada tick sin secreto).
 - E2E del estado «bloqueado» (403) de Ajustes y axe en él.
 - Pruebas de integración extra: 403 con `delivery_channel = both`, `build_failed` con el tope de 3 y `messageId` no finito.
@@ -1424,10 +1424,17 @@ Rama `feat/reminders-r3`. El bot ya **captura**: un mensaje de texto del chat vi
 
 **Pruebas:** unitarias `reminders-classify` (tabla de gasto/tarea y comandos) y `reminders-copy` (ampliada: ayuda, plantillas, cadenas prohibidas). Integración (solo CI) `reminders-capture` (tarea con fecha y hora, bandeja, «café 12» tarea, `/tarea`, texto largo, gasto, USD, `/gasto`, sin monto, comandos, `/hoy` con y sin fuentes y con una fuente que falla; «Deshacer»: exacto, no pisa una edición ni una completada, gasto editado, toque ajeno con control positivo, datos mal formados, tras desconectar; chat ajeno sin nada guardado con control positivo; `update_id` repetido una sola vez; fallo a mitad de la captura → 500 y todo revertido, y el reintento funciona; respuesta fallida sin reintento; un 403 al responder no desconecta) y `reminders-webhook` (los `TODO(R3)` pasaron a aserciones reales: nada se crea desde un chat ajeno). **E2E:** ninguno nuevo (la spec no lo pide para el bot; el webhook se cubre con el servidor falso en integración).
 
+**Correcciones de la revisión de seguridad (PR #101):**
+- **Mensaje veneno:** `classifyMessage` quita `\0` (Postgres lo rechaza en `text` y el 500 se repetiría). Y si la transacción falla con un error **permanente** (SQLSTATE clase 22 o 23, `permanent-error.ts`; los de conexión, serialización o deadlock no cuentan), el webhook lo registra con `describeError`, reclama el `update_id` por su cuenta y responde 200: los reintentos de Telegram terminan. Si ni eso se puede, 500.
+- **«Deshacer» caduca a las 24 h** (reloj de la base, `telegram_captures.created_at`): «Ya pasó más de un día. Si quieres quitarlo, hazlo desde la app.» Editar las etiquetas de una tarea **sí** cuenta como tocarla (`replaceTaskTags` sella `updated_at`; hay prueba).
+- **Retención:** `retention.ts` (`purgeTelegramHistory`) borra `telegram_updates` y `telegram_link_attempts` de más de 30 días (sin borrar updates que una captura referencia) al final de cada tick, en su propio `try` (un fallo no tumba el tick). El comentario de cabecera ya no dice que los extraños no pueden hacer crecer la tabla: un `/start XXXX` ajeno sí deja una fila, acotada por la purga.
+- **Candados:** comentario junto al `FOR SHARE`: la captura solo crea tareas de bandeja y gastos sueltos, que no toman candados asesores, así que no hay candado asesor posterior a las filas ya bloqueadas.
+- **`answerCallbackQuery`** también se responde en el toque reintentado (`duplicate`) y cuando se desconectó entre la primera lectura y el candado (antes `ignored`).
+
 **Puntos de extensión:**
 - **R5:** nada cambia aquí; el bot responde siempre por Telegram (la captura es del bot, no del canal de avisos).
 - Si se quiere deshacer también tras editar sin cambiar el contenido, habría que comparar campos en lugar de `updated_at`; se prefirió lo conservador.
-- `telegram_updates` sigue sin purga (pendiente de R1; ahora crece también con cada mensaje del owner).
+- Purga hecha: `retention.ts` borra `telegram_updates` y `telegram_link_attempts` de más de 30 días (salvo updates con captura) al final de cada tick.
 
 **Decisiones autónomas para revisar con el owner:** (1) la captura corre en la misma transacción que el claim del `update_id` (todo o nada) y la respuesta sale después sin reintento; (2) «tocado» = `updated_at ≠ created_at`, completada o borrada; (3) texto demasiado largo se rechaza y se dice en lugar de cortarse; (4) todo `/algo` desconocido responde y no se guarda; (5) una foto o nota de voz se responde una vez; (6) un `/start` sin código desde el chat vinculado muestra la ayuda; (7) `/hoy` usa el texto del briefing («Buen día. Hoy: …») a cualquier hora; (8) un 403 al **responder** desde el webhook no desconecta el chat (si el owner está escribiendo, no nos bloqueó; la desconexión por 403 sigue siendo del motor, con el chat esperado); (9) el esquema del update ahora acepta `callback_query` y solo atiende los toques del usuario vinculado.
 

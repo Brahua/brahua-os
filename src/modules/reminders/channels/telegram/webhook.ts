@@ -7,13 +7,14 @@
 // same transaction that handles it. That transaction also creates the task or expense and its
 // `telegram_captures` row, so a failure rolls ALL of it back and Telegram's retry is not mistaken
 // for a duplicate, nor leaves a half-captured message. Only the linked chat's messages and
-// `/start <code>`-shaped ones are claimed at all; only a valid `/start <code>` is answered to a
+// `/start <code>`-shaped ones are claimed at all (a stranger's `/start XXXX` does leave a row: `telegram_updates` is purged by age,
+// see retention.ts); only a valid `/start <code>` is answered to a
 // stranger (and a wrong one is not); everything else from an unknown chat gets a bare 200 and
 // nothing is stored. Replies go out AFTER the commit: a failed reply never undoes a capture (and
 // is not retried: a duplicate "Gasto: …" is worse than a missing one). Logs carry no chat ids, no
 // text, no codes, no amounts.
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/lib/db";
 import { describeError } from "@/lib/describe-error";
@@ -29,6 +30,7 @@ import { reminderSettings, telegramCaptures, telegramUpdates } from "../../db/sc
 import { isWebhookAuthorized } from "../../env";
 import { logEvent } from "../../log";
 import { briefingText } from "../../messages";
+import { isPermanentDbError } from "../../permanent-error";
 import { getSettings } from "../../settings";
 import type { InlineButton, TelegramClient } from "./client";
 import { classifyMessage } from "./classify";
@@ -46,6 +48,7 @@ import {
   BOT_TOO_LONG_TASK_MESSAGE,
   BOT_UNDO_BUTTON,
   BOT_UNDO_CHANGED_MESSAGE,
+  BOT_UNDO_EXPIRED_MESSAGE,
   BOT_UNDO_GONE_MESSAGE,
   BOT_UNDONE_MESSAGE,
   BOT_UNKNOWN_COMMAND_MESSAGE,
@@ -61,6 +64,8 @@ export const WEBHOOK_SECRET_HEADER = "x-telegram-bot-api-secret-token";
 
 /** The "Deshacer" button's callback data: `u:` and the id of the `telegram_captures` row. */
 export const UNDO_CALLBACK_PREFIX = "u:";
+/** "Deshacer" works for a day: after that the capture is the owner's data like any other. */
+const UNDO_WINDOW_HOURS = 24;
 const UNDO_CALLBACK = /^u:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 
 const chatSchema = z.object({ id: z.number().int(), type: z.string() });
@@ -156,6 +161,10 @@ async function handleLinkedMessage(
   deps: WebhookDeps,
   update: { updateId: number; chatId: number; text: string | undefined },
 ): Promise<Outcome> {
+  // Lock order: the claim's row lock is already held, then this FOR SHARE. The "advisory lock
+  // first" rule (CLAUDE.md) is not at risk: the bot only creates inbox tasks and loose expenses,
+  // which take NO advisory lock (those are per project / per recurring payment), so there is no
+  // later advisory lock to take after these row locks.
   const [settings] = await tx
     .select()
     .from(reminderSettings)
@@ -234,14 +243,14 @@ async function handleUndo(
     .from(reminderSettings)
     .where(eq(reminderSettings.id, true))
     .for("share");
-  if (settings?.telegramChatId !== callback.fromId) return { kind: "ignored" };
-
   const answer = (text: string, changed?: BotCaptureKind): Outcome => ({
     kind: "callback",
     callbackId: callback.id,
     text,
     ...(changed ? { changed } : {}),
   });
+  // Disconnected between the first look and the lock: answer anyway (it stops the spinner).
+  if (settings?.telegramChatId !== callback.fromId) return answer(BOT_UNDO_GONE_MESSAGE);
   const captureId = callback.data ? UNDO_CALLBACK.exec(callback.data)?.[1] : undefined;
   if (!captureId) return answer(BOT_UNDO_GONE_MESSAGE);
   const [capture] = await tx
@@ -249,6 +258,17 @@ async function handleUndo(
     .from(telegramCaptures)
     .where(eq(telegramCaptures.id, captureId));
   if (!capture) return answer(BOT_UNDO_GONE_MESSAGE);
+  // Database clock, like `created_at`.
+  const [fresh] = await tx
+    .select({ id: telegramCaptures.id })
+    .from(telegramCaptures)
+    .where(
+      and(
+        eq(telegramCaptures.id, captureId),
+        gt(telegramCaptures.createdAt, sql`now() - make_interval(hours => ${UNDO_WINDOW_HOURS})`),
+      ),
+    );
+  if (!fresh) return answer(BOT_UNDO_EXPIRED_MESSAGE);
 
   const result = await deps.capture.undo(tx as unknown as Database, {
     kind: capture.entityKind,
@@ -345,11 +365,30 @@ export async function handleTelegramWebhook(
     });
   } catch (error) {
     logEvent("error", "telegram_webhook_failed", describeError(error));
+    if (isPermanentDbError(error)) {
+      // A poison update: handling it fails the same way every time (e.g. data Postgres refuses).
+      // The rollback released its id; claim it on its own so Telegram's retries end here (the
+      // owner is not told: the capture did not happen, and the log has the error code).
+      try {
+        await deps.db
+          .insert(telegramUpdates)
+          .values({ updateId: update.update_id })
+          .onConflictDoNothing();
+      } catch (claimError) {
+        logEvent("error", "telegram_poison_claim_failed", describeError(claimError));
+        return respond(500);
+      }
+      return respond(200);
+    }
     // 500: Telegram retries, and the rollback released the update_id and whatever was created.
     return respond(500);
   }
 
   // 4. After the commit. A failure here is logged and never retried.
+  if (outcome.kind === "duplicate" && update.callback_query) {
+    // A retried tap: stop its spinner, nothing else.
+    await deps.client.answerCallbackQuery(update.callback_query.id);
+  }
   await finish(deps, outcome);
   return respond(200);
 }

@@ -91,7 +91,6 @@ Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `
 ## Backlog técnico
 
 ### `reminders` R3 → pendientes
-- Purga de `telegram_updates` (ahora crece con cada mensaje del owner; ya estaba anotada en R1).
 - Probar `/hoy` con las fuentes reales registradas (hoy se prueba con fuentes de juguete en integración).
 - Comparar campos (no `updated_at`) si el owner quiere que «Deshacer» siga valiendo tras una edición sin cambios reales.
 - Quitar el botón «Deshacer» del mensaje tras usarlo (`editMessageReplyMarkup`; hoy el segundo toque responde «Ya no estaba en la app»).
@@ -142,7 +141,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Texto perdido al cambiar "Tarea · Gasto"** (de F1): cambiar de tipo en la hoja de captura monta la otra hoja y se pierde lo ya escrito. Conservarlo (o no desmontar la hoja).
 - [ ] **`Key` con `aria-disabled` en Claude Design** (de F4): el estilo de una tecla en espera vive en `overrides.css` (`PENDING UPSTREAM`); aplicarlo en Claude Design y vaciar el override.
 - [ ] **Moneda de los recurrentes importados** (de F5): ChatGPT, DevTalles y Claude se pagan con un medio en USD pero entraron en PEN; el owner los corrige en la app si son en dólares.
-- [ ] **`reminders` R1 → pendientes** (revisión del PR #95): purga de `telegram_updates`.
+- [x] **`reminders` R1 → pendientes** (revisión del PR #95): purga de `telegram_updates` (hecho en R3, `retention.ts`).
 - [ ] **`reminders`:** registrar «sin configurar» una vez por instancia (hoy, en cada tick sin secreto).
 - [ ] **`reminders`:** E2E del estado «bloqueado» de Ajustes y axe en él.
 - [ ] **`reminders`:** integración extra: 403 con `both`, `build_failed` con tope de 3 y `messageId` no finito.

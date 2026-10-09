@@ -3,7 +3,7 @@
 // linked chat becomes a task (inbox) or an expense, the reply says what was understood and carries
 // "Deshacer", which undoes EXACTLY that capture and never one the owner touched since. Everything
 // runs through the real webhook handler and the real composition root (`src/lib/bot-capture.ts`).
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { botCapture } from "@/lib/bot-capture";
@@ -22,6 +22,7 @@ import {
   BOT_TOO_LONG_EXPENSE_MESSAGE,
   BOT_TOO_LONG_TASK_MESSAGE,
   BOT_UNDO_CHANGED_MESSAGE,
+  BOT_UNDO_EXPIRED_MESSAGE,
   BOT_UNDO_GONE_MESSAGE,
   BOT_UNDONE_MESSAGE,
   BOT_UNKNOWN_COMMAND_MESSAGE,
@@ -34,6 +35,7 @@ import type { BotCapture, ReminderSource } from "@/modules/reminders/contracts";
 import { reminderSettings, telegramCaptures, telegramUpdates } from "@/modules/reminders/db/schema";
 import { disconnectTelegram, getSettings } from "@/modules/reminders/settings";
 import { tasks } from "@/modules/tasks/db/schema";
+import { replaceTaskTags } from "@/modules/tasks/tags";
 import { startFakeTelegram, type FakeTelegram } from "../support/fake-telegram";
 import { testDb } from "./test-db";
 
@@ -405,6 +407,44 @@ describe("Deshacer", () => {
     ]);
   });
 
+  test("a button older than a day no longer undoes (positive control: 23 hours still does)", async () => {
+    await say("pilas");
+    const data = undoData();
+    await testDb.execute(
+      sql`update telegram_captures set created_at = now() - interval '25 hours'`,
+    );
+    await handle(tapUpdate(data));
+    expect((await allTasks())[0].deletedAt).toBeNull();
+    expect(answered().at(-1)?.body).toMatchObject({ text: BOT_UNDO_EXPIRED_MESSAGE });
+
+    await testDb.execute(
+      sql`update telegram_captures set created_at = now() - interval '23 hours'`,
+    );
+    await handle(tapUpdate(data));
+    expect((await allTasks())[0].deletedAt).not.toBeNull();
+    expect(answered().at(-1)?.body).toMatchObject({ text: BOT_UNDONE_MESSAGE });
+  });
+
+  test("editing the tags of a task counts as touching it", async () => {
+    await say("pilas");
+    const [task] = await allTasks();
+    const data = undoData();
+    await replaceTaskTags(testDb, task.id, ["casa"]);
+    await handle(tapUpdate(data));
+    expect((await allTasks())[0].deletedAt).toBeNull();
+    expect(answered().at(-1)?.body).toMatchObject({ text: BOT_UNDO_CHANGED_MESSAGE });
+  });
+
+  test("a retried tap (same update_id) only stops the spinner", async () => {
+    await say("pilas");
+    const tap = tapUpdate(undoData(), OWNER_CHAT, 9100);
+    await handle(tap);
+    await handle(tap);
+    expect(answered()).toHaveLength(2);
+    expect(answered()[0].body).toMatchObject({ text: BOT_UNDONE_MESSAGE });
+    expect(answered()[1].body.text).toBeUndefined();
+  });
+
   test("after a disconnect the old buttons do nothing", async () => {
     await say("pilas");
     const data = undoData();
@@ -462,6 +502,33 @@ describe("who and how often", () => {
     expect((await handle(request)).status).toBe(200);
     expect(await allTasks()).toHaveLength(1);
     expect(sent()).toHaveLength(1);
+  });
+
+  test("a poison update (a permanent data error) is claimed and answered 200: no retry loop", async () => {
+    const poisoned: BotCapture = {
+      ...botCapture,
+      create: async () => {
+        throw Object.assign(new Error("Failed query"), {
+          cause: Object.assign(new Error("pg"), { code: "22021" }),
+        });
+      },
+    };
+    const request = messageUpdate("pilas", OWNER_CHAT, 9003);
+    expect((await handle(request, { capture: poisoned })).status).toBe(200);
+    expect(await allTasks()).toEqual([]);
+    expect(sent()).toHaveLength(0);
+    // Its id is claimed, so Telegram's retry is a duplicate (positive control of the 500 above,
+    // where a transient error leaves the id free).
+    expect((await testDb.select().from(telegramUpdates)).map((row) => row.updateId)).toEqual([
+      9003,
+    ]);
+    expect((await handle(request)).status).toBe(200);
+    expect(await allTasks()).toEqual([]);
+  });
+
+  test("a NUL byte in the text is dropped and the capture works", async () => {
+    await say("pil\u0000as");
+    expect((await allTasks()).map((task) => task.title)).toEqual(["pilas"]);
   });
 
   test("a failed reply keeps the capture and is not retried (a duplicate is worse than a missing one)", async () => {

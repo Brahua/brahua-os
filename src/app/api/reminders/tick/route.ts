@@ -18,6 +18,7 @@ import { describeError } from "@/lib/describe-error";
 import { runTick } from "@/modules/reminders/engine";
 import { isTickAuthorized, tickSecrets } from "@/modules/reminders/env";
 import { logEvent } from "@/modules/reminders/log";
+import { purgeTelegramHistory } from "@/modules/reminders/retention";
 import { channelsFromEnv } from "@/modules/reminders/runtime";
 import { listReminderSources } from "@/modules/reminders/contracts";
 import { ensureReminderSources } from "@/lib/reminder-sources";
@@ -47,6 +48,13 @@ async function handle(request: Request): Promise<Response> {
       channelsFor: channelsFromEnv,
     });
     logEvent("info", "reminders_tick", summary);
+    // Housekeeping after the work, on its own: a failure here never fails the tick.
+    try {
+      const purged = await purgeTelegramHistory(getDb(), new Date());
+      if (purged.updates + purged.attempts > 0) logEvent("info", "telegram_history_purged", purged);
+    } catch (error) {
+      logEvent("warn", "telegram_history_purge_failed", describeError(error));
+    }
     return Response.json({ ok: true, ...summary }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     logEvent("error", "reminders_tick_failed", describeError(error));
