@@ -13,6 +13,7 @@
 // The types are plain data (this file imports `server-only` for the registry, nothing else), so a
 // source file stays easy to test.
 import "server-only";
+import type { Database } from "@/lib/db";
 import type { BriefingFacts } from "./messages";
 import type { ChannelId, ReminderKind } from "./reminders-constants";
 
@@ -123,6 +124,62 @@ export type ChannelSendResult =
 export type ReminderChannel = {
   id: ChannelId;
   send(message: ReminderMessage): Promise<ChannelSendResult>;
+};
+
+// 3. BotCapture (R3): what the Telegram bot needs from `tasks` and `finance` to capture text and to
+//    undo it. `reminders` imports neither: the composition root `src/lib/bot-capture.ts` builds a
+//    BotCapture from their data layers and the route hands it to the webhook (dependency
+//    injection, as with the Telegram client). The webhook calls it inside the transaction that
+//    claimed the `update_id`, so a failure rolls the entity back with the claim.
+
+/** What the bot can create from text. */
+export type BotCaptureKind = "task" | "expense";
+
+/** Why the text could not be saved (the user is told; nothing is retried). */
+export type BotCaptureFailure =
+  | "too_long"
+  /** An expense text with no amount in it. */
+  | "no_amount"
+  | "invalid";
+
+export type BotCaptured =
+  | {
+      ok: true;
+      kind: "task";
+      entityId: string;
+      title: string;
+      /** «vie 9 oct · 10:00», or null for a task without a day (it stays in the inbox). */
+      dueLabel: string | null;
+    }
+  | {
+      ok: true;
+      kind: "expense";
+      entityId: string;
+      /** «S/ 12.50». */
+      amountLabel: string;
+      description: string | null;
+    }
+  | { ok: false; reason: BotCaptureFailure };
+
+/**
+ * `undone`: removed. `changed`: the owner edited, completed or moved it since, so it was NOT
+ * touched. `gone`: it was already deleted (a second tap of "Deshacer" lands here).
+ */
+export type BotUndoResult = "undone" | "changed" | "gone";
+
+export type BotCapture = {
+  /**
+   * Saves `text` as a task or an expense. `db` may be a transaction handle (typed as Database: it
+   * has everything the data layers use; a nested transaction becomes a savepoint).
+   */
+  create(
+    db: Database,
+    input: { kind: BotCaptureKind; text: string; now: Date },
+  ): Promise<BotCaptured>;
+  /** Removes exactly the entity captured (never "the latest"), unless it changed since. */
+  undo(db: Database, input: { kind: BotCaptureKind; entityId: string }): Promise<BotUndoResult>;
+  /** Refreshes the screens that list what was created or undone. Called after the commit. */
+  revalidate(kind: BotCaptureKind): void;
 };
 
 const sources = new Map<string, ReminderSource>();

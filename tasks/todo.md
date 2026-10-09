@@ -50,10 +50,12 @@ Hecho en `feat/reminders-r4` (detalle, decisiones autónomas y puntos de extensi
 
 ### R3 — Captura por texto
 
-- [ ] **R3.1 Webhook:** `POST /api/telegram/webhook` (secreto, tamaño, `update_id`, un solo chat, `/start <código>`), `/ayuda`.
+Hecho en `feat/reminders-r3` (detalle, decisiones autónomas y qué revisar en seguridad en `docs/HANDOFF.md` → "Cómo funciona reminders → R3"). Sin migración ni E2E nuevo.
+
+- [x] **R3.1 Webhook:** `POST /api/telegram/webhook` (secreto, tamaño, `update_id`, un solo chat, `/start <código>`), `/ayuda`.
   - Aceptación: sin secreto 401; chat ajeno no guarda nada; `update_id` repetido una sola vez.
   - Verificar: integración con el servidor falso (CI). Archivos: `route.ts`, `webhook.ts`.
-- [ ] **R3.2 Clasificar y crear:** `bot-capture.ts` (raíz) con `parseTaskText`/`parseExpenseText`, `/tarea`, `/gasto`, `/hoy`; lo no entendido a la bandeja; respuesta con resumen y «Deshacer» sobre `telegram_captures`.
+- [x] **R3.2 Clasificar y crear:** `bot-capture.ts` (raíz) con `parseTaskText`/`parseExpenseText`, `/tarea`, `/gasto`, `/hoy`; lo no entendido a la bandeja; respuesta con resumen y «Deshacer» sobre `telegram_captures`.
   - Aceptación: «pilas mañana» → tarea con fecha; «12.50 café» → gasto; «café 12» → tarea; «Deshacer» exacto, sin pisar ediciones.
   - Verificar: tabla de casos unitaria + integración (CI). Archivos: `bot-capture.ts`, `classify.ts`, `undo.ts`.
 
@@ -87,6 +89,12 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+### `reminders` R3 → pendientes
+- Purga de `telegram_updates` (ahora crece con cada mensaje del owner; ya estaba anotada en R1).
+- Probar `/hoy` con las fuentes reales registradas (hoy se prueba con fuentes de juguete en integración).
+- Comparar campos (no `updated_at`) si el owner quiere que «Deshacer» siga valiendo tras una edición sin cambios reales.
+- Quitar el botón «Deshacer» del mensaje tras usarlo (`editMessageReplyMarkup`; hoy el segundo toque responde «Ya no estaba en la app»).
 
 ### `reminders` R4 → pendientes de la revisión del PR #98
 - Captura de los pads agrupados por franja y del formulario con «Hora del aviso» y «Franja» abierto.

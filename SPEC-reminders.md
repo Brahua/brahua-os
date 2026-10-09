@@ -65,6 +65,12 @@ Fuera de este módulo: email, WhatsApp (descartado), audio → texto (fase 2, co
 | Service worker | Solo `push` y `notificationclick`; **sin `fetch` ni caché**, para no servir HTML viejo tras un deploy. Alcance `/`, archivo `public/sw.js` con cabecera `no-cache`. |
 | Notificación | Título «brahua-os», cuerpo = el mismo texto del aviso, `tag` = la `dedupe_key` (reemplaza en vez de apilar), clic abre `/`. |
 | Retención | `reminder_deliveries` no se poda en v1 (< 10 filas al día). |
+| Captura atómica (R3) | El webhook reclama el `update_id`, crea la tarea o el gasto y escribe `telegram_captures` en **una** transacción: si algo falla, todo se revierte y el reintento de Telegram vale. La respuesta sale después del commit y **no se reintenta** (un «Gasto: …» doble es peor que uno perdido). |
+| «Deshacer» exacto (R3) | El botón lleva `u:<id de telegram_captures>`. Borra (lógico) solo esa entidad y solo si nadie la tocó: no borrada, no hecha y `updated_at = created_at`, en un solo UPDATE. Si cambió: «Ya lo cambiaste en la app, así que no lo toqué.» |
+| Lo que no se guarda (R3) | Un texto demasiado largo (tarea > 200 letras, detalle de gasto > 80) o sin monto en `/gasto` se rechaza y **se dice**, sin cortarlo. Cualquier `/comando` desconocido responde y no se guarda. Una foto o nota de voz recibe «Por ahora solo leo texto». |
+| `/hoy` (R3) | Usa el texto del briefing («Buen día. Hoy: …») a cualquier hora, con `show_amounts_telegram` y el enlace a la app; día vacío: «Hoy no tienes nada pendiente.»; si una fuente falla responde con un aviso amable y 200 (sin bucle de reintentos). |
+| 403 al responder (R3) | El webhook no desconecta el chat por un 403 al **responder**: el owner está escribiendo, así que no bloqueó el bot. La desconexión por 403 es del motor de avisos, solo del chat esperado. |
+| Inyección de la captura (R3) | `reminders` define `BotCapture` en `contracts.ts`; la raíz `src/lib/bot-capture.ts` lo implementa con las capas de datos de `tasks` y `finance` y la ruta lo inyecta al handler. Se reutilizan los esquemas Zod del formulario, no las Server Actions (el webhook no tiene sesión de navegador). |
 
 ## Pantallas
 

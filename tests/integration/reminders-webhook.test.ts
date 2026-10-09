@@ -3,7 +3,9 @@
 // the secret is checked before the body is read, a stranger's chat gets nothing and stores
 // nothing, `/start <code>` links, and Telegram's retries (same `update_id`) are handled once.
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { botCapture } from "@/lib/bot-capture";
+import { financeExpenses } from "@/modules/finance/db/schema";
 import { createTelegramClient } from "@/modules/reminders/channels/telegram/client";
 import { BOT_LINKED_MESSAGE } from "@/modules/reminders/channels/telegram/copy";
 import { issueLinkCode } from "@/modules/reminders/channels/telegram/link";
@@ -18,8 +20,12 @@ import {
   telegramUpdates,
 } from "@/modules/reminders/db/schema";
 import { disconnectTelegram, getSettings } from "@/modules/reminders/settings";
+import { tasks } from "@/modules/tasks/db/schema";
 import { startFakeTelegram, type FakeTelegram } from "../support/fake-telegram";
 import { testDb } from "./test-db";
+
+// Capture revalidates the screens it changes: recorded, not performed.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const SECRET = "a-webhook-secret-0123456789";
 const ENV = { TELEGRAM_WEBHOOK_SECRET: SECRET };
@@ -67,7 +73,20 @@ function post(
 }
 
 const handle = (request: Request) =>
-  handleTelegramWebhook(request, { db: testDb, client: client(), now: NOW, env: ENV });
+  handleTelegramWebhook(request, {
+    db: testDb,
+    client: client(),
+    now: NOW,
+    env: ENV,
+    capture: botCapture,
+  });
+
+/** Nothing a stranger sends may become a task or an expense. */
+async function expectNothingCreated() {
+  expect(await testDb.select().from(tasks)).toEqual([]);
+  expect(await testDb.select().from(financeExpenses)).toEqual([]);
+  expect(await testDb.select().from(telegramCaptures)).toEqual([]);
+}
 
 const updates = () => testDb.select().from(telegramUpdates);
 const sent = () => fake.calls.filter((call) => call.method === "sendMessage");
@@ -121,6 +140,7 @@ describe("authentication", () => {
       client: client(),
       now: NOW,
       env: {},
+      capture: botCapture,
     });
     expect(response.status).toBe(401);
   });
@@ -215,8 +235,7 @@ describe("linking with /start <code>", () => {
     expect(settings.telegramChatId).toBeNull();
     // Only the update itself is recorded (it was /start-shaped); no capture, no entity.
     expect((await updates()).map((row) => row.updateId)).toEqual([5001]);
-    // TODO(R3): when capture exists, assert here that no task or expense was created either.
-    expect(await testDb.select().from(telegramCaptures)).toEqual([]);
+    await expectNothingCreated();
   });
 
   test("a stranger's wrong /start, however many, never close the owner's code", async () => {
@@ -273,8 +292,9 @@ describe("linking with /start <code>", () => {
   test("plain text from the unknown chat is ignored: no reply and NOTHING stored, not even its update id", async () => {
     await handle(post(update({ chatId: STRANGER_CHAT, text: "pilas mañana" })));
     expect(sent()).toHaveLength(0);
-    // TODO(R3): when capture exists, assert here that no task or expense was created either.
-    expect(await testDb.select().from(telegramCaptures)).toEqual([]);
+    await handle(post(update({ chatId: STRANGER_CHAT, text: "12.50 café" })));
+    await handle(post(update({ chatId: STRANGER_CHAT, text: "/tarea pilas" })));
+    await expectNothingCreated();
     expect(await updates()).toEqual([]);
   });
 
