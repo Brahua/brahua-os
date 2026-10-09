@@ -42,7 +42,7 @@ async function axeViolations(page: Page) {
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
-test("phone: capture from another page in a few taps, then it is in the inbox", async ({
+test("phone: capture from another page in a few taps, then it is in the inbox @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The orange key of the bottom bar");
@@ -161,7 +161,7 @@ test("Clasificar: assign an area and a date; Deshacer puts it back in the inbox"
   expect(await readTask(id)).toMatchObject({ areaSlug: null, dueDate: null });
 });
 
-test("the detail: a side sheet on the desktop, its page on the phone; edits and delete", async ({
+test("the detail: a side sheet on the desktop, its page on the phone; edits and delete @responsive", async ({
   page,
 }, testInfo) => {
   const title = uniqueTitle("devolver libro", testInfo);
@@ -236,7 +236,9 @@ for (const theme of THEMES) {
 
   // On "/" behind the sheet is today's board, which shows every habit, task and project due
   // today, whoever created them: it is hidden for the screenshot (today-board-hidden.css).
-  test(`${theme} theme: the quick capture sheet (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: the quick capture sheet (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openReady(page, "/");
     await setTheme(page, theme);
@@ -266,7 +268,7 @@ test("unknown or deleted task pages are a 404 inside the shell", async ({ page }
   );
 });
 
-test("at 320 px the inbox and the views don't scroll sideways @today-tasks", async ({
+test("at 320 px the inbox and the views don't scroll sideways @today-tasks @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");

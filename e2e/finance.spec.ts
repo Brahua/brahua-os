@@ -50,7 +50,7 @@ const switcher = (page: Page) => page.getByRole("radiogroup", { name: "Qué capt
 
 // The first capture on a device is 4 interactions (key, "Gasto", amount, Enter); once the device
 // remembers "Gasto", 3 (decisión autónoma para revisar con el owner, SPEC-finance "Captura rápida").
-test("phone: with Gasto remembered, an expense in 3 interactions and under 10 s, with Deshacer", async ({
+test("phone: with Gasto remembered, an expense in 3 interactions and under 10 s, with Deshacer @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The orange key of the bottom bar");
@@ -287,7 +287,9 @@ test("Ajustes: the rate, a category (new, archived, back) and a method in dollar
   expect(saved).toMatchObject({ currency: "USD", exchangeRate: "3.7500" });
 });
 
-test("at 320 px nothing scrolls sideways (the month, the sheets)", async ({ page }, testInfo) => {
+test("at 320 px nothing scrolls sideways (the month, the sheets) @responsive", async ({
+  page,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const methodId = await insertMethod("Una tarjeta con un nombre bastante largo", "USD");
   await insertCategory("Una categoría con un nombre largo");
@@ -398,7 +400,9 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: the capture's Gasto sheet (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: the capture's Gasto sheet (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertMethod("Efectivo", "PEN", true);
     await openReady(page, "/");

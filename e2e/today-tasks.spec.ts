@@ -202,7 +202,7 @@ test("a task completed in Tareas is gone from Hoy when going back by the navigat
   await expect(count(page)).toHaveText("1 para hoy");
 });
 
-test("at 320 px the tasks don't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the tasks don't scroll sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const project = await insertTodayProject(
     unique("Un proyecto con un nombre bastante largo para la fila", testInfo),
@@ -268,7 +268,9 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: the Tareas section (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: the Tareas section (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertShowcase();
     await openToday(page);

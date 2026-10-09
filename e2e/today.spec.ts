@@ -144,7 +144,7 @@ test("a day without habits: no Hábitos section, and the projects keep it from b
   await expect(empty(page)).toHaveCount(0);
 });
 
-test("at 320 px the board doesn't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the board doesn't scroll sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await insertHabit({ name: "Un hábito con un nombre bastante largo para una pantalla angosta" });
   await insertHabit({ name: "Tomar agua", quantity: { goal: 10_000, unit: "a".repeat(20) } });
@@ -163,7 +163,7 @@ test("at 320 px the board doesn't scroll sideways", async ({ page }, testInfo) =
   expect(first).toBe(second);
 });
 
-test("on the phone the last pad stays above the notice and the bottom bar", async ({
+test("on the phone the last pad stays above the notice and the bottom bar @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The bottom bar is only shown on phones");
@@ -265,7 +265,9 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: the Hábitos section (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: the Hábitos section (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertHabit({ name: "Meditar 10 min", area: "health", done: true, sortOrder: 0 });
     await insertHabit({ name: "Leer 20 páginas", area: "learning", sortOrder: 1 });

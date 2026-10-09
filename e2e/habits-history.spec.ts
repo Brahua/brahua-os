@@ -285,7 +285,9 @@ test("Eliminar from the page asks first, then back to Hoy with Deshacer; its pag
   await expect.poll(async () => (await readHabit(id)).deletedAt).toBeNull();
 });
 
-test("at 320 px, Semana and the page don't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px, Semana and the page don't scroll sideways @responsive", async ({
+  page,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const { leer } = await insertFixedHabits();
   await page.setViewportSize({ width: 320, height: 640 });
@@ -341,7 +343,9 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: Semana on a fixed week (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: Semana on a fixed week (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertFixedHabits();
     await openWeek(page, "2026-03-09");
@@ -353,7 +357,7 @@ for (const theme of THEMES) {
     });
   });
 
-  test(`${theme} theme: a habit's page on a fixed month (reference screenshot)`, async ({
+  test(`${theme} theme: a habit's page on a fixed month (reference screenshot) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

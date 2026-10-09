@@ -211,7 +211,7 @@ test("the keys are 44 px or more and secondary; the checkbox stays the row's pri
   await expect(pickKey(page, first.title)).toHaveText("Otro día…");
 });
 
-test("at 390 px a swipe to the left does what Mañana does; a short drag and a vertical one do not", async ({
+test("at 390 px a swipe to the left does what Mañana does; a short drag and a vertical one do not @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The swipe is for touch widths (below 1024 px)");
@@ -283,7 +283,7 @@ async function expectKeysFit(page: Page, row: Locator, width: number) {
   }
 }
 
-test("at 320 px the rows with their keys fit and don't scroll sideways", async ({
+test("at 320 px the rows with their keys fit and don't scroll sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -302,16 +302,21 @@ test("at 320 px the rows with their keys fit and don't scroll sideways", async (
   for (const item of rows) await expectKeysFit(page, item, 320);
 });
 
-tasksTest("at 320 px the keys fit in Tareas > Hoy too @today-tasks", async ({ page }, testInfo) => {
-  test.skip(isDesktop(testInfo), "Phone widths only");
-  const title = unique("Una tarea con un título largo para la vista", testInfo);
-  await insertViewTask({ title, due: 0 });
-  await page.setViewportSize({ width: 320, height: 640 });
-  await openReady(page, "/tasks?vista=hoy");
-  await expect(viewRow(page, title)).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  await expectKeysFit(page, viewRow(page, title), 320);
-});
+tasksTest(
+  "at 320 px the keys fit in Tareas > Hoy too @today-tasks @responsive",
+  async ({ page }, testInfo) => {
+    test.skip(isDesktop(testInfo), "Phone widths only");
+    const title = unique("Una tarea con un título largo para la vista", testInfo);
+    await insertViewTask({ title, due: 0 });
+    await page.setViewportSize({ width: 320, height: 640 });
+    await openReady(page, "/tasks?vista=hoy");
+    await expect(viewRow(page, title)).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      320,
+    );
+    await expectKeysFit(page, viewRow(page, title), 320);
+  },
+);
 
 test("a double tap on Mañana saves once and says it once", async ({ page }, testInfo) => {
   const [first, second] = await insertInOrder("Doble", 2, testInfo);
@@ -385,7 +390,9 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: the rows with their keys (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: the rows with their keys (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertShowcase();
     await openToday(page);

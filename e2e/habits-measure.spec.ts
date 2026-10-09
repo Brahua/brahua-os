@@ -158,7 +158,7 @@ test("Ajustar el día: the exact quantity from the options, with −/+", async (
   await expect.poll(async () => (await readHabit(id)).today).toBe(15);
 });
 
-test("at 320 px a quantity's pad and the adjust sheet don't scroll sideways", async ({
+test("at 320 px a quantity's pad and the adjust sheet don't scroll sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -232,7 +232,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: "Hoy" with quantities and habits to avoid (reference screenshot)`, async ({
+  test(`${theme} theme: "Hoy" with quantities and habits to avoid (reference screenshot) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

@@ -43,7 +43,7 @@ const unique = (prefix: string, testInfo: TestInfo) =>
 
 // Doesn't look at the grid: no habits lock needed.
 unlocked(
-  "navigation: Hábitos after the capture key on the phone, shortcut 4 on the desktop",
+  "navigation: Hábitos after the capture key on the phone, shortcut 4 on the desktop @responsive",
   async ({ page }, testInfo) => {
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
@@ -165,7 +165,7 @@ test("delete asks first when it has logs; Deshacer brings it back with them", as
   await expect(pad(page, name)).toBeVisible();
 });
 
-test("at 320 px the pads don't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the pads don't scroll sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await insertHabit({ name: "Un hábito con un nombre bastante largo para una pantalla angosta" });
   await insertHabit({ name: "Leer", done: true });
@@ -213,7 +213,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: "Hoy" (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: "Hoy" (reference screenshot) @responsive`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertHabit({ name: "Meditar 10 min", area: "health", done: true, sortOrder: 0 });
     await insertHabit({ name: "Leer 20 páginas", area: "learning", sortOrder: 1 });

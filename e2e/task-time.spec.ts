@@ -160,7 +160,7 @@ test("taking the day away hides the hour field and clears the hour", async ({ pa
   await expect(timeField(page)).toHaveCount(0);
 });
 
-test("at 320 px the hour field and its key fit and the page doesn't scroll sideways", async ({
+test("at 320 px the hour field and its key fit and the page doesn't scroll sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -220,7 +220,9 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: the rows with an hour (reference screenshot)`, async ({ page }) => {
+  test(`${theme} theme: the rows with an hour (reference screenshot) @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await insertShowcase();
     await openToday(page);

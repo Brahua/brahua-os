@@ -71,7 +71,7 @@ async function expectNoAxeViolations(page: Page) {
 
 for (const theme of ["dark", "light"] as const) {
   test.describe(`${theme} theme`, () => {
-    test("/login has no accessibility violations and matches the reference screenshot", async ({
+    test("/login has no accessibility violations and matches the reference screenshot @responsive", async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });

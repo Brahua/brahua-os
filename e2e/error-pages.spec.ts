@@ -151,7 +151,7 @@ test("Volver a Hoy leaves the error page with a full load", async ({ page, conte
 const HIDE_APP_NAV = path.join(__dirname, "support/hide-app-nav.css");
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshots`, async ({
+  test(`${theme} theme: no accessibility violations and the reference screenshots @responsive`, async ({
     page,
     context,
     baseURL,

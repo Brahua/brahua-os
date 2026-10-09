@@ -147,7 +147,10 @@ test("with only habits left there is no question, just what was achieved and 'X 
   await expect(tomorrowKey(page)).toHaveCount(0);
 });
 
-test("at 320 px it fits without scrolling sideways", async ({ page, baseURL }, testInfo) => {
+test("at 320 px it fits without scrolling sideways @responsive", async ({
+  page,
+  baseURL,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await page.setViewportSize({ width: 320, height: 640 });
   await setUp(2, testInfo);

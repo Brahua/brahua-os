@@ -203,7 +203,7 @@ test("Marcar como terminado counts the open tasks too @today-tasks", async ({ pa
 });
 
 for (const theme of THEMES) {
-  test(`axe: the section, the card's key and the notice in the ${theme} theme @today-tasks`, async ({
+  test(`axe: the section, the card's key and the notice in the ${theme} theme @today-tasks @responsive`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

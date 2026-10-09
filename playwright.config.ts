@@ -70,6 +70,10 @@ export default defineConfig({
         storageState: OWNER_STORAGE_STATE,
       },
       dependencies: ["setup"],
+      // Only the tests whose behaviour depends on the phone viewport (tagged `@responsive` in the
+      // title: layout, navigation, sheets, pads, screenshots). `desktop` runs everything. The rule
+      // and the lint that enforces it: docs/HANDOFF.md, "E2E: qué corre en `mobile`".
+      grep: /@responsive/,
       // `reminder_settings` is a single row shared by the whole app: its spec runs in one project.
       testIgnore: /reminders\.spec\.ts/,
     },

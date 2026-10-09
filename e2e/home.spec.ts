@@ -75,7 +75,7 @@ test("home greets in Spanish with the date, inside the shell", async ({ page }) 
   await expect(page.locator("main")).toHaveAttribute("id", "content");
 });
 
-test("the navigation comes from the registry and marks the current page", async ({
+test("the navigation comes from the registry and marks the current page @responsive", async ({
   page,
 }, testInfo) => {
   await page.goto("/");
@@ -135,7 +135,7 @@ test("the navigation comes from the registry and marks the current page", async 
   await expect(nav.getByRole("link", { name: "Hoy" })).toHaveAttribute("aria-current", "page");
 });
 
-test("the capture key opens quick capture and focus returns to it on close", async ({
+test("the capture key opens quick capture and focus returns to it on close @responsive", async ({
   page,
 }, testInfo) => {
   await openReady(page, "/");
@@ -150,7 +150,7 @@ test("the capture key opens quick capture and focus returns to it on close", asy
   await expect(key).toBeFocused();
 });
 
-test("the content and focused elements stay clear of the bottom bar", async ({
+test("the content and focused elements stay clear of the bottom bar @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The bottom bar is only shown on phones");
@@ -170,7 +170,7 @@ test("the content and focused elements stay clear of the bottom bar", async ({
 });
 
 homeLocked(
-  "at 320 px the bottom bar doesn't overflow; labels truncate",
+  "at 320 px the bottom bar doesn't overflow; labels truncate @responsive",
   async ({ page }, testInfo) => {
     test.skip(isDesktop(testInfo), "Phone widths only");
     await page.setViewportSize({ width: 320, height: 640 });
@@ -204,7 +204,7 @@ test("Más opens its sections and returns focus to itself on close", async ({ pa
 
 for (const theme of THEMES) {
   homeLocked(
-    `${theme} theme: no accessibility violations and the reference screenshot`,
+    `${theme} theme: no accessibility violations and the reference screenshot @responsive`,
     async ({ page }, testInfo) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto("/");
@@ -386,7 +386,7 @@ test.describe("keyboard shortcuts", () => {
     }
   });
 
-  test("below 1024 px number keys don't navigate", async ({ page }, testInfo) => {
+  test("below 1024 px number keys don't navigate @responsive", async ({ page }, testInfo) => {
     test.skip(isDesktop(testInfo), "Phone widths only");
     await openReady(page, "/design");
     await recordKeys(page);

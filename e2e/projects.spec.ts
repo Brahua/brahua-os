@@ -40,7 +40,7 @@ async function axeViolations(page: Page) {
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
-test("Proyectos has its title and is in the navigation", async ({ page }) => {
+test("Proyectos has its title and is in the navigation @responsive", async ({ page }) => {
   await openProjects(page);
   await expect(page).toHaveTitle("Proyectos · brahua-os");
   await expect(page.getByRole("link", { name: "Proyectos" })).toHaveAttribute(
@@ -101,7 +101,7 @@ test("groups by state in order, sorted by priority, due date and name, with due 
   await expect(card("Ruta por Europa").locator("[data-progress]")).toHaveCount(0);
 });
 
-test("the area filter lives in the URL", async ({ page }, testInfo) => {
+test("the area filter lives in the URL @responsive", async ({ page }, testInfo) => {
   await openProjects(page);
   const trigger = filterTrigger(page);
   await expect(trigger).toHaveAccessibleName("Filtrar por área: Todas");
@@ -189,7 +189,7 @@ test("no card is wider than the screen at 320 and 390 px (every variant, Histori
   }
 });
 
-test("create a project on the phone in a few taps and land on its page", async ({
+test("create a project on the phone in a few taps and land on its page @responsive", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Guitarra", testInfo);
@@ -272,7 +272,7 @@ test("a project that doesn't exist is a 404 inside the shell", async ({ page }) 
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshot`, async ({
+  test(`${theme} theme: no accessibility violations and the reference screenshot @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

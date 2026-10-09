@@ -277,7 +277,7 @@ test("reorder with Subir/Bajar and a keyboard drag; it is the order of 'Hoy'", a
   await expect(pads(page).locator("[data-habit-pad]")).toHaveText([new RegExp(c), new RegExp(a)]);
 });
 
-test("at 320 px the form's frequency and the order list don't scroll sideways", async ({
+test("at 320 px the form's frequency and the order list don't scroll sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -359,7 +359,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: "Hoy" with a weekly habit and "No tocan hoy" open (reference screenshot)`, async ({
+  test(`${theme} theme: "Hoy" with a weekly habit and "No tocan hoy" open (reference screenshot) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
