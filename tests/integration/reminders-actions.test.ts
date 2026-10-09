@@ -248,6 +248,7 @@ describe("updateReminderSettings", () => {
         eveningTime: "21:00",
         habitTimesEnabled: true,
         showAmountsTelegram: true,
+        showAmountsPush: false,
       },
     });
     expect((await getSettings(testDb)).briefingEnabled).toBe(false);
@@ -330,7 +331,9 @@ describe("updateReminderSettings", () => {
       {},
       { telegramChatId: 1 },
       { deliveryChannel: "both" },
-      { showAmountsPush: true },
+      { showAmountsPush: "yes" },
+      { showAmountsPush: 1 },
+      { briefingEnabled: true, showAmountsPushed: true },
     ]) {
       const result = await updateReminderSettings(input);
       expect(result.ok, JSON.stringify(input)).toBe(false);
@@ -342,5 +345,11 @@ describe("updateReminderSettings", () => {
     expect(row.telegramChatId).toBeNull();
     expect(row.deliveryChannel).toBe("push");
     expect(row.showAmountsPush).toBe(false);
+    // Positive control: a real boolean for the same field IS accepted and stored.
+    expect(await updateReminderSettings({ showAmountsPush: true })).toMatchObject({
+      ok: true,
+      data: { showAmountsPush: true },
+    });
+    expect((await getSettings(testDb)).showAmountsPush).toBe(true);
   });
 });
