@@ -115,10 +115,35 @@ describe("createWebPushChannel", () => {
     expect(await createWebPushChannel({ store, client }).send(MESSAGE)).toEqual({ ok: true });
   });
 
+  test("a 401/403 (VAPID rejected) revokes the device like a gone one, logs it and does not lose the reminder to Telegram", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = fakeStore([device("a"), device("b")]);
+    const client = fakeClient({ a: failure("auth_rejected"), b: failure("auth_rejected") });
+    const result = await createWebPushChannel({ store, client }).send(MESSAGE);
+    // Unreachable: the engine leaves push and the next tick falls back to Telegram.
+    expect(result).toEqual({ ok: false, code: UNREACHABLE_ERROR_CODE, unreachable: true });
+    expect(store.revoke.mock.calls.map((call) => call[0]).sort()).toEqual(["a", "b"]);
+    const logged = error.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logged).toContain("push_vapid_rejected");
+    expect(logged).not.toContain("fcm.googleapis.com");
+    expect(logged).not.toContain(KEYS.auth);
+    error.mockRestore();
+  });
+
+  test("a rejection on one device does not stop the others from receiving it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = fakeStore([device("a"), device("b")]);
+    const client = fakeClient({ a: failure("auth_rejected") });
+    expect(await createWebPushChannel({ store, client }).send(MESSAGE)).toEqual({ ok: true });
+    expect(store.revoke).toHaveBeenCalledWith("a");
+    vi.restoreAllMocks();
+  });
+
   test.each([
     ["server", "push_server", false],
     ["bad_request", "push_bad_request", false],
     ["rate_limited", "push_rate_limited", true],
+    ["config", "push_config", false],
     ["network", "push_network", false],
   ] as const)("every device failing with %s fails with %s", async (kind, code, backoff) => {
     const store = fakeStore([device("a")]);
@@ -135,6 +160,8 @@ describe("createWebPushChannel", () => {
       expect.arrayContaining(["push_server", "push_bad_request", "push_rate_limited"]),
     );
     expect(RETRYABLE_ERROR_CODES).not.toContain("push_network");
+    // A local configuration error cannot be fixed by trying again.
+    expect(RETRYABLE_ERROR_CODES).not.toContain("push_config");
     expect(RETRYABLE_ERROR_CODES).not.toContain(UNREACHABLE_ERROR_CODE);
   });
 
@@ -171,7 +198,8 @@ describe("kindOfStatus", () => {
     expect(kindOfStatus(429)).toBe("rate_limited");
     expect(kindOfStatus(500)).toBe("server");
     expect(kindOfStatus(503)).toBe("server");
-    for (const status of [400, 401, 403, 413]) expect(kindOfStatus(status)).toBe("bad_request");
+    for (const status of [401, 403]) expect(kindOfStatus(status)).toBe("auth_rejected");
+    for (const status of [400, 413]) expect(kindOfStatus(status)).toBe("bad_request");
   });
 });
 
@@ -206,7 +234,9 @@ describe("createWebPushClient", () => {
       [404, "gone"],
       [429, "rate_limited"],
       [502, "server"],
-      [403, "bad_request"],
+      [403, "auth_rejected"],
+      [401, "auth_rejected"],
+      [413, "bad_request"],
     ] as const) {
       const error = Object.assign(new Error("the service said something private"), {
         statusCode,
@@ -222,14 +252,37 @@ describe("createWebPushClient", () => {
     }
   });
 
-  test("an error with no status (timeout, reset socket) is ambiguous: network", async () => {
-    const client = createWebPushClient({
-      vapid: VAPID,
-      sendNotification: async () => {
-        throw new Error("Socket timeout");
-      },
-    });
-    expect(await client.send(TARGET, "{}")).toEqual({ ok: false, kind: "network" });
+  test("a timeout or a socket error with no status is ambiguous: network", async () => {
+    for (const error of [
+      new Error("Socket timeout"),
+      Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+      Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }),
+      Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }),
+    ]) {
+      const client = createWebPushClient({
+        vapid: VAPID,
+        sendNotification: async () => {
+          throw error;
+        },
+      });
+      expect(await client.send(TARGET, "{}")).toEqual({ ok: false, kind: "network" });
+    }
+  });
+
+  test("a synchronous error from web-push (keys that do not fit) is configuration, not network", async () => {
+    for (const message of [
+      "Vapid public key should be 65 bytes long when decoded.",
+      "The subscription p256dh key should be 65 bytes long when decoded.",
+      "Failed to derive a shared secret",
+    ]) {
+      const client = createWebPushClient({
+        vapid: VAPID,
+        sendNotification: async () => {
+          throw new Error(message);
+        },
+      });
+      expect(await client.send(TARGET, "{}")).toEqual({ ok: false, kind: "config" });
+    }
   });
 
   test("the result carries nothing from the service", async () => {

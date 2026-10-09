@@ -5,8 +5,8 @@
 // (`gh secret set`), then clear the terminal. The private key is a secret: never paste it into a
 // chat or an agent session, never commit it.
 //
-// It refuses to run when stdout is not a terminal (a pipe, a redirect, an agent's captured shell,
-// a CI log), so the pair cannot end up in a file or a transcript by accident.
+// It refuses to run unless stdin AND stdout are terminals (a pipe, a redirect, an agent's captured
+// shell, a CI log), so the pair cannot end up in a file or a transcript by accident.
 import webpush from "web-push";
 
 export function formatVapidPair(keys: { publicKey: string; privateKey: string }): string {
@@ -20,9 +20,9 @@ export function formatVapidPair(keys: { publicKey: string; privateKey: string })
 }
 
 function main(): void {
-  if (!process.stdout.isTTY) {
+  if (!process.stdout.isTTY || !process.stdin.isTTY) {
     console.error(
-      "Este script solo imprime las claves en una terminal interactiva (no a un archivo, una tubería ni un log). Ejecútalo tú, en tu terminal: pnpm reminders:vapid",
+      "Este script solo imprime las claves en una terminal interactiva, con entrada y salida de terminal (no a un archivo, una tubería ni un log). Ejecútalo tú, en tu terminal: pnpm reminders:vapid",
     );
     process.exitCode = 1;
     return;

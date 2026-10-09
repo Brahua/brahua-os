@@ -3,6 +3,7 @@
 // Server Actions of Ajustes (owner first, strict input, the endpoint allowlist), and the engine
 // with the push channel over the real store and a simulated push service: a device per delivery,
 // a 410 revokes and the next tick falls back to Telegram, one channel failing never blocks the other.
+import { createECDH } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
@@ -51,10 +52,12 @@ afterAll(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
-// Shaped like real ones (the actions validate length and alphabet, not that the point exists).
+// A throwaway pair: the environment check verifies that the two keys match.
+const PAIR = createECDH("prime256v1");
+PAIR.generateKeys();
 const VAPID_ENV = {
-  VAPID_PUBLIC_KEY: "B".padEnd(87, "x"),
-  VAPID_PRIVATE_KEY: "k".repeat(43),
+  VAPID_PUBLIC_KEY: PAIR.getPublicKey().toString("base64url"),
+  VAPID_PRIVATE_KEY: PAIR.getPrivateKey().toString("base64url"),
   VAPID_SUBJECT: "mailto:owner@example.com",
 };
 const KEYS = { p256dh: "B".padEnd(87, "p"), auth: "a".repeat(22) };
@@ -207,6 +210,47 @@ describe("the actions", () => {
       expect((await subscribePushDevice(input)).ok).toBe(false);
     }
     expect(await rows()).toEqual([]);
+  });
+
+  test("the endpoint is stored normalized: what was validated is what is persisted", async () => {
+    const result = await subscribePushDevice({
+      endpoint: "HTTPS://WEB.PUSH.APPLE.COM:443/Abc%2fdef",
+      keys: KEYS,
+    });
+    expect(result.ok).toBe(true);
+    expect((await rows())[0].endpoint).toBe("https://web.push.apple.com/Abc%2fdef");
+    // A lookup with the raw spelling finds the same device.
+    expect(await getPushDeviceState({ endpoint: "HTTPS://WEB.PUSH.APPLE.COM/Abc%2fdef" })).toEqual({
+      ok: true,
+      data: { active: true },
+    });
+  });
+
+  test("a key pair that does not match leaves push not configured, so nothing is stored", async () => {
+    const other = createECDH("prime256v1");
+    other.generateKeys();
+    process.env.VAPID_PRIVATE_KEY = other.getPrivateKey().toString("base64url");
+    expect(await subscribePushDevice(subscription("a"))).toEqual({
+      ok: false,
+      error: CHANNEL_COPY.device.notConfigured,
+    });
+    expect(await readChannelSummary(testDb)).toMatchObject({
+      pushConfigured: false,
+      vapidPublicKey: null,
+      pushProblems: ["VAPID_PRIVATE_KEY no corresponde a VAPID_PUBLIC_KEY"],
+    });
+    expect(await rows()).toEqual([]);
+  });
+
+  test("simultaneous activations never go over the cap of devices", async () => {
+    for (let index = 0; index < PUSH_MAX_DEVICES - 1; index++) {
+      await savePushSubscription(testDb, subscription(`d${index}`), null);
+    }
+    const results = await Promise.all(
+      ["x", "y", "z"].map((id) => savePushSubscription(testDb, subscription(id), null)),
+    );
+    expect(results.filter((result) => result === "saved")).toHaveLength(1);
+    expect(await rows()).toHaveLength(PUSH_MAX_DEVICES);
   });
 
   test("the cap shows as a message, not a crash", async () => {

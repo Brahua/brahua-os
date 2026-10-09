@@ -2,6 +2,8 @@
 // the app (and the fake Telegram) and the specs read them to talk to both.
 //
 // Not secrets: they only exist in the throwaway E2E app and its fake Telegram.
+import { createECDH } from "node:crypto";
+
 export const E2E_TELEGRAM = {
   token: "123456:e2e-token-not-a-real-one",
   webhookSecret: "e2e-webhook-secret-0123456789",
@@ -10,13 +12,16 @@ export const E2E_TELEGRAM = {
 } as const;
 
 /**
- * Push web (R5): values with the SHAPE of real VAPID keys, so the app reports push as configured.
- * They are not keys of anything: no E2E ever sends a push (the push service is never reached from
- * CI; the browser side is a simulated PushManager, see e2e/reminders.spec.ts).
+ * Push web (R5): a throwaway VAPID pair, made when the config loads, so the app reports push as
+ * configured (it checks that the two keys match). It is a key of nothing: no E2E ever sends a push
+ * (the push service is never reached from CI; the browser side is a simulated PushManager, see
+ * e2e/reminders.spec.ts). Only the app process reads it (playwright.config.ts passes it on).
  */
+const e2eKeys = createECDH("prime256v1");
+e2eKeys.generateKeys();
 export const E2E_VAPID = {
-  publicKey: "B".padEnd(87, "e"),
-  privateKey: "e".repeat(43),
+  publicKey: e2eKeys.getPublicKey().toString("base64url"),
+  privateKey: e2eKeys.getPrivateKey().toString("base64url"),
   subject: "mailto:e2e@example.com",
 } as const;
 

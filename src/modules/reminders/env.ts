@@ -2,7 +2,7 @@
 // so a missing or malformed variable gives a clear message that names the VARIABLE, never its
 // value. Values are secrets (the owner sets them in their own terminal): they are never printed,
 // logged or returned to the client.
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createECDH, createHash, timingSafeEqual } from "node:crypto";
 
 type Env = Record<string, string | undefined>;
 
@@ -128,7 +128,25 @@ export function resolveVapidEnv(env: Env = process.env): VapidEnvResult {
   }
 
   if (problems.length > 0 || !publicKey || !privateKey || !subject) return { ok: false, problems };
+  // The shapes are right; are they a PAIR? A private key that does not derive the public one (or a
+  // public key off the P-256 curve) would make every push fail locally, so push is "not available"
+  // (and the reminders fall back to Telegram) instead of losing them one by one.
+  if (!isVapidPair(publicKey, privateKey)) {
+    return { ok: false, problems: ["VAPID_PRIVATE_KEY no corresponde a VAPID_PUBLIC_KEY"] };
+  }
   return { ok: true, value: { publicKey, privateKey, subject } };
+}
+
+/** Whether `privateKey` (base64url, 32 bytes) derives exactly `publicKey` (base64url, 65 bytes, on P-256). */
+function isVapidPair(publicKey: string, privateKey: string): boolean {
+  try {
+    const ecdh = createECDH("prime256v1");
+    ecdh.setPrivateKey(Buffer.from(privateKey, "base64url"));
+    return ecdh.getPublicKey().equals(Buffer.from(publicKey, "base64url"));
+  } catch {
+    // setPrivateKey throws for a value outside the curve's order.
+    return false;
+  }
 }
 
 /** The webhook URL Telegram is told to call. */

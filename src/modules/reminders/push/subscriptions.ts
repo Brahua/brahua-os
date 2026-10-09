@@ -13,6 +13,11 @@ import { pushSubscriptions } from "../db/schema";
 import { PUSH_MAX_DEVICES, USER_AGENT_MAX_LENGTH } from "../reminders-constants";
 import type { PushSubscriptionInput } from "./push-input";
 
+/** First key of the advisory lock `reminders` takes for push subscriptions (its namespace among the app's locks). */
+const PUSH_ADVISORY_SPACE = 6_000;
+/** Second key: the cap on active devices (count + insert must not interleave). */
+const PUSH_DEVICES_KEY = "reminders:push_devices";
+
 export type SaveSubscriptionResult = "saved" | "too_many_devices";
 
 /** Saves (or reactivates) the browser's subscription. `userAgent` is cut to what the column allows. */
@@ -22,33 +27,41 @@ export async function savePushSubscription(
   userAgent: string | null,
 ): Promise<SaveSubscriptionResult> {
   const agent = userAgent ? userAgent.slice(0, USER_AGENT_MAX_LENGTH) : null;
-  // A cap on OTHER active devices: re-subscribing a known endpoint always works.
-  const [others] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(pushSubscriptions)
-    .where(
-      and(isNull(pushSubscriptions.revokedAt), ne(pushSubscriptions.endpoint, input.endpoint)),
+  return db.transaction(async (tx): Promise<SaveSubscriptionResult> => {
+    // Two-key advisory lock, the FIRST lock of the transaction (never taken after a row lock):
+    // without it two simultaneous activations both count 9 devices and both insert the tenth and
+    // eleventh. It is released with the transaction.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${sql.raw(String(PUSH_ADVISORY_SPACE))}, hashtext(${PUSH_DEVICES_KEY}))`,
     );
-  if ((others?.count ?? 0) >= PUSH_MAX_DEVICES) return "too_many_devices";
+    // A cap on OTHER active devices: re-subscribing a known endpoint always works.
+    const [others] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pushSubscriptions)
+      .where(
+        and(isNull(pushSubscriptions.revokedAt), ne(pushSubscriptions.endpoint, input.endpoint)),
+      );
+    if ((others?.count ?? 0) >= PUSH_MAX_DEVICES) return "too_many_devices";
 
-  await db
-    .insert(pushSubscriptions)
-    .values({
-      endpoint: input.endpoint,
-      p256dh: input.keys.p256dh,
-      auth: input.keys.auth,
-      userAgent: agent,
-    })
-    .onConflictDoUpdate({
-      target: pushSubscriptions.endpoint,
-      set: {
+    await tx
+      .insert(pushSubscriptions)
+      .values({
+        endpoint: input.endpoint,
         p256dh: input.keys.p256dh,
         auth: input.keys.auth,
         userAgent: agent,
-        revokedAt: null,
-      },
-    });
-  return "saved";
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          p256dh: input.keys.p256dh,
+          auth: input.keys.auth,
+          userAgent: agent,
+          revokedAt: null,
+        },
+      });
+    return "saved";
+  });
 }
 
 /** Turns a device off (kept, revoked). True when it was active. */

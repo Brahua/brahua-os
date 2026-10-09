@@ -92,6 +92,14 @@ describe("pushSubscriptionSchema", () => {
     if (!result.success) expect(result.error.issues[0].message).toBe(PUSH_ERRORS.endpoint);
   });
 
+  test("the endpoint is normalized after it is validated (what is persisted is what was checked)", () => {
+    const parsed = pushSubscriptionSchema.parse({
+      endpoint: "HTTPS://FCM.GOOGLEAPIS.COM:443/fcm/send/AbC",
+      keys: KEYS,
+    });
+    expect(parsed.endpoint).toBe("https://fcm.googleapis.com/fcm/send/AbC");
+  });
+
   test("the endpoint-only schema applies the same allowlist", () => {
     expect(pushEndpointSchema.safeParse({ endpoint: good.endpoint }).success).toBe(true);
     expect(pushEndpointSchema.safeParse({ endpoint: "https://evil.example/x" }).success).toBe(
@@ -123,6 +131,20 @@ describe("resolveVapidEnv", () => {
       ok: false,
       problems: ["VAPID_PUBLIC_KEY falta", "VAPID_PRIVATE_KEY falta", "VAPID_SUBJECT falta"],
     });
+  });
+
+  test("a private key that is not the public key's pair makes push unavailable, naming variables only", () => {
+    const other = webpush.generateVAPIDKeys();
+    const result = resolveVapidEnv({ ...GOOD, VAPID_PRIVATE_KEY: other.privateKey });
+    expect(result).toEqual({
+      ok: false,
+      problems: ["VAPID_PRIVATE_KEY no corresponde a VAPID_PUBLIC_KEY"],
+    });
+  });
+
+  test("a public key that is well shaped but not a point of the curve is refused", () => {
+    const result = resolveVapidEnv({ ...GOOD, VAPID_PUBLIC_KEY: "B".padEnd(87, "x") });
+    expect(result.ok).toBe(false);
   });
 
   test("malformed values are refused and the problems carry no value", () => {

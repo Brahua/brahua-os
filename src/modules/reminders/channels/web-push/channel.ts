@@ -3,6 +3,8 @@
 // - at least one device took it: `ok` (a device that failed meanwhile is not retried: that would
 //   send a second copy to the ones that got it; a missed reminder beats a duplicate);
 // - 404/410 revokes that subscription (kept, not deleted) and does not count as a failure of the send;
+//   so does a 401/403 (the push service rejected our VAPID keys: that device cannot be reached with
+//   this configuration, so it is revoked and the engine falls back to Telegram; logged as an error);
 //   when ALL the devices are gone the channel is `unreachable` (the engine leaves it for the rest of
 //   the tick and the next one falls back to Telegram);
 // - otherwise it fails with the code of the failure; an ambiguous one (`push_network`: a timeout may
@@ -40,19 +42,18 @@ export function pushPayload(message: { text: string; dedupeKey: string }): strin
   });
 }
 
-const CODE_OF_KIND: Record<Exclude<PushFailureKind, "gone">, string> = {
+type FailureKind = Exclude<PushFailureKind, "gone" | "auth_rejected">;
+const CODE_OF_KIND: Record<FailureKind, string> = {
   rate_limited: "push_rate_limited",
   bad_request: "push_bad_request",
   server: "push_server",
+  // Local configuration error: nothing was sent, but retrying cannot fix it (not retryable).
+  config: "push_config",
   network: "push_network",
 };
 // From the least to the most worrying: the code of an all-failed send is the last one present.
-const SEVERITY: Exclude<PushFailureKind, "gone">[] = [
-  "bad_request",
-  "server",
-  "rate_limited",
-  "network",
-];
+// `network` (ambiguous) wins so it is never retried.
+const SEVERITY: FailureKind[] = ["bad_request", "server", "rate_limited", "config", "network"];
 
 export function createWebPushChannel(options: {
   store: PushDeviceStore;
@@ -74,12 +75,19 @@ export function createWebPushChannel(options: {
 
       const delivered: string[] = [];
       const gone: string[] = [];
-      const failures = new Set<Exclude<PushFailureKind, "gone">>();
+      const failures = new Set<FailureKind>();
+      let rejected = 0;
       for (const { device, result } of results) {
         if (result.ok) delivered.push(device.id);
         else if (result.kind === "gone") gone.push(device.id);
-        else failures.add(result.kind);
+        else if (result.kind === "auth_rejected") {
+          // Revoked like a gone one: the engine then falls back to Telegram instead of losing reminders.
+          gone.push(device.id);
+          rejected++;
+        } else failures.add(result.kind);
       }
+      // Counts only: no endpoint, no key, nothing the service said.
+      if (rejected > 0) logEvent("error", "push_vapid_rejected", { count: rejected });
 
       // Bookkeeping never turns a send that happened into a failure.
       for (const id of gone) {

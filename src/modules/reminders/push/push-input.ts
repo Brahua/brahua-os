@@ -35,9 +35,13 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   return PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
 
+// What is stored (and looked up) is the normalized URL that was validated, never the raw string:
+// `new URL(...).href` lowercases the host, drops default ports and escapes, so what was checked is
+// what is persisted and what the server later POSTs to.
 const endpoint = z
   .string({ error: PUSH_ERRORS.endpoint })
-  .refine(isAllowedPushEndpoint, { error: PUSH_ERRORS.endpoint });
+  .refine(isAllowedPushEndpoint, { error: PUSH_ERRORS.endpoint })
+  .transform((value) => new URL(value).href);
 
 /** `PushSubscription.toJSON().keys`: base64url, no padding (65-byte P-256 point and 16-byte secret). */
 const p256dh = z.string({ error: PUSH_ERRORS.keys }).regex(/^[A-Za-z0-9_-]{87}$/, PUSH_ERRORS.keys);

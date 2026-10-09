@@ -14,8 +14,12 @@ export type PushFailureKind =
   /** 404/410: the subscription is gone for good (uninstalled, expired, permission revoked). */
   | "gone"
   | "rate_limited"
-  /** 4xx other than the above (a payload the service refused, VAPID keys it does not accept). */
+  /** 401/403: the service rejected our VAPID credentials (keys it does not know or a bad subject). */
+  | "auth_rejected"
+  /** 4xx other than the above (a payload the service refused). */
   | "bad_request"
+  /** A local error before anything left (a key pair that does not match, a point off the curve, bad p256dh). */
+  | "config"
   | "server"
   /** A timeout or a dropped connection: the message may have been queued anyway. */
   | "network";
@@ -43,9 +47,31 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 export function kindOfStatus(status: number): PushFailureKind {
   if (status === 404 || status === 410) return "gone";
+  if (status === 401 || status === 403) return "auth_rejected";
   if (status === 429) return "rate_limited";
   if (status >= 500) return "server";
   return "bad_request";
+}
+
+const NETWORK_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ECONNABORTED",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EPIPE",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "UND_ERR_SOCKET",
+]);
+
+/** A socket-level failure: an error `code` of the network stack, or `web-push`'s own "Socket timeout". */
+export function isNetworkError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && NETWORK_CODES.has(code)) return true;
+  const message = error instanceof Error ? error.message : "";
+  return /^socket timeout$/i.test(message);
 }
 
 export function createWebPushClient(options: WebPushClientOptions): WebPushClient {
@@ -77,7 +103,9 @@ export function createWebPushClient(options: WebPushClientOptions): WebPushClien
         // reset socket) says nothing about whether the service got the message: ambiguous.
         const status = (error as { statusCode?: unknown } | null)?.statusCode;
         if (typeof status === "number") return { ok: false, kind: kindOfStatus(status) };
-        return { ok: false, kind: "network" };
+        // No status: either the connection failed (the message may have been queued: ambiguous) or
+        // `web-push` refused to build the request (a synchronous Error about the keys: ours to fix).
+        return { ok: false, kind: isNetworkError(error) ? "network" : "config" };
       }
     },
   };
