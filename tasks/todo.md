@@ -50,10 +50,12 @@ Hecho en `feat/reminders-r4` (detalle, decisiones autónomas y puntos de extensi
 
 ### R3 — Captura por texto
 
-- [ ] **R3.1 Webhook:** `POST /api/telegram/webhook` (secreto, tamaño, `update_id`, un solo chat, `/start <código>`), `/ayuda`.
+Hecho en `feat/reminders-r3` (detalle, decisiones autónomas y qué revisar en seguridad en `docs/HANDOFF.md` → "Cómo funciona reminders → R3"). Sin migración ni E2E nuevo.
+
+- [x] **R3.1 Webhook:** `POST /api/telegram/webhook` (secreto, tamaño, `update_id`, un solo chat, `/start <código>`), `/ayuda`.
   - Aceptación: sin secreto 401; chat ajeno no guarda nada; `update_id` repetido una sola vez.
   - Verificar: integración con el servidor falso (CI). Archivos: `route.ts`, `webhook.ts`.
-- [ ] **R3.2 Clasificar y crear:** `bot-capture.ts` (raíz) con `parseTaskText`/`parseExpenseText`, `/tarea`, `/gasto`, `/hoy`; lo no entendido a la bandeja; respuesta con resumen y «Deshacer» sobre `telegram_captures`.
+- [x] **R3.2 Clasificar y crear:** `bot-capture.ts` (raíz) con `parseTaskText`/`parseExpenseText`, `/tarea`, `/gasto`, `/hoy`; lo no entendido a la bandeja; respuesta con resumen y «Deshacer» sobre `telegram_captures`.
   - Aceptación: «pilas mañana» → tarea con fecha; «12.50 café» → gasto; «café 12» → tarea; «Deshacer» exacto, sin pisar ediciones.
   - Verificar: tabla de casos unitaria + integración (CI). Archivos: `bot-capture.ts`, `classify.ts`, `undo.ts`.
 
@@ -87,6 +89,11 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+### `reminders` R3 → pendientes
+- Probar `/hoy` con las fuentes reales registradas (hoy se prueba con fuentes de juguete en integración).
+- Comparar campos (no `updated_at`) si el owner quiere que «Deshacer» siga valiendo tras una edición sin cambios reales.
+- Quitar el botón «Deshacer» del mensaje tras usarlo (`editMessageReplyMarkup`; hoy el segundo toque responde «Ya no estaba en la app»).
 
 ### `reminders` R4 → pendientes de la revisión del PR #98
 - Captura de los pads agrupados por franja y del formulario con «Hora del aviso» y «Franja» abierto.
@@ -134,7 +141,7 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Texto perdido al cambiar "Tarea · Gasto"** (de F1): cambiar de tipo en la hoja de captura monta la otra hoja y se pierde lo ya escrito. Conservarlo (o no desmontar la hoja).
 - [ ] **`Key` con `aria-disabled` en Claude Design** (de F4): el estilo de una tecla en espera vive en `overrides.css` (`PENDING UPSTREAM`); aplicarlo en Claude Design y vaciar el override.
 - [ ] **Moneda de los recurrentes importados** (de F5): ChatGPT, DevTalles y Claude se pagan con un medio en USD pero entraron en PEN; el owner los corrige en la app si son en dólares.
-- [ ] **`reminders` R1 → pendientes** (revisión del PR #95): purga de `telegram_updates`.
+- [x] **`reminders` R1 → pendientes** (revisión del PR #95): purga de `telegram_updates` (hecho en R3, `retention.ts`).
 - [ ] **`reminders`:** registrar «sin configurar» una vez por instancia (hoy, en cada tick sin secreto).
 - [ ] **`reminders`:** E2E del estado «bloqueado» de Ajustes y axe en él.
 - [ ] **`reminders`:** integración extra: 403 con `both`, `build_failed` con tope de 3 y `messageId` no finito.

@@ -1,10 +1,14 @@
 // POST /api/telegram/webhook: where Telegram delivers the bot's updates (SPEC-reminders "Bot de
 // Telegram"). `handleTelegramWebhook` authenticates the secret header before reading the body.
-// Registered with `setWebhook` by the "Conectar" button in Ajustes → Avisos.
+// Registered with `setWebhook` by the "Conectar" button in Ajustes → Avisos. The capture (tasks,
+// expenses and their "Deshacer") comes from the composition root `src/lib/bot-capture.ts`; `/hoy`
+// reads the reminder sources registered by `src/lib/reminder-sources.ts`.
+import { botCapture } from "@/lib/bot-capture";
 import { getDb } from "@/lib/db";
+import { ensureReminderSources } from "@/lib/reminder-sources";
 import { handleTelegramWebhook } from "@/modules/reminders/channels/telegram/webhook";
 import type { TelegramClient } from "@/modules/reminders/channels/telegram/client";
-import { telegramClientFromEnv } from "@/modules/reminders/runtime";
+import { readTelegramEnv, telegramClientFromEnv } from "@/modules/reminders/runtime";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -17,9 +21,13 @@ const OFFLINE_CLIENT: TelegramClient = {
 };
 
 export async function POST(request: Request): Promise<Response> {
+  ensureReminderSources();
+  const env = readTelegramEnv();
   return handleTelegramWebhook(request, {
     db: getDb(),
-    client: telegramClientFromEnv() ?? OFFLINE_CLIENT,
+    client: telegramClientFromEnv(env) ?? OFFLINE_CLIENT,
     now: new Date(),
+    capture: botCapture,
+    ...(env ? { appUrl: env.appOrigin } : {}),
   });
 }
