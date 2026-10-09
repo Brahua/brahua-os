@@ -73,7 +73,7 @@ test("'12.50 café' typed in the amount field saves 1250 cents with the descript
   await expect(preview(page)).toHaveCount(0);
 });
 
-test("phone: '12.50 café' typed in the description (the pad has no letters) saves the same", async ({
+test("phone: '12.50 café' typed in the description (the pad has no letters) saves the same @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The orange key of the bottom bar");
@@ -159,7 +159,7 @@ for (const theme of THEMES) {
   });
 }
 
-test("at 320 px the preview doesn't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the preview doesn't scroll sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await insertMethod("Efectivo", "PEN", true);
   await rememberGasto(page);

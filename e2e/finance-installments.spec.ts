@@ -212,7 +212,7 @@ test("skipping the last installment also archives the plan, and says so", async 
   await expect(payKey(page, "Cuotas omitidas")).toBeVisible();
 });
 
-test("at 320 px the field, the rows and the page with installments don't scroll sideways", async ({
+test("at 320 px the field, the rows and the page with installments don't scroll sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -242,7 +242,7 @@ test("at 320 px the field, the rows and the page with installments don't scroll 
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: installments have no accessibility violations (the row, the sheet and its error, the page)`, async ({
+  test(`${theme} theme: installments have no accessibility violations (the row, the sheet and its error, the page) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

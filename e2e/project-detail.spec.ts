@@ -305,7 +305,7 @@ test("a deleted project is a 404 and isn't in the list", async ({ page }, testIn
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshot`, async ({
+  test(`${theme} theme: no accessibility violations and the reference screenshot @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

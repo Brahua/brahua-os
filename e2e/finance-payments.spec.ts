@@ -192,7 +192,7 @@ test("create a yearly payment; its page: archive, reactivate, delete and undo", 
   await expect(page.getByRole("heading", { name: "Este pago recurrente no existe" })).toBeVisible();
 });
 
-test("at 320 px nothing scrolls sideways (Pagos, Pagado…, the new payment sheet)", async ({
+test("at 320 px nothing scrolls sideways (Pagos, Pagado…, the new payment sheet) @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -282,7 +282,7 @@ test("with reduced motion the Pagado… sheet opens without moving (positive con
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations (Pagos, Pagado…, the sheet, the page)`, async ({
+  test(`${theme} theme: no accessibility violations (Pagos, Pagado…, the sheet, the page) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

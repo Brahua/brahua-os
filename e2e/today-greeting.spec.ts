@@ -116,7 +116,7 @@ test("the line is static text: no live region on it (positive control: the board
   await expect(page.locator("[data-screen-announcer]")).toHaveAttribute("aria-live", "polite");
 });
 
-test("at 320 px it fits without scrolling sideways", async ({ page }, testInfo) => {
+test("at 320 px it fits without scrolling sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await page.setViewportSize({ width: 320, height: 640 });
   await insertHabit({ name: unique("Meditar", testInfo), sortOrder: 0 });

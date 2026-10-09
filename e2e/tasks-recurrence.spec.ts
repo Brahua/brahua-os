@@ -190,7 +190,9 @@ for (const theme of THEMES) {
   });
 }
 
-test("at 320 px the editor fits without scrolling sideways", async ({ page }, testInfo) => {
+test("at 320 px the editor fits without scrolling sideways @responsive", async ({
+  page,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const title = uniqueTitle("regar", testInfo);
   await insertRecurringTask(title, {

@@ -61,7 +61,7 @@ async function recordAnnouncements(page: Page) {
 const announcements = (page: Page) =>
   page.evaluate(() => (window as unknown as { __announcements: Announcement[] }).__announcements);
 
-test("Áreas has its title, is in the navigation and lists the seeded areas in order", async ({
+test("Áreas has its title, is in the navigation and lists the seeded areas in order @responsive", async ({
   page,
 }, testInfo) => {
   await openAreas(page);
@@ -93,7 +93,7 @@ test("7 goes to Áreas (desktop)", async ({ page }, testInfo) => {
 });
 
 testWithAreasLock(
-  "create an area: side panel on desktop, bottom sheet on the phone",
+  "create an area: side panel on desktop, bottom sheet on the phone @responsive",
   async ({ page }, testInfo) => {
     const name = uniqueName("Música", testInfo);
     await openAreas(page);
@@ -269,7 +269,7 @@ testWithAreasLock(
   },
 );
 
-test("short screen (320×256): the preview doesn't stick and every focused control shows", async ({
+test("short screen (320×256): the preview doesn't stick and every focused control shows @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "One small viewport is enough");
@@ -309,7 +309,7 @@ test("short screen (320×256): the preview doesn't stick and every focused contr
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshots`, async ({
+  test(`${theme} theme: no accessibility violations and the reference screenshots @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

@@ -94,7 +94,7 @@ test("a project due in 3 days and a blocked one show on Hoy, each a link", async
   await expect(page).toHaveURL("/projects");
 });
 
-test("at 320 px the section doesn't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the section doesn't scroll sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   // Names are up to 80 characters (uniqueName adds ~14); one word longer than the screen.
   const long = uniqueName("Un nombre largo que no cabe: Electroencefalografistas", testInfo);
@@ -110,7 +110,7 @@ test("at 320 px the section doesn't scroll sideways", async ({ page }, testInfo)
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations; the section (reference screenshot)`, async ({
+  test(`${theme} theme: no accessibility violations; the section (reference screenshot) @responsive`, async ({
     page,
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

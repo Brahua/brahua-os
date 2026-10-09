@@ -49,7 +49,7 @@ async function recordKeys(page: Page) {
 const recordedKeys = (page: Page) =>
   page.evaluate(() => (window as unknown as { __keys: unknown[] }).__keys);
 
-test("Ajustes has its title and sections, and is current in the navigation", async ({
+test("Ajustes has its title and sections, and is current in the navigation @responsive", async ({
   page,
 }, testInfo) => {
   await page.goto("/settings");
@@ -217,7 +217,7 @@ test("turning shortcuts off removes keys and hints at once; on brings them back"
 const HIDE_APP_NAV = path.join(__dirname, "support/hide-app-nav.css");
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshots`, async ({
+  test(`${theme} theme: no accessibility violations and the reference screenshots @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

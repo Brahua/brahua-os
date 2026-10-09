@@ -231,7 +231,7 @@ test("the total's digits roll, but never with reduced motion", async ({ page }) 
   expect(samples.every((count) => count === 0)).toBe(true);
 });
 
-test("at 320 px the summary doesn't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the summary doesn't scroll sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   const method = await insertMethod("Una tarjeta con un nombre bastante largo", "USD");
   const category = await insertCategory("Una categoría con un nombre largo");
@@ -256,7 +256,7 @@ test("at 320 px the summary doesn't scroll sideways", async ({ page }, testInfo)
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations on the summary (also filtered)`, async ({
+  test(`${theme} theme: no accessibility violations on the summary (also filtered) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

@@ -308,7 +308,7 @@ test("links: add, edit, reorder, remove and undo; each survives a reload", async
 });
 
 for (const theme of THEMES) {
-  test(`${theme} theme: no accessibility violations and the reference screenshots`, async ({
+  test(`${theme} theme: no accessibility violations and the reference screenshots @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

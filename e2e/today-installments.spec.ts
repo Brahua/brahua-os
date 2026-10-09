@@ -109,7 +109,9 @@ test("Deshacer of the last installment from Hoy puts the row back and reactivate
   await expect(rows(page).locator("li")).toHaveCount(1);
 });
 
-test("at 320 px the rows with installments don't scroll sideways", async ({ page }, testInfo) => {
+test("at 320 px the rows with installments don't scroll sideways @responsive", async ({
+  page,
+}, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await insertRecurring({
     name: "Un pago en cuotas con un nombre bastante largo para probar",

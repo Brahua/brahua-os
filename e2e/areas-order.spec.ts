@@ -175,7 +175,7 @@ test.describe("touch (phone)", () => {
   // A swipe that starts on a handle scrolls the page thanks to `touch-action: manipulation`
   // (checked below; verified locally with a CDP scroll gesture on mobile emulation, which the
   // CI's headless Chromium does not perform).
-  test("the handle lets swipes scroll; a press and drag moves the row", async ({
+  test("the handle lets swipes scroll; a press and drag moves the row @responsive", async ({
     page,
   }, testInfo) => {
     test.skip(isDesktop(testInfo), "Touch is the phone's");

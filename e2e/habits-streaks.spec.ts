@@ -132,7 +132,7 @@ test("Registrar otro día: yesterday marked from the options joins the streak", 
   await expect.poll(() => readDay(id, 0)).toBeNull();
 });
 
-test("at 320 px the pause sheet and 'En pausa' don't scroll sideways", async ({
+test("at 320 px the pause sheet and 'En pausa' don't scroll sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
@@ -207,7 +207,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  test(`${theme} theme: "Hoy" with streaks and a paused habit (reference screenshot)`, async ({
+  test(`${theme} theme: "Hoy" with streaks and a paused habit (reference screenshot) @responsive`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

@@ -235,7 +235,7 @@ test("the habit's page says '2 días saltados este mes', and nothing at 0", asyn
   await expect(page.locator("[data-habit-skipped]")).toHaveCount(0);
 });
 
-test("at 320 px Hoy and its notice don't scroll sideways after resting a long-named habit", async ({
+test("at 320 px Hoy and its notice don't scroll sideways after resting a long-named habit @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");

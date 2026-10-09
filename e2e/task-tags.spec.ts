@@ -212,7 +212,7 @@ for (const theme of THEMES) {
   });
 }
 
-test("at 320 px each chip's remove key has a 44 px touch area, and nothing scrolls sideways", async ({
+test("at 320 px each chip's remove key has a 44 px touch area, and nothing scrolls sideways @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");

@@ -164,7 +164,7 @@ test("it fades in (opacity) when it appears live; with reduced motion, no animat
   );
 });
 
-test("at 320 px it fits without scrolling sideways", async ({ page }, testInfo) => {
+test("at 320 px it fits without scrolling sideways @responsive", async ({ page }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");
   await page.setViewportSize({ width: 320, height: 640 });
   await insertHabit({ name: "Un hábito con un nombre largo", done: true, sortOrder: 0 });

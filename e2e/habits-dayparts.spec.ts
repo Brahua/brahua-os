@@ -41,7 +41,7 @@ async function axeViolations(page: Page) {
 const band = (page: Page | Locator, label: string) =>
   page.getByRole("list", { name: `Hábitos de la franja ${label}` });
 
-test("hora y franja: the form, Enter, a half-edited time, the grouped pads on Hábitos and on /", async ({
+test("hora y franja: the form, Enter, a half-edited time, the grouped pads on Hábitos and on / @responsive", async ({
   page,
 }, testInfo) => {
   const plain = unique("Leer", testInfo);

@@ -47,7 +47,7 @@ const openCapture = async (page: Page) => {
 };
 const preview = (page: Page) => captureSheet(page).locator("[data-nl-preview]");
 
-test("phone: 'pilas mañana' + Enter saves 'pilas' due tomorrow, in 3 interactions and under 10 s", async ({
+test("phone: 'pilas mañana' + Enter saves 'pilas' due tomorrow, in 3 interactions and under 10 s @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "The orange key of the bottom bar");
@@ -152,7 +152,7 @@ for (const theme of THEMES) {
   });
 }
 
-test("at 320 px the preview doesn't scroll sideways and its key is at least 44 px", async ({
+test("at 320 px the preview doesn't scroll sideways and its key is at least 44 px @responsive", async ({
   page,
 }, testInfo) => {
   test.skip(isDesktop(testInfo), "Phone widths only");

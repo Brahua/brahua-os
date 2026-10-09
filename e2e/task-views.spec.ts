@@ -302,7 +302,9 @@ for (const theme of THEMES) {
     await notes.getByRole("button", { name: "Cancelar" }).click();
   });
 
-  test(`${theme} theme: Hoy and Todas (reference screenshots) @today-tasks`, async ({ page }) => {
+  test(`${theme} theme: Hoy and Todas (reference screenshots) @today-tasks @responsive`, async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openReady(page, "/tasks?vista=hoy");
     await setTheme(page, theme);
