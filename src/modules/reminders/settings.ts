@@ -6,8 +6,11 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { formatOwnerDay } from "@/lib/time";
 import { pushSubscriptions, reminderSettings, telegramLinkCodes } from "./db/schema";
-import { resolveTelegramEnv } from "./env";
+import { resolveTelegramEnv, resolveVapidEnv } from "./env";
 import type { ReminderSettings } from "./db/schema";
+import { deviceLabel } from "./push/device-label";
+import { listActivePushDevices } from "./push/subscriptions";
+import type { DeliveryChannel } from "./reminders-constants";
 import {
   DEFAULT_SCHEDULE,
   scheduleOf,
@@ -27,7 +30,7 @@ export async function getSettings(db: Database): Promise<ReminderSettings> {
   return row;
 }
 
-/** Push subscriptions that were not revoked (R5 fills them; today there are none). */
+/** Push subscriptions that were not revoked (devices that receive reminders). */
 export async function countActivePushDevices(db: Database): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -99,6 +102,49 @@ export async function readTelegramStatus(db: Database): Promise<TelegramStatus> 
   // Read only (no INSERT): the status is polled and shown on page loads.
   const [row] = await db.select().from(reminderSettings).where(eq(reminderSettings.id, true));
   return telegramStatusOf(row);
+}
+
+/** What Ajustes → Avisos → "Canal de avisos" shows (R5). No endpoint, no key. */
+export type ChannelSummary = {
+  deliveryChannel: DeliveryChannel;
+  /** The push keys are set on the server, so push can send. */
+  pushConfigured: boolean;
+  /** Variable names that are missing or malformed (never values). */
+  pushProblems: string[];
+  /** The public VAPID key the browser subscribes with (null when push is not configured). */
+  vapidPublicKey: string | null;
+  /** Active devices, oldest first. */
+  devices: { id: string; label: string; sinceLabel: string }[];
+  telegramConnected: boolean;
+};
+
+/** Read only (no INSERT): a fresh install shows the defaults (push, no devices). */
+export async function readChannelSummary(db: Database): Promise<ChannelSummary> {
+  const [row] = await db.select().from(reminderSettings).where(eq(reminderSettings.id, true));
+  const devices = await listActivePushDevices(db);
+  const vapid = resolveVapidEnv();
+  return {
+    deliveryChannel: row?.deliveryChannel ?? "push",
+    pushConfigured: vapid.ok,
+    pushProblems: vapid.ok ? [] : vapid.problems,
+    vapidPublicKey: vapid.ok ? vapid.value.publicKey : null,
+    devices: devices.map((device) => ({
+      id: device.id,
+      label: deviceLabel(device.userAgent),
+      sinceLabel: formatOwnerDay(device.createdAt, "short"),
+    })),
+    telegramConnected: row?.telegramChatId != null,
+  };
+}
+
+/** Saves "Canal de avisos" and returns the summary as it is now. One UPDATE of the single row. */
+export async function updateDeliveryChannel(
+  db: Database,
+  deliveryChannel: DeliveryChannel,
+): Promise<ChannelSummary> {
+  await ensureSettings(db);
+  await db.update(reminderSettings).set({ deliveryChannel }).where(eq(reminderSettings.id, true));
+  return readChannelSummary(db);
 }
 
 /** The switches and times Ajustes edits. Read only (no INSERT): a fresh install shows defaults. */

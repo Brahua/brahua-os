@@ -4,6 +4,7 @@ import {
   DEFAULT_SCHEDULE,
   scheduleOf,
   SETTINGS_ERRORS,
+  updateDeliveryChannelSchema,
   updateReminderSettingsSchema,
 } from "@/modules/reminders/settings-input";
 
@@ -65,7 +66,8 @@ describe("updateReminderSettingsSchema", () => {
   });
 
   test("fields the owner does not edit here are rejected, not ignored", () => {
-    for (const key of ["telegramChatId", "deliveryChannel", "showAmountsPush", "id"]) {
+    // `deliveryChannel` has its own schema: a schedule write can never change the channel.
+    for (const key of ["telegramChatId", "deliveryChannel", "id"]) {
       expect(parse({ briefingEnabled: true, [key]: key === "id" ? false : "x" }).success, key).toBe(
         false,
       );
@@ -84,6 +86,7 @@ describe("scheduleOf", () => {
         eveningTime: "22:00:00",
         habitTimesEnabled: false,
         showAmountsTelegram: false,
+        showAmountsPush: true,
       }),
     ).toEqual({
       briefingEnabled: false,
@@ -93,6 +96,7 @@ describe("scheduleOf", () => {
       eveningTime: "22:00",
       habitTimesEnabled: false,
       showAmountsTelegram: false,
+      showAmountsPush: true,
     });
   });
 
@@ -102,5 +106,41 @@ describe("scheduleOf", () => {
     expect(DEFAULT_SCHEDULE.showAmountsTelegram).toBe(true);
     // The habits' own times are on by default, like the column.
     expect(DEFAULT_SCHEDULE.habitTimesEnabled).toBe(true);
+    // Amounts are read on the lock screen: off in push until the owner asks.
+    expect(DEFAULT_SCHEDULE.showAmountsPush).toBe(false);
+  });
+});
+
+describe("push amounts switch", () => {
+  test("is a boolean the schedule accepts", () => {
+    expect(parse({ showAmountsPush: true }).success).toBe(true);
+    expect(parse({ showAmountsPush: "true" }).success).toBe(false);
+  });
+});
+
+describe("updateDeliveryChannelSchema", () => {
+  const parseChannel = (input: unknown) => updateDeliveryChannelSchema.safeParse(input);
+
+  test("accepts Push, Telegram and Ambos", () => {
+    for (const deliveryChannel of ["push", "telegram", "both"]) {
+      expect(parseChannel({ deliveryChannel }).success, deliveryChannel).toBe(true);
+    }
+  });
+
+  test("rejects anything else, a missing value and extra keys", () => {
+    for (const input of [
+      { deliveryChannel: "email" },
+      { deliveryChannel: "" },
+      { deliveryChannel: 1 },
+      {},
+      { deliveryChannel: "push", briefingEnabled: true },
+      { deliveryChannel: "push", telegramChatId: 1 },
+    ]) {
+      expect(parseChannel(input).success, JSON.stringify(input)).toBe(false);
+    }
+    const result = parseChannel({ deliveryChannel: "email" });
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe(SETTINGS_ERRORS.channelInvalid);
+    }
   });
 });

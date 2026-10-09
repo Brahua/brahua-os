@@ -1,6 +1,6 @@
 // Plain constants of `reminders` (SPEC-reminders). Client-safe: no database, no server-only.
 
-/** Channels a reminder can go through. R1 implements `telegram`; `push` arrives in R5. */
+/** Channels a reminder can go through: Telegram (R1) and push web (R5). */
 export const CHANNEL_IDS = ["push", "telegram"] as const;
 export type ChannelId = (typeof CHANNEL_IDS)[number];
 
@@ -43,6 +43,16 @@ export const DEFAULT_EVENING_TIME = "21:00";
 
 export const USER_AGENT_MAX_LENGTH = 200;
 
+/** Push web: how long the push service keeps a message for an offline device (= the grace window, in seconds). */
+export const PUSH_TTL_SECONDS = GRACE_WINDOW_MS / 1000;
+/** Active devices the owner can have at once (a forged loop of subscriptions must not grow the table). */
+export const PUSH_MAX_DEVICES = 10;
+export const PUSH_ENDPOINT_MAX_LENGTH = 2048;
+/** Title of every notification; the body is the text of the reminder. */
+export const PUSH_TITLE = "brahua-os";
+/** The body is cut here (a push payload may hold 4 KB; a reminder is at most three short lines). */
+export const PUSH_BODY_MAX_LENGTH = 400;
+
 /** Telegram link codes: 8 characters from a 32-letter alphabet, 10 minutes, one use. */
 export const LINK_CODE_LENGTH = 8;
 export const LINK_CODE_TTL_MS = 10 * 60 * 1000;
@@ -66,5 +76,10 @@ export const RETRYABLE_ERROR_CODES: readonly string[] = [
   "telegram_server",
   "telegram_bad_request",
   "telegram_rate_limited",
+  // Push web (R5): the push service answered with an error, so nothing was queued. `push_network`
+  // (a timeout or a dropped connection) is ambiguous and stays out, like `telegram_network`.
+  "push_server",
+  "push_bad_request",
+  "push_rate_limited",
   "build_failed",
 ];

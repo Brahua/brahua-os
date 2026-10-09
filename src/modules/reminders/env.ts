@@ -86,6 +86,51 @@ export function resolveTelegramEnv(env: Env = process.env): TelegramEnvResult {
   };
 }
 
+// Push web (R5). The keys come from `pnpm reminders:vapid`, run in the owner's own terminal.
+/** A P-256 public key, uncompressed (65 bytes), base64url without padding. */
+const VAPID_PUBLIC_KEY = /^[A-Za-z0-9_-]{87}$/;
+/** The matching private key (32 bytes), base64url without padding. */
+const VAPID_PRIVATE_KEY = /^[A-Za-z0-9_-]{43}$/;
+const MAILTO = /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export type VapidEnv = {
+  publicKey: string;
+  /** A secret: never logged, never returned to the client. */
+  privateKey: string;
+  /** `mailto:` or https URL the push services can reach the owner at. */
+  subject: string;
+};
+
+export type VapidEnvResult =
+  | { ok: true; value: VapidEnv }
+  /** `problems` are variable names (and what is wrong), never values. */
+  | { ok: false; problems: string[] };
+
+/** Reads and validates what the push channel needs: absent or malformed means "not available". */
+export function resolveVapidEnv(env: Env = process.env): VapidEnvResult {
+  const problems: string[] = [];
+  const publicKey = env.VAPID_PUBLIC_KEY?.trim();
+  if (!publicKey) problems.push("VAPID_PUBLIC_KEY falta");
+  else if (!VAPID_PUBLIC_KEY.test(publicKey)) {
+    problems.push("VAPID_PUBLIC_KEY no tiene el formato esperado");
+  }
+
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim();
+  if (!privateKey) problems.push("VAPID_PRIVATE_KEY falta");
+  else if (!VAPID_PRIVATE_KEY.test(privateKey)) {
+    problems.push("VAPID_PRIVATE_KEY no tiene el formato esperado");
+  }
+
+  const subject = env.VAPID_SUBJECT?.trim();
+  if (!subject) problems.push("VAPID_SUBJECT falta");
+  else if (!MAILTO.test(subject) && parseHttpUrl(subject)?.protocol !== "https:") {
+    problems.push("VAPID_SUBJECT debe ser mailto:tu@correo o una URL https");
+  }
+
+  if (problems.length > 0 || !publicKey || !privateKey || !subject) return { ok: false, problems };
+  return { ok: true, value: { publicKey, privateKey, subject } };
+}
+
 /** The webhook URL Telegram is told to call. */
 export function telegramWebhookUrl(env: TelegramEnv): string {
   return `${env.appOrigin}/api/telegram/webhook`;

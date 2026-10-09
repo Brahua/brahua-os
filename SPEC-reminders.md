@@ -118,9 +118,10 @@ Migración aditiva `drizzle/0013_reminders.sql`; sin borrados físicos de datos 
 ## Push web
 
 - **Interfaz** `ReminderChannel { id, send(message) }` con `telegramChannel` y `webPushChannel`; el motor no conoce más que la interfaz.
-- **Suscribir:** botón en Ajustes (gesto del usuario, exigido por iOS) → `Notification.requestPermission()` → `registration.pushManager.subscribe({ applicationServerKey })` → Server Action que guarda la suscripción. Solo se ofrece si la app está instalada y el navegador soporta push (en iPhone, PWA en pantalla de inicio, iOS 16.4+); si no, Ajustes explica cómo instalarla en lugar de un botón muerto.
-- **Enviar:** `web-push` con VAPID (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`); TTL de 2 h (igual que la ventana de gracia) y urgencia normal. 404/410 → revocar; otros errores → reintento del motor (máx. 3).
-- **Claves:** un script `pnpm reminders:vapid` genera el par y lo imprime **solo la pública**; la privada la guarda el owner en su terminal (`gh secret set` / Vercel), nunca en la sesión. `VAPID_PUBLIC_KEY` también se expone al cliente (`NEXT_PUBLIC_…`).
+- **Suscribir:** botón en Ajustes (gesto del usuario, exigido por iOS) → `Notification.requestPermission()` → `registration.pushManager.subscribe({ applicationServerKey })` → Server Action que guarda la suscripción. Solo se ofrece si el navegador soporta push y, **en iPhone/iPad, si la app está instalada** (PWA en pantalla de inicio, iOS 16.4+; en un navegador de escritorio o Android funciona en la pestaña); si no, Ajustes explica cómo instalarla o por qué no se puede, en lugar de un botón muerto. _(R5, decisión autónoma: el requisito de instalación es solo de iOS.)_
+- **Enviar:** `web-push` con VAPID (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`); TTL de 2 h (igual que la ventana de gracia) y urgencia normal. 404/410 → revocar; otros errores → reintento del motor (máx. 3), con las mismas reglas que Telegram: 5xx, 4xx y 429 son claros (`push_server`, `push_bad_request`, `push_rate_limited`; el 429 además deja el canal en paz hasta el siguiente tick) y un timeout o corte de red es ambiguo (`push_network`, nunca se reintenta). Un aviso va a **cada** dispositivo activo: si al menos uno lo recibió, el envío cuenta como `sent` (reintentar duplicaría en los que sí lo recibieron); si todos fallan, gana el fallo ambiguo; si todos estaban caducados, el canal queda `unreachable` y el siguiente tick (dentro de la ventana) lo entrega por Telegram.
+- **Claves:** `pnpm reminders:vapid` genera el par y lo imprime **solo por stdout, en la terminal del owner** (se niega si stdout no es una terminal: nada de tuberías, archivos ni logs); el owner copia las dos líneas a Vercel y a `gh secret set`, nunca a la sesión. _(R5, decisión autónoma: imprime también la privada, porque el owner debe copiarla de algún lado; la regla de «nunca en la sesión» la hace cumplir la negativa a correr sin terminal.)_ La clave pública no usa `NEXT_PUBLIC_…`: la página servidor la lee de `VAPID_PUBLIC_KEY` en tiempo de ejecución y se la pasa al cliente como dato (una variable `NEXT_PUBLIC_` se incrusta al compilar y obligaría a redeploy tras rotar las claves).
+- **Suscripciones:** el `endpoint` es una URL a la que el **servidor** hará POST, así que la Server Action solo acepta https sin credenciales ni puerto en los servicios de push reales (`fcm.googleapis.com`, `*.push.services.mozilla.com`, `web.push.apple.com` y `*.push.apple.com`, `*.notify.windows.com`); cualquier otra cosa se rechaza. Las claves se validan por largo y alfabeto. El `user_agent` sale de la cabecera de la petición, no de lo que mande el cliente. Máximo 10 dispositivos activos. Desactivar un dispositivo desde Ajustes lo **revoca** (se conserva la fila, como con un 404/410); suscribir el mismo `endpoint` otra vez la reactiva con las claves nuevas. `push_subscriptions` ya se creó en R1 (`0013_reminders.sql`): R5 no necesita migración.
 - **Service worker** `public/sw.js`: escucha `push` (muestra la notificación, sin abrir canales extra) y `notificationclick` (enfoca o abre `/`). Se registra al activar, no en cada carga.
 
 ## Bot de Telegram
@@ -149,7 +150,7 @@ Tick manual:        gh workflow run reminders-tick.yml --ref main
 Variables:          TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_BOT_USERNAME,
                     REMINDERS_CRON_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
                     (Vercel y secretos del repo; los pone el owner)
-Claves VAPID:       pnpm reminders:vapid   (imprime solo la pública)
+Claves VAPID:       pnpm reminders:vapid   (solo en la terminal del owner; imprime el par por stdout)
 ```
 
 ```
@@ -199,7 +200,7 @@ Cortes verticales; el detalle va en `tasks/plan.md` al aprobar la spec. Un imple
 - **R2 — Avisos de la app:** fuentes de `tasks`, `finance` y `habits`; briefing, pago (víspera y +3 días), repaso de la noche; interruptores y horas en Ajustes.
 - **R3 — Captura por texto:** webhook, clasificación, tarea y gasto, «Deshacer», `/hoy`, `/ayuda`.
 - **R4 — Hábitos con hora y franja:** columnas, campos en el hábito, aviso `habit_time`, pads agrupados en Hoy.
-- **R5 — Push web:** dependencia `web-push`, `ReminderChannel` (se extrae en R1), `push_subscriptions`, `public/sw.js`, alta/baja en Ajustes, selector de canal con respaldo, script de claves VAPID. La prueba real en el iPhone es del owner (PWA reinstalada).
+- **R5 — Push web:** dependencia `web-push`, `ReminderChannel` (se extrae en R1), `push_subscriptions` (creada en R1), `public/sw.js`, alta/baja en Ajustes, selector de canal con respaldo, script de claves VAPID. La prueba real en el iPhone es del owner (PWA reinstalada).
 - **R6 — Cierre:** guía de puesta en marcha (el owner pone las variables), E2E, retrospectiva y Checkpoint final con una prueba real en el iPhone (el envío real a Telegram y a Apple Push es del owner).
 
 R1 define la interfaz `ReminderChannel` con Telegram como única implementación. R2, R3 y R4 son independientes tras R1 y podrían ir en paralelo (cada uno con su `TEST_DB_PORT` y `E2E_PORT`), pero por defecto van en serie.

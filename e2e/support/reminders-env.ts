@@ -9,6 +9,17 @@ export const E2E_TELEGRAM = {
   cronSecret: "e2e-cron-secret-0123456789abcdef",
 } as const;
 
+/**
+ * Push web (R5): values with the SHAPE of real VAPID keys, so the app reports push as configured.
+ * They are not keys of anything: no E2E ever sends a push (the push service is never reached from
+ * CI; the browser side is a simulated PushManager, see e2e/reminders.spec.ts).
+ */
+export const E2E_VAPID = {
+  publicKey: "B".padEnd(87, "e"),
+  privateKey: "e".repeat(43),
+  subject: "mailto:e2e@example.com",
+} as const;
+
 /** The webhook's secret header, as Telegram sends it. */
 export const WEBHOOK_SECRET_HEADER = "x-telegram-bot-api-secret-token";
 

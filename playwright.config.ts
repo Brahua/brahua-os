@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
-import { E2E_TELEGRAM, FAKE_TELEGRAM_PORT } from "./e2e/support/reminders-env";
+import { E2E_TELEGRAM, E2E_VAPID, FAKE_TELEGRAM_PORT } from "./e2e/support/reminders-env";
 import { isGitHubActions, screenshotsEnabled } from "./e2e/support/screenshot-env";
 
 // E2E_PORT lets parallel local runs (several worktrees) use different ports; CI uses the default.
@@ -27,6 +27,10 @@ const appEnv = {
   TELEGRAM_BOT_USERNAME: E2E_TELEGRAM.botUsername,
   REMINDERS_CRON_SECRET: E2E_TELEGRAM.cronSecret,
   TELEGRAM_API_BASE: `http://127.0.0.1:${FAKE_TELEGRAM_PORT}`,
+  // Push web: shaped like real keys, so Ajustes offers the device (nothing is ever sent).
+  VAPID_PUBLIC_KEY: E2E_VAPID.publicKey,
+  VAPID_PRIVATE_KEY: E2E_VAPID.privateKey,
+  VAPID_SUBJECT: E2E_VAPID.subject,
 };
 
 const desktopChrome = devices["Desktop Chrome"];
