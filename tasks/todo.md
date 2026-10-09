@@ -1,6 +1,6 @@
 # Tareas
 
-> En curso: el módulo **`reminders`** (spec aprobada v1.1, 2026-10-08; plan en [`plan.md`](plan.md)). El corte `polish` quedó completo. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> En curso: el módulo **`reminders`** (spec aprobada v1.1, 2026-10-08; plan en [`plan.md`](plan.md)). R1–R6 integrados o en PR; **falta el Checkpoint final** (pasos del owner en [`docs/reminders-setup.md`](../docs/reminders-setup.md)). El corte `polish` quedó completo. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Módulo `reminders` (spec: [`SPEC-reminders.md`](../SPEC-reminders.md), plan: [`plan.md`](plan.md))
 
@@ -64,14 +64,43 @@ Hecho en `feat/reminders-r3` (detalle, decisiones autónomas y qué revisar en s
 - [x] **R5.1 Canal y servicio:** dependencia `web-push`, `webPushChannel`, `push_subscriptions` (alta/baja, 404/410 revoca), `pnpm reminders:vapid` (solo en la terminal del owner), `public/sw.js` (solo `push` y `notificationclick`) con cabecera `no-cache`. Hecho en `feat/reminders-r5` (detalle en HANDOFF → "R5 — Push web").
   - Aceptación: una entrega por canal; un canal que falla no bloquea al otro; sin `fetch` en el service worker (test que lo lee).
   - Verificar: unitarias + integración con servidor de push local (CI). Archivos: `channels/web-push.ts`, `sw.js`, script, `next.config` (build en CI por tocarlo).
-- [x] **R5.2 Ajustes de push y selector:** «Activar en este dispositivo» (gesto, permiso, `subscribe`), explicación de instalación si no hay soporte, «Canal de avisos» (Push por defecto, respaldo a Telegram), montos de push apagados por defecto.
+- [x] **R5.2 Ajustes de push y selector:** «Activar este dispositivo» (gesto, permiso, `subscribe`), explicación de instalación si no hay soporte, «Canal de avisos» (Push por defecto, respaldo a Telegram), montos de push apagados por defecto.
   - Aceptación: sin dispositivo suscrito los avisos salen por Telegram si está conectado; Ajustes lo indica.
   - Verificar: componente con `PushManager` simulado + E2E (CI). Archivos: formulario, acciones, copy.
 
 ### R6 — Cierre
 
-- [ ] **R6.1 Puesta en marcha y documentación:** guía para el owner (BotFather, variables, `gh secret set`), HANDOFF («Cómo funciona reminders», decisiones autónomas), `SPEC-reminders.md` con las decisiones finales, backlog («Minutos de CI» con el tick de 15 min).
-- [ ] **R6.2 Checkpoint final:** recorrido en producción con el Chrome del owner y pruebas reales en el iPhone (Telegram y push); retrospectiva con reglas nuevas en `CLAUDE.md`.
+Hecho en `docs/reminders-r6` (solo documentación; sin funcionalidad nueva). Estado consolidado, decisiones autónomas por corte y pendientes del owner en `docs/HANDOFF.md` → "Cómo funciona reminders → R6".
+
+- [x] **R6.1 Puesta en marcha y documentación:** guía para el owner [`docs/reminders-setup.md`](../docs/reminders-setup.md) (BotFather, las 8 variables, `vercel env add` / `gh secret set` sin pegar secretos en la sesión, `setWebhook`, redeploy, vincular, push en el iPhone, verificación del tick y de los logs, resolución de problemas); HANDOFF al día con las decisiones autónomas de R1–R5 consolidadas; backlog consolidado (abajo); `SPEC-reminders.md` ya recoge las decisiones finales de R1–R5.
+- [x] **R6.2a Retrospectiva:** `CLAUDE.md` → "Lessons from `reminders`".
+- [ ] **R6.2b Checkpoint final** (lo hace el agente en producción con Claude in Chrome en el perfil personal del owner, más lo que solo puede el owner en el iPhone). **Prerrequisito del owner:** variables puestas, redeploy hecho y Telegram conectado (guía, pasos 1–7). Todos los datos de prueba llevan el prefijo `[QA]` y se borran al terminar (y se restauran tema, tamaño de ventana y barra lateral).
+
+  **A. Lo recorre el agente en producción (Chrome del owner):**
+  - [ ] Ajustes → Avisos carga sin «faltan variables» y sin errores de consola; el estado de Telegram dice «Conectado desde el …»; tema claro y oscuro, y a 320 px sin scroll lateral (redimensionando la ventana).
+  - [ ] «Canal de avisos»: Push · Telegram · Ambos se guardan y sobreviven a recargar; la frase de abajo dice qué va a pasar (con el respaldo a Telegram si no hay dispositivo con push). Restaurar el canal original al terminar.
+  - [ ] «Avisos del día»: apagar y encender «Resumen de la mañana», «Avisos de pagos», «Repaso de la noche», «Hábitos a su hora», «Montos en Telegram» y «Montos en push» (queda apagado por defecto); mover una hora (7:30 → 7:45) y restaurarla; «Guardado.» y foco correctos; una hora a medio escribir no guarda.
+  - [ ] Hábito `[QA] aviso`: crear con «Hora del aviso» y «Franja»; en `/` y en Hábitos → Hoy los pads se agrupan por franja y, sin franjas, la pantalla queda como antes; «Quitar hora»; un hábito «a evitar» no ofrece la hora. Borrar el hábito.
+  - [ ] Tarea `[QA]` y pago `[QA]` (recurrente de prueba) que den contenido al resumen: ver que `/hoy` en el bot (lo manda el owner) y el resumen coinciden con la portada. Borrar ambos.
+  - [ ] `/sw.js` responde 200 con `Cache-Control: no-cache` y sin `fetch` en el cuerpo; `/api/reminders/tick` sin secreto responde 404 (nada que delate la ruta); `POST /api/telegram/webhook` sin cabecera de secreto responde 401.
+  - [ ] Tick manual (`gh workflow run reminders-tick.yml --ref main`): el run termina con `HTTP 200` y conteos; el log de Vercel trae `reminders_tick` sin textos, montos ni ids.
+  - [ ] Estados «bloqueado» y «sin canal»: solo lectura (se cubren con pruebas; no se provocan en producción).
+  - [ ] Axe en 0 en Ajustes → Avisos (ambos temas) y sin scroll lateral a 320 px.
+  - [ ] Limpieza: ningún dato `[QA]` queda; tema, ventana y barra lateral restaurados.
+
+  **B. Solo el owner, en el iPhone (no se puede probar en Playwright ni en Chrome de escritorio):**
+  - [ ] Instalar la PWA (Compartir → «Añadir a pantalla de inicio»; mejor borrar el ícono viejo y volver a añadirla) y abrirla desde el ícono.
+  - [ ] Ajustes → Avisos → **Activar este dispositivo**: aparece el permiso de notificaciones, se acepta y el dispositivo sale en «Dispositivos con push» («iPhone · Safari»).
+  - [ ] **Aviso real recibido** como notificación («brahua-os» + el texto) con el teléfono bloqueado; al tocarla abre la app en `/`. Forma de provocarlo: un hábito `[QA]` con «Hora del aviso» unos minutos antes de ahora y `gh workflow run reminders-tick.yml --ref main` (o esperar el siguiente tick de 15 min).
+  - [ ] Los montos **no** salen en la notificación por defecto; encender «Montos en push» los muestra (y se vuelve a apagar).
+  - [ ] **Captura por Telegram:** escribir «pilas mañana» → «Anotado: pilas · <día>» con «Deshacer»; en la app aparece la tarea con su fecha. «12.50 café» → «Gasto: S/ 12.50 · café». «café 12» → tarea. «ideas para el viaje» → «A la bandeja: …». Prefijar con `[QA]`.
+  - [ ] **Deshacer:** tocar «Deshacer» en una captura recién hecha → «Deshecho.» y desaparece de la app; en otra captura, editarla en la app y luego «Deshacer» → «Ya lo cambiaste en la app, así que no lo toqué.»; un segundo toque → «Ya no estaba en la app.»
+  - [ ] `/ayuda`, `/hoy` (resumen en una línea o «Hoy no tienes nada pendiente.»), `/tarea` y `/gasto` sin texto explican cómo usarlos; una foto o nota de voz responde «Por ahora solo leo texto».
+  - [ ] Otra cuenta de Telegram que escriba al bot no recibe respuesta (opcional, si el owner tiene otra).
+  - [ ] Canal «Ambos»: llega por push **y** por Telegram, una vez cada uno.
+  - [ ] Borrar las tareas y gastos `[QA]` (desde la app) y dejar el canal elegido por el owner.
+
+  **Cierre:** con el visto bueno del owner, archivar plan y tareas en `tasks/archive/reminders-*.md`, marcar `reminders` como cerrado en HANDOFF (estado y "Siguiente") y apuntar el siguiente módulo (`goals`).
 
 ## Corte `polish` (benchmark rimu, decidido con el owner el 2026-10-06)
 
@@ -90,27 +119,47 @@ Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `
 
 ## Backlog técnico
 
-### `reminders` R3 → pendientes
-- Probar `/hoy` con las fuentes reales registradas (hoy se prueba con fuentes de juguete en integración).
-- Comparar campos (no `updated_at`) si el owner quiere que «Deshacer» siga valiendo tras una edición sin cambios reales.
-- Quitar el botón «Deshacer» del mensaje tras usarlo (`editMessageReplyMarkup`; hoy el segundo toque responde «Ya no estaba en la app»).
+### `reminders` → backlog consolidado (R1–R5, cierre R6)
 
-### `reminders` R4 → pendientes de la revisión del PR #98
-- Captura de los pads agrupados por franja y del formulario con «Hora del aviso» y «Franja» abierto.
-- Un hábito «a evitar» con hora (imposible por el `CHECK`) no muestra error en un campo visible: el `CHECK` es el último muro.
-- Prueba de Enter con IME (composición) en «Nombre».
-- Decidir qué pasa con el borrador de la hora al volver de «A evitar» a «A cumplir» (hoy se conserva; no se envía mientras está en «A evitar»).
-- Si el owner prefiere un solo mensaje para varios hábitos a la misma hora: agruparlos en el motor (p. ej. `coversKeys`), no en la fuente.
+Para decidir con el owner o tomar entre módulos. El detalle de cada ítem está en la sección de su corte de `docs/HANDOFF.md` → "Cómo funciona reminders".
 
-### `reminders` R2 → pendientes de la revisión del PR #96
-- E2E/axe con «Guardado.» y con la alerta de error visibles en la sección «Avisos del día».
-- Revisar el solape de textos de «Avisos del día» a 320 px (ayudas largas junto al interruptor).
-- Rollback de un guardado fallido probado en un navegador real (hoy solo en componente).
-- Aserción de integración de un pago de hace 61 días (borde de la ventana de pendientes de 60 días) con la fuente de pagos.
-- Longitud máxima de los textos (Telegram 4096) y nombres con `\n` en hábitos o pagos dentro del resumen y los avisos.
-- Documentado, sin cambio: una tarea añadida después de un resumen vacío ya reclamado no lo rehace.
-- Cachear `briefingFacts` por tick cuando el canal sea «Ambos» (R5).
-- Fila `skipped` inconsistente de pagos vencidos tras cambiar la hora del resumen (la ventana cerrada deja fila o no según cuándo se cambie).
+**Minutos de CI y frecuencia del tick (antes de volver a privado, ~2026-11-01)**
+- [ ] El tick de 15 min cuesta ~2 900 min/mes de Actions (> 2 000 gratis en privado). Antes del ~2026-11-01 cambiar `.github/workflows/reminders-tick.yml` a `*/30` y solo 06:00–23:30 Lima (el `cron` va en UTC, 11:00–04:30 del día siguiente; ~1 100 min/mes). Efectos a revisar al hacerlo: la hora de un hábito pasa a tener precisión de 30 min; la ventana de gracia de 2 h sigue alcanzando; el cron diario de Vercel no cambia. Cambiar la frecuencia está en "Preguntar primero" de la spec: pedir el OK al owner. Va junto al paso 3 del plan de CI de más abajo.
+
+**Ajustes → Avisos**
+- [ ] **Layout shift de la sección Telegram** (revisión de R5): la sección cambia de alto entre estados (sin configurar con su lista de problemas, enlace con pasos y «Generar otro enlace», conectado, mensajes de estado y error) y empuja «Avisos del día» bajo el dedo. Reservar alto o fijar el orden de las secciones.
+- [ ] E2E y axe del estado **«bloqueado»** (403) de Ajustes.
+- [ ] E2E/axe con «Guardado.» y con la alerta de error visibles en «Avisos del día»; revisar el solape de textos a 320 px (ayudas largas junto al interruptor); rollback de un guardado fallido en un navegador real (hoy solo en componente).
+- [ ] Extraer los textos incrustados de `telegram-section.tsx` a `reminders-copy.ts`.
+- [ ] Quitar un dispositivo de push que no sea el actual desde Ajustes (hoy un teléfono perdido solo se revoca cuando el servicio de push responde 404/410); «Enviar una prueba» para comprobar el push sin esperar al tick.
+
+**Hábitos con hora y franja (R4)**
+- [ ] **Enter en «Identidad» y «Señal»** (campos de «Más detalles» del formulario de hábito): no se probó si envían; en «Nombre» sí funciona.
+- [ ] **Cambiar la hora de un hábito después de reclamar el día no re-notifica:** la clave `habit:<id>:<día>` no incluye la hora; si el aviso ya salió (o quedó `skipped` por ventana cerrada), mover la hora no vuelve a avisar ese día. Decidir con el owner si debe (clave con la hora).
+- [ ] Captura de los pads agrupados por franja y del formulario con «Hora del aviso» y «Franja» abierto.
+- [ ] Un hábito «a evitar» con hora (imposible por el `CHECK`) no muestra error en un campo visible: el `CHECK` es el último muro.
+- [ ] Prueba de Enter con IME (composición) en «Nombre».
+- [ ] Borrador de la hora al volver de «A evitar» a «A cumplir» (hoy se conserva; no se envía mientras está en «A evitar»).
+- [ ] Un solo mensaje para varios hábitos a la misma hora: agruparlos en el motor (p. ej. `coversKeys`), no en la fuente.
+
+**Avisos de la app (R2)**
+- [ ] Aserción de integración de un pago de hace 61 días (borde de la ventana de pendientes de 60 días).
+- [ ] Longitud máxima de los textos (Telegram 4096) y nombres con `\n` en hábitos o pagos dentro del resumen y los avisos.
+- [ ] Cachear `briefingFacts` por tick cuando el canal sea «Ambos» (hoy el resumen se arma una vez por canal).
+- [ ] Fila `skipped` inconsistente de pagos vencidos tras cambiar la hora del resumen (la ventana cerrada deja fila o no según cuándo se cambie).
+- [ ] Documentado, sin cambio: una tarea añadida después de un resumen vacío ya reclamado no lo rehace.
+
+**Bot (R3)**
+- [ ] Probar `/hoy` con las fuentes reales registradas (hoy, con fuentes de juguete en integración).
+- [ ] Comparar campos (no `updated_at`) si el owner quiere que «Deshacer» siga valiendo tras una edición sin cambios reales.
+- [ ] Quitar el botón «Deshacer» del mensaje tras usarlo (`editMessageReplyMarkup`; hoy el segundo toque responde «Ya no estaba en la app»).
+- [ ] `Promise.all` de dos `issueLinkCode` y de dos entregas del mismo `update_id`; cliente de Telegram con respuesta no JSON (502 HTML).
+
+**Motor y pruebas (R1)**
+- [ ] Registrar «sin configurar» una sola vez por instancia (hoy se registra en cada tick sin secreto).
+- [ ] Integración extra: 403 con `both`, `build_failed` con tope de 3 y `messageId` no finito.
+- [ ] Riesgo de timeout de la prueba de ESLint dentro de Vitest (`module-boundaries-rule`).
+- [ ] El workflow del tick sale con `exit 0` si falta `REMINDERS_CRON_SECRET`: el paso de verificación (`gh workflow run reminders-tick.yml --ref main` → HTTP 200) está en la guía, paso 6.
 
 Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre módulos o cuando algo las vuelva urgentes.
 
@@ -141,15 +190,6 @@ Deuda y tareas técnicas que cruzan módulos. Se toman cuando haya espacio entre
 - [ ] **Texto perdido al cambiar "Tarea · Gasto"** (de F1): cambiar de tipo en la hoja de captura monta la otra hoja y se pierde lo ya escrito. Conservarlo (o no desmontar la hoja).
 - [ ] **`Key` con `aria-disabled` en Claude Design** (de F4): el estilo de una tecla en espera vive en `overrides.css` (`PENDING UPSTREAM`); aplicarlo en Claude Design y vaciar el override.
 - [ ] **Moneda de los recurrentes importados** (de F5): ChatGPT, DevTalles y Claude se pagan con un medio en USD pero entraron en PEN; el owner los corrige en la app si son en dólares.
-- [x] **`reminders` R1 → pendientes** (revisión del PR #95): purga de `telegram_updates` (hecho en R3, `retention.ts`).
-- [ ] **`reminders`:** registrar «sin configurar» una vez por instancia (hoy, en cada tick sin secreto).
-- [ ] **`reminders`:** E2E del estado «bloqueado» de Ajustes y axe en él.
-- [ ] **`reminders`:** integración extra: 403 con `both`, `build_failed` con tope de 3 y `messageId` no finito.
-- [ ] **`reminders`:** pruebas con `Promise.all` de dos `issueLinkCode` y de dos entregas del mismo `update_id`.
-- [ ] **`reminders`:** cliente de Telegram con respuesta no JSON (502 HTML).
-- [ ] **`reminders`:** extraer los textos de `telegram-section.tsx` a `reminders-copy.ts`.
-- [ ] **`reminders`:** riesgo de timeout de la prueba de ESLint dentro de Vitest (`module-boundaries-rule`).
-- [ ] **`reminders`:** el workflow del tick sale con `exit 0` si falta `REMINDERS_CRON_SECRET`: paso de verificación para el owner al poner las variables (`gh workflow run reminders-tick.yml --ref main` → HTTP 200).
 - [ ] **Flakes vistos durante `finance`:** `e2e/habits.spec.ts:97` (timeout de 30 s una vez en CI, PR #79) y `tests/app/project-notes-links.test.tsx` ("a refused reorder goes back", falló una vez en la suite completa). Vigilar; estabilizar si se repiten.
 
 ### Del benchmark rimu (2026-10-06, menor prioridad; detalle en `docs/benchmark-rimu.html` §7)

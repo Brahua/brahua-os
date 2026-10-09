@@ -22,7 +22,7 @@ Fuera de este módulo: email, WhatsApp (descartado), audio → texto (fase 2, co
 6. Escribo algo que no entiende («ideas para el viaje»): queda en la bandeja tal cual y el bot lo dice.
 7. En Ajustes → Avisos conecto Telegram con un enlace de un solo uso, apago los montos o muevo el briefing a las 8:00.
 8. Otra persona escribe al bot: no responde nada y no se guarda nada.
-9. En el iPhone, desde la app instalada, toco «Activar en este dispositivo» en Ajustes → Avisos, acepto el permiso y el briefing de mañana llega como notificación; al tocarla se abre `/`.
+9. En el iPhone, desde la app instalada, toco «Activar este dispositivo» en Ajustes → Avisos, acepto el permiso y el briefing de mañana llega como notificación; al tocarla se abre `/`.
 10. Elijo «Canal de avisos»: Push (por defecto), Telegram o Ambos. La captura por texto sigue siendo del bot.
 
 ## Decisiones
@@ -74,7 +74,7 @@ Fuera de este módulo: email, WhatsApp (descartado), audio → texto (fase 2, co
 
 ## Pantallas
 
-- **Ajustes → Avisos** (`/settings/reminders`, el recorrido exacto lo fija el plan): **«Canal de avisos»** (Push · Telegram · Ambos); estado de Push (sin permiso / activo en N dispositivos) con «Activar en este dispositivo» y «Desactivar»; estado de Telegram (sin conectar / conectado desde el … / bot bloqueado); «Conectar» (genera el enlace `t.me/<bot>?start=<código>`, caduca en 10 min) y «Desconectar»; un interruptor por aviso con su hora (briefing, repaso) y los interruptores de montos (uno por canal). Cada control con `aria-disabled` mientras guarda, no `disabled`.
+- **Ajustes → Avisos** (`/settings/reminders`, el recorrido exacto lo fija el plan): **«Canal de avisos»** (Push · Telegram · Ambos); estado de Push (sin permiso / activo en N dispositivos) con «Activar este dispositivo» y «Desactivar»; estado de Telegram (sin conectar / conectado desde el … / bot bloqueado); «Conectar» (genera el enlace `t.me/<bot>?start=<código>`, caduca en 10 min) y «Desconectar»; un interruptor por aviso con su hora (briefing, repaso) y los interruptores de montos (uno por canal). Cada control con `aria-disabled` mientras guarda, no `disabled`.
 - **Hábito (crear/editar):** campos opcionales «Hora del aviso» (`type=time`, 48 px) y «Franja» (mañana / tarde / noche).
 - **Hoy:** con hábitos con franja, los pads se agrupan por franja (Mañana, Tarde, Noche, y «Sin franja» al final). Sin ninguna franja, la pantalla queda como hoy.
 - **Telegram:** mensajes cortos en español, sin formato de culpa, con enlace a `https://os.brahua.com`.
