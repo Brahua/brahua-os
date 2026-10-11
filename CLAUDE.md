@@ -180,3 +180,46 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   delete the branch.
 - **Confirm the merge before cleaning up:** do not remove a worktree or branch until `gh api
   repos/Brahua/brahua-os/pulls/<n> -q .merged` says `true`.
+
+## Lessons from `reminders` (retrospective, 2026-10-09)
+
+- **Deploy gates are written per result:** `!cancelled()` did not see a `needs` job that hit its timeout
+  (`cancelled`), so three timed-out E2E runs deployed on 2026-10-08. Plain `success()` then failed the other way: it
+  also looks at ancestors, and the skipped `guard` job on `push` blocked the first deploy after the fix (#97,
+  #99). The gate spells out `needs.<job>.result == 'success'` for each job and does not use `success()`; test a
+  gate change with a real push to `main`, not only a read of the YAML.
+- **E2E time is a budget:** the E2E job (14–19 min) hit its 20-min timeout; the cut was 30 min of cushion plus
+  `mobile` running only tests tagged `@responsive` (103 tests against 376 on `desktop`; a lint enforces the tag). Each slice adds at
+  most one E2E spec (R4 one, R3 none); everything else is unit, component or integration. A new screenshot
+  costs a CI round.
+- **Security-review every slice that takes untrusted input or secrets:** the webhook and push reviews found
+  what tests had not: attempt limits that could lock the owner's own link code (limits count per chat and never
+  touch codes), a poison message that made Telegram retry a 500 forever (permanent errors, SQLSTATE class 22/23,
+  close the `update_id` with 200), and push `endpoint`s the server would POST to (allowlist where it is written,
+  not where it is sent). Order for any public route: secret, size, JSON, relevance, and only then write.
+- **One claim per reminder and channel:** the engine claims `(dedupe_key, channel)` with `INSERT … ON CONFLICT
+  DO NOTHING` before building or sending. Test two ticks at once with a positive control (two different keys
+  send two). Never claim a key on behalf of another: R4 grouped habits at the same time under one message and the
+  review turned it into one key per habit. A key without the time also means editing the time does not notify
+  again that day: say it in the rule.
+- **Ambiguous failures are not retried:** a timeout or network error may have delivered the message, and a double
+  reminder is worse than a lost one. Classify every failure as clear (the service answered with an error:
+  retry up to 3) or ambiguous (`*_network`, `send_threw`: `failed`, no retry), and test both. A 403 disconnects
+  only the chat that is still linked; a 401/403 from the push service revokes the device and falls back.
+- **Bot capture rules:** claim the `update_id`, create the entity and write the capture row in one transaction
+  and reply after the commit, once, without retry. "Deshacer" carries the id of the capture row (never the
+  entity), deletes in a single `UPDATE` that checks nobody touched it, and expires after 24 h. Text that does not
+  fit is rejected and said, never cut; any unknown `/command` answers and is never saved as a task.
+- **Day-bound reminders do not cross midnight:** the 2-hour grace window can span 00:00, so each kind states
+  whether it may still fire for yesterday (briefing and evening review: no; payment eve and habit time: yes).
+  Define it per kind and test 23:59 and 00:30.
+- **Provisioning secrets without seeing them:** the owner generates and stores them in their own terminal
+  (`openssl rand … | vercel env add … --sensitive`, `gh secret set`); Sensitive Vercel variables cannot be read
+  back, so a secret needed for manual checks (the tick) lives in the owner's password manager. The VAPID script
+  refuses to print without a terminal on stdin and stdout; env validation names variables, never values, and
+  checks that the keys are a pair. Vercel Cron only sends `GET` with `CRON_SECRET`, so the endpoint accepts it too.
+- **Write the setup guide from the code:** checking `env.ts`, the workflows and the screen copy against the spec
+  found six drifts (a button label, a webhook registered only while unlinked, a token error that is not a 403).
+  A guide that comes from memory is wrong somewhere; verify every variable name, command and label.
+- **Do not add code to satisfy jsdom:** R4's first Enter-in-name fix compensated for jsdom's implicit submit; the
+  E2E showed Chromium already submitted, and the extra handler went. Decide behaviour in the real browser.

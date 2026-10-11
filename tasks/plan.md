@@ -41,4 +41,4 @@ R1 cimientos ─┬─> R2 avisos de la app ──┐
 
 ## Checkpoints
 
-- **Checkpoint final:** el owner crea el bot con @BotFather y pone las variables en su terminal (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME`, `REMINDERS_CRON_SECRET`, claves VAPID). El agente recorre Ajustes → Avisos en producción con el Chrome del owner (datos `[QA]`, luego borrados). El owner prueba en el iPhone: conectar Telegram, escribir «pilas mañana», activar el push en la PWA reinstalada y recibir un aviso real.
+- **Checkpoint final:** el owner crea el bot con @BotFather y pone las variables en su terminal (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME`, `REMINDERS_CRON_SECRET`, `CRON_SECRET`, claves VAPID y `VAPID_SUBJECT`; paso a paso en `docs/reminders-setup.md`). El agente recorre Ajustes → Avisos en producción con el Chrome del owner (datos `[QA]`, luego borrados). El owner prueba en el iPhone: conectar Telegram, escribir «pilas mañana», activar el push en la PWA reinstalada y recibir un aviso real.

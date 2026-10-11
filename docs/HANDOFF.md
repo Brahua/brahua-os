@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-06.
+> Última actualización: 2026-10-09 (cierre R6 de `reminders`).
 
 ## Cómo retomar
 
@@ -55,7 +55,7 @@
 - **finance:** ✅ cerrado por el owner el 2026-10-06 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner el 2026-10-05; detalle en `tasks/archive/finance-todo.md`). F1–F5 integrados (#78–#82). Plan y tareas archivados en `tasks/archive/finance-*.md`. El owner aceptó todas las decisiones autónomas (tabla "Autónomas" de `SPEC-finance.md` y "Cómo funciona finance" F1–F5). Importación desde Notion hecha en producción el 2026-10-05. Pendientes en el backlog: texto perdido al cambiar "Tarea · Gasto", `Key` con `aria-disabled` upstream, moneda de 3 recurrentes importados (la corrige el owner) y el clic perdido tras cerrar una hoja.
 - **Benchmark rimu** (2026-10-06): análisis competitivo en `docs/benchmark-rimu.html` (abrir con doble clic; 25 oportunidades, matriz y priorización). El owner respondió sus 10 preguntas abiertas el mismo día: las decisiones están en "Siguiente: polish → reminders" y en `tasks/todo.md` (corte `polish` y backlog "Del benchmark rimu").
 - **polish:** corte corto, **completo al integrar el último PR** (8 ítems en `tasks/todo.md` → "Corte `polish`"), antes de `reminders`. Integrados en `main`: `postpone-one-tap` (#86), `installments` (#87; ver "Cómo funciona polish → installments") y `habit-skip-day` (#89; ver "Cómo funciona polish → habit-skip-day"). `task-time` (#88; ver "Cómo funciona polish → task-time") y `capture-nl-dates` (#91; ver "Cómo funciona polish → capture-nl-dates"). `greeting-variants` (#92; ver "Cómo funciona polish → greeting-variants"). `celebration-milestones` (#93; ver "Cómo funciona polish → celebration-milestones"). `evening-close-ritual` hecho en `feat/evening-close-ritual` (PR abierto; ver "Cómo funciona polish → evening-close-ritual"): con él se cierran los 8 ítems del corte y sigue `reminders`.
-- **reminders:** spec aprobada v1.1 (2026-10-08). **R1 (cimientos)** integrado (#95; ver "Cómo funciona reminders → R1" abajo). **R2 (avisos de la app)** integrado (#96; ver "Cómo funciona reminders → R2"). **R4 (hábitos con hora y franja)** hecho en `feat/reminders-r4` (PR abierto; ver "Cómo funciona reminders → R4"). **R3 (captura por texto)** hecho en `feat/reminders-r3` (PR abierto; ver "Cómo funciona reminders → R3"). **R5 (push web)** hecho en `feat/reminders-r5` (PR abierto; ver "Cómo funciona reminders → R5"); sigue R6 (cierre). Contexto de la decisión en "Siguiente: polish → reminders".
+- **reminders:** terminado a falta del **Checkpoint final** (spec aprobada v1.1, 2026-10-08). R1 cimientos (#95), R2 avisos de la app (#96), R4 hábitos con hora y franja (#98), R3 captura por texto (#101) y R5 push web (#102) integrados en `main`; R6 cierre (guía de puesta en marcha, retrospectiva, backlog) en `docs/reminders-r6` (solo documentación). Detalle por corte en "Cómo funciona reminders → R1…R5", y el estado consolidado, las decisiones autónomas por revisar y los pendientes del owner en "Cómo funciona reminders → R6". **Pendiente del owner:** poner las variables y redesplegar (`docs/reminders-setup.md`), luego el Checkpoint final (`tasks/todo.md` → R6.2b). Contexto de la decisión en "Siguiente: polish → reminders".
   - ✅ F1 (datos, gastos sueltos, captura "Tarea · Gasto", Ajustes): PR #78 integrado. Ver "Cómo funciona finance" → "F1", con los slots para F2 y F3 y sus **decisiones para revisar con el owner**.
   - ✅ F2 (pagos recurrentes: `schedule.ts`, pestaña Pagos, "Pagado", omitir, página del pago): PR #79 integrado. Ver "Cómo funciona finance" → "F2", con el contrato `getPendingForMonth` para F3, las notas para F4 y sus **decisiones para revisar con el owner**.
   - ✅ F3 (resumen mensual: total, barras que filtran, medios, recurrente/suelto, flechas de mes, "Pendiente de pagar"): PR #80 integrado. Ver "Cómo funciona finance" → "F3", con sus **decisiones para revisar con el owner**.
@@ -80,7 +80,9 @@
 
 ## Siguiente: polish → reminders
 
-Punto de partida para la próxima sesión (orden del mapa: `finance` → **`polish`** → **`reminders`** → `goals`).
+> **Actualización 2026-10-09:** `polish` está completo y `reminders` está construido (R1–R6); queda el Checkpoint final con el owner. Lo siguiente que hace falta: que el owner ponga las variables y redespliegue (`docs/reminders-setup.md`), el recorrido del Checkpoint (`tasks/todo.md` → R6.2b) y, con su visto bueno, archivar `reminders` y seguir con `goals`. Las secciones de abajo conservan el contexto de la decisión original.
+
+Punto de partida original (orden del mapa: `finance` → **`polish`** → **`reminders`** → `goals`).
 
 ### Corte `polish` (primero)
 
@@ -1289,7 +1291,7 @@ Rama `feat/reminders-r1`. Deja funcionando de punta a punta, sin ningún aviso r
 | `CRON_SECRET` | Vercel | **El mismo valor** que `REMINDERS_CRON_SECRET`; el que manda Vercel Cron. |
 | `TELEGRAM_API_BASE` | solo pruebas | Servidor falso; sin definir usa `https://api.telegram.org`. |
 
-Ninguna entra en el build (no rompen el deploy si faltan). Orden para poner en marcha (R6 lo convierte en guía): crear el bot, poner las variables en Vercel, re-desplegar, `gh secret set REMINDERS_CRON_SECRET`, abrir Ajustes → Avisos → "Conectar Telegram".
+Ninguna entra en el build (no rompen el deploy si faltan). La guía paso a paso (verificada contra el código) es [`docs/reminders-setup.md`](reminders-setup.md): crear el bot, poner las variables en Vercel y `gh secret set REMINDERS_CRON_SECRET`, re-desplegar, abrir Ajustes → Avisos → "Conectar Telegram".
 
 **Pruebas:** unitarias (`slots`, `policy`, código de vinculación, `env`, cliente y canal contra el servidor falso, motor con reloj fijo y almacén en memoria, copy sin cadenas prohibidas, componente de Ajustes); integración para el CI (`reminders-checks`, `-engine` con **dos ticks a la vez + control positivo**, `-link`, `-webhook`, `-tick-route`, `-actions`, `-export`); E2E `e2e/reminders.spec.ts` (**solo proyecto `desktop` y en serie**: `reminder_settings` es una fila única; los 320 px se miran redimensionando). El servidor falso es `tests/support/fake-telegram.ts` (API de control `/__calls`, `/__queue`, `/__reset`), arrancado como segundo `webServer` de Playwright (`e2e/support/fake-telegram-server.ts`, puerto `E2E_PORT + 10`).
 
@@ -1455,7 +1457,7 @@ Rama `feat/reminders-r5`. Los avisos pueden llegar como notificación push: `web
 - UI (`settings/reminders/_components/channel-section.tsx`, entre el título y Telegram): «Canal de avisos» (grupo de radios táctil de 44 px), una frase que dice qué va a pasar ahora (con el respaldo a Telegram: «Todavía no hay un dispositivo con push: mientras tanto los avisos llegan por Telegram»; sin ningún canal: «no se envía ningún aviso»), y «Este dispositivo»: estado, «Activar este dispositivo» (el permiso se pide como primera acción tras el toque; luego `register('/sw.js', { scope: '/', updateViaCache: 'none' })`, `subscribe({ userVisibleOnly, applicationServerKey })` y la Server Action) o «Desactivar este dispositivo», y la lista de dispositivos activos («Mac · Chrome · desde el 3 oct. 2026»). En iPhone fuera de la app instalada explica cómo instalarla (Compartir → «Añadir a pantalla de inicio») en lugar de un botón muerto; con el permiso bloqueado, cómo desbloquearlo; sin soporte o sin claves en el servidor, lo dice (con los nombres de las variables). `aria-disabled` más guarda (nunca `disabled`) y foco explícito tras cada cambio; marcador `data-push-ready` cuando ya sabe el estado del dispositivo. «Montos en push» (apagado por defecto) es un interruptor más de «Avisos del día».
 - `scripts/reminders-vapid.ts` (`pnpm reminders:vapid`): imprime el par **solo por stdout y solo si stdout es una terminal** (se niega si stdin o stdout no son terminal: tuberías, redirecciones o la shell capturada de un agente). No escribe nada en disco.
 
-**Puesta en marcha (la hace el owner, en su terminal):**
+**Puesta en marcha (la hace el owner, en su terminal; la guía completa y corregida está en [`docs/reminders-setup.md`](reminders-setup.md), esto es el resumen de R5):**
 1. `pnpm reminders:vapid` e inmediatamente copiar las dos líneas a Vercel (Production: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`; la privada como Sensitive) y a los secretos del repo si algún job las necesitara; no pegarlas en ningún chat.
 2. Poner `VAPID_SUBJECT` (`mailto:tu@correo` o `https://os.brahua.com`) en Vercel.
 3. Redeploy de producción (las variables no llegan a un despliegue ya hecho).
@@ -1470,6 +1472,50 @@ Rama `feat/reminders-r5`. Los avisos pueden llegar como notificación push: `web
 **Qué debe revisar el `security-auditor`:** (a) `isAllowedPushEndpoint` y su uso: que ningún camino guarde un `endpoint` fuera de la lista (la acción valida con `pushSubscriptionSchema`; el canal envía a lo guardado) y que el `endpoint` y las claves nunca salgan en una respuesta de acción, un log o `describeError` (`readChannelSummary` no los incluye); (b) que `VAPID_PRIVATE_KEY` solo se lea en `runtime.ts`/`env.ts` y llegue únicamente a `web-push`; que `resolveVapidEnv` nombre variables y nunca valores; que el script se niegue sin terminal; (c) las cuatro Server Actions: `ownerAction` primero, esquemas estrictos, el `user_agent` desde la cabecera (≤ 200 en la columna); (d) el service worker: sin `fetch` ni caché, qué hace con una carga manipulada (solo muestra texto recortado) y el alcance `/`; (e) `SERVICE_WORKER_HEADERS` y que `/sw.js` sea público (sin sesión) a propósito; (f) el tope de dispositivos y que `push_subscriptions` siga fuera de `pnpm db:export`; (g) `public/` no está en `.vercelignore` (sí viaja al despliegue).
 
 **Puntos de extensión:** quitar un dispositivo concreto desde Ajustes (hoy solo el actual); un aviso de prueba («Enviar una prueba») para comprobar el push sin esperar al siguiente tick; `Notification.requestPermission` ya se pide una sola vez por gesto, pero si el owner lo deniega solo se recupera desde los ajustes del sistema (la pantalla lo explica); cachear `briefingFacts` por tick con el canal «Ambos» sigue en el backlog.
+
+### R6 — Cierre
+
+Rama `docs/reminders-r6`. Solo documentación y ajustes menores (sin funcionalidad nueva): la guía de puesta en marcha, la retrospectiva, este resumen y el backlog consolidado.
+
+**Estado por corte**
+
+| Corte | Qué | PR | Estado |
+| --- | --- | --- | --- |
+| R1 | Cimientos: datos, Telegram, vinculación, motor y `tick`, Ajustes → Avisos | #95 | integrado |
+| R2 | Avisos de la app: resumen, pagos (víspera y +3 días), repaso, interruptores y horas | #96 | integrado |
+| R4 | Hábitos con hora y franja, aviso `habit_time`, pads por franja | #98 | integrado |
+| R3 | Captura por texto, «Deshacer», `/hoy`, `/ayuda` | #101 | integrado |
+| R5 | Push web, `public/sw.js`, selector de canal, claves VAPID | #102 | integrado |
+| R6 | Guía de puesta en marcha, retrospectiva, HANDOFF y backlog | (este PR) | en PR |
+| Checkpoint final | Variables y redeploy (owner), recorrido en producción (agente) y pruebas en el iPhone (owner) | — | **pendiente** |
+
+El orden real fue R1 → R2 → R4 → R3 → R5 (R4 antes que R3 por compartir la fuente de hábitos con R2).
+
+**Pendientes del owner** (nada de esto se puede hacer desde la sesión)
+1. Crear el bot con @BotFather y poner las 8 variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME`, `REMINDERS_CRON_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`), más `gh secret set REMINDERS_CRON_SECRET`, en su terminal: [`docs/reminders-setup.md`](reminders-setup.md), pasos 1–2.
+2. Redesplegar producción (paso 3) y vincular el chat desde Ajustes → Avisos (paso 4).
+3. Verificar el tick (`gh workflow run reminders-tick.yml --ref main` → `HTTP 200`; paso 6).
+4. En el iPhone: reinstalar la PWA, activar el dispositivo, recibir un aviso real, capturar por Telegram y probar «Deshacer» (`tasks/todo.md` → R6.2b, parte B).
+5. Responder a las **decisiones autónomas** de abajo (aceptarlas o pedir cambios) y al backlog que le toca decidir: frecuencia del tick antes de volver a privado (~2026-11-01), si cambiar la hora de un hábito debe re-notificar, un mensaje por hábito vs. agrupados.
+
+**Discrepancias encontradas al escribir la guía** (corregidas aquí, sin tocar código)
+- La spec y el plan llamaban al botón «Activar en este dispositivo»; el texto real es **«Activar este dispositivo»** (`channel-copy.ts`). Se corrigió la spec y las tareas.
+- Los pasos de puesta en marcha de R5 decían copiar las claves VAPID «a los secretos del repo si algún job las necesitara»: ningún workflow las usa. En el repo solo va `REMINDERS_CRON_SECRET`.
+- «Conectar» registra el webhook **solo mientras no haya un chat vinculado** (se niega si hay uno). Rotar `TELEGRAM_WEBHOOK_SECRET` con el chat ya vinculado deja a Telegram con el secreto viejo (el webhook responde 401): hay que Desconectar y Conectar, o registrar a mano (guía, paso 5).
+- Un token del bot malo o revocado no es un 403: el cliente lo clasifica `unauthorized` (401/404) y el motor registra `telegram_unauthorized` (`failed`, sin reintento); solo un 403 desconecta el chat.
+- Las variables de Vercel marcadas Sensitive no se pueden volver a leer: el valor de `REMINDERS_CRON_SECRET` hay que guardarlo en un gestor de contraseñas para poder probar el tick a mano.
+- HANDOFF R5 dice que no hace falta reinstalar la PWA si ya estaba instalada; el plan pide reinstalarla. La guía recomienda reinstalar (cuesta un minuto y descarta un manifiesto o ícono viejo), sin darlo por obligatorio.
+
+**Decisiones autónomas para revisar con el owner** (consolidadas; cada una está en la sección de su corte, y las de la spec en `SPEC-reminders.md` → tabla «Autónomas»)
+
+- **Spec** (`SPEC-reminders.md`, tabla «Autónomas»): `dedupe_key` única reclamada con `INSERT … ON CONFLICT DO NOTHING`; ventana de gracia de 2 h; reintentos solo de fallos inequívocos (≤ 3) y nunca de los ambiguos; cron diario de Vercel como red de seguridad; coste de CI al volver a privado; botón «Conectar» que registra el webhook; texto implícito = gasto solo con decimales o moneda; `today` no muestra avisos pendientes; respaldo de canal a Telegram; service worker solo con `push` y `notificationclick`; notificación con título «brahua-os» y `tag` = `dedupe_key`; sin poda de `reminder_deliveries`; captura atómica; «Deshacer» exacto; lo que no se guarda (texto largo, sin monto, `/comando` desconocido, foto o voz); `/hoy`; 403 al responder; inyección de `BotCapture`.
+- **R1** (en «R1 — Cimientos», «Decisiones autónomas para revisar con el owner»): el endpoint `tick` acepta `GET` y `POST` y los dos secretos (`REMINDERS_CRON_SECRET` y `CRON_SECRET`, el mismo valor); at-most-once (un tick que muere entre el claim y el envío no repite); un aviso de una ventana cerrada queda `skipped` aunque el canal se conectara después; intentos de código por chat (5/hora) más un limitador global (30/10 min) que nunca cierra el código del owner; cron de Vercel `0 13 * * *`; «Conectar» se niega con un chat vinculado y desconectar cierra los códigos vivos; el workflow del tick solo corre en `main` y sin secreto solo advierte; no se creó `module.ts`; el enlace de los mensajes es `BETTER_AUTH_URL`; no se corrió `vercel deploy --dry`.
+- **R2** (en «R2 — Avisos de la app», «Decisiones autónomas para revisar con el owner»): el resumen vive en `reminders` y los módulos solo aportan `briefingFacts`; `dedupe_key` del repaso `evening:<día>`; el resumen no cuenta tareas ni pagos retrasados y cuenta hábitos por hacer; una sola frase de resumen (no hasta 3 líneas); la fuente de tareas usa `selectTasksTodaySummary` (el tick no tiene sesión); «Hoy vence …» si la ventana de la víspera cruza la medianoche; «Avisos de pagos» apagado no quita los pagos de hoy del resumen; un resumen vacío ya reclamado no se rehace; dos estilos de texto (conteos en el resumen, nombres en pagos y repaso); si un módulo falla, el resumen se reintenta (`build_failed`) en vez de salir incompleto; la hora se guarda al salir del campo o con Intro.
+- **R4** (en «R4 — Hábitos con hora y franja», «Decisiones autónomas para revisar con el owner»): el candidato de ayer se ofrece mientras su ventana siga abierta (hasta las 01:58 Lima); un aviso por hábito aunque compartan la hora; campo de hora propio de `habits` (no el de `tasks`); un hábito «a evitar» puede tener franja pero no hora; la franja agrupa también Hábitos → Hoy; `reminderTime` y `daypart` opcionales en `HabitItem`; una hora a medio editar bloquea el guardado con error en el campo; listas de franja con `aria-label`; sin captura nueva en el E2E.
+- **R3** (en «R3 — Captura por texto», «Decisiones autónomas para revisar con el owner» y «Correcciones de la revisión de seguridad»): captura y claim del `update_id` en una transacción y respuesta después, sin reintento; «tocado» = `updated_at ≠ created_at`, completada o borrada; texto demasiado largo se rechaza y se dice; todo `/algo` desconocido responde y no se guarda; foto o nota de voz se responde una vez; `/start` sin código desde el chat vinculado muestra la ayuda; `/hoy` usa el texto del briefing a cualquier hora; un 403 al responder no desconecta; el esquema del update acepta `callback_query` solo del usuario vinculado. De la revisión de seguridad: «Deshacer» caduca a las 24 h, `\0` se elimina del texto, un error permanente (SQLSTATE clase 22/23) cierra el `update_id` con 200, y `telegram_updates` y `telegram_link_attempts` se purgan a los 30 días.
+- **R5** (en «R5 — Push web», «Decisiones autónomas para revisar con el owner» y «Correcciones de la revisión de seguridad»): la clave pública VAPID no usa `NEXT_PUBLIC_` (rotar no exige recompilar); el script imprime el par completo pero solo en una terminal; lista blanca de servicios de push para el `endpoint` (SSRF); apagar un dispositivo lo revoca (no borra) y suscribir el mismo `endpoint` lo reactiva; tope de 10 dispositivos activos; instalar la app solo es requisito en iOS/iPadOS; con varios dispositivos un envío cuenta como hecho si al menos uno lo recibió; tras un 404/410 de todos, el siguiente tick entrega por Telegram; el clic de la notificación siempre abre `/`; «Montos en push» vive en «Avisos del día»; Ajustes solo quita el dispositivo en uso. De la revisión de seguridad: 401/403 se tratan como un `gone` (`push_vapid_rejected`), `push_config` no se reintenta y el par VAPID se valida al resolver el entorno.
+
+**Backlog técnico consolidado:** `tasks/todo.md` → «`reminders` → backlog consolidado». Resumen: layout shift de la sección Telegram; Enter en «Identidad» y «Señal» del formulario de hábito; cambiar la hora de un hábito tras reclamar el día no re-notifica (la clave no lleva la hora); E2E y axe del estado «bloqueado»; plan de minutos de CI para ~2026-11-01 (tick a `*/30` y solo 06:00–23:30 Lima, ~1 100 min/mes, hora de hábito con precisión de 30 min); quitar un dispositivo concreto y «Enviar una prueba»; cachear `briefingFacts` con «Ambos»; textos de `telegram-section.tsx` a `reminders-copy.ts`; y las pruebas extra de R1–R4 que quedaron anotadas.
 
 ## Datos de demo
 
