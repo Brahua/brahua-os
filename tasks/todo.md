@@ -24,7 +24,7 @@ Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `
 Para decidir con el owner o tomar entre módulos. El detalle de cada ítem está en la sección de su corte de `docs/HANDOFF.md` → "Cómo funciona reminders".
 
 **Minutos de CI y frecuencia del tick (antes de volver a privado, ~2026-11-01)**
-- [ ] El tick de 15 min cuesta ~2 900 min/mes de Actions (> 2 000 gratis en privado). Antes del ~2026-11-01 cambiar `.github/workflows/reminders-tick.yml` a `*/30` y solo 06:00–23:30 Lima (el `cron` va en UTC, 11:00–04:30 del día siguiente; ~1 100 min/mes). Efectos a revisar al hacerlo: la hora de un hábito pasa a tener precisión de 30 min; la ventana de gracia de 2 h sigue alcanzando; el cron diario de Vercel no cambia. Cambiar la frecuencia está en "Preguntar primero" de la spec: pedir el OK al owner. Va junto al paso 3 del plan de CI de más abajo.
+- [x] **Tick a cada 30 min y solo 06:00–23:30 Lima (2026-10-12, OK del owner):** `reminders-tick.yml` pasó de `*/15` a `0,30 11-23` y `0,30 0-4` (UTC); ~1 100 min/mes frente a ~2 900. La hora de un hábito tiene ahora precisión de 30 min; la ventana de gracia de 2 h sigue alcanzando; el cron diario de Vercel no cambia.
 
 **Ajustes → Avisos**
 - [ ] **Layout shift de la sección Telegram** (revisión de R5): la sección cambia de alto entre estados (sin configurar con su lista de problemas, enlace con pasos y «Generar otro enlace», conectado, mensajes de estado y error) y empuja «Avisos del día» bajo el dedo. Reservar alto o fijar el orden de las secciones.

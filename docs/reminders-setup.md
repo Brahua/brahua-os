@@ -7,7 +7,7 @@
 
 1. Un bot de Telegram propio que te manda los avisos y recibe tus capturas por texto («pilas mañana», «12.50 café»).
 2. Notificaciones push en el iPhone (PWA instalada).
-3. El disparador: un workflow de GitHub Actions que llama cada 15 minutos a `POST /api/reminders/tick`, más un cron diario de Vercel (~8:00 Lima) como red de seguridad del resumen de la mañana.
+3. El disparador: un workflow de GitHub Actions que llama cada 30 minutos (06:00–23:30 Lima) a `POST /api/reminders/tick`, más un cron diario de Vercel (~8:00 Lima) como red de seguridad del resumen de la mañana.
 
 Sin las variables la app no se rompe: Ajustes → Avisos nombra lo que falta y el tick responde 404.
 
@@ -181,7 +181,7 @@ Son los mismos parámetros que usa el botón «Conectar» (`url`, `secret_token`
 
 ## Paso 6. Verificar el tick
 
-**Con el workflow** (lo que corre cada 15 minutos):
+**Con el workflow** (lo que corre cada 30 minutos):
 
 ```bash
 gh workflow run reminders-tick.yml --ref main --repo Brahua/brahua-os
@@ -272,7 +272,7 @@ También puedes verlos en el panel de Vercel → proyecto → Logs → filtra po
 
 - Un día sin hábitos por hacer, tareas ni pagos **no manda nada** (queda `skipped`, `empty`).
 - Un aviso se envía hasta 2 h después de su hora; pasada la ventana queda `skipped` (`window_expired`), incluso si conectaste el canal después.
-- El tick corre cada ~15 minutos y GitHub puede retrasarlo. Los `schedule` solo corren en `main` y se pausan tras 60 días sin actividad en el repo; el cron diario de Vercel (`0 13 * * *`, ~8:00 Lima: en Hobby, entre 8:00 y 8:59) cubre el resumen de la mañana en ese caso.
+- El tick corre cada 30 minutos entre las 06:00 y las 23:30 de Lima (fuera de esa franja no corre) y GitHub puede retrasarlo. Los `schedule` solo corren en `main` y se pausan tras 60 días sin actividad en el repo; el cron diario de Vercel (`0 13 * * *`, ~8:00 Lima: en Hobby, entre 8:00 y 8:59) cubre el resumen de la mañana en ese caso.
 - Un resumen vacío ya reclamado no se rehace: si a las 7:30 no había nada y añades algo a las 7:50, ese día no hay resumen.
 - Un fallo ambiguo (timeout, error de red) **no se reintenta** a propósito: un aviso doble es peor que uno perdido.
 
