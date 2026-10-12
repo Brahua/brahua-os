@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-09 (cierre R6 de `reminders`).
+> Última actualización: 2026-10-12 (módulo `reminders` cerrado).
 
 ## Cómo retomar
 
@@ -55,7 +55,7 @@
 - **finance:** ✅ cerrado por el owner el 2026-10-06 (Checkpoint final hecho por el agente en producción con el Chrome personal del owner el 2026-10-05; detalle en `tasks/archive/finance-todo.md`). F1–F5 integrados (#78–#82). Plan y tareas archivados en `tasks/archive/finance-*.md`. El owner aceptó todas las decisiones autónomas (tabla "Autónomas" de `SPEC-finance.md` y "Cómo funciona finance" F1–F5). Importación desde Notion hecha en producción el 2026-10-05. Pendientes en el backlog: texto perdido al cambiar "Tarea · Gasto", `Key` con `aria-disabled` upstream, moneda de 3 recurrentes importados (la corrige el owner) y el clic perdido tras cerrar una hoja.
 - **Benchmark rimu** (2026-10-06): análisis competitivo en `docs/benchmark-rimu.html` (abrir con doble clic; 25 oportunidades, matriz y priorización). El owner respondió sus 10 preguntas abiertas el mismo día: las decisiones están en "Siguiente: polish → reminders" y en `tasks/todo.md` (corte `polish` y backlog "Del benchmark rimu").
 - **polish:** corte corto, **completo al integrar el último PR** (8 ítems en `tasks/todo.md` → "Corte `polish`"), antes de `reminders`. Integrados en `main`: `postpone-one-tap` (#86), `installments` (#87; ver "Cómo funciona polish → installments") y `habit-skip-day` (#89; ver "Cómo funciona polish → habit-skip-day"). `task-time` (#88; ver "Cómo funciona polish → task-time") y `capture-nl-dates` (#91; ver "Cómo funciona polish → capture-nl-dates"). `greeting-variants` (#92; ver "Cómo funciona polish → greeting-variants"). `celebration-milestones` (#93; ver "Cómo funciona polish → celebration-milestones"). `evening-close-ritual` hecho en `feat/evening-close-ritual` (PR abierto; ver "Cómo funciona polish → evening-close-ritual"): con él se cierran los 8 ítems del corte y sigue `reminders`.
-- **reminders:** terminado a falta del **Checkpoint final** (spec aprobada v1.1, 2026-10-08). R1 cimientos (#95), R2 avisos de la app (#96), R4 hábitos con hora y franja (#98), R3 captura por texto (#101) y R5 push web (#102) integrados en `main`; R6 cierre (guía de puesta en marcha, retrospectiva, backlog) en `docs/reminders-r6` (solo documentación). Detalle por corte en "Cómo funciona reminders → R1…R5", y el estado consolidado, las decisiones autónomas por revisar y los pendientes del owner en "Cómo funciona reminders → R6". **Pendiente del owner:** poner las variables y redesplegar (`docs/reminders-setup.md`), luego el Checkpoint final (`tasks/todo.md` → R6.2b). Contexto de la decisión en "Siguiente: polish → reminders".
+- **reminders:** **cerrado el 2026-10-12** (spec v1.1). R1 cimientos (#95), R2 avisos de la app (#96), R4 hábitos con hora y franja (#98), R3 captura por texto (#101), R5 push web (#102) y R6 cierre (#103) están en producción; variables y redeploy puestos por el owner, Telegram vinculado y push comprobado en el iPhone. Plan y tareas archivados en `tasks/archive/reminders-*.md`; lo no comprobado en producción y el backlog consolidado están en el archivo de tareas y en `tasks/todo.md` → "Backlog técnico". Detalle por corte en "Cómo funciona reminders → R1…R6". **Siguiente: `goals`** (sin spec todavía). Antes del ~2026-11-01 hay que pasar el tick a `*/30` (necesita el OK del owner; ver backlog).
   - ✅ F1 (datos, gastos sueltos, captura "Tarea · Gasto", Ajustes): PR #78 integrado. Ver "Cómo funciona finance" → "F1", con los slots para F2 y F3 y sus **decisiones para revisar con el owner**.
   - ✅ F2 (pagos recurrentes: `schedule.ts`, pestaña Pagos, "Pagado", omitir, página del pago): PR #79 integrado. Ver "Cómo funciona finance" → "F2", con el contrato `getPendingForMonth` para F3, las notas para F4 y sus **decisiones para revisar con el owner**.
   - ✅ F3 (resumen mensual: total, barras que filtran, medios, recurrente/suelto, flechas de mes, "Pendiente de pagar"): PR #80 integrado. Ver "Cómo funciona finance" → "F3", con sus **decisiones para revisar con el owner**.
@@ -80,7 +80,7 @@
 
 ## Siguiente: polish → reminders
 
-> **Actualización 2026-10-09:** `polish` está completo y `reminders` está construido (R1–R6); queda el Checkpoint final con el owner. Lo siguiente que hace falta: que el owner ponga las variables y redespliegue (`docs/reminders-setup.md`), el recorrido del Checkpoint (`tasks/todo.md` → R6.2b) y, con su visto bueno, archivar `reminders` y seguir con `goals`. Las secciones de abajo conservan el contexto de la decisión original.
+> **Actualización 2026-10-12:** `polish` y `reminders` están cerrados (el owner cerró `reminders` tras el Checkpoint). Lo siguiente es `goals`: se empieza con `spec-driven-development`. Las secciones de abajo conservan el contexto de la decisión original.
 
 Punto de partida original (orden del mapa: `finance` → **`polish`** → **`reminders`** → `goals`).
 
@@ -1495,7 +1495,7 @@ El orden real fue R1 → R2 → R4 → R3 → R5 (R4 antes que R3 por compartir 
 1. Crear el bot con @BotFather y poner las 8 variables (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_USERNAME`, `REMINDERS_CRON_SECRET`, `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`), más `gh secret set REMINDERS_CRON_SECRET`, en su terminal: [`docs/reminders-setup.md`](reminders-setup.md), pasos 1–2.
 2. Redesplegar producción (paso 3) y vincular el chat desde Ajustes → Avisos (paso 4).
 3. Verificar el tick (`gh workflow run reminders-tick.yml --ref main` → `HTTP 200`; paso 6).
-4. En el iPhone: reinstalar la PWA, activar el dispositivo, recibir un aviso real, capturar por Telegram y probar «Deshacer» (`tasks/todo.md` → R6.2b, parte B).
+4. En el iPhone: reinstalar la PWA, activar el dispositivo, recibir un aviso real, capturar por Telegram y probar «Deshacer» (`tasks/archive/reminders-todo.md` → R6.2b, parte B).
 5. Responder a las **decisiones autónomas** de abajo (aceptarlas o pedir cambios) y al backlog que le toca decidir: frecuencia del tick antes de volver a privado (~2026-11-01), si cambiar la hora de un hábito debe re-notificar, un mensaje por hábito vs. agrupados.
 
 **Discrepancias encontradas al escribir la guía** (corregidas aquí, sin tocar código)

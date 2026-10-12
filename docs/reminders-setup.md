@@ -281,4 +281,4 @@ También puedes verlos en el panel de Vercel → proyecto → Logs → filtra po
 ## Cuando termines
 
 - Avisa a Claude con «variables listas, redeploy hecho»: no le pases ningún valor.
-- Claude recorre producción con el Chrome (datos `[QA]`), y tú haces la parte del iPhone: `tasks/todo.md` → «R6.2 Checkpoint final».
+- Claude recorre producción con el Chrome (datos `[QA]`), y tú haces la parte del iPhone: `tasks/archive/reminders-todo.md` → «R6.2b Checkpoint final».
