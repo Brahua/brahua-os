@@ -43,7 +43,7 @@ Fuera de este módulo: email, WhatsApp (descartado), audio → texto (fase 2, co
 
 | Tema | Decisión |
 |---|---|
-| Disparador | Vercel Hobby solo da 1 cron diario, así que el motor se dispara con un workflow de **GitHub Actions cada 15 min** que llama a un endpoint protegido. Gratis mientras el repo sea público. |
+| Disparador | Vercel Hobby solo da 1 cron diario, así que el motor se dispara con un workflow de **GitHub Actions cada 30 min (06:00–23:30 Lima)** que llama a un endpoint protegido. Gratis mientras el repo sea público. |
 | Autonomía | Autónomo hasta el Checkpoint final (como `today` y `finance`). |
 | Push web | Entra en este módulo (corte R5), no en uno posterior. Selector «Canal de avisos»: Push, Telegram o Ambos; **por defecto Push para avisos y Telegram para captura**. |
 | Dependencia | Se aprueba `web-push` para firmar y cifrar los envíos (solo servidor). |
@@ -57,7 +57,7 @@ Fuera de este módulo: email, WhatsApp (descartado), audio → texto (fase 2, co
 | Ventana de gracia | Un aviso se envía hasta **2 h** después de su hora (GitHub retrasa los `schedule`). Pasada la ventana queda `skipped`: un briefing a las 14:00 es ruido. |
 | Reintentos | Solo se reintenta un fallo **inequívoco**: Telegram contestó con un error (`server`, `bad_request`, `rate_limited`) o el texto no se pudo construir. El siguiente tick lo reintenta dentro de la ventana, máximo 3 intentos; sin bucles. Un fallo **ambiguo** (timeout o error de red: el mensaje pudo llegar) **no** se reintenta: queda `failed`, porque un aviso doble es peor que uno perdido. `rate_limited` no se reintenta dentro del mismo tick (ese canal se deja en paz hasta el siguiente). Telegram 403 (bot bloqueado) desconecta el chat (solo si sigue siendo el vinculado) y lo dice en Ajustes; no se reintenta. |
 | Red de seguridad | Un cron diario de Vercel (`0 13 * * *` = ~8:00 Lima; Hobby solo garantiza la precisión de la hora, o sea 8:00–8:59, dentro de la ventana 7:30–9:30 del briefing por defecto) llama al mismo endpoint: si Actions no corre, el briefing igual sale. Es gratis y reutiliza la idempotencia. |
-| Coste al volver a privado | 15 min = ~2 900 min/mes (> 2 000 gratis). Antes del ~2026-11-01 pasar a cada 30 min y solo 06:00–23:30 Lima (~1 100 min/mes); la hora de un hábito pasa a tener precisión de 30 min. Anotado en el backlog «Minutos de CI». |
+| Coste al volver a privado | Cada 15 min serían ~2 900 min/mes (> 2 000 gratis). El owner aprobó (2026-10-12) pasar a cada 30 min y solo 06:00–23:30 Lima (~1 100 min/mes); la hora de un hábito tiene precisión de 30 min. Hecho en `reminders-tick.yml`. |
 | Registro del webhook | Un botón «Conectar» en Ajustes llama a `setWebhook` con el token del servidor, para que nadie tenga que manejar el token fuera de las variables de entorno. |
 | Texto implícito = gasto | Solo si el monto tiene decimales o marca de moneda («12.50», «S/ 12», «$5»). «pilas 3» o «café 12» son tareas; para un entero usar `/gasto café 12`. Siempre hay «Deshacer». |
 | `today` | No muestra avisos pendientes: la portada ya muestra los datos que los originan. |
@@ -97,7 +97,7 @@ Migración aditiva `drizzle/0013_reminders.sql`; sin borrados físicos de datos 
 
 ## Motor de avisos
 
-**Disparo.** `.github/workflows/reminders-tick.yml` (`schedule: */15 * * * *`, también `workflow_dispatch`) hace `POST /api/reminders/tick` con `Authorization: Bearer $REMINDERS_CRON_SECRET`; el endpoint compara en tiempo constante y responde 404 a cualquier otro. Los `schedule` de GitHub solo corren en la rama por defecto y se pausan tras 60 días sin actividad: el cron diario de Vercel lo cubre.
+**Disparo.** `.github/workflows/reminders-tick.yml` (`schedule`: `0,30 11-23 * * *` y `0,30 0-4 * * *` (UTC; 06:00–23:30 Lima), también `workflow_dispatch`) hace `POST /api/reminders/tick` con `Authorization: Bearer $REMINDERS_CRON_SECRET`; el endpoint compara en tiempo constante y responde 404 a cualquier otro. Los `schedule` de GitHub solo corren en la rama por defecto y se pausan tras 60 días sin actividad: el cron diario de Vercel lo cubre.
 
 **Fuentes (contrato).** `src/modules/reminders/contracts.ts` define `registerReminderSource(source)`, como `registerProgressSource`. Una fuente expone `candidates(ctx) → ReminderCandidate[]` con `{ kind, dedupeKey, dueAt, build }`. `tasks`, `habits` y `finance` implementan su fuente e importan solo `reminders/contracts`; la raíz de composición `src/lib/reminder-sources.ts` las registra **por nombre** (nunca `import "…"` a secas, lección de `progress-sources`). `reminders` no importa módulos.
 

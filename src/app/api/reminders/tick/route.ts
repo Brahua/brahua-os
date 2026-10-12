@@ -1,7 +1,7 @@
 // POST /api/reminders/tick: one tick of the reminder engine (SPEC-reminders "Motor de avisos").
 //
 // Callers:
-// - GitHub Actions (.github/workflows/reminders-tick.yml, every 15 minutes) with POST and
+// - GitHub Actions (.github/workflows/reminders-tick.yml, every 30 minutes, 06:00–23:30 Lima) with POST and
 //   `Authorization: Bearer $REMINDERS_CRON_SECRET`.
 // - Vercel Cron (vercel.json, once a day at 13:00 UTC = ~08:00 in Lima: Hobby only guarantees the
 //   hour, so 08:00-08:59, inside the 07:30-09:30 window of the default briefing; the safety net
