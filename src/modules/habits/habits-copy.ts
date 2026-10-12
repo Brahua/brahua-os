@@ -64,3 +64,4 @@ export const HABITS_COPY = {
   restored: (name: string) => `«${name}» volvió.`,
   notDeleted: "No se pudo eliminar.",
 } as const;
+// ci probe: one module
