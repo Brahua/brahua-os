@@ -37,6 +37,29 @@ jobs:
           exit 1
       - run: echo "Dispatch on ${{ github.ref_name }}"
 
+  # Pull requests only: which work the change needs (scripts/e2e-affected.mjs; the rules and how
+  # this interacts with the ruleset and the deploy gate: docs/HANDOFF.md, "CI: qué corre en cada
+  # PR"). No dependencies: it runs with the runner's Node. On a push to main, a dispatch or
+  # whenever this job does not succeed, `e2e` and `integration` below run in full.
+  changes:
+    name: Detect changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      integration: ${{ steps.work.outputs.integration }}
+      e2e: ${{ steps.work.outputs.e2e }}
+      specs: ${{ steps.work.outputs.specs }}
+    steps:
+      # The merge commit and its parents: HEAD^1 is the tip of the base branch, so the diff is
+      # exactly what this PR brings.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - id: work
+        run: node scripts/e2e-affected.mjs --base HEAD^1
+
   checks:
     name: Lint, types, unit tests, build
     needs: guard
@@ -64,8 +87,18 @@ jobs:
 
   e2e:
     name: E2E (Playwright + axe)
-    needs: guard
-    if: ${{ !failure() && !cancelled() }}
+    needs: [guard, changes]
+    # Always runs in full on a push to main (the deploy waits for it) and on a dispatch. On a pull
+    # request it is `skipped` only when `changes` succeeded and found nothing for the browser
+    # (docs only, unit tests only); a skipped job counts as passed for the required check. If
+    # `changes` failed or was cancelled the job runs in full: never less than the full suite by
+    # accident. `failure()` is not used because it would also skip this job after a failed
+    # `changes`; a failed guard (a dispatch on main) still blocks it.
+    if: >-
+      ${{ !cancelled() && needs.guard.result != 'failure'
+      && (github.event_name != 'pull_request'
+      || needs.changes.result != 'success'
+      || needs.changes.outputs.e2e != 'none') }}
     runs-on: ubuntu-latest
     # Healthy runs take 14-19 min and timed out at 20 three times on 2026-10-08. 30 is a cushion
     # while the CI plan (SHARDS / mobile only where it matters) is applied: see "Backlog técnico"
@@ -112,9 +145,22 @@ jobs:
             echo "::error::E2E_SCREENSHOTS=0 is not allowed in CI"
             exit 1
           fi
-      - run: pnpm test:e2e
+      # Pull requests that touch only some modules run only the specs those modules reach
+      # (needs.changes.outputs.specs; the names come from the repository's own spec files); every
+      # other case, including every push to main, runs all of them.
+      - name: Run E2E
         env:
           HOME: /root
+          E2E_MODE: ${{ needs.changes.outputs.e2e }}
+          E2E_SPECS: ${{ needs.changes.outputs.specs }}
+        run: |
+          if [ "$E2E_MODE" = "subset" ] && [ -n "$E2E_SPECS" ]; then
+            echo "Affected specs: $E2E_SPECS"
+            # shellcheck disable=SC2086 # the spec paths are separate arguments
+            pnpm test:e2e $E2E_SPECS
+          else
+            pnpm test:e2e
+          fi
       # Timing summary from playwright-results.json (written by the json reporter, playwright.config.ts).
       # always(): also when the tests failed; it needs only the file, so a timeout (which kills the
       # job before this step) is the one case without a summary. Never fails the job.
@@ -134,8 +180,11 @@ jobs:
           path: playwright-results.json
           retention-days: 7
           if-no-files-found: ignore
-      # Full suite in the image: every committed reference must have been compared.
+      # Full suite in the image: every committed reference must have been compared. A subset run
+      # leaves the other specs' references uncompared, so it cannot tell orphans apart; the push
+      # to main (always full) does.
       - name: No orphan screenshots
+        if: ${{ needs.changes.outputs.e2e != 'subset' }}
         run: node scripts/check-screenshot-orphans.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
@@ -146,8 +195,14 @@ jobs:
 
   integration:
     name: Integration tests (Postgres)
-    needs: guard
-    if: ${{ !failure() && !cancelled() }}
+    needs: [guard, changes]
+    # Same rule as `e2e`: full on a push to main and on a dispatch; on a pull request skipped
+    # (counts as passed) only for a docs-only change, and run if `changes` did not succeed.
+    if: >-
+      ${{ !cancelled() && needs.guard.result != 'failure'
+      && (github.event_name != 'pull_request'
+      || needs.changes.result != 'success'
+      || needs.changes.outputs.integration != 'skip') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Throwaway database for this job only; never production.
@@ -207,6 +262,9 @@ jobs:
     # skipped on push, so it was false and the first push to main after the gate (9615b12) did not
     # deploy. `!cancelled()` replaces the implicit success() on purpose; the three explicit
     # `== 'success'` results below are what block a failed, cancelled or skipped needed job.
+    # `e2e` and `integration` may be skipped on a pull request (docs only), but never on a push:
+    # their `if` runs them whenever the event is not a pull_request. A `skipped` here would mean
+    # the gate was edited wrongly, and it blocks the deploy, as intended.
     if: >-
       ${{ !cancelled()
       && github.event_name == 'push' && github.ref == 'refs/heads/main'

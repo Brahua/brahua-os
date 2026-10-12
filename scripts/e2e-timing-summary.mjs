@@ -4,12 +4,18 @@
 //
 //   node scripts/e2e-timing-summary.mjs [path/to/playwright-results.json]
 //
+// Budget: when the Playwright run lasts longer than E2E_BUDGET_MINUTES (default 12), it also prints a
+// `::warning::` annotation on stdout. It is a warning, never a failure (docs/HANDOFF.md, "CI:
+// E2E y el gate del deploy"). The job takes about one minute more than the run (containers,
+// install).
+//
 // A test's time is the sum of all its attempts (retries included): it is what the runner spent.
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const TOP_TESTS = 20;
 const TOP_FILES = 10;
+export const DEFAULT_BUDGET_MINUTES = 12;
 
 /** Walks the (nested) suites and returns one row per test, with every attempt summed. */
 export function collectTests(report) {
@@ -40,7 +46,18 @@ const seconds = (ms) => `${(ms / 1000).toFixed(1)} s`;
 const minutes = (ms) => `${(ms / 60000).toFixed(1)} min`;
 const cell = (text) => String(text).replaceAll("|", "\\|").replaceAll("\n", " ");
 
-export function buildSummary(report) {
+/**
+ * The `::warning::` line when the run is over budget, or null. A non-positive or non-numeric
+ * budget (an unset variable) means the default.
+ */
+export function budgetWarning(report, budgetMinutes = DEFAULT_BUDGET_MINUTES) {
+  const budget = Number(budgetMinutes) > 0 ? Number(budgetMinutes) : DEFAULT_BUDGET_MINUTES;
+  const wall = report.stats?.duration ?? 0;
+  if (!(wall > budget * 60000)) return null;
+  return `::warning title=E2E over budget::The E2E run took ${minutes(wall)}, over the ${budget} min budget (the job takes about 1 min more). Before adding more tests, trim: see "CI: E2E y el gate del deploy" in docs/HANDOFF.md (one new E2E spec per cut at most).`;
+}
+
+export function buildSummary(report, budgetMinutes = DEFAULT_BUDGET_MINUTES) {
   const tests = collectTests(report);
   const stats = report.stats ?? {};
   const wall = stats.duration ?? 0;
@@ -51,8 +68,11 @@ export function buildSummary(report) {
   const runStart = Date.parse(stats.startTime);
   const startup = Number.isFinite(first) && Number.isFinite(runStart) ? first - runStart : null;
 
+  const overBudget = budgetWarning(report, budgetMinutes) !== null;
+  const budget = Number(budgetMinutes) > 0 ? Number(budgetMinutes) : DEFAULT_BUDGET_MINUTES;
   lines.push(
     `- Duración total (reloj): **${minutes(wall)}** (${seconds(wall)})`,
+    `- Presupuesto: ${budget} min (${overBudget ? "**superado**" : "dentro del presupuesto"}; el job dura ~1 min más que el reloj)`,
     `- Tests: ${tests.length} (esperados ${stats.expected ?? "?"}, inesperados ${stats.unexpected ?? "?"}, flaky ${stats.flaky ?? "?"}, saltados ${stats.skipped ?? "?"})`,
   );
   if (startup !== null) {
@@ -128,8 +148,12 @@ function main() {
     process.exit(1);
   }
   let markdown;
+  let warning = null;
   try {
-    markdown = buildSummary(JSON.parse(readFileSync(input, "utf8")));
+    const report = JSON.parse(readFileSync(input, "utf8"));
+    const budget = process.env.E2E_BUDGET_MINUTES;
+    markdown = buildSummary(report, budget);
+    warning = budgetWarning(report, budget);
   } catch (error) {
     console.error(
       `Could not summarise ${input}: ${error instanceof Error ? error.message : error}`,
@@ -138,6 +162,8 @@ function main() {
   }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
   else process.stdout.write(markdown);
+  // Always on stdout: GitHub reads annotations from the step's output, not from the summary file.
+  if (warning) console.log(warning);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

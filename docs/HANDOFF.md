@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-12 (módulo `reminders` cerrado).
+> Última actualización: 2026-10-12 (módulo `reminders` cerrado; pasos 3 y 4 del plan de CI en PR `chore/ci-affected-specs`, sin merge).
 
 ## Cómo retomar
 
@@ -1549,7 +1549,7 @@ unset DATABASE_URL_UNPOOLED
 ## Pruebas E2E
 
 - **Base de pruebas (sin Docker):** Postgres 18 nativo del paquete npm `embedded-postgres` (binarios en `node_modules`, ~144 MB en macOS arm64). `pnpm db:test:start` (idempotente: crea el clúster en `.pgdata/` la primera vez, lo arranca en el puerto 54329 con `postgres`/`postgres` y crea `brahua_os_test`), `pnpm db:test:stop` (conserva los datos) y `pnpm db:test:reset` (borra `.pgdata/`). En local, `pnpm test:integration` y `pnpm test:e2e` usan esa URL si `TEST_DATABASE_URL` no está definida y, si no hay nada escuchando, la arrancan y la paran al terminar. Sin durabilidad (`fsync=off`): si se corrompe, `pnpm db:test:reset`. Si el puerto está ocupado (por ejemplo, un contenedor viejo de Docker), `TEST_DB_PORT=<otro>` cambia el puerto y la URL por defecto. CI no la usa: sigue con el servicio Postgres 18 de GitHub Actions.
-- **Mientras se itera:** E2E nativa en macOS, solo con las specs que tocaste: `pnpm test:e2e e2e/<spec>.ts`. `pnpm test:e2e:changed` corre las specs que cambiaron contra `origin/main` (`--only-changed` de Playwright: detecta specs y lo que importan, **no** el código de la app; si cambiaste solo `src/`, elige la spec a mano).
+- **Mientras se itera:** E2E nativa en macOS, solo con las specs que tocaste: `pnpm test:e2e e2e/<spec>.ts`. `pnpm test:e2e:changed` corre las specs que cambiaron contra `origin/main` (`--only-changed` de Playwright: detecta specs y lo que importan, **no** el código de la app; si cambiaste solo `src/`, elige la spec a mano). En CI, un PR corre solo las specs que su cambio alcanza (mapa módulo → specs): ver «CI: qué corre en cada PR».
 - **Capturas:** solo se comparan donde se generaron las referencias: Linux dentro de la imagen de Playwright (`mcr.microsoft.com/playwright:v1.63.0-noble`, la misma en CI y en `update-screenshots.yml`; se reconoce por `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`). En cualquier otro lado se saltan y la prueba lleva la anotación `screenshot-skipped` en el reporte; el comportamiento y axe sí corren. Todo pasa por `expectScreenshot()` (`e2e/support/screenshots.ts`); ESLint prohíbe `toHaveScreenshot` directo en las specs y `ignoreSnapshots` en `playwright.config.ts` es la red de seguridad. `E2E_SCREENSHOTS=1` o `0` fuerza encenderlas o apagarlas en local.
   - **En CI nunca se apagan:** con `GITHUB_ACTIONS=true` se ignora `E2E_SCREENSHOTS=0`, `playwright.config.ts` lanza un error si no se compararían, y el job E2E comprueba `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` antes de correr.
   - **Huérfanas:** en la imagen, `expectScreenshot()` anota qué referencia usó (`test-results/.screenshots-used/`). Después de la suite completa, `node scripts/check-screenshot-orphans.mjs` falla en CI si hay un PNG que ninguna prueba comparó; `update-screenshots.yml` las borra (`--delete`). Solo vale tras la suite completa: no correrlo después de una spec suelta.
@@ -1845,6 +1845,58 @@ Lectura: el E2E es el cuello de botella (≈ 70 % del tiempo de un run, y el ún
 - **Lo que dejó de correr en celular:** el axe sin captura de las pantallas (login con error, proyectos, hitos, notas, etiquetas, vistas de tareas…), los flujos de datos y el teclado. Si un cambio toca el diseño del celular de una de esas pantallas, añade `@responsive` a su test de axe. `pnpm test:e2e e2e/<spec>.ts` en local también corre `mobile` solo con los etiquetados.
 - **Build compartido: no se hizo.** Medido en el paso 1: compartir el build entre jobs ahorraba ~0,6 min (lo que tarda `pnpm build`) a cambio de un artefacto que subir y bajar; `webServer` sigue con `pnpm build && pnpm start`.
 - **Estimación y medición:** `mobile` pasa de ~367 a 103 tests (el 28 %); el trabajo de los tests baja alrededor de un tercio del total, así que el paso `pnpm test:e2e` debería pasar de ~15,8 a ~10–11 min (job ~12 min). Pendiente: confirmarlo con el «E2E timing summary» del primer run en `main` (columna «Por proyecto» y «Duración total (reloj)») y anotarlo aquí.
+
+## CI: qué corre en cada PR
+
+**Regla (`chore/ci-affected-specs`, pasos 3 y 4 del plan de CI, 2026-10-12).** `main` corre **siempre todo** (es lo que despliega). Un PR corre solo lo que su cambio puede alterar. Menos minutos, no menos seguridad: ante la duda, suite completa.
+
+**Cómo funciona.** Un job nuevo `changes` («Detect changes», solo en `pull_request`, ~1 min) corre `node scripts/e2e-affected.mjs --base HEAD^1` (sin dependencias; el checkout trae el merge commit y su padre, así que el diff es exactamente lo que trae el PR) y publica tres salidas que leen `e2e` e `integration`:
+
+| Cambio del PR | Integración | E2E |
+| --- | --- | --- |
+| Solo documentación: `*.md` fuera de `src/ e2e/ tests/ scripts/ drizzle/ public/`, `docs/`, `tasks/`, `.claude/`, `.agents/`, `skills-lock.json` | se salta | se salta |
+| Solo pruebas unitarias (`tests/` salvo `tests/integration/` y `tests/support/`), `eslint.config.mjs`, Prettier, `vitest*.config.mts`, `.env.example`, `.vercelignore` | corre | se salta |
+| Código de un módulo (`src/modules/<m>/…`, salvo `module.ts` y `db/`) | corre | las specs de ese módulo **y de los módulos que lo importan** (cierre sobre los `@/modules/<x>` reales) |
+| Página de un módulo (`src/app/(app)/{tasks,projects,habits,finance}/…`, `settings/reminders/…`, `api/telegram`, `api/reminders`) | corre | las specs de ese módulo y las que abren la ruta |
+| Página sin módulo (`areas`, `design`, `settings`) | corre | las specs que abren esa ruta |
+| `src/app/(app)/page.tsx` (la portada) | corre | las specs de `today` y de lo que importa |
+| Una spec, su captura (`e2e/__screenshots__/<spec>/…`) o un archivo de `e2e/support/` | corre | esa spec / las specs que lo importan (transitivo) |
+| **Todo lo demás:** `src/lib`, `src/design-system`, `src/modules/core`, `module.ts` y `db/` de cualquier módulo, `src/app` fuera de lo anterior, `playwright.config.ts`, `e2e/global-setup.ts`, `e2e/auth.setup.ts` y lo que importan, `tests/integration/`, `tests/support/`, `drizzle/`, `public/`, `scripts/`, `.github/`, `package.json`, lockfile, `next.config.ts`, un archivo de `e2e/` borrado o nuevo sin importadores, cualquier ruta desconocida | corre | **suite completa** |
+
+- **El mapa módulo → specs** es la tabla `SPEC_MODULES` de `scripts/e2e-affected.mjs` (qué módulos ejercita cada spec, incluidos los que siembra o cuyas pantallas abre; deliberadamente generosa). `tests/scripts/e2e-affected.test.ts` la mantiene honesta: falla si hay una spec sin entrada o una entrada huérfana, si una spec importa `@/modules/<m>` o abre una ruta de un módulo que su entrada no lista, o si usa un helper de siembra de otro módulo (`support/finance`, `habits`, `tasks`, `reminders`…). **Una spec nueva exige su entrada** (y una spec sin entrada corre en cualquier PR de código mientras tanto). Además tiene una tabla de casos «archivo cambiado → specs» sobre el repositorio real.
+- **Resultado esperado.** Un cambio en un módulo corre entre 14 y 31 de las 44 specs (medido con el mapa real: `today` 14, `finance` 19, `habits` 22, `tasks` 24, `reminders` 30, `projects` 31) (según cuánto lo importan los demás: `projects` y `reminders` alcanzan más que `today`); los PRs de solo documentación pasan de ~16 min de jobs (`e2e` + `integration`) a 0 y los de solo pruebas unitarias se ahorran el E2E. El PR paga ~1 min por el job `changes`. Las capturas y `@responsive` se respetan: una spec que corre, corre entera en `desktop` y, con `@responsive`, en `mobile`.
+- **`No orphan screenshots` solo corre con la suite completa** (una corrida parcial no compara las demás referencias). El `push` a `main` (siempre completa) lo comprueba igual.
+- **`workflow_dispatch`** (el que lanza `update-screenshots.yml` tras commitear capturas) **siempre corre completo**: sin job `changes`, la condición se cumple por el evento.
+
+**Cómo se lleva con el ruleset «Protect main» y con el deploy.**
+
+- Los tres checks requeridos se mantienen **por nombre** («Lint, types, unit tests, build», «E2E (Playwright + axe)», «Integration tests (Postgres)») y **no hay `paths-ignore` a nivel de workflow**: un workflow filtrado por rutas deja los checks sin reportar (`Pending`) y bloquea el merge. En cambio, **un job `skipped` por su `if` se reporta como éxito** y cuenta como check cumplido (documentación de GitHub, «Troubleshooting required status checks»). El test `tests/lint/ci-workflow-gate.test.ts` fija nombres y ausencia de filtros. `checks` (lint, formato, tipos, unitarias, build) corre siempre, también en PRs de documentación (Prettier revisa los `.md`).
+- **El deploy no puede pasar por un `skipped`:** `deploy` sigue exigiendo `needs.checks/e2e/integration.result == 'success'` exacto y `push` a `main`. En un `push`, `e2e` e `integration` evalúan `github.event_name != 'pull_request'` → corren siempre y completos (`changes` ni existe). Un `skipped` en el deploy solo sería posible si alguien editara las condiciones, y entonces bloquea el deploy (el test del workflow lo comprueba: `deploy` no depende de `changes` y el `if` de `e2e` e `integration` contiene la condición de evento).
+- **Falla cerrada a favor de correr:** si `changes` falla o se cancela, `e2e` e `integration` corren completos (`needs.changes.result != 'success'`); el PR queda con «Detect changes» en rojo, visible, pero no se merge-ea con menos pruebas por accidente. Un `guard` fallido (dispatch en `main`) sigue bloqueándolos.
+- **Lo que no se pudo verificar sin un `push` real:** (1) que el ruleset trate el `skipped` de `e2e` e `integration` como cumplido en este repo (está documentado, pero hasta ver un PR de documentación no hay prueba); (2) que `changes` calcule bien el diff en el checkout real del merge commit (`fetch-depth: 2`, `HEAD^1`) y que el `node` del runner sirva; (3) que el primer `push` a `main` con estas condiciones despliegue (la lección de `!cancelled()` y `success()`: probar la condición con un push real). Plan de prueba al final.
+
+**Shards (`--shard=i/N`): medido, no adoptado.** Con el run de `main` 38286439547 (job E2E 13,0 min; `pnpm test:e2e` 11,9 min, de los que 0,7 min son build + arranque; el resto, ~11,1 min, son los tests): cada shard paga lo fijo, ≈ 1,9 min (contenedores 0,67 + setup 0,2 + build/arranque 0,7 + subida/limpieza). Modelo: minutos totales ≈ N × 1,9 + 11,1; reloj ≈ 1,9 + 11,1 / N.
+
+| Shards | Minutos del job E2E (vs. 13,0) | Reloj |
+| ---: | ---: | ---: |
+| 1 (hoy) | 13,0 | 13,0 |
+| 2 | ≈ 14,9 (+15 %) | ≈ 7,5 |
+| 3 | ≈ 16,8 (+29 %) | ≈ 5,6 |
+| 4 | ≈ 18,7 (+44 %) | ≈ 4,7 |
+
+Cada `main` pagaría ese sobrecosto y GitHub redondea cada job al minuto; además «No orphan screenshots» y el resumen de tiempos necesitarían un job extra que junte los reportes (`blob` reporter + `merge-reports`). Con 2 000 min/mes en privado «menos minutos > menos reloj»: **no se activa**. Es una estimación a partir de un run real (no se lanzó CI nuevo para medirlo); si algún día importa el reloj de `main`, se prueba `--shard=1/2` en una rama y se compara contra esta tabla antes de adoptarlo.
+
+**Presupuesto (paso 4).** El job E2E tiene un presupuesto de ~12 min. `scripts/e2e-timing-summary.mjs` imprime un `::warning title=E2E over budget::…` (anotación en el run) cuando «Duración total (reloj)» de Playwright pasa de 12 min (`E2E_BUDGET_MINUTES` lo cambia; el job dura ~1 min más que el reloj) y el resumen añade una línea «Presupuesto». **Nunca falla el job.** Referencia: 9,4–12,4 min de reloj en los últimos runs de `main`. Si el aviso aparece dos veces seguidas, recortar antes de añadir tests: ver el resumen («Los 20 tests más lentos», «specs con más tiempo»).
+
+**Regla «máximo un spec E2E nuevo por corte»** (también en `CLAUDE.md`): cada corte (módulo o slice) añade como mucho **una** spec E2E nueva; el resto de la cobertura va en unitarias, de componente o de integración. La spec nueva lleva su entrada en `SPEC_MODULES` y, si compara capturas o es de celular, `@responsive`.
+
+**Plan de prueba del primer push (para quien mergee este PR).**
+
+1. Con este PR ya mergeado y `main` verde (el push corre todo y despliega: confirmar que `deploy` y `smoke` corrieron).
+2. PR de prueba **solo de documentación** (p. ej. una línea en `docs/HANDOFF.md`): esperado, `Detect changes` verde con «Solo documentación», `E2E` e `Integration` en gris «skipped», `checks` verde, y el botón de merge **habilitado** (si el ruleset lo bloquea por esos checks, el `skipped` no cuenta: ver abajo). Cerrar sin mergear o mergear si es útil.
+3. PR de prueba de **un módulo** (p. ej. un comentario en `src/modules/habits/habits-copy.ts`, y luego `git revert` o un cambio real pequeño): esperado, «E2E: N de 44 specs» en el Summary del job `Detect changes`, el log de `Run E2E` con `Affected specs: …` y solo esas specs; `No orphan screenshots` omitido.
+4. PR de prueba que toque **código compartido** (p. ej. un comentario en `src/lib/time.ts`): esperado, «suite completa».
+5. Si el ruleset no acepta el `skipped` (poco probable): **preguntar al owner** antes de cambiar nada (las alternativas tocan el ruleset o los nombres de los checks: un job agregador con el nombre requerido, o pasos condicionales dentro de jobs que siempre arrancan, que sí gastan minutos de contenedor).
 
 ## Decisiones recientes a respetar
 
