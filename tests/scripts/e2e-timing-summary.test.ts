@@ -136,3 +136,56 @@ test("fails on a missing or malformed report", () => {
   writeFileSync(bad, "{not json");
   expect(run(bad).status).toBe(1);
 });
+
+// --- budget (step 4 of the CI plan): a warning, never a failure ---
+
+const withWall = (minutes: number) => ({
+  ...report,
+  stats: { ...report.stats, duration: minutes * 60_000 },
+});
+
+test("within the budget: no warning, and the summary says so", () => {
+  const file = path.join(dir, "ok.json");
+  writeFileSync(file, JSON.stringify(withWall(11.9)));
+  const result = run(file);
+  expect(result.status).toBe(0);
+  expect(result.stdout).not.toContain("::warning");
+  expect(result.stdout).toContain("Presupuesto: 12 min (dentro del presupuesto");
+});
+
+test("over the 12 min default: a ::warning:: annotation, exit code 0", () => {
+  const file = path.join(dir, "slow.json");
+  writeFileSync(file, JSON.stringify(withWall(12.5)));
+  const result = run(file);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toMatch(
+    /^::warning title=E2E over budget::The E2E run took 12\.5 min, over the 12 min budget/m,
+  );
+  expect(result.stdout).toContain("**superado**");
+});
+
+test("exactly on the budget is still within it", () => {
+  const file = path.join(dir, "edge.json");
+  writeFileSync(file, JSON.stringify(withWall(12)));
+  expect(run(file).stdout).not.toContain("::warning");
+});
+
+test("E2E_BUDGET_MINUTES changes the budget; empty or invalid falls back to 12", () => {
+  const file = path.join(dir, "ten.json");
+  writeFileSync(file, JSON.stringify(withWall(10)));
+  expect(run(file, { E2E_BUDGET_MINUTES: "9" }).stdout).toContain("over the 9 min budget");
+  expect(run(file, { E2E_BUDGET_MINUTES: "" }).stdout).not.toContain("::warning");
+  expect(run(file, { E2E_BUDGET_MINUTES: "abc" }).stdout).not.toContain("::warning");
+  expect(run(file, { E2E_BUDGET_MINUTES: "-3" }).stdout).not.toContain("::warning");
+});
+
+test("the warning goes to stdout even when the summary goes to $GITHUB_STEP_SUMMARY", () => {
+  const file = path.join(dir, "slow.json");
+  const summary = path.join(dir, "summary.md");
+  writeFileSync(file, JSON.stringify(withWall(14)));
+  writeFileSync(summary, "");
+  const result = run(file, { GITHUB_STEP_SUMMARY: summary });
+  expect(result.status).toBe(0);
+  expect(result.stdout.trim()).toMatch(/^::warning title=E2E over budget::/);
+  expect(readFileSync(summary, "utf8")).toContain("**superado**");
+});

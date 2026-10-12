@@ -20,11 +20,20 @@ Personal "second brain" app (single user). Specs drive the work:
   them locally (they pushed the owner's Mac to a load of 250). Exceptions: reproducing one failing CI spec,
   or a build when you touch `next.config`, `package.json` or other build configuration. Run one implementer
   at a time unless the owner asks for more.
+- **E2E budget (CI plan, step 4, 2026-10-12):** each cut (module or slice) adds **at most one new E2E spec**;
+  the rest of the coverage is unit, component or integration. The E2E job has a budget of ~12 min:
+  `scripts/e2e-timing-summary.mjs` emits a `::warning::` when the Playwright run goes over it (it never fails the
+  job). A new spec also needs its entry in `SPEC_MODULES` (`scripts/e2e-affected.mjs`), which decides which specs
+  a PR runs; a unit test fails without it.
 - GitHub: personal account `Brahua` only (`gh auth switch -u Brahua` if `jbrahua` is active).
 
 ## Workflow (trunk-based)
 
 - One short-lived branch per change: `feat/…`, `fix/…`, `chore/…`, `docs/…`. Open a PR against `main`.
+- PRs run only the CI work their change can affect (`changes` job, `scripts/e2e-affected.mjs`): docs-only PRs skip E2E
+  and integration, code PRs run the E2E specs their modules reach, shared code runs everything; `main` always runs
+  everything (details in `docs/HANDOFF.md`, "CI: qué corre en cada PR"). A job skipped on purpose (E2E or
+  integration on a docs-only PR) counts as a passed check; "Detect changes" must be green too.
 - Merge only with CI green. Every push to `main` re-runs CI in `.github/workflows/ci.yml`, and the
   `deploy` job publishes to production (https://os.brahua.com) **only if all checks pass**.
 - While the repo is public (from 2026-10-02 until ~2026-11-01, when Actions minutes reset), the ruleset
