@@ -256,3 +256,20 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   scrolls is lost; use element refs, wait, and re-click. A confirm button that renders after the first click needs its
   own lookup.
 
+## Lessons from `weekly-review` (retrospective, 2026-10-14)
+
+- **A checkpoint that closes something can't be undone:** the review has no delete in v1, so the walkthrough in
+  production closed an old week (never a real one) and the leftover row is in the backlog. Before a checkpoint, list
+  which actions leave a permanent row and choose the cheapest target.
+- **A consumer needs no registry when it has one consumer:** the invitation card is composed by `src/lib/review-extensions.tsx`
+  and awaited by the two pages; a `registerHomeBanner` contract would have been a new surface for a single use. ESLint
+  still forbids `today` and `goals` from importing `weekly-review`.
+- **Time windows get a test clock:** a card that only exists on Sunday evening would flake any E2E run on that day, so a
+  build-time cookie (`bo_e2e_invite`) fixes the clock, like `bo_e2e_evening`. Decide the clock before writing the feature.
+- **Intermittent focus tests are fixed, not retried:** three reminders focus assertions failed in CI after awaited
+  actions; wrapping the post-async ones in `await waitFor(...)` is the fix. Synchronous ones stay as they are.
+- **The screenshots workflow doubles as the first E2E run:** `update-screenshots.yml` runs every spec, so a green run
+  on a new spec is the best sign before the PR's own run (it was for W3). It still needs the `action_required` approval.
+- **Clicks right after `navigate` or while the page scrolls are lost:** the Chrome walkthrough had to retype a note once;
+  check the field has the text before submitting.
+
