@@ -14,7 +14,9 @@ export const GOAL_ERRORS = {
   areaUnavailable: "Esa área ya no está disponible (se archivó o no existe). Elige otra.",
   period: "Elige si es del año o de un trimestre.",
   source: "Elige cómo se mide la meta.",
-  sourceUnavailable: "Por ahora las metas se miden con una cantidad.",
+  habitRequired: "Elige un hábito.",
+  projectRequired: "Elige un proyecto.",
+  sourceUnavailable: "Ese hábito o proyecto ya no está disponible. Elige otro.",
   targetInvalid: "La meta es un número entero de 1 a 100 000.",
   unitRequired: "Escribe la unidad (libros, km, páginas…).",
   unitTooLong: "Usa 20 caracteres como máximo.",
@@ -26,7 +28,8 @@ export const GOAL_ERRORS = {
   notManual: "Esta meta no se mide con una cantidad.",
   staleOrder: "La lista cambió mientras la ordenabas: ya está al día. Vuelve a intentarlo.",
   order: "Ese orden no es válido.",
-  sourceChange: "Por ahora no se puede cambiar cómo se mide una meta.",
+  sourceReached:
+    "Esta meta se logra sola con su hábito o proyecto, y ya lo alcanzó. Cambia su fuente o su meta si quieres seguir.",
 } as const;
 
 export const GOALS_COPY = {
@@ -67,7 +70,11 @@ export const GOALS_COPY = {
   achievedBadge: "Lograda",
   archivedBadge: "Archivada",
   finalValue: (count: string) => `Terminó con ${count}.`,
-  sourceUnavailable: "Esta meta todavía no se puede medir aquí.",
+  sourceUnavailable:
+    "Esta meta sigue un hábito o proyecto que ya no está. Cámbiale la fuente desde Editar.",
+  projectCount: (percent: number) => `${percent} %`,
+  sourceLinkLabel: (kind: "habit" | "project", name: string) =>
+    kind === "habit" ? `Abrir el hábito «${name}»` : `Abrir el proyecto «${name}»`,
   goalOptions: (title: string) => `Abrir «${title}»`,
 
   // Pace (a next step, never a reproach)
@@ -108,7 +115,23 @@ export const GOALS_COPY = {
   periodFixed: (label: string) => `Periodo: ${label} (no cambia al editar)`,
   sourceLabel: "¿Cómo la mido?",
   sourceManual: "Cantidad",
+  sourceHabit: "Hábito",
+  sourceProject: "Proyecto",
   sourceHelp: "Tú anotas cada avance con +1 o «Sumar…».",
+  sourceHelpHabit:
+    "Sale sola de los días que lo marcas cumplido. Las pausas y los días que no toca no cuentan.",
+  sourceHelpProject:
+    "La barra sigue el progreso del proyecto. Se logra cuando lo marcas como terminado.",
+  sourceChangeHelp: "Cambiar cómo se mide no borra lo que ya sumaste a mano.",
+  habitLabel: "Hábito",
+  habitPlaceholder: "Elige un hábito",
+  habitsEmpty: "Todavía no tienes hábitos activos. Crea uno en Hábitos y vuelve.",
+  daysLabel: "Días a cumplir",
+  daysHelp: "Cuántos días quieres cumplirlo en el periodo.",
+  projectLabel: "Proyecto",
+  projectPlaceholder: "Elige un proyecto",
+  projectsEmpty: "No tienes proyectos en curso. Crea uno en Proyectos y vuelve.",
+  archivedOption: (name: string) => `${name} (archivado)`,
   targetLabel: "Meta",
   targetHelp: "Cuánto quieres llegar a sumar en el periodo.",
   unitLabel: "Unidad",

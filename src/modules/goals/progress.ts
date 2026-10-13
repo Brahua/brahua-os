@@ -2,14 +2,18 @@
 // what each source reads (the sum of a manual goal's entries today) comes in as a value, so the
 // rules are tested without a database and `pace.ts` can read the result as it is.
 //
-// G2 slot: `habit` (days done in the period, from `getHabitDoneDays`) and `project` (the
-// project's percentage, from `getProjectProgress`) plug in at the two marked branches below by
-// adding their reading to `SourceReading`; nothing else changes (the rows already handle the
-// "unavailable" case).
-import type { GoalSourceKind } from "./goal-constants";
+// G2: a `habit` goal reads the days done in its period (`getHabitDoneDays`, up to today) and a
+// `project` goal the project's percentage (`getProjectProgress`); a source that can't be read
+// (the habit or project was deleted) is "unavailable" and the rows say so.
+import { GOAL_PROJECT_TARGET as PROJECT_TARGET, type GoalSourceKind } from "./goal-constants";
 
-/** What a source read for a goal. G1 only has the manual sum. */
-export type SourceReading = { sourceKind: "manual"; sum: number };
+/** What a source read for a goal. */
+export type SourceReading =
+  | { sourceKind: "manual"; sum: number }
+  /** Days done inside the period, up to today. */
+  | { sourceKind: "habit"; done: number }
+  /** The project's whole percent, and whether it is «terminado» (that is what achieves the goal). */
+  | { sourceKind: "project"; percent: number; finished: boolean };
 
 export type GoalProgress =
   | {
@@ -21,7 +25,7 @@ export type GoalProgress =
       ratio: number;
       reached: boolean;
     }
-  /** The source's reading isn't wired yet (habit and project goals arrive in G2). */
+  /** The source can't be read (a habit or project that no longer exists). */
   | { kind: "unavailable"; reason: "source-not-available" };
 
 /** The progress of a goal of `sourceKind` toward `target`, from what its source read. */
@@ -32,7 +36,15 @@ export function progressOf(
   if (goal.sourceKind === "manual" && reading?.sourceKind === "manual") {
     return measured(reading.sum, goal.target);
   }
-  // G2 slot: `habit` → measured(doneDays, target); `project` → measured(percent, 100).
+  if (goal.sourceKind === "habit" && reading?.sourceKind === "habit") {
+    return measured(reading.done, goal.target);
+  }
+  if (goal.sourceKind === "project" && reading?.sourceKind === "project") {
+    // The target is fixed at 100 and the goal is reached by the project being «terminado», not by
+    // its percentage (a project can show 100 % while still open). A finished one shows full.
+    const shown = measured(reading.finished ? PROJECT_TARGET : reading.percent, PROJECT_TARGET);
+    return shown.kind === "ok" ? { ...shown, reached: reading.finished } : shown;
+  }
   return { kind: "unavailable", reason: "source-not-available" };
 }
 

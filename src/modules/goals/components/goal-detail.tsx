@@ -11,11 +11,12 @@ import { formatDateKey } from "@/lib/time";
 import { archiveGoal, deleteGoal, markGoalAchieved, reopenGoal, unarchiveGoal } from "../actions";
 import type { DeletedGoal, GoalEntryItem, GoalItem } from "../goal-input";
 import { applyGoalListChange } from "../goal-list-optimistic";
-import { readGoal, unitOf } from "../goal-text";
+import { readGoal, sourceReached, unitOf } from "../goal-text";
 import { GOALS_COPY } from "../goals-copy";
 import { periodLabel, periodOf, periodPhase } from "../pace";
 import { DELETED_PARAM, GOALS_PATH } from "../routes";
 import { GoalBar } from "./goal-bar";
+import { GoalSourceLinkText } from "./goal-source-link";
 import { failureReason, useGoalsScreen } from "./goals-screen";
 import { preloadAddEntry, useGoalEntries } from "./use-goal-entries";
 
@@ -36,7 +37,7 @@ type GoalDetailProps = {
  * "Editar" and "Eliminar" (a confirmation first, then back to the list with "Deshacer").
  */
 export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDetailProps) {
-  const { today, areas, enqueue, toaster, announce } = useGoalsScreen();
+  const { today, areas, sources, enqueue, toaster, announce } = useGoalsScreen();
   const { push } = toaster;
   const router = useRouter();
   const [list, apply] = useOptimistic([saved], applyGoalListChange);
@@ -49,6 +50,9 @@ export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDet
   const archived = goal.status === "archived";
   const canAdd = goal.sourceKind === "manual" && !archived && phase === "current";
   const unit = unitOf(goal);
+  // A habit or project goal whose source still reaches the target is achieved again by the next
+  // read, so "Reabrir" isn't offered (the server refuses it too).
+  const reopenBlocked = achieved && sourceReached({ ...goal, status: "active" });
 
   function notSaved(text: string, reason: string) {
     push({ title: GOALS_COPY.notSavedTitle, text: `${text} ${reason}`, tone: "error" });
@@ -179,6 +183,7 @@ export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDet
             />
             <p className="bo-text-title" data-goal-count="">
               {reading.count}
+              <GoalSourceLinkText source={reading.source} />
             </p>
             {reading.line ? (
               <p className="bo-text-body text-text-secondary" data-goal-line="">
@@ -228,7 +233,7 @@ export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDet
             {GOALS_COPY.edit}
           </Key>
         )}
-        {archived ? null : (
+        {archived || reopenBlocked ? null : (
           <Key
             // Never `disabled` (it keeps focus): the label swaps in place.
             onClick={() => setAchieved(!achieved)}
@@ -322,6 +327,7 @@ export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDet
           open={formOpen}
           onOpenChange={setFormOpen}
           areas={areas}
+          sources={sources}
           goal={goal}
           today={today}
           returnFocusRef={formReturn}

@@ -117,7 +117,7 @@ export async function selectMilestones(
  * aggregate query (the list shows them on every card: no query per card).
  */
 export async function selectMilestoneCounts(
-  db: Database,
+  db: Database | Tx,
 ): Promise<Record<string, MilestoneCounts>> {
   const rows = await db
     .select({

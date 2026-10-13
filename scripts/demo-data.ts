@@ -5,7 +5,8 @@
 //   ALLOW_PROD_DB=1 pnpm db:demo            insert (idempotent)
 //   ALLOW_PROD_DB=1 pnpm db:demo:remove     remove only the demo rows (and what hangs from them)
 //   ALLOW_PROD_DB=1 pnpm db:demo:replace    DESTRUCTIVE: delete every project, task and habit
-//                                           (soft-deleted ones too) and insert the demo
+//                                           (soft-deleted ones too, and the habit and project
+//                                           goals that follow them) and insert the demo
 //   unset DATABASE_URL_UNPOOLED
 //
 // Safety, like `auth:owner`: only DATABASE_URL_UNPOOLED, a non-local host needs ALLOW_PROD_DB=1
@@ -29,6 +30,7 @@ import {
 import { describeError } from "@/lib/describe-error";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
+import { GOALS_ADVISORY_SPACE, GOALS_ORDER_KEY } from "@/modules/goals/lock-keys";
 import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
 import {
   projectDependencies,
@@ -105,6 +107,10 @@ export function demoLocks(): [number | string, string][] {
   for (const id of DEMO_HABITS.map((habit) => demoId(`habit:${habit.key}`)).sort()) {
     locks.push([HABITS_ADVISORY_SPACE, id]);
   }
+  // Goals follow habits and projects (ON DELETE RESTRICT): removing the demo also removes the goals
+  // that follow its rows, under the goals' own order lock (taken last: no goals transaction waits
+  // for a lock of the other modules, so no cycle).
+  locks.push([GOALS_ADVISORY_SPACE, GOALS_ORDER_KEY]);
   return locks;
 }
 
@@ -1069,6 +1075,12 @@ export type RemoveCounts = {
   ownLinks: number;
   /** Dependencies between a demo project and one of the owner's: deleted (cascade). */
   ownDependencies: number;
+  /**
+   * Goals that follow a demo habit or project, with their entries: deleted first (their foreign
+   * keys are RESTRICT, so they would block the removal).
+   */
+  goals: number;
+  goalEntries: number;
   /** Logs and pauses on demo habits that the demo didn't write (added or corrected): deleted. */
   ownLogs: number;
   ownPauses: number;
@@ -1139,6 +1151,7 @@ export async function previewRemoveDemo(db: Database | Tx): Promise<RemoveCounts
   const inChain = chain.length ? sql`id in (${uuidList(chain)})` : sql`false`;
   const demoProjects = uuidList(ids.projects);
   const demoHabits = uuidList(ids.habits);
+  const followsDemo = sql`(habit_id in (${demoHabits}) or project_id in (${demoProjects}))`;
   return {
     projects: await count(db, sql`projects where id in (${demoProjects})`),
     tasks: await count(db, sql`tasks where id in (${uuidList(ids.tasks)})`),
@@ -1171,6 +1184,11 @@ export async function previewRemoveDemo(db: Database | Tx): Promise<RemoveCounts
       db,
       sql`project_dependencies where (project_id in (${demoProjects})) <> (blocked_by_id in (${demoProjects}))`,
     ),
+    goals: await count(db, sql`goals where ${followsDemo}`),
+    goalEntries: await count(
+      db,
+      sql`goal_entries where goal_id in (select id from goals where ${followsDemo})`,
+    ),
     ownLogs: await countOwnLogs(db),
     ownPauses: await count(
       db,
@@ -1189,6 +1207,8 @@ export async function previewRemoveDemo(db: Database | Tx): Promise<RemoveCounts
  * - a demo tag is deleted only if no task is left with it (the owner may have used it);
  * - the demo habits with all their logs and pauses; the order of the rest is renumbered 0…n-1
  *   (unchanged when the demo was still at the end);
+ * - the goals that follow a demo habit or project, with their entries (RESTRICT keys), and the
+ *   order of the remaining goals closes up the same way;
  * - the demo projects, with their milestones, links and dependencies (cascade).
  */
 export async function removeDemoData(db: Database): Promise<RemoveCounts> {
@@ -1225,6 +1245,19 @@ export async function removeDemoData(db: Database): Promise<RemoveCounts> {
           sql`not exists (select 1 from task_tag_links l where l.tag_id = ${taskTags.id})`,
         ),
       );
+
+    // Goals that follow a demo habit or project, with their entries (the keys are RESTRICT).
+    const followed = sql`goal_id in (select id from goals where habit_id in (${uuidList(ids.habits)}) or project_id in (${uuidList(ids.projects)}))`;
+    await tx.execute(sql`delete from goal_entries where ${followed}`);
+    const removedGoals = await tx.execute(
+      sql`delete from goals where habit_id in (${uuidList(ids.habits)}) or project_id in (${uuidList(ids.projects)}) returning id`,
+    );
+    if (removedGoals.rows.length) {
+      await tx.execute(sql`
+        update goals g set position = r.position
+        from (select id, (row_number() over (order by position, id) - 1)::int as position from goals) r
+        where r.id = g.id and g.position <> r.position`);
+    }
 
     await tx.delete(habitLogs).where(inArray(habitLogs.habitId, ids.habits));
     await tx.delete(habitPauses).where(inArray(habitPauses.habitId, ids.habits));
@@ -1282,12 +1315,27 @@ export async function countModuleRows(db: Database | Tx): Promise<Record<ModuleT
 export async function replaceWithDemoData(
   db: Database,
   now: Date,
-): Promise<{ deleted: Record<ModuleTable, number>; inserted: DemoCounts }> {
+): Promise<{
+  deleted: Record<ModuleTable | "goals", number>;
+  inserted: DemoCounts;
+}> {
   return db.transaction(async (tx) => {
     await takeLocks(tx);
     // Fail before deleting anything when the areas are missing.
     await areaIds(tx);
-    const deleted = await countModuleRows(tx);
+    const counted = await countModuleRows(tx);
+    // Goals that follow a habit or a project go with them (RESTRICT keys); manual goals, which
+    // follow nothing, stay. Their entries are manual-only, so there are none to delete.
+    const removedGoals = await tx.execute(
+      sql`delete from goals where source_kind in ('habit', 'project') returning id`,
+    );
+    if (removedGoals.rows.length) {
+      await tx.execute(sql`
+        update goals g set position = r.position
+        from (select id, (row_number() over (order by position, id) - 1)::int as position from goals) r
+        where r.id = g.id and g.position <> r.position`);
+    }
+    const deleted = { ...counted, goals: removedGoals.rows.length };
     // The self-reference of tasks is RESTRICT: unlink the occurrences first.
     await tx
       .update(tasks)
@@ -1378,7 +1426,13 @@ async function main() {
     } else {
       console.log("DESTRUCTIVE: deletes EVERY project, task and habit (soft-deleted ones too).");
       console.log("Areas, settings and the owner's account are kept. Rows that will be deleted:");
-      console.log(summary(await countModuleRows(db)));
+      console.log(
+        summary({
+          ...(await countModuleRows(db)),
+          // Goals that follow a habit or a project go with them; manual goals stay.
+          goals: await count(db, sql`goals where source_kind in ('habit', 'project')`),
+        }),
+      );
       if (!(await confirmHost(url, check.askHost))) return fail(unchanged);
       const word = await prompt("Type BORRAR to delete them and insert the demo: ", {
         hidden: false,

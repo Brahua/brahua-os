@@ -249,3 +249,73 @@ test("reminders only depends on core", async () => {
     ),
   ).toEqual([]);
 });
+
+// SPEC-goals "Contratos": `goals` reads `habits` and `projects` only through their contracts (and
+// their client-safe routes); none of the modules below it imports `goals`. The links back (G3) go
+// through registered sections, composed in src/lib/goal-extensions.ts.
+const IMPORT_GOALS = `import { GOALS_PATH } from "@/modules/goals/routes";
+export const path = GOALS_PATH;
+`;
+const IMPORT_GOALS_CONTRACT = `import { getGoalsWeekSummary } from "@/modules/goals/contracts";
+export const read = getGoalsWeekSummary;
+`;
+const IMPORT_GOALS_BARREL = `import * as goals from "@/modules/goals";
+export const all = goals;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+  "src/modules/finance/expenses.ts",
+  "src/modules/reminders/engine.ts",
+])("%s cannot import goals", async (file) => {
+  for (const code of [IMPORT_GOALS, IMPORT_GOALS_CONTRACT, IMPORT_GOALS_BARREL]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`goals` depende de este módulo");
+  }
+});
+
+test("goals itself, its pages and the composition root may import it", async () => {
+  expect(await restricted(IMPORT_GOALS, "src/modules/goals/goals.ts")).toEqual([]);
+  expect(await restricted(IMPORT_GOALS, "src/app/(app)/goals/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_GOALS, "src/lib/goal-extensions.ts")).toEqual([]);
+  expect(await restricted(IMPORT_GOALS, "src/lib/modules.ts")).toEqual([]);
+});
+
+test.each([
+  `import { getHabitDoneDays } from "@/modules/habits/contracts";\nexport const x = getHabitDoneDays;\n`,
+  `import { habitPath } from "@/modules/habits/routes";\nexport const x = habitPath;\n`,
+  `import { getProjectProgress } from "@/modules/projects/contracts";\nexport const x = getProjectProgress;\n`,
+  `import { projectPath } from "@/modules/projects/routes";\nexport const x = projectPath;\n`,
+  `import { planReorder } from "@/modules/core/life-area-order";\nexport const x = planReorder;\n`,
+])("goals may read the contracts and routes of habits and projects, and core %#", async (code) => {
+  expect(await restricted(code, "src/modules/goals/goals.ts")).toEqual([]);
+});
+
+test.each([
+  `import { selectItems } from "@/modules/habits/habits";\nexport const x = selectItems;\n`,
+  `import { habits } from "@/modules/habits/db/schema";\nexport const x = habits;\n`,
+  `import { isDoneOn } from "@/modules/habits/streak";\nexport const x = isDoneOn;\n`,
+  `import * as habits from "@/modules/habits";\nexport const x = habits;\n`,
+  `import { selectProjects } from "@/modules/projects/projects";\nexport const x = selectProjects;\n`,
+  `import { projects } from "@/modules/projects/db/schema";\nexport const x = projects;\n`,
+  `import * as projects from "@/modules/projects";\nexport const x = projects;\n`,
+])("goals cannot reach the internals of habits or projects %#", async (code) => {
+  const messages = await restricted(code, "src/modules/goals/goals.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`goals` lee `habits` y `projects` solo por sus contratos");
+});
+
+test.each([
+  `import { listTasks } from "@/modules/tasks/queries";\nexport const x = listTasks;\n`,
+  `import { getFinanceTodaySummary } from "@/modules/finance/contracts";\nexport const x = getFinanceTodaySummary;\n`,
+  `import { registerReminderSource } from "@/modules/reminders/contracts";\nexport const x = registerReminderSource;\n`,
+  `import { buildBoard } from "@/modules/today/today-board";\nexport const x = buildBoard;\n`,
+])("goals depends on core, habits and projects only %#", async (code) => {
+  const messages = await restricted(code, "src/modules/goals/queries.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`goals` depende de `core`, `habits` y `projects`");
+});

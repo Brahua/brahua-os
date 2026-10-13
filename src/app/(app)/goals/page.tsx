@@ -7,7 +7,7 @@ import { GoalsList } from "@/modules/goals/components/goals-list";
 import { GoalsScreen } from "@/modules/goals/components/goals-screen";
 import type { GoalAreaSummary } from "@/modules/goals/goal-input";
 import { GOALS_COPY } from "@/modules/goals/goals-copy";
-import { getDeletedGoal, listGoals } from "@/modules/goals/queries";
+import { getDeletedGoal, listGoals, listGoalSourceOptions } from "@/modules/goals/queries";
 import { DELETED_PARAM } from "@/modules/goals/routes";
 
 const HEADING_ID = "goals-title";
@@ -29,9 +29,10 @@ export default async function GoalsPage({ searchParams }: GoalsPageProps) {
   // One instant for the whole page: every row reads its pace for the same Lima day.
   const today = ownerDateKey(new Date());
   const deletedId = search[DELETED_PARAM];
-  const [goals, lifeAreas, deleted] = await Promise.all([
+  const [goals, lifeAreas, sources, deleted] = await Promise.all([
     listGoals(),
     listLifeAreas(),
+    listGoalSourceOptions(),
     // Just deleted from its page: the undo notice needs its title (only while it is deleted).
     typeof deletedId === "string" ? getDeletedGoal(deletedId) : Promise.resolve(null),
   ]);
@@ -44,7 +45,7 @@ export default async function GoalsPage({ searchParams }: GoalsPageProps) {
   }));
 
   return (
-    <GoalsScreen today={today} areas={areas}>
+    <GoalsScreen today={today} areas={areas} sources={sources}>
       {/* Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
           notice, and the last row must stay reachable under it at full scroll. */}
       <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
