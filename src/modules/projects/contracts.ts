@@ -15,18 +15,34 @@
 // 3. getProjectProgress(projectId) (for `goals`): a project's progress (0–100) and status, the
 //    same figure its page and the list show (milestones plus what the sources add).
 //
+// 5. getProjectsWeekReview(weekStart, now) (for `weekly-review`): the projects still in the works
+//    with their progress, next action and what blocks them, and the milestones met in a week.
+//
 // 4. Project sections and next-action sources (T5 of `tasks`): a module adds a section to a
 //    project's page (`registerProjectSection`) and gives the list's cards each project's next
 //    action (`registerNextActionSource`). Same rules as the progress sources: idempotent by id,
 //    registered by the composition root `src/lib/project-extensions.ts`
 //    (`ensureProjectExtensions()`, imported by name), never imported by `projects`.
 import "server-only";
-import { and, eq, exists, inArray, isNull, lte, notInArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  exists,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
+import { OWNER_TIME_ZONE } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
-import { projectDependencies, projects } from "./db/schema";
+import { projectDependencies, projectMilestones, projects } from "./db/schema";
 import { selectMilestoneCounts } from "./milestones";
 import type { ProjectStatus } from "./project-constants";
 import { milestoneProgress } from "./progress";
@@ -314,4 +330,145 @@ export async function selectProjectAvailability(
     .from(projects)
     .where(and(inArray(projects.id, [...ids]), isNull(projects.deletedAt)));
   return new Set(rows.map((row) => row.id));
+}
+
+// ── The weekly review ───────────────────────────────────────────────────────────────────────
+
+/** A project in the works as the review shows it. */
+export type ProjectWeekReviewItem = {
+  id: string;
+  name: string;
+  status: ProjectStatus;
+  /** Whole percent, the figure the list and the page show (0 for Mantenimiento: no end). */
+  progressPercent: number;
+  /** Its next action (the title of the task `tasks` marks), or null. */
+  nextAction: { id: string; title: string } | null;
+  /** What blocks it, as a fact («Esperando a …»): empty when nothing does. */
+  blockedBy: { id: string; name: string }[];
+};
+
+/** A milestone met within the week. */
+export type MilestoneDoneInWeek = {
+  id: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+  doneAt: Date;
+};
+
+export type ProjectsWeekReview = {
+  /** The Monday of the week read. */
+  weekStart: string;
+  /**
+   * The projects not finished, canceled or deleted (Idea, Activo, Pausado, Mantenimiento), the
+   * active ones first, then by name. The screen decides how many it shows.
+   */
+  projects: ProjectWeekReviewItem[];
+  /**
+   * Milestones met within the week: live milestones whose `done_at` falls on one of its Lima days
+   * (`project_milestones.done_at` is the instant it was checked; unchecking clears it), of any
+   * project that isn't deleted, the latest first.
+   */
+  milestonesDone: MilestoneDoneInWeek[];
+};
+
+const WEEK_REVIEW_STATUS_ORDER = sql`case ${projects.status}
+  when 'active' then 0 when 'paused' then 1 when 'maintenance' then 2 else 3 end`;
+
+const DAY_MS = 86_400_000;
+const addDays = (day: string, days: number) =>
+  new Date(new Date(`${day}T00:00:00Z`).getTime() + days * DAY_MS).toISOString().slice(0, 10);
+
+/**
+ * The projects review of the week of `weekStart` (a Monday). Built on the same figures as the
+ * list: `contributedProgress` through `selectProjectsProgress`, `projectNextActions` and
+ * `selectActiveBlockers`; a fixed number of queries whatever the number of projects. Trusts its
+ * caller (see getProjectsWeekReview).
+ */
+export async function selectProjectsWeekReview(
+  db: Database,
+  weekStart: string,
+): Promise<ProjectsWeekReview> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || Number.isNaN(Date.parse(weekStart))) {
+    throw new RangeError("weekStart must be a day as YYYY-MM-DD");
+  }
+  weekStart = addDays(weekStart, -((new Date(`${weekStart}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const sunday = addDays(weekStart, 6);
+  const [rows, milestones] = await Promise.all([
+    db
+      .select({ id: projects.id, name: projects.name, status: projects.status })
+      .from(projects)
+      .where(
+        and(isNull(projects.deletedAt), notInArray(projects.status, [...NON_BLOCKING_STATUSES])),
+      )
+      .orderBy(WEEK_REVIEW_STATUS_ORDER, asc(projects.name), asc(projects.id)),
+    db
+      .select({
+        id: projectMilestones.id,
+        title: projectMilestones.title,
+        projectId: projects.id,
+        projectName: projects.name,
+        doneAt: projectMilestones.doneAt,
+      })
+      .from(projectMilestones)
+      .innerJoin(projects, eq(projects.id, projectMilestones.projectId))
+      .where(
+        and(
+          isNull(projects.deletedAt),
+          isNull(projectMilestones.deletedAt),
+          isNotNull(projectMilestones.doneAt),
+          sql`(${projectMilestones.doneAt} at time zone ${OWNER_TIME_ZONE})::date between ${weekStart}::date and ${sunday}::date`,
+        ),
+      )
+      .orderBy(sql`${projectMilestones.doneAt} desc`, projectMilestones.id),
+  ]);
+  const milestonesDone = milestones.flatMap((row) =>
+    row.doneAt ? [{ ...row, doneAt: row.doneAt }] : [],
+  );
+  if (rows.length === 0) return { weekStart, projects: [], milestonesDone };
+  const ids = rows.map((row) => row.id);
+  // Dynamic: the composition roots import this file, so a static import would be a cycle.
+  const { ensureProjectExtensions } = await import("@/lib/project-extensions");
+  ensureProjectExtensions();
+  const progress = await selectProjectsProgress(db, ids);
+  const [nextActions, blockers] = await Promise.all([
+    projectNextActions(ids),
+    selectActiveBlockers(db, ids),
+  ]);
+  const blockedBy = new Map<string, { id: string; name: string }[]>();
+  for (const { projectId, id, name } of blockers) {
+    const list = blockedBy.get(projectId);
+    if (list) list.push({ id, name });
+    else blockedBy.set(projectId, [{ id, name }]);
+  }
+  return {
+    weekStart,
+    projects: rows.map((row) => {
+      const next = nextActions.get(row.id);
+      return {
+        id: row.id,
+        name: row.name,
+        status: row.status,
+        progressPercent: progress.get(row.id)?.percent ?? 0,
+        nextAction: next ? { id: next.id, title: next.title } : null,
+        blockedBy: blockedBy.get(row.id) ?? [],
+      };
+    }),
+    milestonesDone,
+  };
+}
+
+/**
+ * For `weekly-review`: the projects still in the works with their progress, next action and
+ * blockers, and the milestones met within the week of `weekStart` (any day of it; the result
+ * names its Monday). Progress and blockers are read as they are now (`now` is accepted for the
+ * contracts' shared shape and for a future week-end snapshot). Checks the owner.
+ */
+export async function getProjectsWeekReview(
+  weekStart: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  now: Date = new Date(),
+): Promise<ProjectsWeekReview> {
+  await requireOwner();
+  return selectProjectsWeekReview(getDb(), weekStart);
 }

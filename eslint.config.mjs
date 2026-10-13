@@ -187,6 +187,54 @@ const GOALS_ONLY_CORE_AND_CONTRACTS = {
   message:
     "`goals` depende de `core`, `habits` y `projects`: no importa otros módulos (ellos le registran secciones por contrato).",
 };
+// `weekly-review` (SPEC-weekly-review "Contratos") is a consumer above `habits`, `tasks`, `projects`
+// and `goals`: it reads them only through their contracts (and their client-safe routes) and
+// nobody imports it. The invitation card (W4) reaches `today` and `goals` through the composition
+// root src/lib/review-extensions.ts, which is outside these modules.
+const WEEKLY_REVIEW_IMPORT = {
+  group: ["@/modules/weekly-review", "@/modules/weekly-review/*"],
+  message:
+    "`weekly-review` depende de este módulo: no puede importarlo (la tarjeta de invitación entra por la raíz de composición en src/lib/review-extensions.ts).",
+};
+const WEEKLY_REVIEW_MESSAGE =
+  "`weekly-review` lee `habits`, `tasks`, `projects` y `goals` solo por sus contratos (`contracts`) y sus rutas (`routes`).";
+// Same gotcha as GOALS_ONLY_CONTRACTS: a folder can only be let back in when it isn't left out, so
+// the contracts and routes are let in after their folder pattern and the barrels are exact paths.
+const WEEKLY_REVIEW_ONLY_CONTRACTS = {
+  group: [
+    "@/modules/habits/*",
+    "!@/modules/habits/contracts",
+    "!@/modules/habits/routes",
+    "@/modules/tasks/*",
+    "!@/modules/tasks/contracts",
+    "!@/modules/tasks/routes",
+    "@/modules/projects/*",
+    "!@/modules/projects/contracts",
+    "!@/modules/projects/routes",
+    "@/modules/goals/*",
+    "!@/modules/goals/contracts",
+    "!@/modules/goals/routes",
+  ],
+  message: WEEKLY_REVIEW_MESSAGE,
+};
+const WEEKLY_REVIEW_NO_BARRELS = [
+  { name: "@/modules/habits", message: WEEKLY_REVIEW_MESSAGE },
+  { name: "@/modules/tasks", message: WEEKLY_REVIEW_MESSAGE },
+  { name: "@/modules/projects", message: WEEKLY_REVIEW_MESSAGE },
+  { name: "@/modules/goals", message: WEEKLY_REVIEW_MESSAGE },
+];
+const WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS = {
+  group: [
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/reminders",
+    "@/modules/reminders/*",
+    "@/modules/today",
+    "@/modules/today/*",
+  ],
+  message:
+    "`weekly-review` depende de `core`, `habits`, `tasks`, `projects` y `goals`: no importa otros módulos.",
+};
 const moduleBoundaries = [
   {
     files: ["src/modules/goals/**/*.{ts,tsx}"],
@@ -195,7 +243,7 @@ const moduleBoundaries = [
         "error",
         {
           paths: GOALS_NO_BARRELS,
-          patterns: [GOALS_ONLY_CONTRACTS, GOALS_ONLY_CORE_AND_CONTRACTS],
+          patterns: [GOALS_ONLY_CONTRACTS, GOALS_ONLY_CORE_AND_CONTRACTS, WEEKLY_REVIEW_IMPORT],
         },
       ],
     },
@@ -211,7 +259,19 @@ const moduleBoundaries = [
           paths: GOALS_NO_BARRELS,
           // Only the other modules' folders stay closed; the tables are let in by leaving the
           // habits/projects pattern out (a negation can't reopen a file inside a closed folder).
-          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS],
+          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS, WEEKLY_REVIEW_IMPORT],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/weekly-review/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: WEEKLY_REVIEW_NO_BARRELS,
+          patterns: [WEEKLY_REVIEW_ONLY_CONTRACTS, WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS],
         },
       ],
     },
@@ -223,7 +283,7 @@ const moduleBoundaries = [
         "error",
         {
           paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL],
-          patterns: [FINANCE_FOR_TODAY, REMINDERS_IMPORT],
+          patterns: [FINANCE_FOR_TODAY, REMINDERS_IMPORT, WEEKLY_REVIEW_IMPORT],
         },
       ],
     },
@@ -233,7 +293,10 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: [GOALS_BARREL], patterns: [REMINDERS_ONLY_CORE, GOALS_IMPORT] },
+        {
+          paths: [GOALS_BARREL],
+          patterns: [REMINDERS_ONLY_CORE, GOALS_IMPORT, WEEKLY_REVIEW_IMPORT],
+        },
       ],
     },
   },
@@ -244,7 +307,13 @@ const moduleBoundaries = [
         "error",
         {
           paths: [REMINDERS_BARREL, GOALS_BARREL],
-          patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT, REMINDERS_IMPORT, GOALS_IMPORT],
+          patterns: [
+            FINANCE_ONLY_CORE,
+            TODAY_IMPORT,
+            REMINDERS_IMPORT,
+            GOALS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
+          ],
         },
       ],
     },
@@ -256,7 +325,13 @@ const moduleBoundaries = [
         "error",
         {
           paths: [REMINDERS_BARREL, GOALS_BARREL],
-          patterns: [FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT, GOALS_IMPORT],
+          patterns: [
+            FINANCE_IMPORT,
+            TODAY_IMPORT,
+            REMINDERS_IMPORT,
+            GOALS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
+          ],
         },
       ],
     },
@@ -268,7 +343,14 @@ const moduleBoundaries = [
         "error",
         {
           paths: [REMINDERS_BARREL, GOALS_BARREL],
-          patterns: [HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT, GOALS_IMPORT],
+          patterns: [
+            HABITS_IMPORT,
+            FINANCE_IMPORT,
+            TODAY_IMPORT,
+            REMINDERS_IMPORT,
+            GOALS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
+          ],
         },
       ],
     },
@@ -287,6 +369,7 @@ const moduleBoundaries = [
             TODAY_IMPORT,
             REMINDERS_IMPORT,
             GOALS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
           ],
         },
       ],
@@ -307,6 +390,7 @@ const moduleBoundaries = [
             TODAY_IMPORT,
             REMINDERS_IMPORT,
             GOALS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
           ],
         },
       ],

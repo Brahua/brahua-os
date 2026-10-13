@@ -8,23 +8,56 @@
 // getTasksDoneTodayCount(now) (for `today`'s "Día completo", D4): how many visible tasks were
 // completed on Lima's day of `now`, in one query.
 //
+// getTasksWeekReview(weekStart, now) (for `weekly-review`): the week's tasks done, the ones that
+// stayed open (due by its Sunday, overdue included) and the inbox, in four queries
+// (week-review.ts).
+//
+// moveTasksToDate(moves, to, now) / undoMoveTasks(undo) (for `weekly-review`): a batch of the
+// single postponement (`postponeTask`: only this occurrence of a recurring task) with an exact
+// undo that carries each task's id, the day it had and the day the move set.
+//
 // (The progress source for `projects` lives in progress-source.ts, T5.)
 import "server-only";
 import { and, count, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
-import { OWNER_TIME_ZONE } from "@/lib/time";
+import { OWNER_TIME_ZONE, ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { projects } from "@/modules/projects/db/schema";
 import { isClosed } from "@/modules/projects/project-close";
 import { tasks } from "./db/schema";
+import { revalidateTaskLists } from "./revalidate";
 import { visibleTask } from "./tasks";
 import { normalizeDueTime } from "./task-time";
 import { limaToday } from "./task-views";
 import { buildTasksTodaySummary, type TaskTodayItem } from "./today-summary";
+import { moveTasksOnDate, readTasksWeekReview, undoMovedTasks } from "./week-review";
+import {
+  moveTasksInputSchema,
+  undoMoveTasksInputSchema,
+  WEEK_REVIEW_ERRORS,
+  type MoveTasksResult,
+  type TaskMove,
+  type TasksWeekReview,
+  type TaskUndo,
+  type UndoMoveTasksResult,
+} from "./week-review-input";
 
 export type { TaskTodayDue, TaskTodayItem } from "./today-summary";
+export type {
+  MoveTasksResult,
+  MovedTask,
+  SkippedReason,
+  TasksWeekReview,
+  TaskMove,
+  TaskUndo,
+  UndoMoveTasksResult,
+  WeekReviewDoneTask,
+  WeekReviewOpenTask,
+} from "./week-review-input";
+export { MAX_BATCH_MOVES } from "./week-review-input";
 
 const ownArea = alias(lifeAreas, "today_own_area");
 const projectArea = alias(lifeAreas, "today_project_area");
@@ -124,4 +157,94 @@ export async function selectTasksDoneTodayCount(db: Database, now: Date): Promis
 export async function getTasksDoneTodayCount(now: Date): Promise<number> {
   await requireOwner();
   return selectTasksDoneTodayCount(getDb(), now);
+}
+
+// ── The weekly review ───────────────────────────────────────────────────────────────────────
+
+const monday = z.iso.date();
+
+/**
+ * The reading of the week of `weekStart` (any day of it; the result names its Monday): visible
+ * tasks done within it (Lima days), the ones still open (pending, due by its Sunday, overdue ones
+ * included; at most 200 listed, `openCount` the total), the last 5 done, and the pending inbox.
+ * Four queries. Trusts its caller (see getTasksWeekReview).
+ */
+export async function selectTasksWeekReview(
+  db: Database,
+  weekStart: string,
+): Promise<TasksWeekReview> {
+  if (!monday.safeParse(weekStart).success) {
+    throw new RangeError("weekStart must be a day as YYYY-MM-DD");
+  }
+  return readTasksWeekReview(db, mondayOf(weekStart));
+}
+
+/** For `weekly-review`: the week's tasks done, open and in the inbox. Checks the owner. */
+export async function getTasksWeekReview(weekStart: string): Promise<TasksWeekReview> {
+  await requireOwner();
+  return selectTasksWeekReview(getDb(), weekStart);
+}
+
+/** The Monday of the week of a day (YYYY-MM-DD, any day of it). */
+function mondayOf(day: string): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  const back = (date.getUTCDay() + 6) % 7;
+  return new Date(date.getTime() - back * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Moves a batch of tasks to the day `to` (today or later, Lima): each one as the single
+ * postponement does it (only this occurrence of a recurring task) and only while it still has the
+ * day it was read with (`from`): one edited meanwhile is left alone and listed as skipped. `moves`
+ * is a set (no repeated id, at most 200). The answer carries what the undo needs. Throws a
+ * RangeError for an invalid list or day. Trusts its caller (see moveTasksToDate).
+ */
+export async function moveTasksToDateWith(
+  db: Database,
+  moves: readonly TaskMove[],
+  to: string,
+  now: Date,
+): Promise<MoveTasksResult> {
+  const parsed = moveTasksInputSchema.safeParse({ moves, to });
+  if (!parsed.success) throw new RangeError(parsed.error.issues[0]?.message ?? "Invalid moves");
+  if (parsed.data.to < ownerDateKey(now)) throw new RangeError(WEEK_REVIEW_ERRORS.past);
+  return moveTasksOnDate(db, parsed.data.moves, parsed.data.to);
+}
+
+/**
+ * For `weekly-review`: "Mover las N al lunes" / "Mañana" in one call (see moveTasksToDateWith).
+ * Checks the owner and revalidates the task screens (the list, the projects and Hoy).
+ */
+export async function moveTasksToDate(
+  moves: readonly TaskMove[],
+  to: string,
+  now: Date = new Date(),
+): Promise<MoveTasksResult> {
+  await requireOwner();
+  const result = await moveTasksToDateWith(getDb(), moves, to, now);
+  revalidateTaskLists();
+  return result;
+}
+
+/**
+ * "Deshacer" of the batch: each task goes back to `previousDueDate` only while it is still
+ * pending and still on `movedTo`; one edited, completed or moved again meanwhile is not touched,
+ * and the answer says which were restored. Throws a RangeError for an invalid list. Trusts its
+ * caller (see undoMoveTasks).
+ */
+export async function undoMoveTasksWith(
+  db: Database,
+  undo: readonly TaskUndo[],
+): Promise<UndoMoveTasksResult> {
+  const parsed = undoMoveTasksInputSchema.safeParse({ undo });
+  if (!parsed.success) throw new RangeError(parsed.error.issues[0]?.message ?? "Invalid undo");
+  return undoMovedTasks(db, parsed.data.undo);
+}
+
+/** For `weekly-review`: the exact undo of `moveTasksToDate`. Checks the owner. */
+export async function undoMoveTasks(undo: readonly TaskUndo[]): Promise<UndoMoveTasksResult> {
+  await requireOwner();
+  const result = await undoMoveTasksWith(getDb(), undo);
+  revalidateTaskLists();
+  return result;
 }
