@@ -87,20 +87,21 @@ test("the navigation comes from the registry and marks the current page @respons
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy, Proyectos, Tareas, Hábitos, Finanzas, Áreas and Ajustes. On
+  // Only available modules: Hoy, Proyectos, Tareas, Hábitos, Finanzas, Metas, Áreas and Ajustes. On
   // desktop Áreas and Ajustes are pinned to the sidebar footer; on the phone seven don't fit around
   // the capture key, so Hábitos takes the cell after it (SPEC-habits) and Tareas, Finanzas, Áreas
   // and Ajustes go under "Más" (SPEC-finance "Navegación").
   const links = page.getByRole("navigation").getByRole("link");
   if (desktop) {
-    await expect(links).toHaveCount(7);
+    await expect(links).toHaveCount(8);
     await expect(links.nth(0)).toHaveAccessibleName("Hoy");
     await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
     await expect(links.nth(2)).toHaveAccessibleName("Tareas");
     await expect(links.nth(3)).toHaveAccessibleName("Hábitos");
     await expect(links.nth(4)).toHaveAccessibleName("Finanzas");
-    await expect(links.nth(5)).toHaveAccessibleName("Áreas");
-    await expect(links.nth(6)).toHaveAccessibleName("Ajustes");
+    await expect(links.nth(5)).toHaveAccessibleName("Metas");
+    await expect(links.nth(6)).toHaveAccessibleName("Áreas");
+    await expect(links.nth(7)).toHaveAccessibleName("Ajustes");
     const footer = page.getByRole("navigation", { name: "Secundaria" });
     await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
     await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();
@@ -347,8 +348,8 @@ test.describe("keyboard shortcuts", () => {
     await recordKeys(page);
     const historyLength = await page.evaluate(() => history.length);
 
-    // 6 is unbound (its module doesn't exist yet; 2 is Proyectos, 3 Tareas, 4 Hábitos, 5 Finanzas).
-    for (const key of ["6", "Meta+1", "Control+1", "Shift+1"]) {
+    // 9 is unbound (1–8 are taken: Hoy, Proyectos, Tareas, Hábitos, Finanzas, Metas, Áreas, Ajustes).
+    for (const key of ["9", "Meta+1", "Control+1", "Shift+1"]) {
       await page.keyboard.press(key);
     }
     const keys = (await recordedKeys(page)) as { key: string; prevented: boolean }[];

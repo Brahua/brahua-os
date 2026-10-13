@@ -40,6 +40,7 @@ export const SPEC_MODULES = {
   "finance-payments.spec.ts": ["finance", "today"],
   "finance-summary.spec.ts": ["finance"],
   "finance.spec.ts": ["finance", "projects", "habits"],
+  "goals.spec.ts": ["goals"],
   "habits-dayparts.spec.ts": ["habits", "today", "tasks"],
   "habits-history.spec.ts": ["habits"],
   "habits-measure.spec.ts": ["habits"],
@@ -81,6 +82,7 @@ export const ROUTE_MODULES = {
   tasks: "tasks",
   projects: "projects",
   habits: "habits",
+  goals: "goals",
   finance: "finance",
   "settings/reminders": "reminders",
   "api/telegram": "reminders",
@@ -287,7 +289,7 @@ export function classifyFile(file, repo) {
     }
     if (rest.startsWith("settings/reminders/")) return { kind: "modules", modules: ["reminders"] };
     const route = rest.split("/")[0];
-    if (["tasks", "projects", "habits", "finance"].includes(route)) {
+    if (["tasks", "projects", "habits", "finance", "goals"].includes(route)) {
       return { kind: "modules", modules: [route], routes: [route] };
     }
     if (LEAF_ROUTES.includes(route)) return { kind: "routes", routes: [route] };

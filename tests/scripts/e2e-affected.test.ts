@@ -227,6 +227,7 @@ describe("SPEC_MODULES against the real repository", () => {
   const SUPPORT_HINTS: Record<string, string> = {
     finance: "finance",
     habits: "habits",
+    goals: "goals",
     tasks: "tasks",
     "task-views": "tasks",
     "task-tags": "tasks",
@@ -272,6 +273,7 @@ describe("SPEC_MODULES against the real repository", () => {
     const own: Record<string, string> = {
       finance: "finance",
       habits: "habits",
+      goals: "goals",
       project: "projects",
       task: "tasks",
       today: "today",
