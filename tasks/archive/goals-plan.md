@@ -1,7 +1,7 @@
 # Plan de implementación: goals
 
-> Spec: [`SPEC-goals.md`](../SPEC-goals.md) (APROBADO v1.0, 2026-10-12) · Tareas: [`todo.md`](todo.md)
-> Planes anteriores en [`archive/`](archive/).
+> Spec: [`SPEC-goals.md`](../SPEC-goals.md) (APROBADO v1.0, 2026-10-12) · Tareas: [`goals-todo.md`](goals-todo.md)
+> Planes anteriores en [`archive/`](archive/). **Cerrado el 2026-10-13.**
 
 ## Enfoque
 

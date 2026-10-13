@@ -232,3 +232,27 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   A guide that comes from memory is wrong somewhere; verify every variable name, command and label.
 - **Do not add code to satisfy jsdom:** R4's first Enter-in-name fix compensated for jsdom's implicit submit; the
   E2E showed Chromium already submitted, and the extra handler went. Decide behaviour in the real browser.
+
+## Lessons from `goals` (retrospective, 2026-10-13)
+
+- **Integration tests are worth running one file at a time:** G2 shipped three bugs only CI caught (a fixture whose
+  habit started after the logs it counted, a read that lost a race and reported "active", an ESLint rule that blocked
+  the FK import). Run the integration file you wrote (`rtk proxy pnpm test:integration <file>`), stop the test DB and
+  delete `.pgdata` afterwards; that is the "reproduce one failing CI spec" exception made routine for new files.
+- **`ON DELETE RESTRICT` is SQLSTATE `23001`, not `23503`:** a foreign key that does not exist is `23503`; deleting a
+  referenced row under RESTRICT is `23001`. Assert both, each with its own code.
+- **A read that loses a race reports what is stored:** when achieving on read (`UPDATE … WHERE status = 'active'`),
+  the loser matches no row and must re-read the row instead of returning its stale in-memory status.
+- **Composition roots are mocked in page tests:** a page that calls `ensureXExtensions()` pulls the module (and the
+  DB) into its unit test. Mock `@/lib/<x>-extensions` where `@/lib/project-extensions` is already mocked.
+- **Adding a navigation item touches other specs:** `e2e/home.spec.ts` counts links and uses the free shortcut number;
+  every screenshot with the sidebar changes, so dispatch `update-screenshots.yml` right after the push.
+- **Module boundaries need a one-file exception for FKs:** a schema file must import the other module's table. The
+  ESLint block for `goals/db/schema.ts` leaves the habits/projects pattern out (a `!` negation cannot reopen a file
+  inside a closed folder).
+- **Exact undo carries what it applied:** moves of period, the weekly objective and entries each carry the previous
+  value and what they left, and write only if the row still holds it (otherwise "cambió mientras tanto").
+- **Chrome checkpoint quirks:** a click right after `navigate` can precede hydration, and a click while the page
+  scrolls is lost; use element refs, wait, and re-click. A confirm button that renders after the first click needs its
+  own lookup.
+

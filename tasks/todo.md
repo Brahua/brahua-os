@@ -1,20 +1,10 @@
 # Tareas
 
-> Módulo en curso: **`goals`** (spec aprobada 2026-10-12; plan en [`plan.md`](plan.md)). Último módulo cerrado: **`reminders`** (2026-10-12; plan y tareas en [`archive/reminders-plan.md`](archive/reminders-plan.md) y [`archive/reminders-todo.md`](archive/reminders-todo.md)). El corte `polish` quedó completo. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Último módulo cerrado: **`goals`** (2026-10-13; plan y tareas en [`archive/goals-plan.md`](archive/goals-plan.md) y [`archive/goals-todo.md`](archive/goals-todo.md)). **Siguiente: `weekly-review`** (aún sin spec: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `goals`
+## Módulo `goals`: cerrado el 2026-10-13
 
-> Plan: [`plan.md`](plan.md) · Spec: [`SPEC-goals.md`](../SPEC-goals.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(goals): …`). Máximo un E2E nuevo en todo el módulo.
-
-- [x] **G1: Datos, metas manuales y pantalla** (`feat/goals-g1`, PR #111 integrado; ver `docs/HANDOFF.md` → "Cómo funciona goals → G1") — migración aditiva (`goals`, `goal_entries`, `weekly_objectives`, `CHECK`, locks en el espacio 5000, `visibleGoal`) y exportación; `pace.ts` y `progress.ts` puros con tablas de casos; `/goals` (crear en < 20 s, editar, archivar, eliminar y deshacer, orden con arrastre, «Anteriores»); «+N» con «Deshacer»; lograr y reabrir; copy sin culpa con su prueba; manifiesto; el único E2E (con `SPEC_MODULES`). Deja slots para G2 y G3.
-- [x] **G2: Hábito y proyecto** (`feat/goals-g2`, PR abierto; ver `docs/HANDOFF.md` → "Cómo funciona goals → G2") — `getHabitDoneDays` (habits) y `getProjectProgress` (projects) con sus variantes `select…`; fuentes `habit` y `project` en formulario, filas, detalle y progreso (lograr sola al leer, sin reabrir sola); cambiar la fuente al editar conserva las entradas; regla de ESLint de fronteras con su prueba; `demo-data.ts` ya no choca con las FK `RESTRICT`. Sin E2E nueva.
-- [x] **G3: Objetivo semanal y enlaces** (`feat/goals-g3`, PR abierto; ver `docs/HANDOFF.md` → "Cómo funciona goals → G3") — «Esta semana» en `/goals` (objetivo de 1–140 caracteres por semana de Lima, edición en línea, «Deshacer» exacto, lock por semana); `registerHabitSection` en `habits` y la raíz de composición `src/lib/goal-extensions.ts` con la sección «Metas» en el detalle de hábitos y proyectos; `revalidateGoalScreens` revalida también `/habits` y `/projects`. Sin E2E nueva.
-- [ ] **G4: Cierre** — (**parte de código hecha** en `feat/goals-g4`, PR abierto: «Pasar al próximo periodo»; ver `docs/HANDOFF.md` → «Cómo funciona goals → G4»; faltan retrospectiva, backlog, mapa y archivo) «Pasar al próximo periodo», retrospectiva en `CLAUDE.md`, backlog consolidado, mapa y HANDOFF; archivar plan y tareas.
-
-### Checkpoint final
-- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
-- [ ] Se cumplen los criterios de éxito de `SPEC-goals.md`.
-- [ ] Revisión con el owner.
+Plan y tareas archivados en [`archive/goals-plan.md`](archive/goals-plan.md) y [`archive/goals-todo.md`](archive/goals-todo.md). G1–G4 en producción (#111–#114). **Siguiente: `weekly-review`** (sin spec todavía: se arranca con `spec-driven-development`).
 
 ## Corte `polish` (benchmark rimu, decidido con el owner el 2026-10-06)
 
@@ -32,6 +22,17 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+### `goals` → backlog consolidado (G1–G4, cierre)
+
+Para decidir con el owner o tomar entre módulos. Detalle y decisiones en `docs/HANDOFF.md` → «Cómo funciona goals».
+
+- [ ] **Plural en «Para llegar: ~1 días por semana»** (visto en producción en el Checkpoint): el copy de «siguiente paso» no pone singular con 1 (`goals-copy.ts`).
+- [ ] **Filtro por área en `/goals`:** está en las pantallas de `SPEC-goals` y no entró en G1–G4.
+- [ ] **Ritmo de una meta manual pasada al próximo periodo:** compara el total contra lo esperado del periodo nuevo (decisión autónoma de G4); medir solo con las entradas del periodo exige llevar la fecha de cada entrada al `GoalItem`.
+- [ ] **Sin recorrer en producción:** la sección «Metas» de la página de un proyecto, las metas de proyecto, y el teclado/foco en el iPhone (el Checkpoint cubrió hábito y cantidad).
+- [ ] **Pruebas de foco de `reminders` intermitentes en CI** (`reminders-telegram-section` el 2026-10-12 y `reminders-channel-section` el 2026-10-13, ambas `toHaveFocus` y pasan al reintentar): buscar la causa en vez de reintentar.
+- [ ] **El job de unitarias no es determinista de noche:** las E2E de fechas fallan si la corrida cruza 00:00 Lima (05:00 UTC); fijar un reloj en `projects`, `today-projects` y `task-views`.
 
 ### `reminders` → backlog consolidado (R1–R5, cierre R6)
 
