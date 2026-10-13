@@ -25,6 +25,7 @@ import {
 import { PROJECT_LINKS_KEY } from "@/modules/projects/lock-keys";
 import { MILESTONES_ADVISORY_SPACE } from "@/modules/projects/milestones";
 import { PROJECT_DEPENDENCIES_LOCK, PROJECTS_ADVISORY_SPACE } from "@/modules/projects/projects";
+import { goalEntries, goals } from "@/modules/goals/db/schema";
 import { listProjects } from "@/modules/projects/queries";
 import {
   getTasksDoneTodayCount,
@@ -300,6 +301,86 @@ describe("insert", () => {
     const last = Math.max(...[...milestones, ...projectTasks].map((row) => row.doneAt!.getTime()));
     expect(project.completedAt!.getTime()).toBeGreaterThanOrEqual(last);
     expect(project.updatedAt.getTime()).toBeGreaterThanOrEqual(project.completedAt!.getTime());
+  });
+});
+
+/** A goal of the given source, on the year 2026 (the owner's own, made after the demo). */
+async function insertGoal(values: Partial<typeof goals.$inferInsert> & { title: string }) {
+  const [row] = await testDb
+    .insert(goals)
+    .values({
+      periodKind: "year",
+      year: 2026,
+      sourceKind: "manual",
+      target: 12,
+      unit: "libros",
+      position: 0,
+      ...values,
+    })
+    .returning({ id: goals.id });
+  return row.id;
+}
+
+describe("goals that follow demo rows (G2)", () => {
+  test("remove deletes the goals that follow a demo habit or project (and their entries), keeps the rest and closes up the order", async () => {
+    await insertDemoData(testDb, NOW);
+    const ids = demoIds();
+    const manual = await insertGoal({ title: "Leer", position: 0 });
+    await testDb.insert(goalEntries).values({ goalId: manual, delta: 2, entryDate: "2026-10-01" });
+    const onHabit = await insertGoal({
+      title: "Sobre un hábito",
+      position: 1,
+      sourceKind: "habit",
+      habitId: ids.habits[0],
+      unit: null,
+      target: 40,
+    });
+    const onProject = await insertGoal({
+      title: "Sobre un proyecto",
+      position: 2,
+      sourceKind: "project",
+      projectId: ids.projects[0],
+      unit: null,
+      target: 100,
+    });
+    const last = await insertGoal({ title: "Última", position: 3 });
+
+    const preview = await previewRemoveDemo(testDb);
+    expect(preview).toMatchObject({ goals: 2, goalEntries: 0 });
+    // Without this step the RESTRICT foreign keys would stop the removal: it must not throw.
+    expect(await removeDemoData(testDb)).toEqual(preview);
+
+    const left = await testDb
+      .select({ id: goals.id, position: goals.position })
+      .from(goals)
+      .orderBy(goals.position);
+    expect(left).toEqual([
+      { id: manual, position: 0 },
+      { id: last, position: 1 },
+    ]);
+    expect(left.map((goal) => goal.id)).not.toContain(onHabit);
+    expect(left.map((goal) => goal.id)).not.toContain(onProject);
+    expect(await testDb.$count(goalEntries)).toBe(1);
+  });
+
+  test("replace deletes the habit and project goals and keeps the manual ones", async () => {
+    await insertDemoData(testDb, NOW);
+    const ids = demoIds();
+    const manual = await insertGoal({ title: "Leer", position: 0 });
+    await insertGoal({
+      title: "Sobre un hábito",
+      position: 1,
+      sourceKind: "habit",
+      habitId: ids.habits[0],
+      unit: null,
+      target: 40,
+    });
+
+    const { deleted } = await replaceWithDemoData(testDb, NOW);
+    expect(deleted).toMatchObject({ goals: 1 });
+    expect(await testDb.select({ id: goals.id, position: goals.position }).from(goals)).toEqual([
+      { id: manual, position: 0 },
+    ]);
   });
 });
 

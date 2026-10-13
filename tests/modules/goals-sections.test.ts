@@ -1,9 +1,9 @@
-// G1 of `goals`: the sections of /goals, the optimistic list and what a row says.
+// `goals`: the sections of /goals, the optimistic list and what a row says.
 import { describe, expect, test } from "vitest";
 import type { GoalItem } from "@/modules/goals/goal-input";
 import { applyGoalListChange, entryPatch, neighborOf } from "@/modules/goals/goal-list-optimistic";
 import { groupGoals, sectionOf } from "@/modules/goals/goal-sections";
-import { readGoal, unitOf } from "@/modules/goals/goal-text";
+import { readGoal, sourceReached, unitOf } from "@/modules/goals/goal-text";
 
 let serial = 0;
 function goal(values: Partial<GoalItem> = {}): GoalItem {
@@ -25,11 +25,14 @@ function goal(values: Partial<GoalItem> = {}): GoalItem {
     position: serial,
     area: null,
     sum: 0,
+    source: null,
     ...values,
   };
 }
 
 const TODAY = "2026-10-12"; // T4 2026
+const HABIT_ID = "00000000-0000-4000-8000-0000000000aa";
+const PROJECT_ID = "00000000-0000-4000-8000-0000000000bb";
 
 describe("sections", () => {
   test("a goal sits in its period's section while the period is current", () => {
@@ -198,13 +201,84 @@ describe("readGoal", () => {
   test("an archived goal has no pace line", () => {
     expect(readGoal(goal({ status: "archived", sum: 3 }), TODAY)).toMatchObject({ line: null });
   });
-  test("a habit or project goal is 'not available yet'", () => {
+  test("a habit or project goal whose source is gone says so, without a number", () => {
     expect(readGoal(goal({ sourceKind: "habit", unit: null, habitId: "x" }), TODAY)).toMatchObject({
       kind: "unavailable",
     });
+    expect(
+      readGoal(goal({ sourceKind: "project", unit: null, projectId: "x", target: 100 }), TODAY),
+    ).toMatchObject({ kind: "unavailable" });
     expect(unitOf(goal({ sourceKind: "habit", unit: null }))).toBe("días");
     expect(unitOf(goal({ sourceKind: "project", unit: null }))).toBe("%");
     expect(unitOf(goal())).toBe("libros");
+  });
+  test("a habit goal: '34 de 40 días', a link to the habit and a pace line", () => {
+    const reading = readGoal(
+      goal({
+        periodKind: "quarter",
+        year: 2026,
+        quarter: 4,
+        sourceKind: "habit",
+        unit: null,
+        habitId: HABIT_ID,
+        target: 40,
+        source: { kind: "habit", name: "Correr", done: 34, expected: 36 },
+      }),
+      // Day 42 of 92: 40 × 42 / 92 ≈ 18.3 expected, so 34 is well ahead.
+      "2026-11-11",
+    );
+    expect(reading).toMatchObject({
+      kind: "ok",
+      count: "34 de 40 días",
+      value: 34,
+      source: { kind: "habit", name: "Correr", href: `/habits/${HABIT_ID}` },
+    });
+    expect(reading.kind === "ok" && reading.line).toMatch(/^Vas \d+ por delante de tu ritmo$/);
+  });
+  test("a project goal: '62 %', a link to the project and no pace", () => {
+    const project = goal({
+      sourceKind: "project",
+      unit: null,
+      projectId: PROJECT_ID,
+      target: 100,
+      source: { kind: "project", name: "Lanzar brahua-os", percent: 62, finished: false },
+    });
+    const reading = readGoal(project, TODAY);
+    expect(reading).toMatchObject({
+      kind: "ok",
+      count: "62 %",
+      value: 62,
+      pace: null,
+      line: null,
+      source: { kind: "project", name: "Lanzar brahua-os", href: `/projects/${PROJECT_ID}` },
+    });
+    // The project finished: the goal reads full and achieved.
+    const finished = goal({
+      ...project,
+      status: "achieved",
+      source: { kind: "project", name: "Lanzar brahua-os", percent: 62, finished: true },
+    });
+    expect(readGoal(finished, TODAY)).toMatchObject({ value: 100, line: "Meta lograda" });
+  });
+  test("a manual goal has no source link; sourceReached reads each source", () => {
+    expect(readGoal(goal({ sum: 5 }), TODAY)).toMatchObject({ source: null });
+    expect(sourceReached(goal({ sum: 99 }))).toBe(false);
+    const habit = (done: number) =>
+      goal({
+        sourceKind: "habit",
+        target: 40,
+        source: { kind: "habit", name: "Correr", done, expected: 40 },
+      });
+    expect(sourceReached(habit(39))).toBe(false);
+    expect(sourceReached(habit(40))).toBe(true);
+    const project = (finished: boolean) =>
+      goal({
+        sourceKind: "project",
+        target: 100,
+        source: { kind: "project", name: "x", percent: 100, finished },
+      });
+    expect(sourceReached(project(false))).toBe(false);
+    expect(sourceReached(project(true))).toBe(true);
   });
   test("the value never goes below zero", () => {
     expect(readGoal(goal({ sum: -4 }), TODAY)).toMatchObject({ value: 0, count: "0 de 12 libros" });

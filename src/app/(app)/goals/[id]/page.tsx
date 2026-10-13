@@ -10,7 +10,7 @@ import { GoalDetail } from "@/modules/goals/components/goal-detail";
 import { GoalsScreen } from "@/modules/goals/components/goals-screen";
 import type { GoalAreaSummary } from "@/modules/goals/goal-input";
 import { GOALS_COPY } from "@/modules/goals/goals-copy";
-import { getGoal, listGoalEntries } from "@/modules/goals/queries";
+import { getGoal, listGoalEntries, listGoalSourceOptions } from "@/modules/goals/queries";
 import { GOALS_PATH } from "@/modules/goals/routes";
 
 type GoalPageProps = { params: Promise<{ id: string }> };
@@ -34,10 +34,11 @@ export default async function GoalPage({ params }: GoalPageProps) {
   const { id } = await params;
   // One instant for the whole page: the pace and an entry use the same Lima day.
   const today = ownerDateKey(new Date());
-  const [goal, entries, lifeAreas] = await Promise.all([
+  const [goal, entries, lifeAreas, sources] = await Promise.all([
     getGoal(id),
     listGoalEntries(id),
     listLifeAreas(),
+    listGoalSourceOptions(),
   ]);
   if (!goal) notFound();
   const areas = lifeAreas.map(({ id: areaId, slug, name, icon, color }): GoalAreaSummary => ({
@@ -49,7 +50,7 @@ export default async function GoalPage({ params }: GoalPageProps) {
   }));
 
   return (
-    <GoalsScreen today={today} areas={areas}>
+    <GoalsScreen today={today} areas={areas} sources={sources}>
       <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
         <Link
           href={GOALS_PATH}

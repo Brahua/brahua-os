@@ -1,10 +1,11 @@
-// G1 of `goals` against the throwaway database: create, edit, archive, delete and undo through
+// `goals` against the throwaway database (G1, and G2's habit and project sources): create, edit, archive, delete and undo through
 // the actions, the manual entries ("+N" under the goal's lock, two at once add up, achieved once,
 // the exact entry's undo), achieved and reopened, a past goal that keeps its state, the manual
-// order under the order lock, authorization of every action and the export.
+// order under the order lock, habit and project goals (their reading, the achievement when they are
+// read, editing the source), authorization of every action and the export.
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { INVALID_FIELDS_MESSAGE, UNAUTHORIZED_MESSAGE } from "@/lib/action-result";
 import { buildExport } from "@/lib/data-export";
 import { lifeAreas } from "@/modules/core/db/schema";
@@ -23,8 +24,11 @@ import {
   updateGoal,
 } from "@/modules/goals/actions";
 import { goalEntries, goals } from "@/modules/goals/db/schema";
+import { habitLogs, habitPauses, habits } from "@/modules/habits/db/schema";
+import { projects } from "@/modules/projects/db/schema";
 import { GOAL_ERRORS } from "@/modules/goals/goals-copy";
 import { GOALS_ADVISORY_SPACE, GOALS_ORDER_KEY } from "@/modules/goals/goals";
+import { selectVisibleGoals } from "@/modules/goals/goals";
 import { getDeletedGoal, getGoal, listGoalEntries, listGoals } from "@/modules/goals/queries";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
@@ -49,6 +53,7 @@ afterAll(() => {
 });
 
 beforeEach(async () => {
+  habitOrder = 0;
   vi.mocked(revalidatePath).mockClear();
   await seed(testDb);
   request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
@@ -81,6 +86,40 @@ async function row(id: string) {
   const [found] = await testDb.select().from(goals).where(eq(goals.id, id));
   return found;
 }
+
+let habitOrder = 0;
+/** A habit (daily, started on 2026-01-01 unless told otherwise) and its id. */
+async function newHabit(values: Partial<typeof habits.$inferInsert> = {}): Promise<string> {
+  const [habit] = await testDb
+    .insert(habits)
+    .values({
+      name: "Correr",
+      measure: "check",
+      frequency: "daily",
+      startDate: "2026-01-01",
+      sortOrder: habitOrder++,
+      ...values,
+    })
+    .returning({ id: habits.id });
+  return habit.id;
+}
+
+/** A project (active unless told otherwise) and its id. */
+async function newProject(values: Partial<typeof projects.$inferInsert> = {}): Promise<string> {
+  const [project] = await testDb
+    .insert(projects)
+    .values({
+      name: "Lanzar brahua-os",
+      lifeAreaId: await areaId("work"),
+      status: "active",
+      ...values,
+    })
+    .returning({ id: projects.id });
+  return project.id;
+}
+
+const logDay = (habitId: string, day: string) =>
+  testDb.insert(habitLogs).values({ habitId, day, quantity: 1, target: 1 });
 
 const titles = async () => (await listGoals()).map((goal) => goal.title);
 
@@ -204,25 +243,33 @@ describe("create", () => {
     expect(await testDb.select().from(goals)).toHaveLength(0);
   });
 
-  test("habit and project goals are validated but not available yet (G2): refused, nothing stored", async () => {
-    const habit = await createGoal({
-      title: "Correr",
-      periodKind: "quarter",
-      year: 2026,
-      quarter: 4,
-      sourceKind: "habit",
-      habitId: MISSING,
-      target: 40,
-    });
-    expect(habit).toEqual({
+  test("a habit or project that doesn't exist (or is deleted, or a habit archived) is refused, nothing stored", async () => {
+    const refusal = {
       ok: false,
       error: INVALID_FIELDS_MESSAGE,
       fieldErrors: { sourceKind: [GOAL_ERRORS.sourceUnavailable] },
-    });
-    expect(
-      await createGoal({ title: "Lanzar", ...YEAR, sourceKind: "project", projectId: MISSING }),
-    ).toMatchObject({ ok: false, fieldErrors: { sourceKind: [GOAL_ERRORS.sourceUnavailable] } });
+    };
+    const habit = (habitId: string) =>
+      createGoal({
+        title: "Correr",
+        periodKind: "quarter",
+        year: 2026,
+        quarter: 4,
+        sourceKind: "habit",
+        habitId,
+        target: 40,
+      });
+    const project = (projectId: string) =>
+      createGoal({ title: "Lanzar", ...YEAR, sourceKind: "project", projectId });
+    expect(await habit(MISSING)).toEqual(refusal);
+    expect(await project(MISSING)).toEqual(refusal);
+    expect(await habit(await newHabit({ deletedAt: new Date() }))).toEqual(refusal);
+    expect(await habit(await newHabit({ archivedAt: new Date() }))).toEqual(refusal);
+    expect(await project(await newProject({ deletedAt: new Date() }))).toEqual(refusal);
     expect(await testDb.select().from(goals)).toHaveLength(0);
+    // Positive control: the same calls with a live habit and project are created.
+    expect(await habit(await newHabit())).toMatchObject({ ok: true });
+    expect(await project(await newProject())).toMatchObject({ ok: true });
   });
 
   test("goals created at the same time get distinct, contiguous positions (the order lock)", async () => {
@@ -276,17 +323,7 @@ describe("edit", () => {
     expect(await row(goal.id)).toMatchObject({ periodKind: "year", year: 2026, quarter: null });
   });
 
-  test("a goal of another source cannot be edited as manual, and a missing one is not found", async () => {
-    const goal = await create();
-    expect(
-      await updateGoal({
-        id: goal.id,
-        title: "x",
-        sourceKind: "habit",
-        habitId: MISSING,
-        target: 5,
-      }),
-    ).toEqual({ ok: false, error: GOAL_ERRORS.sourceChange });
+  test("a missing goal is not found", async () => {
     expect(
       await updateGoal({ id: MISSING, title: "x", sourceKind: "manual", target: 5, unit: "u" }),
     ).toEqual({
@@ -816,5 +853,341 @@ describe("export", () => {
       expect.objectContaining({ text: "Terminar G1" }),
     ]);
     expect(data.excludedTables).not.toContain("goals");
+  });
+});
+
+describe("habit and project goals (G2)", () => {
+  /** Monday 2026-10-12, 10:00 in Lima (T4 2026). Only Date is faked (the pool's timers stay real). */
+  const NOW = new Date("2026-10-12T15:00:00Z");
+  const T4 = { periodKind: "quarter", year: 2026, quarter: 4 } as const;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function createHabitGoal(
+    habitId: string,
+    target = 40,
+    values: Record<string, unknown> = {},
+  ) {
+    const result = await createGoal({
+      title: "Correr",
+      ...T4,
+      sourceKind: "habit",
+      habitId,
+      target,
+      ...values,
+    });
+    if (!result.ok) throw new Error(`createGoal failed: ${JSON.stringify(result)}`);
+    return result.data;
+  }
+
+  async function createProjectGoal(projectId: string, values: Record<string, unknown> = {}) {
+    const result = await createGoal({
+      title: "Lanzar la v1",
+      ...YEAR,
+      sourceKind: "project",
+      projectId,
+      ...values,
+    });
+    if (!result.ok) throw new Error(`createGoal failed: ${JSON.stringify(result)}`);
+    return result.data;
+  }
+
+  test("a habit goal reads the days done in its period: pauses and days outside it are out", async () => {
+    const habitId = await newHabit();
+    // September 30 is the previous quarter; October 2 is paused (its log doesn't count).
+    for (const day of ["2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"]) {
+      await logDay(habitId, day);
+    }
+    await testDb.insert(habitPauses).values({
+      habitId,
+      startDate: "2026-10-02",
+      endDate: "2026-10-02",
+    });
+    const created = await createHabitGoal(habitId);
+    expect(created).toMatchObject({
+      sourceKind: "habit",
+      habitId,
+      projectId: null,
+      unit: null,
+      target: 40,
+      status: "active",
+    });
+    // 1–11 October elapsed (today isn't done, so it isn't expected yet) minus the paused day.
+    expect((await getGoal(created.id))?.source).toEqual({
+      kind: "habit",
+      name: "Correr",
+      done: 2,
+      expected: 10,
+    });
+  });
+
+  test("a habit that isn't scheduled on some weekdays leaves them out; 'X por semana' counts each logged day", async () => {
+    const fixed = await newHabit({ name: "Gimnasio", frequency: "weekdays", weekdays: [1, 3] });
+    // Monday 10-05, Tuesday 10-06 (not scheduled), Wednesday 10-07.
+    for (const day of ["2026-10-05", "2026-10-06", "2026-10-07"]) await logDay(fixed, day);
+    const weekly = await newHabit({ name: "Nadar", frequency: "weekly_count", weeklyTarget: 2 });
+    for (const day of ["2026-10-05", "2026-10-06", "2026-10-07"]) await logDay(weekly, day);
+    const fixedGoal = await createHabitGoal(fixed, 20, { title: "Gimnasio" });
+    const weeklyGoal = await createHabitGoal(weekly, 20, { title: "Nadar" });
+    expect((await getGoal(fixedGoal.id))?.source).toMatchObject({ done: 2 });
+    expect((await getGoal(weeklyGoal.id))?.source).toMatchObject({ done: 3 });
+  });
+
+  test("a project goal reads the project's percentage and name; the project's page figure is the same", async () => {
+    const projectId = await newProject();
+    const goal = await createProjectGoal(projectId);
+    expect(goal).toMatchObject({ sourceKind: "project", projectId, habitId: null, target: 100 });
+    expect((await getGoal(goal.id))?.source).toEqual({
+      kind: "project",
+      name: "Lanzar brahua-os",
+      percent: 0,
+      finished: false,
+    });
+  });
+
+  test("a habit goal is achieved, once, when it is read after reaching its days; never reopened by itself", async () => {
+    const habitId = await newHabit();
+    const goal = await createHabitGoal(habitId, 3);
+    for (const day of ["2026-10-01", "2026-10-02", "2026-10-03"]) await logDay(habitId, day);
+    // Several reads at once: one achievement, one date.
+    const reads = await Promise.all([listGoals(), listGoals(), getGoal(goal.id), listGoals()]);
+    for (const read of reads) {
+      const found = Array.isArray(read) ? read.find((item) => item.id === goal.id) : read;
+      expect(found).toMatchObject({ status: "achieved" });
+    }
+    const first = await row(goal.id);
+    expect(first).toMatchObject({ status: "achieved" });
+    expect(first.achievedAt).not.toBeNull();
+    // Idempotent: the next read leaves the date alone.
+    await listGoals();
+    expect((await row(goal.id)).achievedAt).toEqual(first.achievedAt);
+    // The owner corrects a past log: the goal stays achieved (decisión autónoma para revisar con el owner).
+    await testDb.delete(habitLogs).where(eq(habitLogs.habitId, habitId));
+    const after = (await listGoals()).find((item) => item.id === goal.id);
+    expect(after).toMatchObject({ status: "achieved", source: { done: 0 } });
+    expect((await row(goal.id)).achievedAt).toEqual(first.achievedAt);
+  });
+
+  test("a goal that is below its days is not achieved by a read (positive control of the test above)", async () => {
+    const habitId = await newHabit();
+    const goal = await createHabitGoal(habitId, 3);
+    await logDay(habitId, "2026-10-01");
+    await logDay(habitId, "2026-10-02");
+    expect((await listGoals()).find((item) => item.id === goal.id)).toMatchObject({
+      status: "active",
+    });
+    expect((await row(goal.id)).achievedAt).toBeNull();
+  });
+
+  test("an archived goal is not achieved by a read; reactivated, the next read does", async () => {
+    const habitId = await newHabit();
+    const goal = await createHabitGoal(habitId, 1);
+    await archiveGoal({ id: goal.id });
+    await logDay(habitId, "2026-10-01");
+    expect((await listGoals()).find((item) => item.id === goal.id)).toMatchObject({
+      status: "archived",
+    });
+    await unarchiveGoal({ id: goal.id });
+    expect((await listGoals()).find((item) => item.id === goal.id)).toMatchObject({
+      status: "achieved",
+    });
+  });
+
+  test("a project goal is achieved when the project becomes «terminado», not before", async () => {
+    const projectId = await newProject();
+    const goal = await createProjectGoal(projectId);
+    expect((await listGoals())[0]).toMatchObject({ status: "active" });
+    await testDb
+      .update(projects)
+      .set({ status: "done", completedAt: new Date() })
+      .where(eq(projects.id, projectId));
+    const achieved = (await listGoals())[0];
+    expect(achieved).toMatchObject({
+      id: goal.id,
+      status: "achieved",
+      source: { finished: true },
+    });
+    expect((await row(goal.id)).achievedAt).not.toBeNull();
+  });
+
+  test("creating a goal whose source already reached the target achieves it right away", async () => {
+    const habitId = await newHabit();
+    await logDay(habitId, "2026-10-01");
+    const goal = await createHabitGoal(habitId, 1);
+    expect(goal).toMatchObject({ status: "achieved" });
+    expect(goal.achievedAt).not.toBeNull();
+  });
+
+  test("'Reabrir' on a goal whose source still reaches the target is refused; below it, it reopens", async () => {
+    const habitId = await newHabit();
+    const goal = await createHabitGoal(habitId, 1);
+    await logDay(habitId, "2026-10-01");
+    await listGoals(); // achieved by the read
+    expect(await reopenGoal({ id: goal.id })).toEqual({
+      ok: false,
+      error: GOAL_ERRORS.sourceReached,
+    });
+    expect(await row(goal.id)).toMatchObject({ status: "achieved" });
+    // The owner corrects the log: now "Reabrir" has something to do, and the next read keeps it.
+    await testDb.delete(habitLogs).where(eq(habitLogs.habitId, habitId));
+    expect(await reopenGoal({ id: goal.id })).toMatchObject({
+      ok: true,
+      data: { status: "active", achievedAt: null },
+    });
+    expect((await listGoals())[0]).toMatchObject({ status: "active" });
+  });
+
+  test("a higher target reopens an achieved habit goal; a lower one achieves it again", async () => {
+    const habitId = await newHabit();
+    await logDay(habitId, "2026-10-01");
+    await logDay(habitId, "2026-10-02");
+    const goal = await createHabitGoal(habitId, 2);
+    expect(goal.status).toBe("achieved");
+    const raised = await updateGoal({
+      id: goal.id,
+      title: "Correr",
+      sourceKind: "habit",
+      habitId,
+      target: 5,
+    });
+    expect(raised).toMatchObject({ ok: true, data: { status: "active", target: 5 } });
+    const lowered = await updateGoal({
+      id: goal.id,
+      title: "Correr",
+      sourceKind: "habit",
+      habitId,
+      target: 2,
+    });
+    expect(lowered).toMatchObject({ ok: true, data: { status: "achieved", target: 2 } });
+  });
+
+  test("editing the source keeps a manual goal's entries and resets the reading", async () => {
+    const goal = await create({ target: 3 });
+    await add(goal.id, 3); // achieved by its entries
+    expect((await row(goal.id)).status).toBe("achieved");
+    const habitId = await newHabit();
+    const toHabit = await updateGoal({
+      id: goal.id,
+      title: "Correr",
+      sourceKind: "habit",
+      habitId,
+      target: 40,
+    });
+    // The achievement came from the old source: it is active again, and nothing of the entries is lost.
+    expect(toHabit).toMatchObject({
+      ok: true,
+      data: {
+        sourceKind: "habit",
+        habitId,
+        projectId: null,
+        unit: null,
+        target: 40,
+        status: "active",
+        achievedAt: null,
+      },
+    });
+    expect(await testDb.$count(goalEntries, eq(goalEntries.goalId, goal.id))).toBe(1);
+
+    const projectId = await newProject();
+    expect(
+      await updateGoal({ id: goal.id, title: "Lanzar", sourceKind: "project", projectId }),
+    ).toMatchObject({
+      ok: true,
+      data: { sourceKind: "project", habitId: null, projectId, unit: null, target: 100 },
+    });
+    // Back to a quantity: the entries are still there and count again (and achieve it on the spot).
+    const back = await updateGoal({
+      id: goal.id,
+      title: "Leer",
+      sourceKind: "manual",
+      target: 3,
+      unit: "libros",
+    });
+    expect(back).toMatchObject({
+      ok: true,
+      data: {
+        sourceKind: "manual",
+        habitId: null,
+        projectId: null,
+        unit: "libros",
+        sum: 3,
+        status: "achieved",
+      },
+    });
+    expect(await testDb.$count(goalEntries, eq(goalEntries.goalId, goal.id))).toBe(1);
+  });
+
+  test("a new source must exist; the goal's own can be gone and the title is still editable", async () => {
+    const habitId = await newHabit();
+    const goal = await createHabitGoal(habitId);
+    const refused = await updateGoal({
+      id: goal.id,
+      title: "Correr",
+      sourceKind: "habit",
+      habitId: MISSING,
+      target: 40,
+    });
+    expect(refused).toEqual({
+      ok: false,
+      error: INVALID_FIELDS_MESSAGE,
+      fieldErrors: { sourceKind: [GOAL_ERRORS.sourceUnavailable] },
+    });
+    expect(await row(goal.id)).toMatchObject({ habitId });
+    // The habit is deleted: the goal says it has no reading, and still takes edits that keep it.
+    await testDb.update(habits).set({ deletedAt: new Date() }).where(eq(habits.id, habitId));
+    expect((await getGoal(goal.id))?.source).toBeNull();
+    expect(
+      await updateGoal({
+        id: goal.id,
+        title: "Correr más",
+        sourceKind: "habit",
+        habitId,
+        target: 40,
+      }),
+    ).toMatchObject({ ok: true, data: { title: "Correr más", habitId } });
+  });
+
+  test("a goal keeps following an archived habit and a finished project", async () => {
+    const habitId = await newHabit();
+    const goal = await createHabitGoal(habitId);
+    await testDb.update(habits).set({ archivedAt: new Date() }).where(eq(habits.id, habitId));
+    expect((await getGoal(goal.id))?.source).toMatchObject({ kind: "habit", done: 0 });
+    const edited = await updateGoal({
+      id: goal.id,
+      title: "Correr (archivado)",
+      sourceKind: "habit",
+      habitId,
+      target: 40,
+    });
+    expect(edited).toMatchObject({ ok: true });
+  });
+
+  test("the list reads the sources in a fixed number of queries, whatever the number of goals", async () => {
+    const habitId = await newHabit();
+    const projectId = await newProject();
+    await createHabitGoal(habitId, 40, { title: "H1" });
+    await createProjectGoal(projectId, { title: "P1" });
+    const select = vi.spyOn(testDb, "select");
+    const execute = vi.spyOn(testDb, "execute");
+    await selectVisibleGoals(testDb, NOW);
+    const queries = () => select.mock.calls.length + execute.mock.calls.length;
+    const forTwo = queries();
+    for (let index = 0; index < 4; index += 1) {
+      await createHabitGoal(await newHabit({ name: `h${index}` }), 40, { title: `H${index + 2}` });
+      await createProjectGoal(await newProject({ name: `p${index}` }), { title: `P${index + 2}` });
+    }
+    select.mockClear();
+    execute.mockClear();
+    const goalsRead = await selectVisibleGoals(testDb, NOW);
+    expect(goalsRead).toHaveLength(10);
+    expect(queries()).toBe(forTwo);
+    select.mockRestore();
+    execute.mockRestore();
   });
 });

@@ -53,7 +53,7 @@ type GoalsListProps = {
  * G3 slot: "Esta semana" (the weekly objective) goes above the sections.
  */
 export function GoalsList({ goals, headingId }: GoalsListProps) {
-  const { today, areas, enqueue, toaster, announce } = useGoalsScreen();
+  const { today, areas, sources, enqueue, toaster, announce } = useGoalsScreen();
   const { push } = toaster;
   const [view, apply] = useOptimistic(goals, applyGoalListChange);
   const [saving, startSaving] = useTransition();
@@ -342,6 +342,7 @@ export function GoalsList({ goals, headingId }: GoalsListProps) {
           open={formOpen}
           onOpenChange={setFormOpen}
           areas={areas}
+          sources={sources}
           today={today}
           returnFocusRef={formReturn}
           onCreated={onSaved}

@@ -22,7 +22,7 @@ import {
   type RadioGridOption,
 } from "@/modules/core/components/radio-grid";
 import { createGoal, updateGoal } from "../actions";
-import type { GoalPeriodKind } from "../goal-constants";
+import { GOAL_SOURCE_KINDS, type GoalPeriodKind, type GoalSourceKind } from "../goal-constants";
 import {
   CREATE_GOAL_FIELDS,
   createGoalInputSchema,
@@ -30,9 +30,11 @@ import {
   type CreateGoalField,
   type GoalAreaSummary,
   type GoalItem,
+  type GoalSourceOptions,
 } from "../goal-input";
 import { GOALS_COPY } from "../goals-copy";
 import { currentPeriod, periodLabel, periodOf } from "../pace";
+import { SourceSelect, type SourceOption } from "./source-select";
 
 /** The area picker's value for "Sin área". */
 const NO_AREA = "";
@@ -48,10 +50,40 @@ function firstErrors(fieldErrors: FieldErrors | undefined): Errors {
   return errors;
 }
 
+const SOURCE_KINDS: readonly GoalSourceKind[] = GOAL_SOURCE_KINDS;
+
 /** The target's text as a number for the schema: blank is "missing", anything else as typed. */
 function parseTarget(text: string): number | undefined {
   const trimmed = text.trim();
   return trimmed === "" ? undefined : Number(trimmed);
+}
+
+function sourceLabel(kind: GoalSourceKind): string {
+  if (kind === "habit") return GOALS_COPY.sourceHabit;
+  if (kind === "project") return GOALS_COPY.sourceProject;
+  return GOALS_COPY.sourceManual;
+}
+
+/**
+ * The options of a picker plus the one the goal already follows when it isn't offered any more
+ * (an archived habit, a finished project): it stays picked, so an edit never drops it by accident.
+ */
+function withCurrent(
+  options: readonly SourceOption[],
+  currentId: string | null | undefined,
+  source: GoalItem["source"] | undefined,
+  kind: "habit" | "project",
+): SourceOption[] {
+  if (!currentId || source?.kind !== kind || options.some((option) => option.id === currentId)) {
+    return [...options];
+  }
+  return [
+    ...options,
+    {
+      id: currentId,
+      name: kind === "habit" ? GOALS_COPY.archivedOption(source.name) : source.name,
+    },
+  ];
 }
 
 export type GoalFormSheetProps = {
@@ -59,6 +91,8 @@ export type GoalFormSheetProps = {
   onOpenChange: (open: boolean) => void;
   /** Active life areas, in their order: the only ones a goal can be put in. */
   areas: readonly GoalAreaSummary[];
+  /** The active habits and the projects in the works a goal can follow. */
+  sources?: GoalSourceOptions;
   /** Where focus goes if the sheet closes without creating (the key that opened it). */
   returnFocusRef: React.RefObject<HTMLElement | null>;
   /** The goal to edit (the form starts from it and saves with `updateGoal`). */
@@ -78,14 +112,14 @@ export type GoalFormSheetProps = {
  * the action's own schema; the Server Action validates again (the authority). Not optimistic: it
  * waits for the server ("Creando…", "Guardando…"), and the sheet stays open meanwhile.
  *
- * G2 slot: "¿Cómo la mido?" offers only "Cantidad" for now. Adding "Hábito" and "Proyecto" means
- * adding their options below and their fields (a habit picker and "Días a cumplir", a project
- * picker); `createGoalInputSchema` already validates all three sources.
+ * "¿Cómo la mido?" (Hábito · Proyecto · Cantidad) swaps the fields: a habit and "Días a cumplir", a
+ * project, or "Meta" and "Unidad". Editing can change it too: the manual entries stay.
  */
 export function GoalFormSheet({
   open,
   onOpenChange,
   areas: activeAreas,
+  sources = { habits: [], projects: [] },
   returnFocusRef,
   goal = null,
   today,
@@ -101,12 +135,21 @@ export function GoalFormSheet({
   const areas = keptArea ? [...activeAreas, keptArea] : activeAreas;
   const [title, setTitle] = useState(goal?.title ?? "");
   const [periodKind, setPeriodKind] = useState<GoalPeriodKind>("year");
-  const [target, setTarget] = useState(goal ? String(goal.target) : "");
+  const [sourceKind, setSourceKind] = useState<GoalSourceKind>(goal?.sourceKind ?? "manual");
+  const [habitId, setHabitId] = useState(goal?.habitId ?? "");
+  const [projectId, setProjectId] = useState(goal?.projectId ?? "");
+  // A project's target is fixed (100): editing one starts the quantity fields empty.
+  const [target, setTarget] = useState(
+    goal && goal.sourceKind !== "project" ? String(goal.target) : "",
+  );
   const [unit, setUnit] = useState(goal?.unit ?? "");
   const [pickedAreaId, setAreaId] = useState<string>(goal?.area?.id ?? NO_AREA);
   const [notes, setNotes] = useState(goal?.notes ?? "");
   // Only an area that is still offered counts as picked.
   const areaId = areas.some((area) => area.id === pickedAreaId) ? pickedAreaId : NO_AREA;
+  // The goal's own habit or project stays offered (archived, or finished) so saving never drops it.
+  const habitOptions = withCurrent(sources.habits, goal?.habitId, goal?.source, "habit");
+  const projectOptions = withCurrent(sources.projects, goal?.projectId, goal?.source, "project");
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -118,6 +161,9 @@ export function GoalFormSheet({
   const formId = `${ids}-form`;
   const titleInput = useRef<HTMLInputElement>(null);
   const targetInput = useRef<HTMLInputElement>(null);
+  const habitSelect = useRef<HTMLSelectElement>(null);
+  const projectSelect = useRef<HTMLSelectElement>(null);
+  const sourceGroup = useRef<HTMLDivElement>(null);
   const unitInput = useRef<HTMLInputElement>(null);
   const notesInput = useRef<HTMLTextAreaElement>(null);
   const areaGroup = useRef<HTMLDivElement>(null);
@@ -128,6 +174,9 @@ export function GoalFormSheet({
     const first = CREATE_GOAL_FIELDS.find((field) => errors[field]);
     focusFirstInvalid.current = false;
     if (first === "title") titleInput.current?.focus();
+    else if (first === "habitId") habitSelect.current?.focus();
+    else if (first === "projectId") projectSelect.current?.focus();
+    else if (first === "sourceKind") sourceGroup.current?.querySelector("button")?.focus();
     else if (first === "target") targetInput.current?.focus();
     else if (first === "unit") unitInput.current?.focus();
     else if (first === "notes") notesInput.current?.focus();
@@ -159,17 +208,26 @@ export function GoalFormSheet({
     });
   }
 
+  /** Only the fields of the picked source (the schema takes exactly its own). */
+  function sourceFields() {
+    if (sourceKind === "habit") {
+      return { sourceKind, habitId, target: parseTarget(target) };
+    }
+    if (sourceKind === "project") return { sourceKind, projectId };
+    return { sourceKind, target: parseTarget(target), unit };
+  }
+
+  function pickSource(next: GoalSourceKind) {
+    setSourceKind(next);
+    for (const field of ["sourceKind", "habitId", "projectId", "target", "unit"] as const) {
+      if (errors[field]) clearError(field);
+    }
+  }
+
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
-    const common = {
-      title,
-      notes,
-      areaId,
-      sourceKind: "manual" as const,
-      target: parseTarget(target),
-      unit,
-    };
+    const common = { title, notes, areaId, ...sourceFields() };
     const period = currentPeriod(periodKind, today);
     const parsed = goal
       ? updateGoalInputSchema.safeParse({ id: goal.id, ...common })
@@ -330,57 +388,120 @@ export function GoalFormSheet({
           ) : null}
         </div>
 
-        {/* G2 slot: "Hábito" and "Proyecto" join "Cantidad" here (see the header). */}
         <div className={cn("bo-field", errors.sourceKind && "is-error")}>
           <span id={sourceLabelId} className="bo-field__label">
             {GOALS_COPY.sourceLabel}
           </span>
-          <SegmentedControl<"manual">
-            mode="radio"
-            touch
-            label={GOALS_COPY.sourceLabel}
-            options={[{ value: "manual", label: GOALS_COPY.sourceManual }]}
-            value="manual"
-          />
-          <span className="bo-field__help">{GOALS_COPY.sourceHelp}</span>
+          <div ref={sourceGroup}>
+            <SegmentedControl<GoalSourceKind>
+              mode="radio"
+              touch
+              label={GOALS_COPY.sourceLabel}
+              options={SOURCE_KINDS.map((kind) => ({ value: kind, label: sourceLabel(kind) }))}
+              value={sourceKind}
+              onValueChange={pickSource}
+            />
+          </div>
+          <span className="bo-field__help">
+            {sourceKind === "habit"
+              ? GOALS_COPY.sourceHelpHabit
+              : sourceKind === "project"
+                ? GOALS_COPY.sourceHelpProject
+                : GOALS_COPY.sourceHelp}
+            {editing ? ` ${GOALS_COPY.sourceChangeHelp}` : ""}
+          </span>
           {errors.sourceKind ? (
             <FieldError id={`${ids}-source-error`} message={errors.sourceKind} />
           ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <TextField
-            ref={targetInput}
-            label={GOALS_COPY.targetLabel}
-            name="target"
-            value={target}
-            inputMode="numeric"
-            autoComplete="off"
-            required
-            error={errors.target}
-            help={GOALS_COPY.targetHelp}
-            id={`${ids}-target`}
-            onChange={(event) => {
-              setTarget(event.target.value);
-              if (errors.target) clearError("target");
+        {sourceKind === "habit" ? (
+          <>
+            <SourceSelect
+              ref={habitSelect}
+              id={`${ids}-habit`}
+              label={GOALS_COPY.habitLabel}
+              placeholder={GOALS_COPY.habitPlaceholder}
+              value={habitOptions.some((option) => option.id === habitId) ? habitId : ""}
+              options={habitOptions}
+              help={habitOptions.length === 0 ? GOALS_COPY.habitsEmpty : undefined}
+              error={errors.habitId}
+              onValueChange={(value) => {
+                setHabitId(value);
+                if (errors.habitId) clearError("habitId");
+              }}
+            />
+            <TextField
+              ref={targetInput}
+              label={GOALS_COPY.daysLabel}
+              name="target"
+              value={target}
+              inputMode="numeric"
+              autoComplete="off"
+              required
+              error={errors.target}
+              help={GOALS_COPY.daysHelp}
+              id={`${ids}-target`}
+              onChange={(event) => {
+                setTarget(event.target.value);
+                if (errors.target) clearError("target");
+              }}
+            />
+          </>
+        ) : null}
+
+        {sourceKind === "project" ? (
+          <SourceSelect
+            ref={projectSelect}
+            id={`${ids}-project`}
+            label={GOALS_COPY.projectLabel}
+            placeholder={GOALS_COPY.projectPlaceholder}
+            value={projectOptions.some((option) => option.id === projectId) ? projectId : ""}
+            options={projectOptions}
+            help={projectOptions.length === 0 ? GOALS_COPY.projectsEmpty : undefined}
+            error={errors.projectId}
+            onValueChange={(value) => {
+              setProjectId(value);
+              if (errors.projectId) clearError("projectId");
             }}
           />
-          <TextField
-            ref={unitInput}
-            label={GOALS_COPY.unitLabel}
-            name="unit"
-            value={unit}
-            autoComplete="off"
-            required
-            error={errors.unit}
-            help={GOALS_COPY.unitHelp}
-            id={`${ids}-unit`}
-            onChange={(event) => {
-              setUnit(event.target.value);
-              if (errors.unit) clearError("unit");
-            }}
-          />
-        </div>
+        ) : null}
+
+        {sourceKind === "manual" ? (
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              ref={targetInput}
+              label={GOALS_COPY.targetLabel}
+              name="target"
+              value={target}
+              inputMode="numeric"
+              autoComplete="off"
+              required
+              error={errors.target}
+              help={GOALS_COPY.targetHelp}
+              id={`${ids}-target`}
+              onChange={(event) => {
+                setTarget(event.target.value);
+                if (errors.target) clearError("target");
+              }}
+            />
+            <TextField
+              ref={unitInput}
+              label={GOALS_COPY.unitLabel}
+              name="unit"
+              value={unit}
+              autoComplete="off"
+              required
+              error={errors.unit}
+              help={GOALS_COPY.unitHelp}
+              id={`${ids}-unit`}
+              onChange={(event) => {
+                setUnit(event.target.value);
+                if (errors.unit) clearError("unit");
+              }}
+            />
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-2">
           <button

@@ -1,5 +1,5 @@
-// G1 of `goals`: the Zod schemas (goal-input.ts). All three sources are validated from G1, even
-// though the form only offers "Cantidad" until G2.
+// `goals`: the Zod schemas (goal-input.ts). All three sources are validated here; the domain
+// checks that a habit or project exists.
 import { describe, expect, test } from "vitest";
 import {
   addEntryInputSchema,
@@ -274,5 +274,38 @@ describe("entries, order and unarchive", () => {
     expect(unarchiveGoalInputSchema.safeParse({ id: UUID, position: "middle" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("the messages of a missing habit or project", () => {
+  const base = { title: "Correr", periodKind: "year", year: 2026 } as const;
+
+  test("an empty habit or project picker says which one to pick, on its own field", () => {
+    expect(issues({ ...base, sourceKind: "habit", habitId: "", target: 40 })).toEqual([
+      ["habitId", GOAL_ERRORS.habitRequired],
+    ]);
+    expect(issues({ ...base, sourceKind: "project", projectId: "" })).toEqual([
+      ["projectId", GOAL_ERRORS.projectRequired],
+    ]);
+  });
+
+  test("editing can change the source: the update schema takes each source's own fields", () => {
+    expect(
+      updateGoalInputSchema.parse({
+        id: UUID,
+        title: "x",
+        sourceKind: "habit",
+        habitId: OTHER,
+        target: 5,
+      }),
+    ).toMatchObject({ sourceKind: "habit", habitId: OTHER, target: 5 });
+    expect(
+      updateGoalInputSchema.parse({
+        id: UUID,
+        title: "x",
+        sourceKind: "project",
+        projectId: OTHER,
+      }),
+    ).toMatchObject({ sourceKind: "project", projectId: OTHER, target: 100 });
   });
 });

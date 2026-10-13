@@ -2,9 +2,8 @@
 // server actions are the authority, and the forms run the same schemas first so errors show
 // without a round trip.
 //
-// All three sources (habit, project, manual) are validated here, so the schema is complete from
-// G1; the form offers only "Cantidad" until G2, and the domain refuses the others
-// ("sourceUnavailable", goals.ts).
+// All three sources (habit, project, manual) are validated here; the domain also checks that a
+// habit or project exists and is visible ("sourceUnavailable", goals.ts).
 import { z } from "zod";
 import type { AreaColor, AreaIconName } from "@/design-system/areas";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
@@ -121,13 +120,13 @@ const sourceError = { error: GOAL_ERRORS.source };
 const manualShape = { sourceKind: z.literal("manual", sourceError), target, unit };
 const habitShape = {
   sourceKind: z.literal("habit", sourceError),
-  habitId: z.uuid({ error: GOAL_ERRORS.source }),
+  habitId: z.uuid({ error: GOAL_ERRORS.habitRequired }),
   target,
 };
 // A project's target is its percentage: fixed at 100 whatever is sent.
 const projectShape = {
   sourceKind: z.literal("project", sourceError),
-  projectId: z.uuid({ error: GOAL_ERRORS.source }),
+  projectId: z.uuid({ error: GOAL_ERRORS.projectRequired }),
   target: z
     .literal(GOAL_PROJECT_TARGET, { error: GOAL_ERRORS.targetInvalid })
     .default(GOAL_PROJECT_TARGET),
@@ -153,6 +152,8 @@ export const CREATE_GOAL_FIELDS = [
   "title",
   "periodKind",
   "sourceKind",
+  "habitId",
+  "projectId",
   "target",
   "unit",
   "areaId",
@@ -161,9 +162,9 @@ export const CREATE_GOAL_FIELDS = [
 export type CreateGoalField = (typeof CREATE_GOAL_FIELDS)[number];
 
 /**
- * Editing a goal: its title, notes, area and what its source asks (target and unit). The period
- * and the source never change in an edit (SPEC-goals: changing the source resets the reading;
- * G2 decides how), so `sourceKind` must be the goal's own.
+ * Editing a goal: its title, notes, area and its source with what the source asks (a habit and
+ * its days, a project, or a target and a unit). The period never changes in an edit. Changing the
+ * source resets the reading and keeps a manual goal's entries (SPEC-goals "Fuente de avance").
  */
 export const updateGoalInputSchema = z.discriminatedUnion("sourceKind", [
   z.object({ id, ...common, ...manualShape }),
@@ -225,7 +226,17 @@ export type GoalAreaSummary = {
   color: AreaColor;
 };
 
-/** What the screens get of a goal: its rules, its area and what its source read (G1: the sum). */
+/**
+ * What a habit or project goal read of its source (null for a manual goal, and for a source that
+ * no longer exists). The names are what the rows link with.
+ */
+export type GoalSourceReading =
+  /** Days done in the period up to today, and the days expected of the habit in it. */
+  | { kind: "habit"; name: string; done: number; expected: number }
+  /** The project's whole percent, and whether it is «terminado». */
+  | { kind: "project"; name: string; percent: number; finished: boolean };
+
+/** What the screens get of a goal: its rules, its area and what its source read. */
 export type GoalItem = {
   id: string;
   title: string;
@@ -243,8 +254,16 @@ export type GoalItem = {
   achievedAt: string | null;
   position: number;
   area: GoalAreaSummary | null;
-  /** The sum of a manual goal's entries (0 for the other sources: G2 reads them elsewhere). */
+  /** The sum of a manual goal's entries (0 for the other sources). */
   sum: number;
+  /** What a habit or project goal read of its source (null for a manual goal). */
+  source: GoalSourceReading | null;
+};
+
+/** What the form's "Hábito" and "Proyecto" pickers offer (SPEC-goals "Crear/editar"). */
+export type GoalSourceOptions = {
+  habits: readonly { id: string; name: string }[];
+  projects: readonly { id: string; name: string }[];
 };
 
 /** One row of a manual goal's history. */

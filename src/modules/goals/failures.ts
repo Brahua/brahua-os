@@ -20,6 +20,5 @@ export function refused<T>(failure: GoalFailure): ActionResult<T> {
       fieldErrors: { sourceKind: [GOAL_ERRORS.sourceUnavailable] },
     };
   }
-  if (failure === "sourceChange") return fail(GOAL_ERRORS.sourceChange);
   return fail(GOAL_ERRORS[failure]);
 }

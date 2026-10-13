@@ -144,7 +144,78 @@ const REMINDERS_ONLY_CORE = {
   message:
     "`reminders` solo depende de `core`: no importa otros módulos (ellos le registran sus fuentes por `contracts`).",
 };
+// `goals` (SPEC-goals "Contratos") sits above `habits` and `projects`: it reads them only through
+// their contracts (`getHabitDoneDays`, `getProjectProgress`, the option lists) and their `routes`
+// (client-safe URL helpers for the links), and imports no other module but `core`. None of the
+// others imports `goals`: the links from a habit's or project's page to its goal go through a
+// registered section (G3) composed in src/lib/goal-extensions.ts.
+const GOALS_IMPORT = {
+  group: ["@/modules/goals/*"],
+  message:
+    "`goals` depende de este módulo: no puede importarlo (usa un contrato registrado y su raíz de composición en src/lib/goal-extensions.ts).",
+};
+const GOALS_BARREL = { name: "@/modules/goals", message: GOALS_IMPORT.message };
+// Same gotcha as REMINDERS_IMPORT: a folder can only be let back in when it isn't left out, so
+// the barrel is an exact path and the contracts and routes are let in after their folder pattern.
+const GOALS_ONLY_CONTRACTS = {
+  group: [
+    "@/modules/habits/*",
+    "!@/modules/habits/contracts",
+    "!@/modules/habits/routes",
+    "@/modules/projects/*",
+    "!@/modules/projects/contracts",
+    "!@/modules/projects/routes",
+  ],
+  message:
+    "`goals` lee `habits` y `projects` solo por sus contratos (`contracts`) y sus rutas (`routes`).",
+};
+const GOALS_NO_BARRELS = [
+  { name: "@/modules/habits", message: GOALS_ONLY_CONTRACTS.message },
+  { name: "@/modules/projects", message: GOALS_ONLY_CONTRACTS.message },
+];
+const GOALS_ONLY_CORE_AND_CONTRACTS = {
+  group: [
+    "@/modules/tasks",
+    "@/modules/tasks/*",
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/reminders",
+    "@/modules/reminders/*",
+    "@/modules/today",
+    "@/modules/today/*",
+  ],
+  message:
+    "`goals` depende de `core`, `habits` y `projects`: no importa otros módulos (ellos le registran secciones por contrato).",
+};
 const moduleBoundaries = [
+  {
+    files: ["src/modules/goals/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: GOALS_NO_BARRELS,
+          patterns: [GOALS_ONLY_CONTRACTS, GOALS_ONLY_CORE_AND_CONTRACTS],
+        },
+      ],
+    },
+  },
+  {
+    // The one exception: a foreign key needs the table itself (`tasks` does the same with
+    // `projects`), so the schema file may import the tables of `habits` and `projects`.
+    files: ["src/modules/goals/db/schema.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: GOALS_NO_BARRELS,
+          // Only the other modules' folders stay closed; the tables are let in by leaving the
+          // habits/projects pattern out (a negation can't reopen a file inside a closed folder).
+          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS],
+        },
+      ],
+    },
+  },
   {
     files: ["src/modules/today/**/*.{ts,tsx}"],
     rules: {
@@ -159,7 +230,12 @@ const moduleBoundaries = [
   },
   {
     files: ["src/modules/reminders/**/*.{ts,tsx}"],
-    rules: { "no-restricted-imports": ["error", { patterns: [REMINDERS_ONLY_CORE] }] },
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [GOALS_BARREL], patterns: [REMINDERS_ONLY_CORE, GOALS_IMPORT] },
+      ],
+    },
   },
   {
     files: ["src/modules/finance/**/*.{ts,tsx}"],
@@ -167,8 +243,8 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [REMINDERS_BARREL],
-          patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT, REMINDERS_IMPORT],
+          paths: [REMINDERS_BARREL, GOALS_BARREL],
+          patterns: [FINANCE_ONLY_CORE, TODAY_IMPORT, REMINDERS_IMPORT, GOALS_IMPORT],
         },
       ],
     },
@@ -178,7 +254,10 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: [REMINDERS_BARREL], patterns: [FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT] },
+        {
+          paths: [REMINDERS_BARREL, GOALS_BARREL],
+          patterns: [FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT, GOALS_IMPORT],
+        },
       ],
     },
   },
@@ -188,8 +267,8 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [REMINDERS_BARREL],
-          patterns: [HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT],
+          paths: [REMINDERS_BARREL, GOALS_BARREL],
+          patterns: [HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT, GOALS_IMPORT],
         },
       ],
     },
@@ -200,8 +279,15 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [REMINDERS_BARREL],
-          patterns: [TASKS_IMPORT, HABITS_IMPORT, FINANCE_IMPORT, TODAY_IMPORT, REMINDERS_IMPORT],
+          paths: [REMINDERS_BARREL, GOALS_BARREL],
+          patterns: [
+            TASKS_IMPORT,
+            HABITS_IMPORT,
+            FINANCE_IMPORT,
+            TODAY_IMPORT,
+            REMINDERS_IMPORT,
+            GOALS_IMPORT,
+          ],
         },
       ],
     },
@@ -212,7 +298,7 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [REMINDERS_BARREL],
+          paths: [REMINDERS_BARREL, GOALS_BARREL],
           patterns: [
             TASKS_IMPORT,
             PROJECTS_IMPORT,
@@ -220,6 +306,7 @@ const moduleBoundaries = [
             FINANCE_IMPORT,
             TODAY_IMPORT,
             REMINDERS_IMPORT,
+            GOALS_IMPORT,
           ],
         },
       ],

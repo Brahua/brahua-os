@@ -8,6 +8,7 @@ import { readGoal } from "../goal-text";
 import { GOALS_COPY } from "../goals-copy";
 import { goalPath } from "../routes";
 import { GoalBar } from "./goal-bar";
+import { GoalSourceLinkText } from "./goal-source-link";
 import { preloadAddEntry } from "./use-goal-entries";
 
 /** The selector of a goal's row. */
@@ -73,6 +74,7 @@ export function GoalRow({ goal, today, canAdd, onAdd, onAddMore, footer }: GoalR
           <div className="flex min-w-0 flex-col gap-1">
             <p className="bo-text-body-sm" data-goal-count="">
               {reading.count}
+              <GoalSourceLinkText source={reading.source} />
             </p>
             {reading.line ? (
               <p className="bo-text-body-sm text-text-secondary" data-goal-line="">

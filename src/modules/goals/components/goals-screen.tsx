@@ -6,7 +6,7 @@ import { useSaveQueue, type Enqueue } from "@/lib/use-save-queue";
 import { useAnnouncer } from "@/modules/core/components/screen-services";
 import { ToastViewport } from "@/modules/core/components/toast-viewport";
 import { useDayRollover } from "@/modules/core/components/use-day-rollover";
-import type { GoalAreaSummary } from "../goal-input";
+import type { GoalAreaSummary, GoalSourceOptions } from "../goal-input";
 import { GOALS_COPY } from "../goals-copy";
 
 // ── Shared by every part of a goals screen (the rows, the sheets, the detail) ──
@@ -16,6 +16,8 @@ export type GoalsScreenValue = {
   today: string;
   /** The active life areas, in their order (the form's picker). */
   areas: readonly GoalAreaSummary[];
+  /** The habits and projects a goal can follow (the form's pickers). */
+  sources: GoalSourceOptions;
   /**
    * The screen's one save queue (src/lib/use-save-queue.ts): calls run in order, and a call whose
    * turn comes after a newer one with the same key is skipped. Keys in use: `goal-delete:<id>`,
@@ -43,9 +45,13 @@ export function useGoalsScreen(): GoalsScreenValue {
   return value;
 }
 
+const NO_SOURCES: GoalSourceOptions = { habits: [], projects: [] };
+
 type GoalsScreenProps = {
   today: string;
   areas: readonly GoalAreaSummary[];
+  /** Omitted: no habit or project to pick. */
+  sources?: GoalSourceOptions;
   children: React.ReactNode;
 };
 
@@ -53,15 +59,15 @@ type GoalsScreenProps = {
  * Wraps a goals screen (/goals and each goal's page): one save queue, one notice viewport and
  * one polite announcer for everything on it.
  */
-export function GoalsScreen({ today, areas, children }: GoalsScreenProps) {
+export function GoalsScreen({ today, areas, sources = NO_SOURCES, children }: GoalsScreenProps) {
   const toaster = useToaster();
   const enqueue = useSaveQueue();
   const [announcement, announce] = useAnnouncer();
   const isCurrentDay = useDayRollover(today, announce, GOALS_COPY.newDay);
 
   const value = useMemo<GoalsScreenValue>(
-    () => ({ today, areas, enqueue, toaster, announce, isCurrentDay }),
-    [today, areas, enqueue, toaster, announce, isCurrentDay],
+    () => ({ today, areas, sources, enqueue, toaster, announce, isCurrentDay }),
+    [today, areas, sources, enqueue, toaster, announce, isCurrentDay],
   );
 
   return (

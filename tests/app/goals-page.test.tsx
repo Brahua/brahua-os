@@ -1,4 +1,4 @@
-// G1 of `goals`: /goals as the owner sees it (the list, the rows, "+1" with "Deshacer", the form),
+// `goals`: /goals as the owner sees it (the list, the rows, "+1" with "Deshacer", the form),
 // against a fake server. The Server Actions are mocked; the screen's queue, notices and the
 // optimistic list are the real ones.
 import { act, render, screen, waitFor, within } from "@testing-library/react";
@@ -61,6 +61,7 @@ function goal(values: Partial<GoalItem> = {}): GoalItem {
     position: serial,
     area: null,
     sum: 0,
+    source: null,
     ...values,
   };
 }
@@ -84,9 +85,19 @@ const PASADA = goal({
 });
 const ARCHIVADA = goal({ title: "Pintar", status: "archived", sum: 2 });
 
-function Screen({ goals }: { goals: GoalItem[] }) {
+const HABIT_ID = "11111111-1111-4111-8111-111111111111";
+const PROJECT_ID = "22222222-2222-4222-8222-222222222222";
+const SOURCES = {
+  habits: [
+    { id: HABIT_ID, name: "Correr" },
+    { id: "33333333-3333-4333-8333-333333333333", name: "Meditar" },
+  ],
+  projects: [{ id: PROJECT_ID, name: "Lanzar brahua-os" }],
+};
+
+function Screen({ goals, sources = SOURCES }: { goals: GoalItem[]; sources?: typeof SOURCES }) {
   return (
-    <GoalsScreen today={TODAY} areas={[]}>
+    <GoalsScreen today={TODAY} areas={[]} sources={sources}>
       <GoalsList goals={goals} headingId="goals-title" />
     </GoalsScreen>
   );
@@ -283,15 +294,71 @@ describe("+1 and Deshacer", () => {
   });
 });
 
+const HABITO = goal({
+  title: "Correr 40 días",
+  periodKind: "quarter",
+  quarter: 4,
+  sourceKind: "habit",
+  habitId: HABIT_ID,
+  unit: null,
+  target: 40,
+  source: { kind: "habit", name: "Correr", done: 34, expected: 36 },
+});
+const PROYECTO = goal({
+  title: "Lanzar la v1",
+  sourceKind: "project",
+  projectId: PROJECT_ID,
+  unit: null,
+  target: 100,
+  source: { kind: "project", name: "Lanzar brahua-os", percent: 62, finished: false },
+});
+
+describe("habit and project goals in the list", () => {
+  test("a habit goal reads '34 de 40 días', links to its habit and has no +1", () => {
+    render(<Screen goals={[HABITO]} />);
+    const habit = row("Correr 40 días");
+    expect(within(habit).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "34");
+    expect(within(habit).getByText(/34 de 40 días/)).toBeInTheDocument();
+    expect(within(habit).getByRole("link", { name: "Abrir el hábito «Correr»" })).toHaveAttribute(
+      "href",
+      `/habits/${HABIT_ID}`,
+    );
+    expect(within(habit).queryByRole("button", { name: /\+1/ })).not.toBeInTheDocument();
+    expect(within(habit).queryByRole("button", { name: /Sumar/ })).not.toBeInTheDocument();
+    // The pace is a next step or "por delante": it is there for a habit.
+    expect(habit.querySelector("[data-goal-line]")).not.toBeNull();
+  });
+
+  test("a project goal reads '62 %' with its project, no pace and no +1", () => {
+    render(<Screen goals={[PROYECTO]} />);
+    const project = row("Lanzar la v1");
+    expect(within(project).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "62");
+    expect(within(project).getByText(/62 %/)).toBeInTheDocument();
+    expect(
+      within(project).getByRole("link", { name: "Abrir el proyecto «Lanzar brahua-os»" }),
+    ).toHaveAttribute("href", `/projects/${PROJECT_ID}`);
+    expect(project.querySelector("[data-goal-line]")).toBeNull();
+    expect(within(project).queryByRole("button", { name: /\+1/ })).not.toBeInTheDocument();
+  });
+
+  test("a goal whose habit is gone says so instead of a number", () => {
+    render(<Screen goals={[goal({ ...HABITO, title: "Sin hábito", source: null })]} />);
+    const gone = row("Sin hábito");
+    expect(within(gone).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(within(gone).getByText(/sigue un hábito o proyecto que ya no está/)).toBeInTheDocument();
+  });
+});
+
 describe("the form", () => {
   test("creates a manual goal in a few keystrokes (title, target, unit)", async () => {
     const user = userEvent.setup();
     render(<Screen goals={[]} />);
     await user.click(screen.getByRole("button", { name: "Crear mi primera meta" }));
     const sheet = await screen.findByRole("dialog", { name: "Nueva meta" });
-    // Only "Cantidad" for now.
+    // "Cantidad" is the default; Hábito and Proyecto are the other two ways to measure it.
     expect(within(sheet).getByRole("radio", { name: "Cantidad" })).toBeChecked();
-    expect(within(sheet).queryByRole("radio", { name: "Hábito" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("radio", { name: "Hábito" })).not.toBeChecked();
+    expect(within(sheet).getByRole("radio", { name: "Proyecto" })).not.toBeChecked();
 
     await user.type(within(sheet).getByRole("textbox", { name: "Título" }), "Leer 12 libros");
     await user.type(within(sheet).getByRole("textbox", { name: "Meta" }), "12");
@@ -351,5 +418,98 @@ describe("the form", () => {
     await waitFor(() =>
       expect(within(sheet).getByRole("textbox", { name: "Título" })).toHaveFocus(),
     );
+  });
+});
+
+describe("the form: how it is measured", () => {
+  async function openForm() {
+    const user = userEvent.setup();
+    render(<Screen goals={[]} />);
+    await user.click(screen.getByRole("button", { name: "Crear mi primera meta" }));
+    const sheet = await screen.findByRole("dialog", { name: "Nueva meta" });
+    return { user, sheet };
+  }
+
+  test("each source brings its own fields", async () => {
+    const { user, sheet } = await openForm();
+    expect(within(sheet).getByRole("textbox", { name: "Unidad" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("combobox", { name: "Hábito" })).not.toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole("radio", { name: "Hábito" }));
+    expect(within(sheet).getByRole("combobox", { name: "Hábito" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("textbox", { name: "Días a cumplir" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("textbox", { name: "Unidad" })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("combobox", { name: "Proyecto" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("option", { name: "Meditar" })).toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole("radio", { name: "Proyecto" }));
+    expect(within(sheet).getByRole("combobox", { name: "Proyecto" })).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("textbox", { name: "Días a cumplir" }),
+    ).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("textbox", { name: "Meta" })).not.toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole("radio", { name: "Cantidad" }));
+    expect(within(sheet).getByRole("textbox", { name: "Meta" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("textbox", { name: "Unidad" })).toBeInTheDocument();
+  });
+
+  test("a habit goal sends the habit and its days, nothing of the other sources", async () => {
+    const { user, sheet } = await openForm();
+    await user.type(within(sheet).getByRole("textbox", { name: "Título" }), "Correr 40 días");
+    await user.click(within(sheet).getByRole("radio", { name: "Hábito" }));
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Hábito" }), HABIT_ID);
+    await user.type(within(sheet).getByRole("textbox", { name: "Días a cumplir" }), "40");
+    await user.click(within(sheet).getByRole("button", { name: "Crear meta" }));
+    await waitFor(() =>
+      expect(createGoal).toHaveBeenCalledWith({
+        title: "Correr 40 días",
+        notes: null,
+        areaId: null,
+        sourceKind: "habit",
+        habitId: HABIT_ID,
+        target: 40,
+        periodKind: "year",
+        year: 2026,
+        quarter: null,
+      }),
+    );
+    await answer(ok(goal({ title: "Correr 40 días" })));
+  });
+
+  test("a project goal sends just the project (its target is fixed)", async () => {
+    const { user, sheet } = await openForm();
+    await user.type(within(sheet).getByRole("textbox", { name: "Título" }), "Lanzar la v1");
+    await user.click(within(sheet).getByRole("radio", { name: "Proyecto" }));
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Proyecto" }), PROJECT_ID);
+    await user.click(within(sheet).getByRole("button", { name: "Crear meta" }));
+    await waitFor(() =>
+      expect(createGoal).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceKind: "project", projectId: PROJECT_ID, target: 100 }),
+      ),
+    );
+    await answer(ok(goal({ title: "Lanzar la v1" })));
+  });
+
+  test("without a pick, the habit field says so and takes focus; nothing is sent", async () => {
+    const { user, sheet } = await openForm();
+    await user.type(within(sheet).getByRole("textbox", { name: "Título" }), "Correr");
+    await user.click(within(sheet).getByRole("radio", { name: "Hábito" }));
+    await user.type(within(sheet).getByRole("textbox", { name: "Días a cumplir" }), "40");
+    await user.click(within(sheet).getByRole("button", { name: "Crear meta" }));
+    expect(await within(sheet).findByText("Elige un hábito.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(sheet).getByRole("combobox", { name: "Hábito" })).toHaveFocus(),
+    );
+    expect(createGoal).not.toHaveBeenCalled();
+  });
+
+  test("with no habits to follow, the field explains where to make one", async () => {
+    const user = userEvent.setup();
+    render(<Screen goals={[]} sources={{ habits: [], projects: [] }} />);
+    await user.click(screen.getByRole("button", { name: "Crear mi primera meta" }));
+    const sheet = await screen.findByRole("dialog", { name: "Nueva meta" });
+    await user.click(within(sheet).getByRole("radio", { name: "Hábito" }));
+    expect(within(sheet).getByText(/Todavía no tienes hábitos activos/)).toBeInTheDocument();
   });
 });
