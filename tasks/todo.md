@@ -1,6 +1,20 @@
 # Tareas
 
-> Último módulo cerrado: **`goals`** (2026-10-13; plan y tareas en [`archive/goals-plan.md`](archive/goals-plan.md) y [`archive/goals-todo.md`](archive/goals-todo.md)). **Siguiente: `weekly-review`** (aún sin spec: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Módulo en curso: **`weekly-review`** (spec aprobada 2026-10-13; plan en [`plan.md`](plan.md)). Último módulo cerrado: **`goals`** (2026-10-13; plan y tareas en [`archive/goals-plan.md`](archive/goals-plan.md) y [`archive/goals-todo.md`](archive/goals-todo.md)). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Módulo `weekly-review`
+
+> Plan: [`plan.md`](plan.md) · Spec: [`SPEC-weekly-review.md`](../SPEC-weekly-review.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(weekly-review): …`). Máximo un E2E nuevo en todo el módulo.
+
+- [ ] **W1: Datos y contratos** — migración aditiva `weekly_reviews` (`CHECK`, lock en el espacio 6000) y exportación; `week.ts` puro (semana a revisar, ventana de la invitación); `getHabitsWeekCompleteDays`; `getTasksWeekReview` y `moveTasksToDate`/`undoMoveTasks`; `getProjectsWeekReview`; `getGoalsWeekReview` y el objetivo semanal por contrato; regla de ESLint de fronteras. Sin pantalla.
+- [ ] **W2: Pasos 1 y 2** — `/review` con Logros y Pendientes (lote y por fila, «Deshacer» exacto); módulo «Revisión» en la navegación (sin atajo). Sin E2E nueva.
+- [ ] **W3: Pasos 3 y 4, cierre y registro** — Metas y proyectos, Próxima semana (objetivo y nota), «Cerrar la semana» idempotente, pantalla de cierre, «Semanas anteriores». El único E2E del módulo (con `SPEC_MODULES` y `@today-*`).
+- [ ] **W4: Invitación y cierre** — `getReviewInvite` y `ReviewInviteCard` en `/` y `/goals` (raíz `src/lib/review-extensions.ts`), retrospectiva en `CLAUDE.md`, backlog, mapa y HANDOFF; archivar plan y tareas.
+
+### Checkpoint final
+- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
+- [ ] Se cumplen los criterios de éxito de `SPEC-weekly-review.md`.
+- [ ] Revisión con el owner.
 
 ## Módulo `goals`: cerrado el 2026-10-13
 
