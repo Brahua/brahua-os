@@ -237,7 +237,11 @@ describe("AppNav", () => {
     expect(fireEvent.keyDown(document.body, { key: "5" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/finance");
     push.mockReset();
-    expect(fireEvent.keyDown(document.body, { key: "6" })).toBe(true);
+    // SPEC-goals: Metas is 6.
+    expect(fireEvent.keyDown(document.body, { key: "6" })).toBe(false);
+    expect(push).toHaveBeenCalledWith("/goals");
+    push.mockReset();
+    expect(fireEvent.keyDown(document.body, { key: "9" })).toBe(true);
     expect(push).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(document.body, { key: "7" })).toBe(false);
     expect(push).toHaveBeenCalledWith("/areas");

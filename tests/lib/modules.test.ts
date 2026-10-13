@@ -23,13 +23,14 @@ describe("registry", () => {
     }
   });
 
-  test("Hoy (1), Proyectos (2), Tareas (3), Hábitos (4), Finanzas (5), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
+  test("Hoy (1), Proyectos (2), Tareas (3), Hábitos (4), Finanzas (5), Metas (6), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
     expect(navItems().map((item) => [item.label, item.href, item.group, item.shortcut])).toEqual([
       ["Hoy", "/", "main", "1"],
       ["Proyectos", "/projects", "main", "2"],
       ["Tareas", "/tasks", "main", "3"],
       ["Hábitos", "/habits", "main", "4"],
       ["Finanzas", "/finance", "main", "5"],
+      ["Metas", "/goals", "main", "6"],
       ["Áreas", "/areas", "footer", "7"],
       ["Ajustes", "/settings", "footer", "8"],
     ]);
@@ -41,7 +42,13 @@ describe("registry", () => {
     // Cells 1, 2 and 4 (the capture key is cell 3), then "Más" in cell 5 (SPEC-habits,
     // SPEC-finance "Navegación").
     expect(primary.map((item) => item.label)).toEqual(["Hoy", "Proyectos", "Hábitos"]);
-    expect(overflow.map((item) => item.label)).toEqual(["Tareas", "Finanzas", "Áreas", "Ajustes"]);
+    expect(overflow.map((item) => item.label)).toEqual([
+      "Tareas",
+      "Finanzas",
+      "Metas",
+      "Áreas",
+      "Ajustes",
+    ]);
   });
 });
 

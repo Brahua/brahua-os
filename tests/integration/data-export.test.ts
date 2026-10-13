@@ -142,6 +142,10 @@ describe("pnpm db:export", () => {
       "habits",
       "habit_logs",
       "habit_pauses",
+      // G1 of goals: all three (filled rows: tests/integration/goals.test.ts → "export").
+      "goals",
+      "goal_entries",
+      "weekly_objectives",
       // F1 of finance: all six (filled rows: tests/integration/finance.test.ts → "export").
       "finance_categories",
       "finance_payment_methods",
