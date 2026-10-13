@@ -146,6 +146,8 @@ describe("pnpm db:export", () => {
       "goals",
       "goal_entries",
       "weekly_objectives",
+      // W1 of weekly-review (filled rows: tests/integration/weekly-review-checks.test.ts → "export").
+      "weekly_reviews",
       // F1 of finance: all six (filled rows: tests/integration/finance.test.ts → "export").
       "finance_categories",
       "finance_payment_methods",

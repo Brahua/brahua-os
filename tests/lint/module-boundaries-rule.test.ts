@@ -319,3 +319,88 @@ test.each([
   expect(messages).toHaveLength(1);
   expect(messages[0]).toContain("`goals` depende de `core`, `habits` y `projects`");
 });
+
+// SPEC-weekly-review "Contratos": `weekly-review` reads `habits`, `tasks`, `projects` and `goals`
+// only through their contracts (and their client-safe routes); none of the modules below it
+// imports `weekly-review`. The invitation card (W4) goes through src/lib/review-extensions.ts.
+const IMPORT_REVIEW = `import { REVIEW_PATH } from "@/modules/weekly-review/routes";
+export const path = REVIEW_PATH;
+`;
+const IMPORT_REVIEW_CONTRACT = `import { getReviewInvite } from "@/modules/weekly-review/contracts";
+export const read = getReviewInvite;
+`;
+const IMPORT_REVIEW_BARREL = `import * as review from "@/modules/weekly-review";
+export const all = review;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+  "src/modules/finance/expenses.ts",
+  "src/modules/reminders/engine.ts",
+  "src/modules/goals/goals.ts",
+  "src/modules/goals/db/schema.ts",
+  "src/modules/today/today-board.ts",
+])("%s cannot import weekly-review", async (file) => {
+  for (const code of [IMPORT_REVIEW, IMPORT_REVIEW_CONTRACT, IMPORT_REVIEW_BARREL]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`weekly-review` depende de este módulo");
+  }
+});
+
+test("weekly-review itself, its page and the composition roots may import it", async () => {
+  expect(await restricted(IMPORT_REVIEW, "src/modules/weekly-review/queries.ts")).toEqual([]);
+  expect(await restricted(IMPORT_REVIEW, "src/app/(app)/review/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_REVIEW, "src/lib/review-extensions.ts")).toEqual([]);
+  expect(await restricted(IMPORT_REVIEW, "src/lib/modules.ts")).toEqual([]);
+});
+
+test.each([
+  `import { getHabitsWeekCompleteDays } from "@/modules/habits/contracts";\nexport const x = getHabitsWeekCompleteDays;\n`,
+  `import { habitPath } from "@/modules/habits/routes";\nexport const x = habitPath;\n`,
+  `import { getTasksWeekReview } from "@/modules/tasks/contracts";\nexport const x = getTasksWeekReview;\n`,
+  `import { taskPath } from "@/modules/tasks/routes";\nexport const x = taskPath;\n`,
+  `import { getProjectsWeekReview } from "@/modules/projects/contracts";\nexport const x = getProjectsWeekReview;\n`,
+  `import { projectPath } from "@/modules/projects/routes";\nexport const x = projectPath;\n`,
+  `import { getGoalsWeekReview } from "@/modules/goals/contracts";\nexport const x = getGoalsWeekReview;\n`,
+  `import { goalPath } from "@/modules/goals/routes";\nexport const x = goalPath;\n`,
+  `import { listLifeAreas } from "@/modules/core/queries";\nexport const x = listLifeAreas;\n`,
+])(
+  "weekly-review may read the contracts and routes of its four sources, and core %#",
+  async (code) => {
+    expect(await restricted(code, "src/modules/weekly-review/queries.ts")).toEqual([]);
+  },
+);
+
+test.each([
+  `import { selectItems } from "@/modules/habits/habits";\nexport const x = selectItems;\n`,
+  `import { habits } from "@/modules/habits/db/schema";\nexport const x = habits;\n`,
+  `import * as habits from "@/modules/habits";\nexport const x = habits;\n`,
+  `import { selectTaskById } from "@/modules/tasks/tasks";\nexport const x = selectTaskById;\n`,
+  `import { postponeTaskById } from "@/modules/tasks/postpone-db";\nexport const x = postponeTaskById;\n`,
+  `import * as tasks from "@/modules/tasks";\nexport const x = tasks;\n`,
+  `import { selectProjects } from "@/modules/projects/projects";\nexport const x = selectProjects;\n`,
+  `import * as projects from "@/modules/projects";\nexport const x = projects;\n`,
+  `import { selectVisibleGoals } from "@/modules/goals/goals";\nexport const x = selectVisibleGoals;\n`,
+  `import { upsertWeeklyObjective } from "@/modules/goals/weekly";\nexport const x = upsertWeeklyObjective;\n`,
+  `import * as goals from "@/modules/goals";\nexport const x = goals;\n`,
+])("weekly-review cannot reach the internals of its sources %#", async (code) => {
+  const messages = await restricted(code, "src/modules/weekly-review/queries.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain(
+    "`weekly-review` lee `habits`, `tasks`, `projects` y `goals` solo por sus contratos",
+  );
+});
+
+test.each([
+  `import { getFinanceTodaySummary } from "@/modules/finance/contracts";\nexport const x = getFinanceTodaySummary;\n`,
+  `import { registerReminderSource } from "@/modules/reminders/contracts";\nexport const x = registerReminderSource;\n`,
+  `import { buildBoard } from "@/modules/today/today-board";\nexport const x = buildBoard;\n`,
+])("weekly-review depends on its four sources and core only %#", async (code) => {
+  const messages = await restricted(code, "src/modules/weekly-review/queries.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`weekly-review` depende de `core`, `habits`, `tasks`");
+});

@@ -17,12 +17,29 @@ import { visibleTask } from "./tasks";
  * copy is created, and the next occurrence is still computed when it is completed). Idempotent:
  * on the same day it changes nothing and says `changed: false`. Null when the task doesn't exist
  * or is deleted (or its project is); "done" when it is already completed.
+ *
+ * With `guard` (the batch of `weekly-review`'s ritual, `moveTasksToDate`): the move happens only
+ * while the task still has the day it was read with (`guard.from`); one edited meanwhile is left
+ * as it is and answers "stale". A task already on `day` is `changed: false` before the guard is
+ * looked at, so two identical batches at once end with the second one reporting "already there".
  */
 export async function postponeTaskById(
   db: Database,
   id: string,
   day: string,
-): Promise<PostponedTask | "done" | null> {
+): Promise<PostponedTask | "done" | null>;
+export async function postponeTaskById(
+  db: Database,
+  id: string,
+  day: string,
+  guard: { from: string | null },
+): Promise<PostponedTask | "done" | "stale" | null>;
+export async function postponeTaskById(
+  db: Database,
+  id: string,
+  day: string,
+  guard?: { from: string | null },
+): Promise<PostponedTask | "done" | "stale" | null> {
   return db.transaction(async (tx) => {
     const [current] = await tx
       .select({ id: tasks.id, title: tasks.title, dueDate: tasks.dueDate, doneAt: tasks.doneAt })
@@ -32,6 +49,7 @@ export async function postponeTaskById(
     if (!current) return null;
     if (current.doneAt !== null) return "done";
     const changed = current.dueDate !== day;
+    if (changed && guard && current.dueDate !== guard.from) return "stale";
     // The write stamps `updated_at` (Drizzle), so an occurrence spawned by a completion counts as
     // edited: undoing that completion keeps it, like any other edit.
     if (changed) await tx.update(tasks).set({ dueDate: day }).where(eq(tasks.id, id));

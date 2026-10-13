@@ -8,6 +8,10 @@
 // - getHabitsWeekSummary(weekStart, now) (for `weekly-review`): a week's compliance per habit and
 //   its total ("18 de 24"), the rows of the "Semana" view (`selectHabitsWeek`, three queries).
 //
+// - getHabitsWeekCompleteDays(weekStart, now) (for `weekly-review`): the week's «Días completos»
+//   (`selectHabitsWeekCompleteDays`, three queries): a day is complete when every daily or
+//   fixed-days habit that defined it is done; the rules are in complete-days.ts.
+//
 // - getHabitsDueToday(now) (for `today`'s pads): the same habits as full `HabitItem`s.
 //
 // - getHabitDoneDays(habitId, from, to) (for `goals`): a habit's days done in a range, with the
@@ -25,7 +29,7 @@
 // host's queue, notices and announcer through `ScreenServicesContext`; `areas` only feeds the
 // create form, which a pad never opens: `[]` is fine). Link with `habitPath(id)` (routes.ts).
 import "server-only";
-import { and, inArray, isNotNull, lte, type SQL } from "drizzle-orm";
+import { and, inArray, isNotNull, lte, ne, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
@@ -39,7 +43,8 @@ import {
 } from "./habit-extensions";
 import { activeHabit, selectItems, selectPauses, visibleHabit, type Tx } from "./habits";
 import { selectHabitsWeek, selectLogsInRange } from "./history";
-import { weekStart as mondayOf } from "./schedule";
+import { completeDaysOf, type HabitsWeekCompleteDays } from "./complete-days";
+import { addDays, weekStart as mondayOf } from "./schedule";
 import type { HabitItem } from "./habit-input";
 import {
   buildHabitsTodaySummary,
@@ -50,6 +55,7 @@ import {
 } from "./today-summary";
 import { buildHabitsWeekSummary, type HabitsWeekSummary } from "./week-summary";
 
+export type { CompleteDay, HabitsWeekCompleteDays } from "./complete-days";
 export type { HabitDoneDays } from "./done-days";
 export type { HabitSection, HabitSectionContext } from "./habit-extensions";
 export type { HabitTodayArea, HabitTodayItem } from "./today-summary";
@@ -133,6 +139,78 @@ export async function getHabitsWeekSummary(
 ): Promise<HabitsWeekSummary> {
   await requireOwner();
   return selectHabitsWeekSummary(getDb(), weekStart, now);
+}
+
+/**
+ * The «Días completos» of the week of `weekStart` (any day of it; the result names its Monday) as
+ * of `now`. The habits that define a day are the active ones (neither archived nor deleted),
+ * started, daily or on fixed days, not paused that day: «X por semana» habits don't (see
+ * `definesDay`). Days still to come, and weeks before any habit started, have no habits and so no
+ * complete days. Three queries (one without habits), whatever the number of habits. Trusts its
+ * caller (see getHabitsWeekCompleteDays).
+ */
+export async function selectHabitsWeekCompleteDays(
+  db: Database,
+  weekStart: string,
+  now: Date,
+): Promise<HabitsWeekCompleteDays> {
+  if (!day.safeParse(weekStart).success) {
+    throw new RangeError("weekStart must be a day as YYYY-MM-DD");
+  }
+  const monday = mondayOf(weekStart);
+  const today = ownerDateKey(now);
+  const sunday = addDays(monday, 6);
+  // A week still to come: nothing to read.
+  if (monday > today) return completeDaysOf(monday, [], today);
+  const rows = await db
+    .select({
+      id: habits.id,
+      kind: habits.kind,
+      frequency: habits.frequency,
+      weeklyTarget: habits.weeklyTarget,
+      weekdays: habits.weekdays,
+      startDate: habits.startDate,
+    })
+    .from(habits)
+    .where(and(activeHabit, ne(habits.frequency, "weekly_count"), lte(habits.startDate, sunday)));
+  if (rows.length === 0) return completeDaysOf(monday, [], today);
+  const ids = rows.map((row) => row.id);
+  // One after the other, like selectItems (a transaction shares one connection).
+  const logs = await selectLogsInRange(db, ids, {
+    from: monday,
+    to: sunday < today ? sunday : today,
+  });
+  const pauses = await selectPauses(db, ids);
+  return completeDaysOf(
+    monday,
+    rows.map(({ id, ...rules }) => ({
+      rules,
+      history: {
+        logs: new Map(
+          (logs.get(id) ?? []).map((log) => [
+            log.day,
+            { quantity: log.quantity, target: log.target },
+          ]),
+        ),
+        pauses: pauses.get(id) ?? [],
+      },
+    })),
+    today,
+  );
+}
+
+/**
+ * For `weekly-review`: the week's «Días completos» (`{ days, completeDays }`): a day counts when
+ * EVERY habit that was due that day (active, started, not paused) was done; a day with no habit
+ * due is neither complete nor missed. The current week counts only the days that already went by
+ * and today only once complete. Checks the owner.
+ */
+export async function getHabitsWeekCompleteDays(
+  weekStart: string,
+  now: Date = new Date(),
+): Promise<HabitsWeekCompleteDays> {
+  await requireOwner();
+  return selectHabitsWeekCompleteDays(getDb(), weekStart, now);
 }
 
 export type { TimedHabit } from "./today-summary";
