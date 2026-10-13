@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth";
+import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { dayPartFor, formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { getFinanceTodaySummary } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
@@ -29,12 +30,14 @@ export default async function Home() {
 
   // One `Promise.all`, one entry per contract (SPEC-today "Lecturas"), each passed to its slot
   // of `TodayBoard` ("Día completo" reads the tasks completed today; "Pagos" is `finance`'s, F4).
-  const [habits, tasks, projects, tasksDoneToday, payments] = await Promise.all([
+  const [habits, tasks, projects, tasksDoneToday, payments, reviewInvite] = await Promise.all([
     getHabitsDueToday(now),
     getTasksTodaySummary(now),
     getProjectsTodaySummary(now),
     getTasksDoneTodayCount(now),
     getFinanceTodaySummary(now),
+    // W4: the invitation to close the week (Sunday 18:00 → Monday 23:59 Lima), or null.
+    getReviewInviteSlot(now),
   ]);
   const today = ownerDateKey(now);
   // evening-close-ritual: from 20:00 (Lima) the header turns into the close of the day.
@@ -44,6 +47,7 @@ export default async function Home() {
     // Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
     // notice, and the last row of pads must stay reachable under it at full scroll.
     <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-10 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
+      {reviewInvite}
       <TodayBoard
         closing={closing}
         header={

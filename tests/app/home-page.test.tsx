@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import Home from "@/app/(app)/page";
 import { ok } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
+import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { getFinanceTodaySummary, type FinanceTodayItem } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
@@ -16,6 +17,8 @@ import {
 } from "@/modules/tasks/contracts";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// The root of the weekly review invitation (W4) reads the database: the page tests mock it.
+vi.mock("@/lib/review-extensions", () => ({ getReviewInviteSlot: vi.fn() }));
 vi.mock("@/modules/habits/contracts", () => ({ getHabitsDueToday: vi.fn() }));
 vi.mock("@/modules/tasks/contracts", () => ({
   getTasksTodaySummary: vi.fn(),
@@ -44,6 +47,8 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-30T13:15:00Z") });
   vi.mocked(requireOwner).mockReset();
   vi.mocked(requireOwner).mockResolvedValue({ user: { id: "owner-id" } } as never);
+  vi.mocked(getReviewInviteSlot).mockReset();
+  vi.mocked(getReviewInviteSlot).mockResolvedValue(null);
   vi.mocked(getHabitsDueToday).mockReset();
   vi.mocked(getHabitsDueToday).mockResolvedValue([]);
   vi.mocked(getTasksTodaySummary).mockReset();
@@ -289,4 +294,13 @@ test("only an upcoming payment: Pagos shows, never the empty day (F4)", async ()
   expect(screen.getByRole("region", { name: "Pagos" })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
   expect(screen.queryByRole("region", { name: "Día completo" })).toBeNull();
+});
+
+test("the weekly review invitation renders at the top, above the board, and nothing when null", async () => {
+  vi.mocked(getReviewInviteSlot).mockResolvedValue(<p data-testid="invite">Semana nueva</p>);
+  render(await Home());
+  const invite = screen.getByTestId("invite");
+  const heading = screen.getByRole("heading", { level: 1 });
+  expect(invite.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(getReviewInviteSlot).toHaveBeenCalledWith(expect.any(Date));
 });
