@@ -183,7 +183,8 @@ describe("goals CHECKs", () => {
     await testDb
       .insert(goals)
       .values({ ...BASE, sourceKind: "habit", habitId, unit: null, target: 5 });
-    expect(await violation(() => testDb.delete(habits))).toMatchObject({ code: "23503" });
+    // ON DELETE RESTRICT reports restrict_violation (23001), not foreign_key_violation (23503).
+    expect(await violation(() => testDb.delete(habits))).toMatchObject({ code: "23001" });
   });
 
   test("the list's index only covers visible goals", async () => {
@@ -211,7 +212,7 @@ describe("goal_entries CHECKs", () => {
       await violation(entry({ goalId: "00000000-0000-4000-8000-000000000000" })),
     ).toMatchObject({ code: "23503" });
     await testDb.insert(goalEntries).values({ goalId, delta: 1, entryDate: "2026-10-12" });
-    expect(await violation(() => testDb.delete(goals))).toMatchObject({ code: "23503" });
+    expect(await violation(() => testDb.delete(goals))).toMatchObject({ code: "23001" });
   });
 });
 
