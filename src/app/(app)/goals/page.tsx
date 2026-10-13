@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth";
+import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
 import { GoalsDeletedNotice } from "@/modules/goals/components/goals-deleted-notice";
@@ -33,10 +34,11 @@ export default async function GoalsPage({ searchParams }: GoalsPageProps) {
   await requireOwner();
   const search = await searchParams;
   // One instant for the whole page: every row reads its pace for the same Lima day.
-  const today = ownerDateKey(new Date());
+  const now = new Date();
+  const today = ownerDateKey(now);
   const weekStart = currentWeekStart(today);
   const deletedId = search[DELETED_PARAM];
-  const [goals, lifeAreas, sources, deleted, weekly] = await Promise.all([
+  const [goals, lifeAreas, sources, deleted, weekly, reviewInvite] = await Promise.all([
     listGoals(),
     listLifeAreas(),
     listGoalSourceOptions(),
@@ -44,6 +46,8 @@ export default async function GoalsPage({ searchParams }: GoalsPageProps) {
     typeof deletedId === "string" ? getDeletedGoal(deletedId) : Promise.resolve(null),
     // "Esta semana": the objective of Lima's week (none yet in a new week).
     getWeeklyObjective(weekStart),
+    // W4: the invitation to close the week (Sunday 18:00 → Monday 23:59 Lima), or null.
+    getReviewInviteSlot(now),
   ]);
   const areas = lifeAreas.map(({ id, slug, name, icon, color }): GoalAreaSummary => ({
     id,
@@ -58,6 +62,7 @@ export default async function GoalsPage({ searchParams }: GoalsPageProps) {
       {/* Bottom padding grows with the notice (--toast-offset): every tap leaves a "Deshacer"
           notice, and the last row must stay reachable under it at full scroll. */}
       <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
+        {reviewInvite}
         <GoalsList
           goals={goals}
           weekStart={weekStart}

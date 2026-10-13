@@ -71,6 +71,9 @@ describe("closeWeek", () => {
     expect(await objectiveOf(WEEK)).toBeNull();
     expect(revalidatePath).toHaveBeenCalledWith("/review");
     expect(revalidatePath).toHaveBeenCalledWith("/goals", "layout");
+    // The invitation card is gone from Hoy and Metas on the next visit (W4).
+    expect(revalidatePath).toHaveBeenCalledWith("/");
+    expect(revalidatePath).toHaveBeenCalledWith("/goals");
   });
 
   test("with no note and no objective it still closes (a blank note is no note)", async () => {

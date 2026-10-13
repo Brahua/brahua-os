@@ -22,7 +22,7 @@ import {
 import { closeWeekActionSchema } from "./review-input";
 import { REVIEW_ERRORS } from "./review-copy";
 import { closeWeekRow } from "./review";
-import { revalidateReviewScreens } from "./revalidate";
+import { revalidateAfterClose, revalidateReviewScreens } from "./revalidate";
 import { isReviewableWeek, nextMonday } from "./week";
 
 const move = ownerAction(
@@ -93,7 +93,7 @@ const close = ownerAction(
     // 2. The review row, under the week's lock (completed_at once, the note updated). If the
     //    request dies between the two, repeating it finishes the job.
     await closeWeekRow(getDb(), { weekStart, note }, now);
-    revalidateReviewScreens();
+    revalidateAfterClose();
     return ok({ weekStart });
   },
   { name: "closeWeek" },

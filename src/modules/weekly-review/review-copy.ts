@@ -22,6 +22,8 @@ export const REVIEW_COPY = {
   steps: ["Logros", "Pendientes", "Metas y proyectos", "Próxima semana"],
   // Cards (W4): the invitation.
   inviteTitle: "Semana nueva, pizarra limpia",
+  inviteText:
+    "Mira lo que logró la semana que termina, deja lo pendiente en orden y empieza liviano.",
   inviteAction: "Cerrar la semana",
 
   // The shell of every step (W2)

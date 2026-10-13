@@ -342,7 +342,9 @@ test.each([
   "src/modules/reminders/engine.ts",
   "src/modules/goals/goals.ts",
   "src/modules/goals/db/schema.ts",
+  "src/modules/goals/components/goals-list.tsx",
   "src/modules/today/today-board.ts",
+  "src/modules/today/components/today-board.tsx",
 ])("%s cannot import weekly-review", async (file) => {
   for (const code of [IMPORT_REVIEW, IMPORT_REVIEW_CONTRACT, IMPORT_REVIEW_BARREL]) {
     const messages = await restricted(code, file);
@@ -355,6 +357,8 @@ test("weekly-review itself, its page and the composition roots may import it", a
   expect(await restricted(IMPORT_REVIEW, "src/modules/weekly-review/queries.ts")).toEqual([]);
   expect(await restricted(IMPORT_REVIEW, "src/app/(app)/review/page.tsx")).toEqual([]);
   expect(await restricted(IMPORT_REVIEW, "src/lib/review-extensions.ts")).toEqual([]);
+  // W4: the card's composition root imports the contract, and the two pages only the root.
+  expect(await restricted(IMPORT_REVIEW_CONTRACT, "src/lib/review-extensions.tsx")).toEqual([]);
   expect(await restricted(IMPORT_REVIEW, "src/lib/modules.ts")).toEqual([]);
 });
 
