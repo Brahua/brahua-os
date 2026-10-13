@@ -2,11 +2,18 @@
 import { describe, expect, test } from "vitest";
 import { REVIEW_ERRORS } from "@/modules/weekly-review/review-copy";
 import {
+  closeWeekActionSchema,
   closeWeekSchema,
   reviewNoteSchema,
+  reviewObjectiveSchema,
   reviewWeekSchema,
 } from "@/modules/weekly-review/review-input";
-import { parseStep, reviewStepPath, REVIEW_PATH } from "@/modules/weekly-review/routes";
+import {
+  parseStep,
+  reviewClosedPath,
+  reviewStepPath,
+  REVIEW_PATH,
+} from "@/modules/weekly-review/routes";
 
 describe("reviewWeekSchema", () => {
   test.each(["2026-10-12", "2026-12-28", "2028-02-28", "2024-02-26"])("%s is a Monday", (week) => {
@@ -125,5 +132,50 @@ describe("routes", () => {
     [["2", "3"], 1],
   ])("?paso=%j → step %i", (value, step) => {
     expect(parseStep(value as string | undefined)).toBe(step);
+  });
+});
+
+describe("reviewObjectiveSchema and closeWeekActionSchema (W3)", () => {
+  test.each([
+    ["Terminar la spec", "Terminar la spec"],
+    ["  mucho   espacio  ", "mucho espacio"],
+    ["x".repeat(140), "x".repeat(140)],
+  ])("%j is %j", (input, stored) => {
+    expect(reviewObjectiveSchema.parse(input)).toBe(stored);
+  });
+
+  test.each([undefined, null, "", "   "])("%j means «leave it as it is» (null)", (input) => {
+    expect(reviewObjectiveSchema.parse(input)).toBeNull();
+  });
+
+  test("141 characters is an error, never cut; invisible characters are refused", () => {
+    const long = reviewObjectiveSchema.safeParse("x".repeat(141));
+    expect(long.success).toBe(false);
+    expect(long.error?.issues[0].message).toBe(REVIEW_ERRORS.objectiveTooLong);
+    const invisible = reviewObjectiveSchema.safeParse("a\u200bb");
+    expect(invisible.success).toBe(false);
+    expect(invisible.error?.issues[0].message).toBe(REVIEW_ERRORS.objectiveInvisible);
+  });
+
+  test("the action takes the week, the note and the objective; the domain's schema stays the old pair", () => {
+    expect(
+      closeWeekActionSchema.parse({ weekStart: "2026-10-12", note: " Nota ", objective: " Meta " }),
+    ).toEqual({ weekStart: "2026-10-12", note: "Nota", objective: "Meta" });
+    expect(closeWeekActionSchema.parse({ weekStart: "2026-10-12" })).toEqual({
+      weekStart: "2026-10-12",
+      note: null,
+      objective: null,
+    });
+    expect(closeWeekActionSchema.safeParse({ weekStart: "2026-10-13" }).success).toBe(false);
+    // An unknown key is dropped, not stored.
+    expect(
+      closeWeekSchema.parse({ weekStart: "2026-10-12", note: "n", objective: "ignorado" }),
+    ).toEqual({ weekStart: "2026-10-12", note: "n" });
+  });
+});
+
+describe("reviewClosedPath", () => {
+  test("is step 4 of that week with ?cerrada=1", () => {
+    expect(reviewClosedPath("2026-10-12")).toBe("/review?paso=4&semana=2026-10-12&cerrada=1");
   });
 });

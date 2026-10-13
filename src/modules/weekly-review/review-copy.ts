@@ -3,13 +3,16 @@
 // open is «Quedaron abiertas», never «atrasadas». No «atrasad…», «riesgo», «fallaste», «deuda»,
 // «⚠️» or «racha perdida». tests/modules/weekly-review-copy.test.ts scans EVERY string exported
 // here for the forbidden ones, so new copy goes in this file (W2 and W3 add their steps here).
-import { REVIEW_NOTE_MAX_LENGTH } from "./review-constants";
+import { REVIEW_NOTE_MAX_LENGTH, REVIEW_OBJECTIVE_MAX_LENGTH } from "./review-constants";
 
 export const REVIEW_ERRORS = {
   weekInvalid: "Esa semana no es válida.",
   weekFuture: "Esa semana todavía no empieza.",
   noteTooLong: `Usa ${REVIEW_NOTE_MAX_LENGTH} caracteres como máximo.`,
   noteInvisible: "Quita los caracteres invisibles o de control de la nota.",
+  objectiveTooLong: `El objetivo admite ${REVIEW_OBJECTIVE_MAX_LENGTH} caracteres como máximo.`,
+  objectiveInvisible: "Quita los caracteres invisibles o de control del objetivo.",
+  notSaved: "No se pudo cerrar la semana. Lo que escribiste sigue aquí.",
 } as const;
 
 export const REVIEW_COPY = {
@@ -33,9 +36,6 @@ export const REVIEW_COPY = {
   checkConnection: "Revisa tu conexión e inténtalo de nuevo.",
   notSavedTitle: "Sin guardar",
   newDay: "Empezó un nuevo día: actualizando la revisión.",
-  // Steps 3 and 4 until W3 builds them: no dates promised.
-  soonTitle: "Esta parte llega pronto",
-  soonText: "Por ahora puedes revisar lo logrado y lo que quedó abierto.",
 } as const;
 
 /** Step 1 · Logros: what the week held. No comparisons, no zeros that scold. */
@@ -114,4 +114,67 @@ export const PENDIENTES_COPY = {
       : `${count} no se restauraron: cambiaron mientras tanto.`,
   notMoved: "No se pudo mover; siguen como estaban.",
   notUndone: "No se pudo deshacer.",
+} as const;
+
+/** Step 3 · Metas y proyectos: read-only, with the facts (a block is «Esperando a…», not a reproach). */
+export const METAS_COPY = {
+  goalsTitle: "Metas",
+  goalsEmptyTitle: "Aún no tienes metas activas",
+  goalsEmptyText: "Cuando quieras, pon una meta para este año o este trimestre.",
+  goalsEmptyLink: "Ir a Metas",
+  goalsAll: "Ver todas las metas",
+  goalBar: (title: string, count: string) => `${title}: ${count}`,
+  projectsTitle: "Proyectos",
+  projectsEmptyTitle: "Aún no tienes proyectos en marcha",
+  projectsEmptyText: "Los proyectos que empieces aparecerán aquí con su próxima acción.",
+  projectsEmptyLink: "Ir a Proyectos",
+  projectsAll: "Ver todos los proyectos",
+  progress: (percent: number | string) => `${percent} % completado`,
+  nextAction: (title: string) => `Siguiente: ${title}`,
+  noNextAction: "Sin siguiente acción por ahora",
+  waitingFor: (names: string) => `Esperando a ${names}`,
+  status: {
+    idea: "Idea",
+    active: "Activo",
+    paused: "Pausado",
+    maintenance: "Mantenimiento",
+  } as Record<string, string>,
+  /** The list shows the first N of M. */
+  shownOf: (shown: number | string, total: number | string) =>
+    `Se muestran los primeros ${shown} de ${total}.`,
+} as const;
+
+/** Step 4 · Próxima semana and the close. */
+export const PROXIMA_COPY = {
+  objectiveLabel: (range: string) => `Objetivo de la semana del ${range}`,
+  objectiveHelp: `Una sola cosa para la semana que viene (hasta ${REVIEW_OBJECTIVE_MAX_LENGTH} caracteres). Es el mismo objetivo que ves en Metas.`,
+  objectiveExisting: "Ya tenías este objetivo. Si lo cambias, también cambia en Metas.",
+  noteLabel: "Nota de esta semana (opcional)",
+  noteHelp: `¿Qué aprendiste? Hasta ${REVIEW_NOTE_MAX_LENGTH} caracteres.`,
+  close: "Cerrar la semana",
+  closed: "Esta semana ya está cerrada",
+  closedHelp: "Puedes cambiar la nota o el objetivo y guardar de nuevo.",
+  closeAgain: "Guardar cambios",
+  saving: "Guardando…",
+  announceClosed: "Semana cerrada.",
+  announceUpdated: "Cambios guardados.",
+} as const;
+
+/** The closing screen: it ends on what was achieved. */
+export const CIERRE_COPY = {
+  title: "Semana cerrada",
+  subtitle: "Cerraste una semana más. Esto es lo que lograste:",
+  noteTitle: "Tu nota",
+  objectiveTitle: "Tu objetivo de la próxima semana",
+  backToToday: "Volver a Hoy",
+} as const;
+
+/** «Semanas anteriores»: dates, the figures and the note. No guilt, no comparisons. */
+export const HISTORIAL_COPY = {
+  title: "Semanas anteriores",
+  empty: "Cuando cierres tu primera semana, aparecerá aquí.",
+  completeDays: (count: number | string) => `Días completos: ${count}`,
+  habits: (done: number | string, expected: number | string) => `${done} de ${expected} hábitos`,
+  noHabits: "Sin hábitos esa semana",
+  note: (text: string) => `Nota: ${text}`,
 } as const;

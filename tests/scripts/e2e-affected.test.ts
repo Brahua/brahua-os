@@ -278,6 +278,7 @@ describe("SPEC_MODULES against the real repository", () => {
       task: "tasks",
       today: "today",
       reminders: "reminders",
+      "weekly-review": "weekly-review",
     };
     const wrong = repo.specs.flatMap((spec: string) => {
       const prefix = Object.keys(own).find((p) => spec.startsWith(p));
@@ -293,7 +294,8 @@ describe("SPEC_MODULES against the real repository", () => {
       "src/modules/habits/habits-copy.ts",
       {
         e2e: "subset",
-        has: ["habits.spec.ts", "habits-streaks.spec.ts", "today.spec.ts"],
+        // weekly-review reads habits through its contract: it is a dependent.
+        has: ["habits.spec.ts", "habits-streaks.spec.ts", "today.spec.ts", "weekly-review.spec.ts"],
         hasNot: ["projects.spec.ts", "finance-summary.spec.ts", "login.spec.ts"],
       },
     ],
@@ -332,6 +334,15 @@ describe("SPEC_MODULES against the real repository", () => {
         e2e: "subset",
         has: ["today.spec.ts", "home.spec.ts"],
         hasNot: ["tasks.spec.ts", "finance-summary.spec.ts"],
+      },
+    ],
+    [
+      // The /review route has its own module id (`weekly-review`): the page runs its spec only.
+      "src/app/(app)/review/page.tsx",
+      {
+        e2e: "subset",
+        has: ["weekly-review.spec.ts"],
+        hasNot: ["goals.spec.ts", "tasks.spec.ts", "habits.spec.ts", "today.spec.ts"],
       },
     ],
     [

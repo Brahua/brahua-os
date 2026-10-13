@@ -1,7 +1,13 @@
 // celebration-milestones: the confetti of a streak milestone. Only from 30, in the area's tone,
 // never under reduced motion, and a failure of the library never surfaces.
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { celebrateStreak, CONFETTI_FROM, CONFETTI_MAX_MS, hasConfetti } from "@/lib/celebrate";
+import {
+  celebrate,
+  celebrateStreak,
+  CONFETTI_FROM,
+  CONFETTI_MAX_MS,
+  hasConfetti,
+} from "@/lib/celebrate";
 
 const fire = vi.hoisted(() => vi.fn());
 vi.mock("canvas-confetti", () => ({ default: fire }));
@@ -74,5 +80,28 @@ describe("celebrateStreak", () => {
   test("a failing library never throws", async () => {
     fire.mockRejectedValue(new Error("no canvas"));
     await expect(celebrateStreak(30, "health")).resolves.toBeUndefined();
+  });
+});
+
+describe("celebrate (the closing of a week uses it without a streak)", () => {
+  test("one burst in the primary text color, no threshold", async () => {
+    await celebrate(null);
+    expect(fire).toHaveBeenCalledTimes(1);
+    expect(fire.mock.calls[0][0].colors).toEqual(["#111111"]);
+    expect(fire.mock.calls[0][0].disableForReducedMotion).toBe(true);
+  });
+
+  test("with an area: its bright tone", async () => {
+    await celebrate("health");
+    expect(fire.mock.calls[0][0].colors).toEqual(["#5ccb8a"]);
+  });
+
+  test("under reduced motion: never; a failing library never throws", async () => {
+    motion(true);
+    await celebrate(null);
+    expect(fire).not.toHaveBeenCalled();
+    motion(false);
+    fire.mockRejectedValue(new Error("no canvas"));
+    await expect(celebrate(null)).resolves.toBeUndefined();
   });
 });

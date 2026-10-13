@@ -12,6 +12,10 @@
 //   (`selectHabitsWeekCompleteDays`, three queries): a day is complete when every daily or
 //   fixed-days habit that defined it is done; the rules are in complete-days.ts.
 //
+// - getHabitsWeeksOverview(weekStarts, now) (for `weekly-review`'s «Semanas anteriores»): many
+//   weeks' «Días completos» and «N de M» at once (`selectHabitsWeeksOverview`, three queries
+//   whatever the number of weeks), with the same rules as the two contracts above.
+//
 // - getHabitsDueToday(now) (for `today`'s pads): the same habits as full `HabitItem`s.
 //
 // - getHabitDoneDays(habitId, from, to) (for `goals`): a habit's days done in a range, with the
@@ -53,6 +57,7 @@ import {
   type HabitTodayItem,
   type TimedHabit,
 } from "./today-summary";
+import { weekCompliance, type StreakHistory } from "./streak";
 import { buildHabitsWeekSummary, type HabitsWeekSummary } from "./week-summary";
 
 export type { CompleteDay, HabitsWeekCompleteDays } from "./complete-days";
@@ -211,6 +216,115 @@ export async function getHabitsWeekCompleteDays(
 ): Promise<HabitsWeekCompleteDays> {
   await requireOwner();
   return selectHabitsWeekCompleteDays(getDb(), weekStart, now);
+}
+
+/** One week of `getHabitsWeeksOverview`: the two numbers «Semanas anteriores» shows. */
+export type HabitsWeekOverview = {
+  /** The Monday of the week. */
+  weekStart: string;
+  /** «Días completos»: the same number as `getHabitsWeekCompleteDays(...).completeDays`. */
+  completeDays: number;
+  /** «18 de 24»: the same numbers as `getHabitsWeekSummary(...).total`. */
+  done: number;
+  expected: number;
+};
+
+/**
+ * Many weeks at once (`weekStarts`: any day of each; the result keeps their order and names each
+ * Monday): the «Días completos» and the compliance total of each, as of `now`. For the history of
+ * the review, so twelve weeks cost the same three queries as one: the active habits that had
+ * started by the last Sunday, their logs over the whole range and their pauses; then each week is
+ * the pure rules of `getHabitsWeekCompleteDays` and `getHabitsWeekSummary` over that data. Weeks
+ * still to come, and weeks before any habit started, are zeros. Trusts its caller (see
+ * getHabitsWeeksOverview).
+ */
+export async function selectHabitsWeeksOverview(
+  db: Database,
+  weekStarts: readonly string[],
+  now: Date,
+): Promise<HabitsWeekOverview[]> {
+  for (const value of weekStarts) {
+    if (!day.safeParse(value).success) {
+      throw new RangeError("weekStart must be a day as YYYY-MM-DD");
+    }
+  }
+  if (weekStarts.length === 0) return [];
+  const mondays = weekStarts.map(mondayOf);
+  const today = ownerDateKey(now);
+  const empty = (monday: string): HabitsWeekOverview => ({
+    weekStart: monday,
+    completeDays: 0,
+    done: 0,
+    expected: 0,
+  });
+  const first = mondays.reduce((min, monday) => (monday < min ? monday : min));
+  const lastSunday = addDays(
+    mondays.reduce((max, monday) => (monday > max ? monday : max)),
+    6,
+  );
+  // Everything is still to come: nothing to read.
+  if (first > today) return mondays.map(empty);
+  const rows = await db
+    .select({
+      id: habits.id,
+      kind: habits.kind,
+      frequency: habits.frequency,
+      weeklyTarget: habits.weeklyTarget,
+      weekdays: habits.weekdays,
+      startDate: habits.startDate,
+    })
+    .from(habits)
+    .where(and(activeHabit, lte(habits.startDate, lastSunday)));
+  if (rows.length === 0) return mondays.map(empty);
+  const ids = rows.map((row) => row.id);
+  // One after the other, like selectItems (a transaction shares one connection).
+  const logs = await selectLogsInRange(db, ids, {
+    from: first,
+    to: lastSunday < today ? lastSunday : today,
+  });
+  const pauses = await selectPauses(db, ids);
+  const habitsOf = rows.map(({ id, ...rules }) => {
+    const history: StreakHistory = {
+      logs: new Map(
+        (logs.get(id) ?? []).map((log) => [
+          log.day,
+          { quantity: log.quantity, target: log.target },
+        ]),
+      ),
+      pauses: pauses.get(id) ?? [],
+    };
+    return { rules, history };
+  });
+  const currentMonday = mondayOf(today);
+  return mondays.map((monday) => {
+    if (monday > currentMonday) return empty(monday);
+    const sunday = addDays(monday, 6);
+    const started = habitsOf.filter(({ rules }) => rules.startDate <= sunday);
+    const total = started.reduce(
+      (sum, { rules, history }) => {
+        const compliance = weekCompliance(rules, history, monday, today);
+        return { done: sum.done + compliance.done, expected: sum.expected + compliance.expected };
+      },
+      { done: 0, expected: 0 },
+    );
+    return {
+      weekStart: monday,
+      completeDays: completeDaysOf(monday, started, today).completeDays,
+      ...total,
+    };
+  });
+}
+
+/**
+ * For `weekly-review` (the history «Semanas anteriores»): the «Días completos» and «N de M» of
+ * several weeks in one go (see `selectHabitsWeeksOverview`). Checks the owner.
+ */
+export async function getHabitsWeeksOverview(
+  weekStarts: readonly string[],
+  now: Date = new Date(),
+): Promise<HabitsWeekOverview[]> {
+  await requireOwner();
+  return selectHabitsWeeksOverview(getDb(), weekStarts, now);
 }
 
 export type { TimedHabit } from "./today-summary";

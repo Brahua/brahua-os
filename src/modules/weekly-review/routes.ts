@@ -9,6 +9,8 @@ export type ReviewStep = (typeof REVIEW_STEPS)[number];
 /** `?paso=` picks the step; `?semana=` the week (a Monday). */
 export const STEP_PARAM = "paso";
 export const WEEK_PARAM = "semana";
+/** `?cerrada=1` on step 4: the week was just closed, the page shows the closing screen. */
+export const CLOSED_PARAM = "cerrada";
 
 /**
  * A step's URL. The first step of the default week is the bare /review; `weekStart` (a Monday)
@@ -26,4 +28,14 @@ export function reviewStepPath(step: ReviewStep = 1, weekStart?: string): string
 export function parseStep(value: string | string[] | undefined): ReviewStep {
   const step = typeof value === "string" ? Number(value) : NaN;
   return (REVIEW_STEPS as readonly number[]).includes(step) ? (step as ReviewStep) : 1;
+}
+
+/** The closing screen of a week (step 4 with `?cerrada=1`): where a successful close goes. */
+export function reviewClosedPath(weekStart: string): string {
+  const params = new URLSearchParams({
+    [STEP_PARAM]: "4",
+    [WEEK_PARAM]: weekStart,
+    [CLOSED_PARAM]: "1",
+  });
+  return `${REVIEW_PATH}?${params.toString()}`;
 }

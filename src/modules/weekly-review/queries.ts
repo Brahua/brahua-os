@@ -1,22 +1,15 @@
 // Reads of `weekly-review` for Server Components. Each one checks the owner first (SPEC-core); the
 // `select…` variants take the database and trust their caller (integration tests, the W3 domain).
 //
-// Slots left for the next slices (each page checks `requireOwner()` and reads through these and the
-// providers' contracts, never the providers' internals):
-//
-// - W2 (steps 1 and 2): the page picks the week (`parseWeekParam(?semana=, now)` or
-//   `defaultReviewWeek(now, await hasReview(previousMonday(currentWeekStart(now))))`) and reads
-//   `getHabitsWeekSummary`, `getHabitsWeekCompleteDays`, `getTasksWeekReview`,
-//   `getProjectsWeekReview` and `getGoalsWeekReview` and moves tasks with `moveTasksToDate` /
-//   `undoMoveTasks` (`moveTargets` says where).
-// - W3 (steps 3 and 4, close and history): `closeWeek` (domain, first lock
-//   `(WEEKLY_REVIEW_ADVISORY_SPACE, hashtext(weekStart))`) and `setWeeklyObjectiveForWeek` for the
-//   next week; "Semanas anteriores" reads `listClosedWeeks` and recomputes each week's numbers.
-// - W4 (invitation): `getReviewInvite(now)` = `reviewInvite(now, await hasReview(inviteWeek))`.
+// Slots left for W4 (the invitation): `getReviewInvite(now)` = `reviewInvite(now, await
+// hasReview(inviteWeek))`. The page picks the week with `parseWeekParam` / `defaultReviewWeek` and
+// reads the providers' contracts; W3 closes through `closeWeek` (actions.ts, review.ts) and reads
+// «Semanas anteriores» with `getPreviousWeeks`.
 import "server-only";
 import { desc, eq } from "drizzle-orm";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
+import { getHabitsWeeksOverview } from "@/modules/habits/contracts";
 import { weeklyReviews } from "./db/schema";
 import { isMonday } from "./week";
 
@@ -73,4 +66,37 @@ export async function hasReview(weekStart: string): Promise<boolean> {
 export async function listClosedWeeks(limit: number = PREVIOUS_WEEKS_LIMIT): Promise<ReviewRow[]> {
   await requireOwner();
   return selectClosedWeeks(getDb(), Math.min(Math.max(Math.trunc(limit), 1), 52));
+}
+
+/** A closed week with the numbers «Semanas anteriores» shows (recomputed from that week's data). */
+export type PreviousWeek = {
+  weekStart: string;
+  note: string | null;
+  /** «Días completos: N». */
+  completeDays: number;
+  /** «N de M hábitos» (M is 0 when no habit counted that week). */
+  habitsDone: number;
+  habitsExpected: number;
+};
+
+/**
+ * «Semanas anteriores»: the last closed weeks (12), the most recent first, each with its habits'
+ * numbers recomputed from the data of that week (the live figure, SPEC "Números"). A fixed number
+ * of queries whatever the count: the list and one batch of `habits`' contract. Tasks done are left
+ * out (a batch would need a new contract in `tasks`; decisión autónoma para revisar con el owner).
+ */
+export async function getPreviousWeeks(now: Date = new Date()): Promise<PreviousWeek[]> {
+  const closed = await listClosedWeeks(PREVIOUS_WEEKS_LIMIT);
+  if (closed.length === 0) return [];
+  const overview = await getHabitsWeeksOverview(
+    closed.map((row) => row.weekStart),
+    now,
+  );
+  return closed.map((row, index) => ({
+    weekStart: row.weekStart,
+    note: row.note,
+    completeDays: overview[index]?.completeDays ?? 0,
+    habitsDone: overview[index]?.done ?? 0,
+    habitsExpected: overview[index]?.expected ?? 0,
+  }));
 }
