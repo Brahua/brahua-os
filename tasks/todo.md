@@ -1,20 +1,10 @@
 # Tareas
 
-> Módulo en curso: **`weekly-review`** (spec aprobada 2026-10-13; plan en [`plan.md`](plan.md)). Último módulo cerrado: **`goals`** (2026-10-13; plan y tareas en [`archive/goals-plan.md`](archive/goals-plan.md) y [`archive/goals-todo.md`](archive/goals-todo.md)). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Último módulo cerrado: **`weekly-review`** (2026-10-14; plan y tareas en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md)). **Siguiente: `health`** (aún sin spec: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `weekly-review`
+## Módulo `weekly-review`: cerrado el 2026-10-14
 
-> Plan: [`plan.md`](plan.md) · Spec: [`SPEC-weekly-review.md`](../SPEC-weekly-review.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(weekly-review): …`). Máximo un E2E nuevo en todo el módulo.
-
-- [x] **W1: Datos y contratos** (`feat/weekly-review-w1`; ver `docs/HANDOFF.md` → «Cómo funciona weekly-review → W1») — migración aditiva `weekly_reviews` (`CHECK`, lock en el espacio 6000) y exportación; `week.ts` puro (semana a revisar, ventana de la invitación); `getHabitsWeekCompleteDays`; `getTasksWeekReview` y `moveTasksToDate`/`undoMoveTasks`; `getProjectsWeekReview`; `getGoalsWeekReview` y el objetivo semanal por contrato; regla de ESLint de fronteras. Sin pantalla.
-- [x] **W2: Pasos 1 y 2** (`feat/weekly-review-w2`; ver `docs/HANDOFF.md` → «Cómo funciona weekly-review → W2») — `/review` con Logros y Pendientes (lote y por fila, «Deshacer» exacto); módulo «Revisión» en la navegación (sin atajo). Sin E2E nueva.
-- [x] **W3: Pasos 3 y 4, cierre y registro** (`feat/weekly-review-w3`; ver `docs/HANDOFF.md` → «Cómo funciona weekly-review → W3») — Metas y proyectos, Próxima semana (objetivo y nota), «Cerrar la semana» idempotente, pantalla de cierre, «Semanas anteriores». El único E2E del módulo (con `SPEC_MODULES` y `@today-*`).
-- [ ] **W4: Invitación y cierre** — _(mitad de código hecha en `feat/weekly-review-w4`: `getReviewInvite`, `ReviewInviteCard`, raíz `src/lib/review-extensions.tsx`, revalidación al cerrar, sin E2E nueva; faltan retrospectiva, backlog, mapa, archivo y Checkpoint, del orquestador)_ `getReviewInvite` y `ReviewInviteCard` en `/` y `/goals` (raíz `src/lib/review-extensions.ts`), retrospectiva en `CLAUDE.md`, backlog, mapa y HANDOFF; archivar plan y tareas.
-
-### Checkpoint final
-- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
-- [ ] Se cumplen los criterios de éxito de `SPEC-weekly-review.md`.
-- [ ] Revisión con el owner.
+Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md). W1–W4 en producción (#117–#120). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`).
 
 ## Módulo `goals`: cerrado el 2026-10-13
 
@@ -36,6 +26,18 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+### `weekly-review` → backlog consolidado (W1–W4, cierre)
+
+Para decidir con el owner o tomar entre módulos. Detalle y decisiones en `docs/HANDOFF.md` → «Cómo funciona weekly-review».
+
+- [ ] **Borrar la fila de prueba de producción** (`weekly_reviews`, semana 2026-09-28, nota «[QA] prueba del Checkpoint, se puede ignorar»): la revisión no tiene borrado en v1; script de datos con respaldo previo y confirmación del owner.
+- [ ] **Ver la tarjeta de invitación en un navegador real** (domingo 18:00 a lunes 23:59, Lima): el Checkpoint cayó en martes y la tarjeta se probó solo con reloj fijo en pruebas.
+- [ ] **Recorrer el ritual con datos reales** (hábitos, tareas abiertas, metas y proyectos) y en el iPhone: la base de producción estaba vacía; los pasos se vieron en sus estados vacíos.
+- [ ] **«Dejar» no guarda nada:** solo saca la tarea del lote mientras la pantalla está abierta (decisión autónoma de W2).
+- [ ] **Tareas hechas en «Semanas anteriores»:** no se muestran (exigiría un lote nuevo en `tasks`); tampoco finanzas en la revisión (fuera de v1).
+- [ ] **El objetivo semanal no se puede borrar desde la revisión** (se hace en `/goals`).
+- [ ] **Registro de pruebas:** la tarjeta usa un reloj de E2E (`bo_e2e_invite`); ninguna spec lo ejercita todavía.
 
 ### `goals` → backlog consolidado (G1–G4, cierre)
 

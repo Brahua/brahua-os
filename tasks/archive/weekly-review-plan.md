@@ -1,7 +1,7 @@
 # Plan de implementación: weekly-review
 
-> Spec: [`SPEC-weekly-review.md`](../SPEC-weekly-review.md) (APROBADO v1.0, 2026-10-13) · Tareas: [`todo.md`](todo.md)
-> Planes anteriores en [`archive/`](archive/).
+> Spec: [`SPEC-weekly-review.md`](../SPEC-weekly-review.md) (APROBADO v1.0, 2026-10-13) · Tareas: [`weekly-review-todo.md`](weekly-review-todo.md)
+> Planes anteriores en [`archive/`](archive/). **Cerrado el 2026-10-14.**
 
 ## Enfoque
 
