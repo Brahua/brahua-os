@@ -168,7 +168,7 @@ describe("getHabitDoneDays", () => {
 
 describe("selectHabitsDoneDays", () => {
   test("one answer per request, in order: two periods of one habit and a missing one", async () => {
-    const id = await insertHabit({ name: "Correr" });
+    const id = await insertHabit({ name: "Correr", startDate: "2026-07-01" });
     await log(id, "2026-08-15");
     await log(id, "2026-10-01");
     const answers = await selectHabitsDoneDays(

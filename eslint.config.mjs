@@ -201,6 +201,22 @@ const moduleBoundaries = [
     },
   },
   {
+    // The one exception: a foreign key needs the table itself (`tasks` does the same with
+    // `projects`), so the schema file may import the tables of `habits` and `projects`.
+    files: ["src/modules/goals/db/schema.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: GOALS_NO_BARRELS,
+          // Only the other modules' folders stay closed; the tables are let in by leaving the
+          // habits/projects pattern out (a negation can't reopen a file inside a closed folder).
+          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/modules/today/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [

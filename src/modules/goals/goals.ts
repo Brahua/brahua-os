@@ -215,7 +215,13 @@ export async function settleSourceAchievements(
         .set({ status: "achieved", achievedAt: sql`coalesce(${goals.achievedAt}, now())` })
         .where(and(eq(goals.id, goal.id), visibleGoal, eq(goals.status, "active")))
         .returning({ achievedAt: goals.achievedAt });
-      return achieved ?? null;
+      if (achieved) return achieved;
+      // Another read achieved it first (or it was archived meanwhile): report what is stored.
+      const [current] = await tx
+        .select({ achievedAt: goals.achievedAt, status: goals.status })
+        .from(goals)
+        .where(and(eq(goals.id, goal.id), visibleGoal));
+      return current?.status === "achieved" ? current : null;
     });
     if (row?.achievedAt) achievedAt.set(goal.id, row.achievedAt.toISOString());
   }
