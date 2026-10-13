@@ -11,6 +11,7 @@ import { moveId } from "@/modules/core/life-area-order";
 import { reorderGoals, unarchiveGoal } from "../actions";
 import type { GoalItem } from "../goal-input";
 import { applyGoalListChange } from "../goal-list-optimistic";
+import { movePeriodOf } from "../goal-move";
 import { groupGoals } from "../goal-sections";
 import { GOALS_COPY } from "../goals-copy";
 import { currentPeriod, periodLabel, periodPhase, periodOf } from "../pace";
@@ -18,6 +19,7 @@ import { GoalRow } from "./goal-row";
 import { WeeklyObjective } from "./weekly-objective";
 import { failureReason, useGoalsScreen } from "./goals-screen";
 import { useGoalEntries } from "./use-goal-entries";
+import { useMoveGoal } from "./use-move-goal";
 
 // The sheets' code loads on demand: as soon as a key that opens one is pointed at, focused or
 // touched, so it is usually there by the time it opens.
@@ -116,6 +118,18 @@ export function GoalsList({ goals, weekStart, weeklyObjective, headingId }: Goal
     startSaving,
     notSaved,
     focusFallback: () => document.getElementById(headingId)?.focus(),
+  });
+
+  // ── "Pasar al próximo periodo" (a row of "Anteriores") ──
+  const mover = useMoveGoal({
+    view,
+    apply,
+    startSaving,
+    notSaved,
+    // The row changes section: focus goes to its title link once it is there.
+    restoreFocus: (id) => {
+      pendingFocus.current = { id, until: Date.now() + PENDING_FOCUS_MS };
+    },
   });
 
   // ── "Nueva meta" ──
@@ -338,6 +352,7 @@ export function GoalsList({ goals, weekStart, weeklyObjective, headingId }: Goal
               expanded={previousOpen}
               onExpandedChange={setPreviousOpen}
               onReactivate={reactivate}
+              onMove={mover.move}
             />
           ) : null}
         </>
@@ -372,6 +387,7 @@ type PreviousGoalsProps = {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onReactivate: (goal: GoalItem) => void;
+  onMove: (goal: GoalItem) => void;
 };
 
 /** "Anteriores (N)", folded: the periods that ended and the archived goals, each as it was left. */
@@ -381,6 +397,7 @@ function PreviousGoals({
   expanded,
   onExpandedChange,
   onReactivate,
+  onMove,
 }: PreviousGoalsProps) {
   return (
     <section
@@ -426,12 +443,41 @@ function PreviousGoals({
                       {GOALS_COPY.reactivate}
                     </Key>
                   </div>
-                ) : null
+                ) : (
+                  <MoveKey goal={goal} today={today} onMove={onMove} />
+                )
               }
             />
           ))}
         </ul>
       </div>
     </section>
+  );
+}
+
+/** "Pasar a T1 2027" on a goal of a past period that is still in course (nothing otherwise). */
+function MoveKey({
+  goal,
+  today,
+  onMove,
+}: {
+  goal: GoalItem;
+  today: string;
+  onMove: (goal: GoalItem) => void;
+}) {
+  const next = movePeriodOf(goal, today);
+  if (!next) return null;
+  const label = periodLabel(next);
+  return (
+    <div className="flex">
+      <Key
+        variant="ghost"
+        aria-label={GOALS_COPY.moveToNextRow(goal.title, label)}
+        data-goal-move={goal.id}
+        onClick={() => onMove(goal)}
+      >
+        {GOALS_COPY.moveToNext(label)}
+      </Key>
+    </div>
   );
 }

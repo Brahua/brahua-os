@@ -32,6 +32,8 @@ export const GOAL_ERRORS = {
   weeklyRequired: "Escribe el objetivo de la semana.",
   weeklyTooLong: `Usa ${WEEKLY_OBJECTIVE_MAX_LENGTH} caracteres como máximo.`,
   weeklyInvisible: "Quita los caracteres invisibles o de control del objetivo.",
+  notMovable:
+    "Solo una meta en curso, de un periodo que ya empezó, puede pasar al próximo periodo.",
   sourceReached:
     "Esta meta se logra sola con su hábito o proyecto, y ya lo alcanzó. Cambia su fuente o su meta si quieres seguir.",
 } as const;
@@ -237,6 +239,18 @@ export const GOALS_COPY = {
   notReactivated: "No se pudo reactivar.",
   backInPlace: (title: string) => `«${title}» volvió a su lugar.`,
   archivedAgain: (title: string) => `«${title}» volvió a Anteriores.`,
+
+  // Move to the next period
+  moveToNext: (label: string) => `Pasar a ${label}`,
+  moveToNextRow: (title: string, label: string) => `Pasar «${title}» a ${label}`,
+  moveHelp: "Sigue siendo la misma meta, con lo que ya llevas.",
+  movedTitle: "Cambió de periodo",
+  movedTo: (title: string, label: string) => `«${title}» pasó a ${label}.`,
+  movedBack: (title: string, label: string) => `«${title}» volvió a ${label}.`,
+  moveAlready: (title: string) => `«${title}» ya estaba en otro periodo: la dejé como está.`,
+  moveUndoStale: (title: string) => `«${title}» cambió mientras tanto: la dejé como está.`,
+  notMoved: "No se pudo pasar al próximo periodo.",
+  notMovedBack: "No se pudo deshacer el cambio de periodo.",
 
   // Delete
   deleteGoal: "Eliminar meta",

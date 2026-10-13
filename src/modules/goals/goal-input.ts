@@ -217,6 +217,50 @@ export const undoEntryInputSchema = z.object({
 });
 export type UndoEntryInput = z.output<typeof undoEntryInputSchema>;
 
+/** The period (and place in the order) a goal was moved from: what its "Deshacer" carries. */
+const periodYear = z
+  .number({ error: GOAL_ERRORS.period })
+  .int(GOAL_ERRORS.period)
+  .min(GOAL_YEAR_MIN, GOAL_ERRORS.period)
+  .max(GOAL_YEAR_MAX, GOAL_ERRORS.period);
+
+/**
+ * "Pasar al próximo periodo": the goal and the period the owner saw it in (`year`, and `quarter`
+ * for a quarter goal). The server moves it only if it still has that period, so two taps (or two
+ * tabs) at once move it once.
+ */
+export const moveGoalInputSchema = z.object({ id, year: periodYear, quarter });
+export type MoveGoalInput = z.output<typeof moveGoalInputSchema>;
+
+/** A period as an input carries it: a year and, for a quarter goal, the quarter. */
+export type PeriodFields = { year: number; quarter: number | null };
+
+/**
+ * The undo of a move carries the period and place the goal came from (`from`) and the period the
+ * move left it in (`applied`). It only applies while the goal still has `applied`.
+ */
+export const undoMoveGoalInputSchema = z.object({
+  id,
+  from: z.object({
+    year: periodYear,
+    quarter,
+    position: z.number({ error: GOAL_ERRORS.order }).int().min(0).max(1_000_000),
+  }),
+  applied: z.object({ year: periodYear, quarter }),
+});
+export type UndoMoveGoalInput = z.output<typeof undoMoveGoalInputSchema>;
+
+/** What a move did: the goal as stored now, and where it was (the undo's data). */
+export type GoalMove = {
+  goal: GoalItem;
+  /** False when the goal no longer had the period asked for (someone moved it first). */
+  moved: boolean;
+  from: PeriodFields & { position: number };
+};
+
+/** What an undo of a move did: the goal as stored now, and whether it went back. */
+export type GoalMoveUndo = { goal: GoalItem; restored: boolean };
+
 /** A life area as a goal shows it (it may be archived since). */
 export type GoalAreaSummary = {
   id: string;

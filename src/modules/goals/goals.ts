@@ -29,13 +29,18 @@ import type {
   DeletedGoal,
   GoalEntryItem,
   GoalItem,
+  GoalMove,
+  GoalMoveUndo,
   GoalSourceReading,
+  MoveGoalInput,
   UnarchiveGoalInput,
+  UndoMoveGoalInput,
   UndoEntryInput,
   UpdateGoalInput,
 } from "./goal-input";
 import { GOALS_ADVISORY_SPACE, GOALS_ORDER_KEY } from "./lock-keys";
 import { sourceReached } from "./goal-text";
+import { movePeriodOf, movedPatch } from "./goal-move";
 import { periodBounds, periodOf } from "./pace";
 import { achievementChange } from "./progress";
 
@@ -84,7 +89,9 @@ export type GoalFailure =
   | "notManual"
   /** "Reabrir" on a habit or project goal whose source still reaches the target. */
   | "sourceReached"
-  | "entryNotFound";
+  | "entryNotFound"
+  /** "Pasar al próximo periodo" on a goal that isn't in course or whose period hasn't started. */
+  | "notMovable";
 
 /** The sum of a goal's entries that were not undone. */
 const sumColumn = sql<number>`coalesce((
@@ -796,4 +803,98 @@ export async function setGoalAchieved(
     }
     return (await selectGoalItemById(tx, id)) as GoalItem;
   });
+}
+
+/**
+ * Puts a goal at `to` (0-based; "end": last) in the global order, shifting the goals between its
+ * old and new place by one so `position` stays contiguous. Under the order lock. Archived and
+ * deleted goals hold slots too, so every row counts. A place past the end lands last.
+ */
+async function placeGoal(tx: Tx, id: string, position: number, to: number | "end") {
+  const [{ total }] = await tx.select({ total: sql<number>`count(*)`.mapWith(Number) }).from(goals);
+  const target = to === "end" ? total - 1 : Math.min(Math.max(to, 0), total - 1);
+  if (target === position) return;
+  const others = ne(goals.id, id);
+  if (target > position) {
+    await tx
+      .update(goals)
+      .set({ position: sql`${goals.position} - 1` })
+      .where(
+        and(others, sql`${goals.position} > ${position}`, sql`${goals.position} <= ${target}`),
+      );
+  } else {
+    await tx
+      .update(goals)
+      .set({ position: sql`${goals.position} + 1` })
+      .where(
+        and(others, sql`${goals.position} >= ${target}`, sql`${goals.position} < ${position}`),
+      );
+  }
+  await tx.update(goals).set({ position: target }).where(eq(goals.id, id));
+}
+
+/**
+ * "Pasar al próximo periodo": the SAME goal goes to the next period (year → year + 1, quarter →
+ * the next, T4 → T1 of the next year) and to the end of the order, so the end of its new section.
+ * Its entries, source and target stay (what was done still counts: the goal goes on with it;
+ * decisión autónoma para revisar con el owner). Only a goal in course whose period is current
+ * or over (`movePeriodOf`). Locks: the order's, then the goal's. The request carries the period
+ * the owner saw (`year`, `quarter`): a goal that already has another one (a second tap, another
+ * tab) is not moved again and comes back as stored (`moved: false`).
+ */
+export async function moveGoalToNextPeriod(
+  db: Database,
+  { id, year, quarter }: MoveGoalInput,
+  today: string,
+): Promise<GoalMove | GoalFailure> {
+  const result = await db.transaction(async (tx) => {
+    await lockGoalsOrder(tx);
+    await lockGoal(tx, id);
+    const goal = await selectGoalItemById(tx, id);
+    if (!goal) return "notFound" as const;
+    const from = { year: goal.year, quarter: goal.quarter, position: goal.position };
+    if (goal.year !== year || goal.quarter !== quarter) return { goal, moved: false, from };
+    if (goal.status === "archived") return "archived" as const;
+    const next = movePeriodOf(goal, today);
+    if (!next) return "notMovable" as const;
+    const patch = movedPatch(next);
+    await tx
+      .update(goals)
+      .set({ year: patch.year, quarter: patch.quarter })
+      .where(and(eq(goals.id, id), visibleGoal));
+    await placeGoal(tx, id, goal.position, "end");
+    return { goal: (await selectGoalItemById(tx, id)) as GoalItem, moved: true, from };
+  });
+  if (typeof result === "string") return result;
+  return { ...result, goal: (await settleSourceAchievements(db, [result.goal]))[0] };
+}
+
+/**
+ * "Deshacer" of a move: back to the period and place it carries (`from`), but only while the goal
+ * still has the period the move left it in (`applied`) and is in course. Anything else (it moved
+ * again, was edited into another state, archived) changes nothing: `restored` is false and the
+ * goal comes back as stored.
+ */
+export async function undoMoveGoal(
+  db: Database,
+  { id, from, applied }: UndoMoveGoalInput,
+): Promise<GoalMoveUndo | GoalFailure> {
+  const result = await db.transaction(async (tx) => {
+    await lockGoalsOrder(tx);
+    await lockGoal(tx, id);
+    const goal = await selectGoalItemById(tx, id);
+    if (!goal) return "notFound" as const;
+    const same = goal.year === applied.year && goal.quarter === applied.quarter;
+    // A year goal never has a quarter and a quarter goal always does (the CHECK says so too).
+    const kindFits = (from.quarter !== null) === (goal.periodKind === "quarter");
+    if (!same || !kindFits || goal.status !== "active") return { goal, restored: false };
+    await tx
+      .update(goals)
+      .set({ year: from.year, quarter: from.quarter })
+      .where(and(eq(goals.id, id), visibleGoal));
+    await placeGoal(tx, id, goal.position, from.position);
+    return { goal: (await selectGoalItemById(tx, id)) as GoalItem, restored: true };
+  });
+  if (typeof result === "string") return result;
+  return { ...result, goal: (await settleSourceAchievements(db, [result.goal]))[0] };
 }

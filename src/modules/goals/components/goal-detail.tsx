@@ -11,6 +11,7 @@ import { formatDateKey } from "@/lib/time";
 import { archiveGoal, deleteGoal, markGoalAchieved, reopenGoal, unarchiveGoal } from "../actions";
 import type { DeletedGoal, GoalEntryItem, GoalItem } from "../goal-input";
 import { applyGoalListChange } from "../goal-list-optimistic";
+import { moveLabelOf } from "../goal-move";
 import { readGoal, sourceReached, unitOf } from "../goal-text";
 import { GOALS_COPY } from "../goals-copy";
 import { periodLabel, periodOf, periodPhase } from "../pace";
@@ -19,6 +20,7 @@ import { GoalBar } from "./goal-bar";
 import { GoalSourceLinkText } from "./goal-source-link";
 import { failureReason, useGoalsScreen } from "./goals-screen";
 import { preloadAddEntry, useGoalEntries } from "./use-goal-entries";
+import { useMoveGoal } from "./use-move-goal";
 
 const loadForm = () => import("./goal-form-sheet");
 const GoalFormSheet = dynamic(() => loadForm().then((loaded) => loaded.GoalFormSheet));
@@ -65,6 +67,27 @@ export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDet
     notSaved,
     focusFallback: () => document.getElementById(headingId)?.focus(),
   });
+
+  // ── Move to the next period ──
+  const moveKey = useRef<HTMLButtonElement>(null);
+  const focusAfterMove = useRef(false);
+  // The key may leave (the new period has not started, so it can't move again): focus goes to the
+  // key if it is still there, else to the heading, never to <body>.
+  useEffect(() => {
+    if (!focusAfterMove.current) return;
+    focusAfterMove.current = false;
+    (moveKey.current ?? document.getElementById(headingId))?.focus();
+  });
+  const mover = useMoveGoal({
+    view: list,
+    apply,
+    startSaving,
+    notSaved,
+    restoreFocus: () => {
+      focusAfterMove.current = true;
+    },
+  });
+  const moveLabel = moveLabelOf(goal, today);
 
   // ── Edit ──
   const [formOpening, setFormOpening] = useState(0);
@@ -241,6 +264,11 @@ export function GoalDetail({ goal: saved, entries: history, headingId }: GoalDet
             {achieved ? GOALS_COPY.reopen : GOALS_COPY.markAchieved}
           </Key>
         )}
+        {moveLabel ? (
+          <Key ref={moveKey} variant="ghost" onClick={() => mover.move(goal)}>
+            {moveLabel}
+          </Key>
+        ) : null}
         <Key variant="ghost" onClick={() => setArchived(!archived)}>
           {archived ? GOALS_COPY.reactivate : GOALS_COPY.archive}
         </Key>

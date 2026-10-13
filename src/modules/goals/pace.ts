@@ -31,6 +31,13 @@ export function currentPeriod(kind: GoalPeriodKind, today: string): GoalPeriod {
   return { kind, year, quarter: quarterOfMonth(Number(today.slice(5, 7))) };
 }
 
+/** The period after this one: a year goes to the next year, T4 to T1 of the next year. */
+export function nextPeriod(period: GoalPeriod): GoalPeriod {
+  if (period.kind === "year") return { kind: "year", year: period.year + 1 };
+  if (period.quarter === 4) return { kind: "quarter", year: period.year + 1, quarter: 1 };
+  return { kind: "quarter", year: period.year, quarter: (period.quarter + 1) as Quarter };
+}
+
 export function samePeriod(a: GoalPeriod, b: GoalPeriod): boolean {
   return (
     a.kind === b.kind &&

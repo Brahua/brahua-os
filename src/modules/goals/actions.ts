@@ -12,23 +12,29 @@ import {
   addEntryInputSchema,
   createGoalInputSchema,
   goalIdInputSchema,
+  moveGoalInputSchema,
   reorderGoalsInputSchema,
   unarchiveGoalInputSchema,
   undoEntryInputSchema,
+  undoMoveGoalInputSchema,
   updateGoalInputSchema,
   type DeletedGoal,
   type GoalItem,
+  type GoalMove,
+  type GoalMoveUndo,
 } from "./goal-input";
 import {
   addGoalEntry,
   archiveGoalById,
   insertGoal,
+  moveGoalToNextPeriod,
   reorderGoalsByIds,
   restoreGoalById,
   setGoalAchieved,
   softDeleteGoal,
   unarchiveGoalById,
   undoGoalEntry,
+  undoMoveGoal,
   updateGoalById,
   type EntryResult,
 } from "./goals";
@@ -215,6 +221,43 @@ const reopen = ownerAction(
 /** "Reabrir": back to in progress, clearing the achieved date. Twice is fine. */
 export async function reopenGoal(input: unknown): Promise<ActionResult<GoalItem>> {
   return reopen(input);
+}
+
+const moveNext = ownerAction(
+  moveGoalInputSchema,
+  async (data) => {
+    const result = await moveGoalToNextPeriod(getDb(), data, ownerDateKey(new Date()));
+    revalidateGoalScreens();
+    return typeof result === "string" ? refused<GoalMove>(result) : ok(result);
+  },
+  { name: "moveGoalToNextPeriod" },
+);
+
+/**
+ * "Pasar al próximo periodo": the same goal, in the period after the one given (`year`,
+ * `quarter`), at the end of the order. A goal that no longer has that period is not moved again
+ * (`moved: false`). Returns where it was, which the "Deshacer" carries.
+ */
+export async function moveGoalToNext(input: unknown): Promise<ActionResult<GoalMove>> {
+  return moveNext(input);
+}
+
+const undoMove = ownerAction(
+  undoMoveGoalInputSchema,
+  async (data) => {
+    const result = await undoMoveGoal(getDb(), data);
+    revalidateGoalScreens();
+    return typeof result === "string" ? refused<GoalMoveUndo>(result) : ok(result);
+  },
+  { name: "undoMoveGoal" },
+);
+
+/**
+ * "Deshacer" of a move: back to the period and place it carries, only while the goal still has the
+ * period the move left it in. Otherwise nothing changes (`restored: false`).
+ */
+export async function undoMoveOfGoal(input: unknown): Promise<ActionResult<GoalMoveUndo>> {
+  return undoMove(input);
 }
 
 const setWeekly = ownerAction(

@@ -6,10 +6,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ok, type ActionResult } from "@/lib/action-result";
 import { ownerDateKey } from "@/lib/time";
-import { addEntryToGoal, createGoal, undoEntryOfGoal } from "@/modules/goals/actions";
+import {
+  addEntryToGoal,
+  createGoal,
+  moveGoalToNext,
+  undoEntryOfGoal,
+  undoMoveOfGoal,
+} from "@/modules/goals/actions";
 import { GoalsList } from "@/modules/goals/components/goals-list";
 import { GoalsScreen } from "@/modules/goals/components/goals-screen";
-import type { GoalItem } from "@/modules/goals/goal-input";
+import type { GoalItem, GoalMove, GoalMoveUndo } from "@/modules/goals/goal-input";
 import type { EntryResult } from "@/modules/goals/goals";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
@@ -32,6 +38,8 @@ vi.mock("@/modules/goals/actions", () => ({
   setWeeklyObjective: vi.fn(),
   clearWeeklyObjective: vi.fn(),
   undoWeeklyObjective: vi.fn(),
+  moveGoalToNext: vi.fn(),
+  undoMoveOfGoal: vi.fn(),
 }));
 // The goals module's data layer is server only: the type is all the test needs of it.
 vi.mock("@/modules/goals/goals", () => ({}));
@@ -134,6 +142,8 @@ beforeEach(() => {
   vi.mocked(addEntryToGoal).mockImplementation(wait);
   vi.mocked(undoEntryOfGoal).mockImplementation(wait);
   vi.mocked(createGoal).mockImplementation(wait);
+  vi.mocked(moveGoalToNext).mockImplementation(wait);
+  vi.mocked(undoMoveOfGoal).mockImplementation(wait);
 });
 
 afterEach(() => {
@@ -190,7 +200,12 @@ describe("the list", () => {
     expect(past).toHaveAttribute("data-goal-status", "active");
     expect(within(past).getByText("7 de 10 lecciones")).toBeInTheDocument();
     expect(within(past).getByText("Terminó con 7 de 10 lecciones.")).toBeInTheDocument();
-    expect(within(past).queryByRole("button")).not.toBeInTheDocument();
+    // Its only key says where it goes; "+1" is not offered in a period that is over.
+    expect(
+      within(past)
+        .getAllByRole("button")
+        .map((key) => key.textContent),
+    ).toEqual(["Pasar a T4 2026"]);
     // The archived one says so in words, and can be reactivated.
     expect(within(row("Pintar")).getByText("Archivada")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reactivar «Pintar»" })).toBeInTheDocument();
@@ -319,6 +334,92 @@ const PROYECTO = goal({
   unit: null,
   target: 100,
   source: { kind: "project", name: "Lanzar brahua-os", percent: 62, finished: false },
+});
+
+describe("Pasar al próximo periodo", () => {
+  const FROM = { year: 2026, quarter: 3, position: 2 };
+
+  async function openPrevious(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: /Anteriores/ }));
+  }
+
+  test("moves the goal to the next quarter at once, and 'Deshacer' carries where it was", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Screen goals={[LIBROS, PASADA]} />);
+    await openPrevious(user);
+    await user.click(screen.getByRole("button", { name: "Pasar «Curso de inglés» a T4 2026" }));
+
+    // Optimistic: it left "Anteriores" for this quarter before the server answers.
+    const quarter = document.querySelector('[data-goals-section="quarter"]') as HTMLElement;
+    expect(within(quarter).getByText("Curso de inglés")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(moveGoalToNext).toHaveBeenCalledWith({ id: PASADA.id, year: 2026, quarter: 3 }),
+    );
+    const saved = { ...PASADA, quarter: 4 };
+    const result: ActionResult<GoalMove> = ok({ goal: saved, moved: true, from: FROM });
+    await answer(result);
+    rerender(<Screen goals={[LIBROS, saved]} />);
+
+    expect(
+      await within(notices()).findByText("«Curso de inglés» pasó a T4 2026."),
+    ).toBeInTheDocument();
+    await user.click(within(notices()).getByRole("button", { name: "Deshacer" }));
+    await waitFor(() =>
+      expect(undoMoveOfGoal).toHaveBeenCalledWith({
+        id: PASADA.id,
+        from: FROM,
+        applied: { year: 2026, quarter: 4 },
+      }),
+    );
+    const undone: ActionResult<GoalMoveUndo> = ok({ goal: PASADA, restored: true });
+    await answer(undone);
+    rerender(<Screen goals={[LIBROS, PASADA]} />);
+    expect(screen.getByRole("button", { name: /Anteriores/ })).toBeInTheDocument();
+  });
+
+  test("an undo that finds the goal changed says so instead of announcing it back", async () => {
+    const user = userEvent.setup();
+    render(<Screen goals={[LIBROS, PASADA]} />);
+    await openPrevious(user);
+    await user.click(screen.getByRole("button", { name: "Pasar «Curso de inglés» a T4 2026" }));
+    await waitFor(() => expect(moveGoalToNext).toHaveBeenCalled());
+    await answer(ok({ goal: { ...PASADA, quarter: 4 }, moved: true, from: FROM }));
+    await user.click(await within(notices()).findByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(undoMoveOfGoal).toHaveBeenCalled());
+    await answer(ok({ goal: { ...PASADA, quarter: 4 }, restored: false }));
+    expect(
+      await within(notices()).findByText(
+        "«Curso de inglés» cambió mientras tanto: la dejé como está.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("a refusal rolls it back and says so (assert the rollback inside waitFor)", async () => {
+    const user = userEvent.setup();
+    render(<Screen goals={[LIBROS, PASADA]} />);
+    await openPrevious(user);
+    await user.click(screen.getByRole("button", { name: "Pasar «Curso de inglés» a T4 2026" }));
+    await waitFor(() => expect(moveGoalToNext).toHaveBeenCalled());
+    await answer({ ok: false, error: "Esta meta ya no existe (se eliminó)." });
+    expect(
+      await within(notices()).findByText(/No se pudo pasar al próximo periodo/),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      const quarter = document.querySelector('[data-goals-section="quarter"]') as HTMLElement;
+      expect(within(quarter).queryByText("Curso de inglés")).not.toBeInTheDocument();
+    });
+  });
+
+  test("archived goals and goals of the current period have no key in 'Anteriores'", async () => {
+    const user = userEvent.setup();
+    render(<Screen goals={[LIBROS, ARCHIVADA, PASADA]} />);
+    await openPrevious(user);
+    expect(within(row("Pintar")).queryByRole("button", { name: /Pasar/ })).not.toBeInTheDocument();
+    // Positive control: the past goal has it.
+    expect(
+      within(row("Curso de inglés")).getByRole("button", { name: /Pasar/ }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("habit and project goals in the list", () => {
