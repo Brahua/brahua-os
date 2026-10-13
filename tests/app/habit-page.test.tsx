@@ -28,6 +28,7 @@ vi.mock("@number-flow/react", () => ({ default: ({ value }: { value: number }) =
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/habits/queries", () => ({ getHabitDetail: vi.fn() }));
+vi.mock("@/lib/goal-extensions", () => ({ ensureGoalExtensions: vi.fn() }));
 vi.mock("@/modules/habits/actions", () => ({ deleteHabit: vi.fn(), createHabit: vi.fn() }));
 vi.mock("@/modules/habits/log-actions", () => ({
   setHabitDone: vi.fn(),

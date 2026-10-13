@@ -52,6 +52,7 @@ vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 // without them (their integration tests run against the database).
 vi.mock("@/lib/progress-sources", () => ({ ensureProgressSources: vi.fn() }));
 vi.mock("@/lib/project-extensions", () => ({ ensureProjectExtensions: vi.fn() }));
+vi.mock("@/lib/goal-extensions", () => ({ ensureGoalExtensions: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/projects/queries", () => ({
   getProject: vi.fn(),
