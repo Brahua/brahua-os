@@ -9,7 +9,7 @@ import {
   TOP_HABITS,
   type LogrosSources,
 } from "@/modules/weekly-review/logros";
-import { LOGROS_COPY, PENDIENTES_COPY, REVIEW_COPY } from "@/modules/weekly-review/review-copy";
+import { LOGROS_COPY, PENDIENTES_COPY } from "@/modules/weekly-review/review-copy";
 
 const habit = (id: string, name: string, done: number, expected: number) => ({
   id,
@@ -155,6 +155,5 @@ describe("the copy of steps 1 and 2", () => {
       "2 volvieron a su día. 1 no se restauró: cambió mientras tanto.",
     );
     expect(PENDIENTES_COPY.notRestored(3)).toBe("3 no se restauraron: cambiaron mientras tanto.");
-    expect(REVIEW_COPY.soonTitle).toBe("Esta parte llega pronto");
   });
 });

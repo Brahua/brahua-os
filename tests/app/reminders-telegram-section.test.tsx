@@ -124,7 +124,8 @@ describe("Conectar", () => {
     expect(open).toHaveAttribute("href", LINK.url);
     expect(open).toHaveAttribute("target", "_blank");
     expect(open).toHaveAttribute("rel", "noopener noreferrer");
-    expect(open).toHaveFocus();
+    // Focus moves in an effect after the link renders: wait for it, don't assume it.
+    await waitFor(() => expect(open).toHaveFocus());
     expect(screen.getByText(/caduca en 10 minutos/)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Conectar Telegram" })).toBeNull();
     expect(screen.getByRole("button", { name: "Generar otro enlace" })).toBeVisible();
@@ -252,7 +253,9 @@ describe("Desconectar", () => {
 
     expect(await screen.findByText("Sin conectar.")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Telegram quedó desconectado.");
-    expect(screen.getByRole("button", { name: "Conectar Telegram" })).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Conectar Telegram" })).toHaveFocus(),
+    );
   });
 
   test("ignores a second press while it works and never uses `disabled`", async () => {

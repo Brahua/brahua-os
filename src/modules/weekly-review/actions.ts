@@ -1,13 +1,15 @@
 "use server";
 
-// Server Actions of `weekly-review`: the ritual's moves of open tasks and their undo (W2); W3 adds
-// closing the week. Each one goes through ownerAction(): owner check first, Zod, then an
+// Server Actions of `weekly-review`: the ritual's moves of open tasks and their undo (W2) and
+// closing the week (W3). Each one goes through ownerAction(): owner check first, Zod, then an
 // ActionResult (SPEC-core "Estilo de código"). The writes themselves are `tasks`' contract
 // (`moveTasksToDate`, `undoMoveTasks`: one postponement per task, with the guard of the day it was
 // read with and the exact undo): this module never touches `tasks`' tables.
 import { fail, ok, type ActionResult } from "@/lib/action-result";
+import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
 import { ownerDateKey } from "@/lib/time";
+import { getWeeklyObjectiveForWeek, setWeeklyObjectiveForWeek } from "@/modules/goals/contracts";
 import {
   moveTasksInputSchema,
   moveTasksToDate,
@@ -17,7 +19,11 @@ import {
   type MoveTasksResult,
   type UndoMoveTasksResult,
 } from "@/modules/tasks/contracts";
+import { closeWeekActionSchema } from "./review-input";
+import { REVIEW_ERRORS } from "./review-copy";
+import { closeWeekRow } from "./review";
 import { revalidateReviewScreens } from "./revalidate";
+import { isReviewableWeek, nextMonday } from "./week";
 
 const move = ownerAction(
   moveTasksInputSchema,
@@ -56,4 +62,48 @@ const undo = ownerAction(
  */
 export async function undoReviewMove(input: unknown): Promise<ActionResult<UndoMoveTasksResult>> {
   return undo(input);
+}
+
+/** What a close answers: the week closed. */
+export type CloseWeekResult = { weekStart: string };
+
+const close = ownerAction(
+  closeWeekActionSchema,
+  async ({ weekStart, note, objective }) => {
+    const now = new Date();
+    // A Monday (the schema) that is not in the future.
+    if (!isReviewableWeek(weekStart, now)) return fail<CloseWeekResult>(REVIEW_ERRORS.weekFuture);
+    // 1. The next week's objective, through `goals` (its own transaction and lock). Blank leaves
+    //    the week as it is: closing never clears an objective by accident. The same text again
+    //    writes nothing.
+    if (objective !== null) {
+      const next = nextMonday(weekStart);
+      const current = await getWeeklyObjectiveForWeek(next);
+      if (current?.text !== objective) {
+        const saved = await setWeeklyObjectiveForWeek(next, objective);
+        if (!saved.ok) {
+          return {
+            ok: false,
+            error: saved.error,
+            fieldErrors: { objective: [saved.error] },
+          } satisfies ActionResult<CloseWeekResult>;
+        }
+      }
+    }
+    // 2. The review row, under the week's lock (completed_at once, the note updated). If the
+    //    request dies between the two, repeating it finishes the job.
+    await closeWeekRow(getDb(), { weekStart, note }, now);
+    revalidateReviewScreens();
+    return ok({ weekStart });
+  },
+  { name: "closeWeek" },
+);
+
+/**
+ * «Cerrar la semana»: sets the objective of the next week (when one was typed), then records the
+ * week as reviewed with its optional note. Idempotent: closing again only updates the note (and
+ * the objective, if it changed).
+ */
+export async function closeWeek(input: unknown): Promise<ActionResult<CloseWeekResult>> {
+  return close(input);
 }

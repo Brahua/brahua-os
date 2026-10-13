@@ -75,6 +75,7 @@ export const SPEC_MODULES = {
   "today-projects.spec.ts": ["today", "projects", "tasks"],
   "today-tasks.spec.ts": ["today", "habits", "tasks", "finance"],
   "today.spec.ts": ["today", "habits", "tasks", "finance", "projects"],
+  "weekly-review.spec.ts": ["weekly-review", "habits", "tasks", "goals", "projects"],
 };
 
 /** Route segments that belong to a module (an E2E spec that opens one exercises that module). */
@@ -83,6 +84,7 @@ export const ROUTE_MODULES = {
   projects: "projects",
   habits: "habits",
   goals: "goals",
+  review: "weekly-review",
   finance: "finance",
   "settings/reminders": "reminders",
   "api/telegram": "reminders",
@@ -291,6 +293,10 @@ export function classifyFile(file, repo) {
     const route = rest.split("/")[0];
     if (["tasks", "projects", "habits", "finance", "goals"].includes(route)) {
       return { kind: "modules", modules: [route], routes: [route] };
+    }
+    // /review belongs to `weekly-review` (its route and module ids differ).
+    if (route === "review") {
+      return { kind: "modules", modules: ["weekly-review"], routes: ["review"] };
     }
     if (LEAF_ROUTES.includes(route)) return { kind: "routes", routes: [route] };
     return FULL(`${file}: the layout and shared pieces of (app)`);

@@ -260,7 +260,7 @@ describe("this device", () => {
     expect(screen.getByText("Este dispositivo recibe avisos por push.")).toBeVisible();
     expect(screen.getByRole("list", { name: "Dispositivos con push" })).toBeVisible();
     // The key that had the focus was replaced: the new one has it.
-    expect(deactivate).toHaveFocus();
+    await waitFor(() => expect(deactivate).toHaveFocus());
   });
 
   test("a subscription made with another key is replaced before subscribing", async () => {
@@ -285,7 +285,9 @@ describe("this device", () => {
     expect(screen.queryByRole("button", { name: /Activar este dispositivo/ })).toBeNull();
     expect(actions.subscribePushDevice).not.toHaveBeenCalled();
     // The key that had the focus is gone: it goes to the section's title.
-    expect(screen.getByRole("heading", { level: 2, name: "Canal de avisos" })).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 2, name: "Canal de avisos" })).toHaveFocus(),
+    );
   });
 
   test("an already blocked permission is explained from the start", async () => {
@@ -365,7 +367,7 @@ describe("this device", () => {
     expect(subscription.unsubscribe).toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("Este dispositivo quedó desactivado.");
     expect(screen.queryByRole("list", { name: "Dispositivos con push" })).toBeNull();
-    expect(activate).toHaveFocus();
+    await waitFor(() => expect(activate).toHaveFocus());
   });
 
   test("a subscription the server no longer has (turned off elsewhere) reads as inactive", async () => {

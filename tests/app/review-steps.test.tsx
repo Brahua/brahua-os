@@ -1,10 +1,9 @@
 // `weekly-review` W2: the frame of the ritual and step 1 · Logros as the owner sees them (server
-// components rendered with their data), and the placeholder of steps 3 and 4.
+// components rendered with their data).
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { ReviewShell } from "@/modules/weekly-review/components/review-shell";
 import { StepLogros } from "@/modules/weekly-review/components/step-logros";
-import { StepSoon } from "@/modules/weekly-review/components/step-soon";
 import type { LogrosModel } from "@/modules/weekly-review/logros";
 
 const WEEK = "2026-10-12";
@@ -152,13 +151,5 @@ describe("StepLogros", () => {
     );
     expect(screen.getByText("18 de 24")).toBeVisible();
     expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
-  });
-});
-
-describe("StepSoon", () => {
-  test("says the part is coming without promising a date", () => {
-    render(<StepSoon />);
-    expect(screen.getByText("Esta parte llega pronto")).toBeVisible();
-    expect(document.body.textContent).not.toMatch(/\d{4}|pronto\s+\d|semana que viene|mañana/i);
   });
 });

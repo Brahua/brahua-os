@@ -46,14 +46,11 @@ function toneOf(area: AreaColor | null | undefined): string | null {
 }
 
 /**
- * Confetti for a streak milestone of `count` days or weeks. Does nothing below 30, under reduced
- * motion, or where there is no canvas (tests); the library loads only when it is needed.
+ * The confetti itself, in the color of `area` (or the primary text color). Does nothing under
+ * reduced motion or where there is no canvas (tests); the library loads only when it is needed.
  */
-export async function celebrateStreak(
-  count: number,
-  area: AreaColor | null | undefined,
-): Promise<void> {
-  if (typeof window === "undefined" || !hasConfetti(count)) return;
+export async function celebrate(area?: AreaColor | null): Promise<void> {
+  if (typeof window === "undefined") return;
   if (window.matchMedia(REDUCED_MOTION).matches) return;
   try {
     const { default: confetti } = await import("canvas-confetti");
@@ -78,4 +75,16 @@ export async function celebrateStreak(
   } catch {
     // Confetti is a flourish: a missing canvas or a failed chunk never gets in the way.
   }
+}
+
+/**
+ * Confetti for a streak milestone of `count` days or weeks. Does nothing below 30 (see
+ * `celebrate` for the rest).
+ */
+export async function celebrateStreak(
+  count: number,
+  area: AreaColor | null | undefined,
+): Promise<void> {
+  if (!hasConfetti(count)) return;
+  await celebrate(area);
 }

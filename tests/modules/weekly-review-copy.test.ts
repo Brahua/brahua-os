@@ -54,7 +54,7 @@ describe("weekly-review copy has no guilt", () => {
     expect(allStrings().length).toBeGreaterThan(10);
   });
 
-  test("the copy of every step is among the scanned strings (W2: shell, Logros and Pendientes)", () => {
+  test("the copy of every step is among the scanned strings (shell, steps 1 to 4, the close and the record)", () => {
     const scanned = allStrings().map(([, text]) => text);
     for (const expected of [
       "Quedaron abiertas 3 tareas.",
@@ -62,7 +62,15 @@ describe("weekly-review copy has no guilt", () => {
       "Una semana tranquila",
       "Nada abierto. Buen cierre.",
       "Se movieron 3 tareas.",
-      "Esta parte llega pronto",
+      "Aún no tienes metas activas",
+      "Esperando a Leer 12 libros",
+      "Cerrar la semana",
+      "Esta semana ya está cerrada",
+      "Semana cerrada",
+      "Volver a Hoy",
+      "Semanas anteriores",
+      "Días completos: 3",
+      "3 de 3 hábitos",
     ]) {
       expect(scanned).toContain(expected);
     }

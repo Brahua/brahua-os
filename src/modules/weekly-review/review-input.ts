@@ -3,7 +3,7 @@
 // without a round trip. W1 only needs what the contracts take; the close action is W3's.
 import { z } from "zod";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
-import { REVIEW_NOTE_MAX_LENGTH } from "./review-constants";
+import { REVIEW_NOTE_MAX_LENGTH, REVIEW_OBJECTIVE_MAX_LENGTH } from "./review-constants";
 import { REVIEW_ERRORS } from "./review-copy";
 import { isMonday } from "./week";
 
@@ -34,6 +34,32 @@ export const reviewNoteSchema = z
       .transform((value) => (value === "" ? null : value)),
   );
 
-/** What closing a week takes (the action of W3 adds the objective of the next week). */
+/**
+ * The objective typed for the next week: normalized like names; blank or missing is `null` (leave
+ * the week's objective as it is, never clear it). Its limit (1–140) is `goals`': a longer one is
+ * an error here and `goals` validates it again when it saves.
+ */
+export const reviewObjectiveSchema = z
+  .string({ error: REVIEW_ERRORS.objectiveTooLong })
+  .max(REVIEW_OBJECTIVE_MAX_LENGTH * 4, REVIEW_ERRORS.objectiveTooLong)
+  .nullish()
+  .transform((value) => (value == null ? null : normalizeReviewNote(value)))
+  .pipe(
+    z
+      .string()
+      .max(REVIEW_OBJECTIVE_MAX_LENGTH, REVIEW_ERRORS.objectiveTooLong)
+      .refine((value) => !hasInvisibleCharacters(value), REVIEW_ERRORS.objectiveInvisible)
+      .nullable()
+      .transform((value) => (value === "" ? null : value)),
+  );
+
+/** What the domain takes to close a week: the Monday and the optional note. */
 export const closeWeekSchema = z.object({ weekStart: reviewWeekSchema, note: reviewNoteSchema });
 export type CloseWeekInput = z.output<typeof closeWeekSchema>;
+
+/**
+ * What the «Cerrar la semana» action takes: the week, the optional note and the optional objective
+ * of the next week (blank = leave it as it is).
+ */
+export const closeWeekActionSchema = closeWeekSchema.extend({ objective: reviewObjectiveSchema });
+export type CloseWeekActionInput = z.output<typeof closeWeekActionSchema>;
