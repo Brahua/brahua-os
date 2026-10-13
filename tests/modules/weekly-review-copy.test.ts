@@ -54,6 +54,20 @@ describe("weekly-review copy has no guilt", () => {
     expect(allStrings().length).toBeGreaterThan(10);
   });
 
+  test("the copy of every step is among the scanned strings (W2: shell, Logros and Pendientes)", () => {
+    const scanned = allStrings().map(([, text]) => text);
+    for (const expected of [
+      "Quedaron abiertas 3 tareas.",
+      "Días completos esta semana: 3",
+      "Una semana tranquila",
+      "Nada abierto. Buen cierre.",
+      "Se movieron 3 tareas.",
+      "Esta parte llega pronto",
+    ]) {
+      expect(scanned).toContain(expected);
+    }
+  });
+
   test("no string says atrasad…, riesgo, fallaste, deuda, ⚠️ or racha perdida", () => {
     expect(offenders(allStrings())).toEqual([]);
   });

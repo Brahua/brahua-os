@@ -13,6 +13,7 @@ import { habitsModule } from "@/modules/habits/module";
 import { projectsModule } from "@/modules/projects/module";
 import { tasksModule } from "@/modules/tasks/module";
 import { todayModule } from "@/modules/today/module";
+import { weeklyReviewModule } from "@/modules/weekly-review/module";
 
 /** Number keys 1–8 (SPEC-design-system "Atajos de teclado"). */
 export type NavShortcutKey = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -54,6 +55,7 @@ export const MODULES: readonly ModuleManifest[] = [
   habitsModule,
   financeModule,
   goalsModule,
+  weeklyReviewModule,
   areasModule,
   settingsModule,
 ];
