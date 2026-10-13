@@ -7,7 +7,7 @@
 > Plan: [`plan.md`](plan.md) · Spec: [`SPEC-weekly-review.md`](../SPEC-weekly-review.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(weekly-review): …`). Máximo un E2E nuevo en todo el módulo.
 
 - [x] **W1: Datos y contratos** (`feat/weekly-review-w1`; ver `docs/HANDOFF.md` → «Cómo funciona weekly-review → W1») — migración aditiva `weekly_reviews` (`CHECK`, lock en el espacio 6000) y exportación; `week.ts` puro (semana a revisar, ventana de la invitación); `getHabitsWeekCompleteDays`; `getTasksWeekReview` y `moveTasksToDate`/`undoMoveTasks`; `getProjectsWeekReview`; `getGoalsWeekReview` y el objetivo semanal por contrato; regla de ESLint de fronteras. Sin pantalla.
-- [ ] **W2: Pasos 1 y 2** — `/review` con Logros y Pendientes (lote y por fila, «Deshacer» exacto); módulo «Revisión» en la navegación (sin atajo). Sin E2E nueva.
+- [x] **W2: Pasos 1 y 2** (`feat/weekly-review-w2`; ver `docs/HANDOFF.md` → «Cómo funciona weekly-review → W2») — `/review` con Logros y Pendientes (lote y por fila, «Deshacer» exacto); módulo «Revisión» en la navegación (sin atajo). Sin E2E nueva.
 - [ ] **W3: Pasos 3 y 4, cierre y registro** — Metas y proyectos, Próxima semana (objetivo y nota), «Cerrar la semana» idempotente, pantalla de cierre, «Semanas anteriores». El único E2E del módulo (con `SPEC_MODULES` y `@today-*`).
 - [ ] **W4: Invitación y cierre** — `getReviewInvite` y `ReviewInviteCard` en `/` y `/goals` (raíz `src/lib/review-extensions.ts`), retrospectiva en `CLAUDE.md`, backlog, mapa y HANDOFF; archivar plan y tareas.
 

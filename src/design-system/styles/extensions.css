@@ -275,3 +275,12 @@ html { scroll-padding-top: env(safe-area-inset-top); }
   .bo-summary-bar, .bo-split-swatch { forced-color-adjust: none; background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; }
   .bo-summary-bar__fill, .bo-split-swatch--recurring { forced-color-adjust: none; background: CanvasText; }
 }
+
+/* Weekly review (W2): an open task fades out as it is moved (opacity only; the row leaves the list
+   when the fade ends). Never with reduced motion: the row leaves at once. Not a synced component:
+   no PENDING UPSTREAM. */
+.bo-review-row { transition: opacity 180ms var(--ease-out); }
+.bo-review-row[data-leaving] { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .bo-review-row { transition: none; }
+}

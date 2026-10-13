@@ -57,7 +57,12 @@ export type {
   WeekReviewDoneTask,
   WeekReviewOpenTask,
 } from "./week-review-input";
-export { MAX_BATCH_MOVES } from "./week-review-input";
+export {
+  MAX_BATCH_MOVES,
+  moveTasksInputSchema,
+  undoMoveTasksInputSchema,
+  WEEK_REVIEW_ERRORS,
+} from "./week-review-input";
 
 const ownArea = alias(lifeAreas, "today_own_area");
 const projectArea = alias(lifeAreas, "today_project_area");
