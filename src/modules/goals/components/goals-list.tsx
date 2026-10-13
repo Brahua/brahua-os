@@ -15,6 +15,7 @@ import { groupGoals } from "../goal-sections";
 import { GOALS_COPY } from "../goals-copy";
 import { currentPeriod, periodLabel, periodPhase, periodOf } from "../pace";
 import { GoalRow } from "./goal-row";
+import { WeeklyObjective } from "./weekly-objective";
 import { failureReason, useGoalsScreen } from "./goals-screen";
 import { useGoalEntries } from "./use-goal-entries";
 
@@ -39,6 +40,10 @@ const PENDING_FOCUS_MS = 5_000;
 type GoalsListProps = {
   /** Every visible goal (archived ones too), in their manual order. */
   goals: GoalItem[];
+  /** The Monday of Lima's week the page was read for: "Esta semana" is that week's. */
+  weekStart: string;
+  /** That week's objective, or null (a new week starts empty). */
+  weeklyObjective: string | null;
   /** Id of the page's heading (tabIndex -1): focus goes there when nothing else is left. */
   headingId: string;
 };
@@ -50,9 +55,9 @@ type GoalsListProps = {
  * exact entry); "Nueva meta" opens the form; "Ordenar" arranges each section by dragging.
  * Everything goes through the screen's save queue, and a refusal rolls back with a notice.
  *
- * G3 slot: "Esta semana" (the weekly objective) goes above the sections.
+ * "Esta semana" (G3: the weekly objective, editable in one tap) goes above the sections.
  */
-export function GoalsList({ goals, headingId }: GoalsListProps) {
+export function GoalsList({ goals, weekStart, weeklyObjective, headingId }: GoalsListProps) {
   const { today, areas, sources, enqueue, toaster, announce } = useGoalsScreen();
   const { push } = toaster;
   const [view, apply] = useOptimistic(goals, applyGoalListChange);
@@ -273,6 +278,8 @@ export function GoalsList({ goals, headingId }: GoalsListProps) {
           </Key>
         </div>
       </header>
+
+      <WeeklyObjective weekStart={weekStart} objective={weeklyObjective} />
 
       {isOrdering ? (
         <section aria-labelledby={`${headingId}-order`} className="flex flex-col gap-4">

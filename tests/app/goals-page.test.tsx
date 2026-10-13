@@ -29,6 +29,9 @@ vi.mock("@/modules/goals/actions", () => ({
   restoreGoal: vi.fn(),
   markGoalAchieved: vi.fn(),
   reopenGoal: vi.fn(),
+  setWeeklyObjective: vi.fn(),
+  clearWeeklyObjective: vi.fn(),
+  undoWeeklyObjective: vi.fn(),
 }));
 // The goals module's data layer is server only: the type is all the test needs of it.
 vi.mock("@/modules/goals/goals", () => ({}));
@@ -98,7 +101,12 @@ const SOURCES = {
 function Screen({ goals, sources = SOURCES }: { goals: GoalItem[]; sources?: typeof SOURCES }) {
   return (
     <GoalsScreen today={TODAY} areas={[]} sources={sources}>
-      <GoalsList goals={goals} headingId="goals-title" />
+      <GoalsList
+        goals={goals}
+        weekStart="2026-10-12"
+        weeklyObjective={null}
+        headingId="goals-title"
+      />
     </GoalsScreen>
   );
 }

@@ -9,6 +9,8 @@ import { requireOwner } from "@/lib/auth";
 import { ensureProgressSources } from "@/lib/progress-sources";
 // T5: the sections other modules add to the page ("Tareas"), registered before rendering them.
 import { ensureProjectExtensions } from "@/lib/project-extensions";
+// G3: the "Metas" section of `goals` (the goals that follow this project), registered the same way.
+import { ensureGoalExtensions } from "@/lib/goal-extensions";
 import { Markdown } from "@/lib/markdown/markdown";
 import { listLifeAreas } from "@/modules/core/queries";
 import { contributedProgress, renderProjectSections } from "@/modules/projects/contracts";
@@ -72,6 +74,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
   // P6: what other modules (tasks) add to its progress; no source registered → no work.
   ensureProgressSources();
   ensureProjectExtensions();
+  ensureGoalExtensions();
   const [contributions, sections] = await Promise.all([
     contributedProgress([project.id]),
     // T5: the sections of other modules ("Tareas"), with the project and its live milestones.
@@ -110,7 +113,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           />
           {/* ── P3 slot (Hitos): <ProjectMilestonesSection … /> ── */}
           <ProjectMilestonesSection milestones={milestones} />
-          {/* ── T5: sections of other modules (tasks: "Tareas"), through the contract. ── */}
+          {/* ── T5: sections of other modules (tasks: "Tareas"; goals: "Metas"), through the contract. ── */}
           {sections.map(({ id: sectionId, node }) => (
             <Fragment key={sectionId}>{node}</Fragment>
           ))}

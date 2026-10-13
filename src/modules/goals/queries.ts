@@ -6,6 +6,9 @@ import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getHabitOptions } from "@/modules/habits/contracts";
 import { getProjectOptions } from "@/modules/projects/contracts";
+import type { WeeklyObjectiveItem } from "./weekly-input";
+import { selectWeeklyObjective } from "./weekly";
+import { isMonday } from "./weekly-input";
 import type { DeletedGoal, GoalEntryItem, GoalItem, GoalSourceOptions } from "./goal-input";
 import {
   selectDeletedGoal,
@@ -59,4 +62,12 @@ export async function listGoalSourceOptions(): Promise<GoalSourceOptions> {
   await requireOwner();
   const [habits, projects] = await Promise.all([getHabitOptions(), getProjectOptions()]);
   return { habits, projects };
+}
+
+/** The objective of the week starting `weekStart` (a Monday), or null when none was set. */
+export async function getWeeklyObjective(weekStart: string): Promise<WeeklyObjectiveItem | null> {
+  await requireOwner();
+  // Not a Monday (a malformed value): no query.
+  if (!isMonday(weekStart)) return null;
+  return selectWeeklyObjective(getDb(), weekStart);
 }

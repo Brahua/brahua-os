@@ -2,7 +2,7 @@
 // "Ritmo"): the pace is a next step, never a reproach. No «atrasada», no «riesgo», no «fallaste»,
 // no debt count, no alarm sign. tests/modules/goals-copy.test.ts scans EVERY string exported
 // here for the forbidden ones, so new copy goes in this file.
-import { GOAL_TITLE_MAX_LENGTH } from "./goal-constants";
+import { GOAL_TITLE_MAX_LENGTH, WEEKLY_OBJECTIVE_MAX_LENGTH } from "./goal-constants";
 
 export const GOAL_ERRORS = {
   titleRequired: "Escribe el título de la meta.",
@@ -28,6 +28,10 @@ export const GOAL_ERRORS = {
   notManual: "Esta meta no se mide con una cantidad.",
   staleOrder: "La lista cambió mientras la ordenabas: ya está al día. Vuelve a intentarlo.",
   order: "Ese orden no es válido.",
+  weekInvalid: "Esa semana no es válida.",
+  weeklyRequired: "Escribe el objetivo de la semana.",
+  weeklyTooLong: `Usa ${WEEKLY_OBJECTIVE_MAX_LENGTH} caracteres como máximo.`,
+  weeklyInvisible: "Quita los caracteres invisibles o de control del objetivo.",
   sourceReached:
     "Esta meta se logra sola con su hábito o proyecto, y ya lo alcanzó. Cambia su fuente o su meta si quieres seguir.",
 } as const;
@@ -172,6 +176,32 @@ export const GOALS_COPY = {
   moved: (title: string, place: string) => `«${title}» pasó al ${place}.`,
   orderRestored: "El orden volvió a como estaba.",
   orderFailed: "No se pudo guardar el orden.",
+
+  // This week (the weekly objective)
+  weekTitle: "Esta semana",
+  weekRange: (start: string, end: string) => `Del ${start} al ${end}`,
+  weekSetObjective: "Fijar objetivo de la semana",
+  weekEmptyHelp:
+    "Una frase con lo que quieres mover esta semana. La semana que viene empieza en blanco.",
+  weekEdit: "Editar objetivo de la semana",
+  weekField: "Objetivo de la semana",
+  weekFieldHelp: "Una frase corta. Enter guarda y Escape cancela.",
+  weekSave: "Guardar",
+  weekClear: "Quitar",
+  weekCancel: "Cancelar",
+  weekSavedTitle: "Objetivo de la semana",
+  weekSaved: (text: string) => `Objetivo fijado: «${text}».`,
+  weekCleared: "Objetivo de la semana quitado.",
+  weekRestored: "El objetivo de la semana volvió a como estaba.",
+  weekUndoStale: "El objetivo de esta semana cambió mientras tanto: lo dejé como está.",
+  weekNotSaved: "No se pudo guardar el objetivo de la semana.",
+  weekNotUndone: "No se pudo deshacer el objetivo de la semana.",
+
+  // Goals on a habit's or project's page
+  linkedTitle: "Metas",
+  linkedHint: (name: string) => `Metas que siguen «${name}».`,
+  linkedList: "Metas enlazadas",
+  linkedOpen: (title: string) => `Abrir la meta «${title}»`,
 
   // Detail
   backToList: "Volver a Metas",
