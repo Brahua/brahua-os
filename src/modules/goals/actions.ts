@@ -33,7 +33,15 @@ import {
   type EntryResult,
 } from "./goals";
 import { GOAL_ERRORS } from "./goals-copy";
-import { revalidateGoalScreens } from "./revalidate";
+import { revalidateGoalScreens, revalidateWeeklyObjective } from "./revalidate";
+import {
+  clearWeeklyObjectiveInputSchema,
+  setWeeklyObjectiveInputSchema,
+  undoWeeklyObjectiveInputSchema,
+  type WeeklyObjectiveChange,
+  type WeeklyObjectiveUndo,
+} from "./weekly-input";
+import { clearWeeklyObjectiveRow, undoWeeklyObjectiveRow, upsertWeeklyObjective } from "./weekly";
 
 const create = ownerAction(
   createGoalInputSchema,
@@ -207,4 +215,61 @@ const reopen = ownerAction(
 /** "Reabrir": back to in progress, clearing the achieved date. Twice is fine. */
 export async function reopenGoal(input: unknown): Promise<ActionResult<GoalItem>> {
   return reopen(input);
+}
+
+const setWeekly = ownerAction(
+  setWeeklyObjectiveInputSchema,
+  async (data) => {
+    const change = await upsertWeeklyObjective(getDb(), data);
+    revalidateWeeklyObjective();
+    return ok(change);
+  },
+  { name: "setWeeklyObjective" },
+);
+
+/**
+ * Sets or replaces the objective of a week (its Monday): upsert under the week's lock. Returns the
+ * text it replaced, which the "Deshacer" carries.
+ */
+export async function setWeeklyObjective(
+  input: unknown,
+): Promise<ActionResult<WeeklyObjectiveChange>> {
+  return setWeekly(input);
+}
+
+const clearWeekly = ownerAction(
+  clearWeeklyObjectiveInputSchema,
+  async ({ weekStart }) => {
+    const change = await clearWeeklyObjectiveRow(getDb(), weekStart);
+    revalidateWeeklyObjective();
+    return ok(change);
+  },
+  { name: "clearWeeklyObjective" },
+);
+
+/** Clears the objective of a week. Clearing an empty week is not an error. */
+export async function clearWeeklyObjective(
+  input: unknown,
+): Promise<ActionResult<WeeklyObjectiveChange>> {
+  return clearWeekly(input);
+}
+
+const undoWeekly = ownerAction(
+  undoWeeklyObjectiveInputSchema,
+  async (data) => {
+    const undone = await undoWeeklyObjectiveRow(getDb(), data);
+    revalidateWeeklyObjective();
+    return ok(undone);
+  },
+  { name: "undoWeeklyObjective" },
+);
+
+/**
+ * "Deshacer" of a set or a clear: puts back the text it carries, only while the week still holds
+ * what that change left. Undoing twice, or after another edit, changes nothing (`restored: false`).
+ */
+export async function undoWeeklyObjective(
+  input: unknown,
+): Promise<ActionResult<WeeklyObjectiveUndo>> {
+  return undoWeekly(input);
 }

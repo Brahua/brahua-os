@@ -15,6 +15,11 @@
 //   reads many goals' habits in three queries; `getHabitOptions` lists the active habits a goal
 //   can follow.
 //
+// - registerHabitSection(section) / renderHabitSections(context) (for `goals`, G3): a module adds a
+//   section to a habit's page (the goals that follow it). Idempotent by id; registered by the
+//   composition root src/lib/goal-extensions.ts (`ensureGoalExtensions()`, imported by name);
+//   `habits` never imports the provider.
+//
 // To log from `today`: getHabitsDueToday, then the client component `HabitPad`, the actions of
 // log-actions.ts and the hooks `useDayLog`/`useQuantityLog` inside `HabitsScreenWithin` (the
 // host's queue, notices and announcer through `ScreenServicesContext`; `areas` only feeds the
@@ -27,6 +32,11 @@ import { getDb, type Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { habits } from "./db/schema";
 import { doneDaysIn, type HabitDoneDays } from "./done-days";
+import {
+  createHabitSectionRegistry,
+  type HabitSection,
+  type HabitSectionContext,
+} from "./habit-extensions";
 import { activeHabit, selectItems, selectPauses, visibleHabit, type Tx } from "./habits";
 import { selectHabitsWeek, selectLogsInRange } from "./history";
 import { weekStart as mondayOf } from "./schedule";
@@ -41,6 +51,7 @@ import {
 import { buildHabitsWeekSummary, type HabitsWeekSummary } from "./week-summary";
 
 export type { HabitDoneDays } from "./done-days";
+export type { HabitSection, HabitSectionContext } from "./habit-extensions";
 export type { HabitTodayArea, HabitTodayItem } from "./today-summary";
 export type { HabitWeekSummaryItem, HabitsWeekSummary } from "./week-summary";
 
@@ -262,4 +273,24 @@ export async function selectHabitAvailability(
     .from(habits)
     .where(and(inArray(habits.id, [...ids]), visibleHabit));
   return new Map(rows.map((row) => [row.id, row.archivedAt === null ? "active" : "archived"]));
+}
+
+// ── Sections of a habit's page (G3 of `goals`) ───────────────────────────────────────────────
+
+const sections = createHabitSectionRegistry();
+
+/**
+ * Adds a section to every habit's page (by id: registering it again replaces it, so a module that
+ * is evaluated twice never shows twice). Called by the composition root (`ensureGoalExtensions()`).
+ * Returns a function that removes it (tests).
+ */
+export function registerHabitSection(section: HabitSection): () => void {
+  return sections.register(section);
+}
+
+/** The registered sections rendered for one habit (the page checked the owner first). */
+export function renderHabitSections(
+  context: HabitSectionContext,
+): Promise<{ id: string; node: React.ReactNode }[]> {
+  return sections.render(context);
 }

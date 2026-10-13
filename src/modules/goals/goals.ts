@@ -14,7 +14,7 @@
 // lock; with both, the order lock first, then the goal's. Only then the rows: the goal FOR UPDATE,
 // the area FOR SHARE.
 import "server-only";
-import { and, desc, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, ne, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { planReorder } from "@/modules/core/life-area-order";
@@ -251,6 +251,28 @@ export async function selectGoalForPage(
     await selectGoalItems(db, and(eq(goals.id, id), visibleGoal), now),
   );
   return item ?? null;
+}
+
+/**
+ * The visible goals that follow a habit or a project (archived ones are left out: they are in
+ * "Anteriores"), for the "Metas" section of that habit's or project's page. The newest period
+ * first (a year, then its quarters from the last), then the manual order. One `WHERE` with
+ * `visibleGoal`, so the number of queries is fixed (see selectGoalItems) whatever the goals.
+ */
+export async function selectGoalsFollowing(
+  db: Database,
+  source: { kind: "habit" | "project"; id: string },
+  now: Date = new Date(),
+): Promise<GoalItem[]> {
+  const follows =
+    source.kind === "habit" ? eq(goals.habitId, source.id) : eq(goals.projectId, source.id);
+  const items = await settleSourceAchievements(
+    db,
+    await selectGoalItems(db, and(visibleGoal, ne(goals.status, "archived"), follows), now),
+  );
+  // A year-long goal lists before the quarters of that year.
+  const rank = (goal: GoalItem) => goal.year * 10 + (goal.quarter ?? 5);
+  return items.sort((a, b) => rank(b) - rank(a) || a.position - b.position);
 }
 
 /** One visible goal, or null. */

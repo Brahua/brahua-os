@@ -2,8 +2,11 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Fragment } from "react";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+// G3: the "Metas" section of `goals` (the goals that follow this habit), registered before it renders.
+import { ensureGoalExtensions } from "@/lib/goal-extensions";
 import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
 import { monthOf, parseMonthParam } from "@/modules/habits/calendar";
@@ -11,6 +14,7 @@ import { HabitDetail } from "@/modules/habits/components/habit-detail";
 import { HabitsScreen } from "@/modules/habits/components/habits-screen";
 import type { HabitAreaSummary } from "@/modules/habits/habit-input";
 import { HISTORY_COPY } from "@/modules/habits/history-copy";
+import { renderHabitSections } from "@/modules/habits/contracts";
 import { getHabitDetail } from "@/modules/habits/queries";
 import { HABITS_PATH, habitMonthHref, MONTH_PARAM } from "@/modules/habits/routes";
 
@@ -66,6 +70,10 @@ export default async function HabitPage({ params, searchParams }: HabitPageProps
   const month = parseMonthParam(raw, today, item.startDate);
   const canonical = month === monthOf(today) ? undefined : month;
   if (raw !== undefined && raw !== canonical) redirect(habitMonthHref(id, canonical));
+  ensureGoalExtensions();
+  const sections = await renderHabitSections({
+    habit: { id: item.id, name: item.name, archived },
+  });
   const areas: HabitAreaSummary[] = lifeAreas.map(({ id: areaId, slug, name, icon, color }) => ({
     id: areaId,
     slug,
@@ -92,6 +100,10 @@ export default async function HabitPage({ params, searchParams }: HabitPageProps
           month={month}
           headingId={HEADING_ID}
         />
+        {/* Sections of other modules (goals: "Metas"), through the contract. */}
+        {sections.map(({ id: sectionId, node }) => (
+          <Fragment key={sectionId}>{node}</Fragment>
+        ))}
       </div>
     </HabitsScreen>
   );
