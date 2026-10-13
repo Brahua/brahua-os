@@ -8,6 +8,7 @@
 import type { LucideIcon } from "lucide-react";
 import { areasModule, settingsModule } from "@/modules/core/module";
 import { financeModule } from "@/modules/finance/module";
+import { goalsModule } from "@/modules/goals/module";
 import { habitsModule } from "@/modules/habits/module";
 import { projectsModule } from "@/modules/projects/module";
 import { tasksModule } from "@/modules/tasks/module";
@@ -52,6 +53,7 @@ export const MODULES: readonly ModuleManifest[] = [
   tasksModule,
   habitsModule,
   financeModule,
+  goalsModule,
   areasModule,
   settingsModule,
 ];
