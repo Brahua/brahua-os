@@ -1,39 +1,27 @@
 # Tareas
 
-> Último módulo cerrado: **`weekly-review`** (2026-10-14; plan y tareas en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md)). **En curso: `household`** (Hogar; spec aprobada el 2026-10-14, plan en [`plan.md`](plan.md)), y después `health`. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Último módulo cerrado: **`household`** (2026-10-14; plan y tareas en [`archive/household-plan.md`](archive/household-plan.md) y [`archive/household-todo.md`](archive/household-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Módulo `weekly-review`: cerrado el 2026-10-14
 
 Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md). W1–W4 en producción (#117–#120). **Siguiente: `household`** (Hogar, sin spec todavía) y después `health`.
 
-## Módulo `household` (Hogar): en curso
+## Módulo `household` (Hogar): cerrado el 2026-10-14
 
-Spec: [`SPEC-household.md`](../SPEC-household.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(household): …`). Máximo un E2E nuevo en todo el módulo (H3).
+Plan y tareas archivados en [`archive/household-plan.md`](archive/household-plan.md) y [`archive/household-todo.md`](archive/household-todo.md). H1 limpieza (#124), H2 compras (#125) y H3 recetas con el E2E (#126) están en producción; H4 (cierre) trae el script de importación y este cierre. **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`).
 
-- [x] **H1: Cimientos y Limpieza** (S/M, sin tablas; PR #124, ver `docs/HANDOFF.md` → «Cómo funciona household → H1»)
-  - Contratos nuevos en `src/modules/tasks/contracts.ts`: `listTasksByTag(tag, now)` y `createTaskWithTags(input)`, reutilizando lo que `tasks` ya tiene (`createTask`, `tag-links.ts`, `completeTask`); sin duplicar lógica.
-  - `src/modules/household/`: `module.ts` («Hogar», `navOrder` 67, sin atajo), `routes.ts`, `cleaning-*.ts` puros (frecuencia → recurrencia, zona, agrupar por zona y por día), `components/`, página `/household` con pestañas y slots de Compras y Recetas.
-  - Vista «Por zona / Por día», «Hecho» con «Deshacer», «Añadir limpieza» (hoja), «Quitar» (elimina con «Deshacer»); regla de ESLint de fronteras; módulo en `MODULES`.
-  - **Aceptación:** una limpieza creada en Hogar sale en Hoy el día que toca; «Hecho» programa la siguiente con `limpieza` y su zona; las 5 frecuencias dan la fecha esperada; sin zona sale en «Sin zona»; ninguna cadena prohibida.
-  - **Verificación:** unitarias de lo puro y de los componentes; integración `rtk proxy pnpm test:integration <archivo>` de los contratos (incluida «la siguiente ocurrencia conserva las etiquetas»); gate liviano; tras el push, `update-screenshots.yml` y revisar `e2e/home.spec.ts`. Sin E2E nueva.
-  - **Archivos:** ~5 de `tasks` (contratos y su prueba) + el módulo nuevo; dividir en dos PR si pasa de ~5 por área.
-- [x] **H2: Compras** (M; PR #125, ver `docs/HANDOFF.md` → «Cómo funciona household → H2») — depende de H1
-  - Migración aditiva `household_products` (`CHECK`, único parcial por `name_key`, lock `(7000, hashtext(name_key))` como primer lock), exportación y respaldo; acciones con `ownerAction`: añadir (reutiliza un nombre existente), «Comprado», editar cantidad, «Quitar de la lista», «Olvidar producto», «Terminé la compra» y su «Deshacer» exacto; vista agrupada por categoría con sugerencias y sección «Comprados».
-  - **Aceptación:** añadir un nombre existente no duplica; dos añadidos a la vez dejan una fila; «Terminé la compra» pasa lo comprado a guardado y «Deshacer» no pisa un producto cambiado a mano; 320 px sin scroll horizontal.
-  - **Verificación:** unitarias (normalización, orden de categorías, sugerencias, copy); integración (`CHECK` con inserts crudos, concurrencia con control positivo, «Deshacer» exacto, autorización, exportación); Prettier sobre el snapshot de Drizzle. Sin E2E nueva.
-- [x] **H3: Recetas y E2E** (M; `feat/household-h3`, ver `docs/HANDOFF.md` → «Cómo funciona household → H3») — depende de H1 (H2 no bloquea)
-  - Migración aditiva `household_recipes` (`CHECK` de tipos, días y URL), exportación; acciones de alta, edición y «Quitar» con «Deshacer»; vista con «Para hoy», filtros `?tipo=` y `?dia=`, chips y dominio del enlace.
-  - **El único E2E del módulo** `e2e/household.spec.ts`: crear una limpieza y marcarla, añadir un producto con sugerencia y «Terminé la compra», añadir una receta y filtrar; axe en 0 en ambos temas y 320 px con `afterSaveSettled`; una captura con `expectScreenshot`; entrada `["household", "tasks"]` en `SPEC_MODULES` y etiquetas `@today-tasks`.
-  - **Aceptación:** «Para hoy» sigue el día de Lima; `javascript:` se rechaza; los filtros viven en la URL.
-  - **Verificación:** unitarias e integración como arriba; tras el push, `update-screenshots.yml` (también hace de primera corrida de E2E).
-- [ ] **H4: Cierre** (S) — depende de H3
-  - `pnpm db:household:import`: solo las **limpiezas** del Notion (decisión del owner), como tareas recurrentes con sus fechas; ids deterministas, una transacción, confirmación por host y palabra, respaldo verificado antes, imprime conteos y nombres (nunca fuera del repo); lo corre el agente solo si el owner lo pide.
-  - Retrospectiva en `CLAUDE.md`, backlog, estado en el mapa, HANDOFF («Cómo funciona household»), archivar plan y tareas.
+### `household` → backlog consolidado
 
-### Checkpoint final
-- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
-- [ ] Se cumplen los criterios de éxito de `SPEC-household.md`.
-- [ ] Revisión con el owner de las decisiones autónomas.
+- **Importar las limpiezas desde Notion (a pedido del owner):** el script `pnpm db:household:import <archivo.json> [--dry-run]` está listo y probado; falta que el owner lo pida. Pasos: exportar «Limpieza» a un JSON fuera del repo (formato en la cabecera de `scripts/household-import.ts`), respaldo verificado, `--dry-run` y luego el import. Productos y recetas se cargan a mano (decisión del owner).
+- **Cambiar la categoría o el nombre de un producto:** hoy un producto conocido conserva su categoría y no hay forma de cambiarla desde la lista (olvidarlo y volver a añadirlo la cambia). Editar categoría y nombre en la fila.
+- **Categorías y zonas editables:** las 8 categorías son fijas en código y las zonas salen de las etiquetas en uso (renombrar una zona es renombrar su etiqueta en `/tasks`).
+- **Editar una limpieza desde Hogar:** hoy se edita en su página de `/tasks`; «Quitar» elimina la tarea y corta la serie. Una pausa reactivable necesitaría un estado nuevo en `tasks`.
+- **Contratos de `tasks` acotados:** `completeModuleTask`, `deleteModuleTask`… aceptan cualquier id de tarea (es un solo dueño, no es un hueco); si se quiere, exigir la etiqueta `limpieza` en la acción.
+- **«Receta de hoy» en Hoy** y **plan semanal / ingredientes → lista de compras:** fuera de v1 por decisión del owner.
+- **Anunciar tras cerrar la hoja de «Añadir limpieza»:** el aviso se dice con la hoja abierta (la página está `aria-hidden`); `recipes-screen` ya lo hace tras cerrar, falta igualarlo.
+- **«Deshacer» dos veces seguidas** puede anunciar dos veces el mismo mensaje (las acciones son idempotentes).
+- **E2E y la medianoche de Lima:** `e2e/household.spec.ts` calcula el día con el reloj del proceso de prueba (`todayWeekday`); un run que cruce las 00:00 de Lima puede fallar «Para hoy» (reintentar). Lo mismo le pasó a `projects`, `task-views` y `today-projects` el 2026-10-14 a las 05:00 UTC.
+- **Filas que quedaron de prueba en producción:** el Checkpoint dejó, borradas por la app (borrado lógico), una tarea `[QA] Limpiar inodoro` (y su ocurrencia), un producto `[QA] Leche` y una receta `[QA] Arroz con pollo`; no se ven y están en el respaldo.
 
 ## Módulo `goals`: cerrado el 2026-10-13
 

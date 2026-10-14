@@ -595,7 +595,7 @@ export function ShoppingScreen({ products }: ShoppingScreenProps) {
                 <li
                   key={product.id}
                   data-shopping-row={product.id}
-                  className="bo-card flex flex-wrap items-center justify-between gap-2 p-3"
+                  className="bo-card bo-household-row"
                 >
                   <p className="bo-text-body min-w-0 flex-1 break-words">
                     {product.name}
@@ -650,7 +650,7 @@ function ProductRow({ product, busy, onToggle, onRemove, onQuantity }: ProductRo
   return (
     <li
       data-shopping-row={product.id}
-      className={cn("bo-card flex flex-wrap items-center gap-2 p-3", checked && "opacity-70")}
+      className={cn("bo-card bo-household-row", checked && "opacity-70")}
     >
       <Key
         toggle

@@ -290,10 +290,7 @@ function CleaningRow({ item, today, busy, onDone, onRemove }: CleaningRowProps) 
   const when = whenText(item.dueDate, today);
   const meta = [item.frequency, when].filter(Boolean).join(" · ");
   return (
-    <li
-      className="bo-card flex flex-wrap items-center justify-between gap-2 p-3"
-      data-household-row={item.id}
-    >
+    <li className="bo-card bo-household-row" data-household-row={item.id}>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Link
           href={taskPath(item.id)}

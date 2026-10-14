@@ -535,7 +535,7 @@ export function assessBackup(
 
 const run = promisify(execFile);
 
-async function readLatestBackup(): Promise<{ run: BackupRun; artifacts: number }> {
+export async function readLatestBackup(): Promise<{ run: BackupRun; artifacts: number }> {
   const { stdout } = await run("gh", [
     "run",
     "list",
