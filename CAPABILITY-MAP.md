@@ -43,6 +43,7 @@ brahua-os es mi "segundo cerebro" personal: una sola app (web responsive + PWA) 
 | `finance` | Gastos, **pagos recurrentes** con ciclos y vencimientos, categorías, medios de pago, PEN/USD, resumen mensual, importación de Gastos. | core (avisos con `reminders` después) |
 | `goals` | Metas anuales y trimestrales y objetivo semanal, enlazadas a hábitos, proyectos y cantidades manuales (libros, km), con ritmo como siguiente paso (nunca "atrasada"). Sin metas de dinero en v1 (decisión del owner, 2026-10-06). Spec: [`SPEC-goals.md`](SPEC-goals.md). **Estado (2026-10-13): cerrado** (G1–G4 en producción). | habits, projects |
 | `weekly-review` | Ritual guiado para cerrar la semana (hábitos cumplidos, tareas, avance de proyectos y metas) y planear la siguiente con un objetivo semanal. Spec: [`SPEC-weekly-review.md`](SPEC-weekly-review.md). **Estado (2026-10-14): cerrado** (W1–W4 en producción). | habits, tasks, projects, goals |
+| `household` | Hogar, con la idea del «Hogar» de Notion (limpieza semanal, productos y lista de compras, recetas). Su alcance exacto se define en su spec, con una entrevista al owner. **Id `household`, no `home`:** `home` ya es el id del manifiesto de «Hoy» (`todayModule`). Mascotas sigue fuera de alcance (app aparte); las Tareas del Hogar ya se importan a `tasks`. Entró al mapa el 2026-10-14 por decisión del owner. | core, tasks |
 | `health` | Rutinas de ejercicio con plantillas, sesiones por series (peso y repeticiones) y récords; la sesión marca el hábito enlazado. Entró al mapa desde "Más adelante" el 2026-10-06 (decisión del owner tras el benchmark); sueño, alimentación y terapia quedan para después. | core, habits |
 | `learning` | Cursos, certificaciones y rutas de estudio (p. ej. AWS, Platzi, Career Roadmap) con avance, sesiones de estudio con cronómetro y enlace a metas. | core, goals |
 | `notes` | Daily log / journaling y notas de conocimiento con búsqueda, `[[enlaces]]` a entidades y "línea → tarea". Es la parte de "segundo cerebro" propiamente dicha. | core |
@@ -64,10 +65,11 @@ Ideas guardadas sin spec; se agregan al mapa cuando las pidas:
 ## Orden de construcción
 
 ```
-design-system → core → projects → tasks, habits → today → finance → polish → reminders → goals → weekly-review → health → learning → notes
+design-system → core → projects → tasks, habits → today → finance → polish → reminders → goals → weekly-review → household → health → learning → notes
 ```
 
 - `polish` no es un módulo: es un corte corto de mejoras a módulos cerrados (`tasks/todo.md` → "Corte `polish`") que salió del benchmark de rimu (`docs/benchmark-rimu.html`); dos de sus ítems son prerequisito de `reminders`. Decisión del owner, 2026-10-06.
+- `household` entra después de `weekly-review` y antes de `health` (decisión del owner, 2026-10-14): es la idea del «Hogar» de su Notion. Su spec se escribe en una conversación nueva.
 - `health` entra al mapa después de `weekly-review` y antes que `learning` (decisión del owner, 2026-10-06): se usa varias veces por semana con las manos ocupadas; un curso se toca de forma esporádica. `notes` se queda al final: el owner no usaba el daily log de Notion.
 
 - El **MVP usable** llega al terminar `today`: ya puedo gestionar proyectos y registrar tareas y hábitos desde el celular a diario.
