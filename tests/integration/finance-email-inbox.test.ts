@@ -9,14 +9,17 @@ import {
   financeExpenses,
   financePaymentMethods,
   financeRecurringPayments,
+  financeSettings,
   financeSettlements,
   type NewFinanceEmailSuggestion,
 } from "@/modules/finance/db/schema";
 import {
+  correctPaidAmount,
   dismissSuggestion,
   markSuggestionPaid,
   registerSuggestion,
   selectSuggestions,
+  undoCorrection,
   undoDismiss,
   undoRegister,
 } from "@/modules/finance/email/suggestions";
@@ -367,6 +370,7 @@ describe("recurring payments that arrive by email (addendum E5)", () => {
       state: "pending",
       expectedCents: 5000,
       sameAmount: true,
+      paid: null,
     });
     expect(different.recurring).toMatchObject({ sameAmount: false, expectedCents: 5000 });
   });
@@ -549,5 +553,100 @@ describe("recurring payments that arrive by email (addendum E5)", () => {
       code = (error as { cause?: { code?: string } }).cause?.code;
     }
     expect(code).toBe("23514");
+  });
+
+  describe("a period already paid with another amount: correcting it", () => {
+    /** Netflix paid by hand with S/ 50.00; the bank charged S/ 54.00. */
+    async function setup(over: Partial<NewFinanceEmailSuggestion> = {}) {
+      const payment = await recurring();
+      const paid = await payPeriod(testDb, { id: payment.id, dueOn: "2026-10-10" }, TODAY);
+      if (typeof paid === "string") throw new Error(paid);
+      const row = await netflix({ amountCents: 5400, ...over });
+      return { payment, expenseId: paid.expense.id, row };
+    }
+
+    test("the list tells what was paid with and that it differs", async () => {
+      const { expenseId } = await setup();
+      expect((await selectSuggestions(testDb, TODAY))[0].recurring).toMatchObject({
+        state: "paid",
+        sameAmount: false,
+        paid: { expenseId, amountCents: 5000 },
+      });
+    });
+
+    test("the expense takes the charged amount, the suggestion is decided, the period stays paid", async () => {
+      const { expenseId, row } = await setup();
+      const outcome = await correctPaidAmount(testDb, row.id, TODAY);
+      expect(outcome).toMatchObject({ kind: "corrected", previousCents: 5000 });
+      const [expense] = await expenseRows();
+      expect(expense).toMatchObject({ id: expenseId, amountCents: 5400, deletedAt: null });
+      expect(await settlements()).toHaveLength(1);
+      expect(await suggestionOf(row.id)).toMatchObject({ status: "dismissed" });
+      expect(await expenseRows()).toHaveLength(1);
+    });
+
+    test("Deshacer puts the amount back and the suggestion returns; an expense edited meanwhile is left alone", async () => {
+      const { expenseId, row } = await setup();
+      await correctPaidAmount(testDb, row.id, TODAY);
+      expect(await undoCorrection(testDb, { id: row.id, expenseId, previousCents: 5000 })).toBe(
+        "done",
+      );
+      expect((await expenseRows())[0].amountCents).toBe(5000);
+      expect(await suggestionOf(row.id)).toMatchObject({ status: "pending", decidedAt: null });
+      // Corrected again, then the owner edits the expense: the old undo must not touch it.
+      await correctPaidAmount(testDb, row.id, TODAY);
+      await testDb.update(financeExpenses).set({ amountCents: 9999 });
+      expect(await undoCorrection(testDb, { id: row.id, expenseId, previousCents: 5000 })).toBe(
+        "changed",
+      );
+      expect((await expenseRows())[0].amountCents).toBe(9999);
+    });
+
+    test("same amount, a pending period, no match or an unverified sender: nothing to correct", async () => {
+      const payment = await recurring();
+      const lonely = await netflix({ amountCents: 5400 });
+      // Pending period: that is «Marcar como pagado», not a correction.
+      expect(await correctPaidAmount(testDb, lonely.id, TODAY)).toEqual({
+        kind: "failed",
+        reason: "noMatch",
+      });
+      await payPeriod(testDb, { id: payment.id, dueOn: "2026-10-10" }, TODAY);
+      const same = await netflix({ amountCents: 5000 });
+      expect(await correctPaidAmount(testDb, same.id, TODAY)).toEqual({
+        kind: "failed",
+        reason: "noMatch",
+      });
+      const unverified = await netflix({ amountCents: 5400, senderVerified: false });
+      expect(await correctPaidAmount(testDb, unverified.id, TODAY)).toEqual({
+        kind: "failed",
+        reason: "needsReview",
+      });
+      expect((await expenseRows())[0].amountCents).toBe(5000);
+    });
+
+    test("three at once correct once", async () => {
+      const { row } = await setup();
+      const results = await Promise.all([
+        correctPaidAmount(testDb, row.id, TODAY),
+        correctPaidAmount(testDb, row.id, TODAY),
+        correctPaidAmount(testDb, row.id, TODAY),
+      ]);
+      expect(results.filter((r) => r.kind === "corrected")).toHaveLength(1);
+      expect((await expenseRows())[0].amountCents).toBe(5400);
+    });
+
+    test("a USD expense takes the current rate when its amount changes (the rule of editing)", async () => {
+      await testDb.insert(financeSettings).values({ id: 1, usdToPen: "3.7500" });
+      const payment = await recurring({ name: "Paramount+", currency: "USD", amountCents: 600 });
+      await payPeriod(testDb, { id: payment.id, dueOn: "2026-10-10" }, TODAY);
+      const row = await suggest({
+        merchant: "PARAMOUNT+",
+        currency: "USD",
+        amountCents: 646,
+        occurredOn: "2026-10-13",
+      });
+      expect((await correctPaidAmount(testDb, row.id, TODAY)).kind).toBe("corrected");
+      expect((await expenseRows())[0]).toMatchObject({ amountCents: 646, currency: "USD" });
+    });
   });
 });

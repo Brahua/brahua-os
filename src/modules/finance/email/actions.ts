@@ -15,6 +15,7 @@ import {
   setMethodLast4InputSchema,
   setOwnNamesInputSchema,
   suggestionIdInputSchema,
+  undoCorrectInputSchema,
   undoRegisterInputSchema,
   type EmailSettings,
 } from "./input";
@@ -24,9 +25,11 @@ import {
   setOwnNames as writeOwnNames,
 } from "./settings";
 import {
+  correctPaidAmount,
   dismissSuggestion,
   markSuggestionPaid,
   registerSuggestion,
+  undoCorrection,
   undoDismiss,
   undoRegister,
   type DecideOutcome,
@@ -103,6 +106,48 @@ export async function markEmailSuggestionPaid(
   return markPaid(input);
 }
 
+export type CorrectedSuggestion = {
+  suggestionId: string;
+  expense: ExpenseItem;
+  previousCents: number;
+  recurringName: string;
+};
+
+const correct = ownerAction(
+  suggestionIdInputSchema,
+  async ({ id }) => {
+    const outcome = await correctPaidAmount(getDb(), id, ownerDateKey(new Date()));
+    revalidateFinanceAndHome();
+    if (outcome.kind === "failed") {
+      const message =
+        outcome.reason === "notFound"
+          ? EMAIL_COPY.notFound
+          : outcome.reason === "needsReview"
+            ? EMAIL_COPY.needsReview
+            : outcome.reason === "notPending"
+              ? EMAIL_COPY.alreadyDecided
+              : outcome.reason === "noMatch"
+                ? EMAIL_COPY.noMatch
+                : EMAIL_COPY.changedMeanwhile;
+      return fail<CorrectedSuggestion>(message);
+    }
+    return ok({
+      suggestionId: outcome.suggestionId,
+      expense: outcome.expense,
+      previousCents: outcome.previousCents,
+      recurringName: outcome.recurringName,
+    });
+  },
+  { name: "correctEmailSuggestionAmount" },
+);
+
+/** «Corregir a X»: the expense of the period already marked as paid takes the amount the bank charged. */
+export async function correctEmailSuggestionAmount(
+  input: unknown,
+): Promise<ActionResult<CorrectedSuggestion>> {
+  return correct(input);
+}
+
 function decided(outcome: DecideOutcome): ActionResult<{ id: string }> | null {
   if (outcome === "notFound") return fail(EMAIL_COPY.notFound);
   if (outcome === "changed") return fail(EMAIL_COPY.changedMeanwhile);
@@ -154,6 +199,23 @@ const undoRegistered = ownerAction(
   },
   { name: "undoRegisterEmailSuggestion" },
 );
+
+const undoCorrect = ownerAction(
+  undoCorrectInputSchema,
+  async (data) => {
+    const outcome = await undoCorrection(getDb(), data);
+    revalidateFinanceAndHome();
+    return decided(outcome) ?? ok({ id: data.id });
+  },
+  { name: "undoCorrectEmailSuggestionAmount" },
+);
+
+/** «Deshacer» of a correction: the previous amount comes back and the suggestion returns to the inbox. */
+export async function undoCorrectEmailSuggestionAmount(
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return undoCorrect(input);
+}
 
 /** «Deshacer» of a register: the expense it created goes, the suggestion comes back. */
 export async function undoRegisterEmailSuggestion(
