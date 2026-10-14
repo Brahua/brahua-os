@@ -168,3 +168,31 @@ export const SUBJECTS = {
   bbvaPlinQr: "Constancia de operación transferencia PLIN con QR",
   bbvaInterbank: "BBVA - Constancia Transf. Interbancaria",
 };
+
+/**
+ * The same email as Gmail's plain body may lay it out: the pipe table of the markdown conversion (as
+ * written in the fixtures), one cell per line, cells separated by tabs, or everything on one line.
+ * The real BCP emails are HTML only, and how a table flattens is not ours to count on.
+ */
+export const LAYOUTS = {
+  pipes: (text: string) => text,
+  lines: (text: string) =>
+    text.replace(/^\|\s*(.*?)\s*\|?\s*$/gm, (_row, cells: string) =>
+      cells
+        .split("|")
+        .map((cell) => cell.trim())
+        .filter(Boolean)
+        .join("\n"),
+    ),
+  tabs: (text: string) =>
+    text.replace(/^\|\s*(.*?)\s*\|?\s*$/gm, (_row, cells: string) =>
+      cells
+        .split("|")
+        .map((cell) => cell.trim())
+        .filter(Boolean)
+        .join("\t"),
+    ),
+  flat: (text: string) => text.replace(/\|/g, " ").replace(/\s+/g, " "),
+} as const;
+export type LayoutName = keyof typeof LAYOUTS;
+export const LAYOUT_NAMES = Object.keys(LAYOUTS) as LayoutName[];

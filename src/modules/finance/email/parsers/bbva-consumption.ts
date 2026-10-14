@@ -7,7 +7,8 @@ import { parseAmountToCents } from "./amounts";
 import { cleanText, isPlausibleDay } from "./text";
 import { SUGGESTION_MERCHANT_MAX_LENGTH } from "../constants";
 
-const MERCHANT = /Comercio:\s*([^|\n]+?)\s*(?:\||\n|$)/i;
+// «Comercio: X», then a pipe, a line, a tab or the next label (everything may arrive on one line).
+const MERCHANT = /Comercio:\s*([^|\n\t]+?)\s*(?:\||\n|\t|\s+Monto:|$)/i;
 const AMOUNT = /Monto:\s*([\d.,]+)/i;
 const CURRENCY = /Moneda:\s*(PEN|USD)\b/i;
 const DATE = /Fecha:\s*(\d{2})\/(\d{2})\/(\d{4})/i;

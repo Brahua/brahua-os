@@ -47,3 +47,19 @@ export function parseSpanishDay(raw: string): string | null {
   if (new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) !== day) return null;
   return isPlausibleDay(day) ? day : null;
 }
+
+/**
+ * The day written after `label` (a regex for «Fecha y hora»…), whatever separates them: a pipe, a
+ * tab, a line break or nothing (Gmail's plain body flattens an HTML table in its own way and the
+ * layout is not ours to count on). Without the label, the first Spanish date of the text.
+ */
+export function dayAfter(text: string, label: RegExp): string | null {
+  const match = label.exec(text);
+  if (match) {
+    const near = parseSpanishDay(
+      text.slice(match.index + match[0].length, match.index + match[0].length + 120),
+    );
+    if (near) return near;
+  }
+  return parseSpanishDay(text);
+}

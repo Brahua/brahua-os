@@ -94,7 +94,7 @@ El `smoke` corre solo después. (O espera al siguiente merge a `main`: despliega
 ## Paso 4. Activar el script
 
 1. En el editor, elige la función **`install`** en el selector de arriba y toca **Ejecutar**. La primera vez Google pide permisos (ver «Permisos»). `install` guarda desde cuándo mirar (los últimos 2 días) y crea el disparador de cada 5 minutos.
-2. En **Activadores** (el reloj) comprueba que hay uno: función `run`, «Según el tiempo», «Cada 5 minutos». En sus tres puntos → **Configuración de notificaciones de errores**, déjalo en **cada hora** o **cada día** (si el secreto estuviera mal, un aviso inmediato te mandaría un correo cada 5 minutos).
+2. En **Activadores** (el reloj) comprueba que hay uno: función `run`, «Según el tiempo», «Cada 5 minutos». Toca el **lápiz** (editar) de esa fila → **Configuración de notificaciones de falla**, déjalo en **«Notifícame una vez por hora»** (o cada día) (si el secreto estuviera mal, un aviso inmediato te mandaría un correo cada 5 minutos).
 
 ### Permisos
 
