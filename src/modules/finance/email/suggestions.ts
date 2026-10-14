@@ -24,6 +24,7 @@ import {
   insertExpense,
   softDeleteExpense,
   selectExpenseById,
+  updateExpense,
   type ExpenseFailure,
 } from "../expenses";
 import { lockRecurring } from "../catalog";
@@ -120,6 +121,7 @@ async function recurringIndex(db: Database | Tx, today: string): Promise<Recurri
     currency: "PEN" | "USD";
     state: "pending" | "paid";
     dueOn: string;
+    paid: { expenseId: string; amountCents: number } | null;
   };
   const slots = new Map<string, Slot>();
   for (const { recurring, dueOn } of view.pending) {
@@ -131,6 +133,7 @@ async function recurringIndex(db: Database | Tx, today: string): Promise<Recurri
         currency: recurring.currency,
         state: "pending",
         dueOn,
+        paid: null,
       });
     }
   }
@@ -142,6 +145,7 @@ async function recurringIndex(db: Database | Tx, today: string): Promise<Recurri
       currency: entry.recurring.currency,
       state: "paid",
       dueOn: entry.dueOn,
+      paid: { expenseId: entry.expense.id, amountCents: entry.expense.amountCents },
     });
   }
   const ids = [...slots.keys()];
@@ -177,7 +181,11 @@ async function recurringIndex(db: Database | Tx, today: string): Promise<Recurri
         dueOn: slot.dueOn,
         state: slot.state,
         expectedCents: slot.amountCents,
-        sameAmount: slot.amountCents === null || slot.amountCents === input.amountCents,
+        // A paid period is compared with what it was paid with; a pending one, with what is expected.
+        sameAmount: slot.paid
+          ? slot.paid.amountCents === input.amountCents
+          : slot.amountCents === null || slot.amountCents === input.amountCents,
+        paid: slot.paid,
       };
     },
   };
@@ -377,6 +385,128 @@ export async function markSuggestionPaid(
       recurringName: match.name,
       closedStamp: paid.closedStamp,
     };
+  });
+}
+
+export type CorrectOutcome =
+  | {
+      kind: "corrected";
+      suggestionId: string;
+      expense: ExpenseItem;
+      previousCents: number;
+      recurringName: string;
+    }
+  | { kind: "failed"; reason: "notFound" | "notPending" | "needsReview" | "noMatch" | "changed" };
+
+/**
+ * «Corregir a X» (addendum E5, «Ya marcaste…»): the period of the recurring payment this email paid
+ * was already marked as paid with another amount (a tax that varies, a rounding): the email's amount
+ * is what the bank charged, so the expense of that period takes it. The suggestion is then decided
+ * (dismissed): its job is done. Same locks as «Marcar como pagado», and the match is checked again
+ * once they are held.
+ */
+export async function correctPaidAmount(
+  db: Database,
+  id: string,
+  today: string,
+): Promise<CorrectOutcome> {
+  const [first] = await db
+    .select()
+    .from(financeEmailSuggestions)
+    .where(eq(financeEmailSuggestions.id, id));
+  const claim = suggestionClaim(first);
+  if (claim.kind === "failed") return claim;
+  const probe = (await recurringIndex(db, today)).find(claim.input);
+  if (!probe || probe.state !== "paid" || !probe.paid || probe.sameAmount) {
+    return { kind: "failed", reason: "noMatch" };
+  }
+  const probeExpenseId = probe.paid.expenseId;
+
+  return db.transaction(async (tx) => {
+    await lockSuggestion(tx, id);
+    await lockRecurring(tx, probe.id);
+    const [row] = await tx
+      .select()
+      .from(financeEmailSuggestions)
+      .where(eq(financeEmailSuggestions.id, id))
+      .for("update");
+    const checked = suggestionClaim(row);
+    if (checked.kind === "failed") return checked;
+    const match = (await recurringIndex(tx, today)).find(checked.input);
+    if (
+      !match ||
+      match.state !== "paid" ||
+      match.id !== probe.id ||
+      match.paid?.expenseId !== probeExpenseId ||
+      match.sameAmount
+    ) {
+      return { kind: "failed", reason: "changed" };
+    }
+    const existing = await selectExpenseById(tx, probeExpenseId);
+    // The expense was edited in the meantime into another currency: not this email's to correct.
+    if (!existing || existing.currency !== checked.input.currency) {
+      return { kind: "failed", reason: "changed" };
+    }
+    const updated = await updateExpense(tx as unknown as Database, {
+      id: existing.id,
+      amount: checked.input.amountCents,
+      description: existing.description,
+      currency: existing.currency,
+      categoryId: existing.category?.id ?? null,
+      paymentMethodId: existing.paymentMethod?.id ?? null,
+      spentOn: existing.spentOn,
+    });
+    if (typeof updated === "string") return { kind: "failed", reason: "changed" };
+    await tx
+      .update(financeEmailSuggestions)
+      .set({ status: "dismissed", decidedAt: sql`now()` })
+      .where(eq(financeEmailSuggestions.id, id));
+    return {
+      kind: "corrected",
+      suggestionId: id,
+      expense: updated,
+      previousCents: existing.amountCents,
+      recurringName: match.name,
+    };
+  });
+}
+
+/**
+ * «Deshacer» of a correction: the expense goes back to its previous amount and the suggestion to the
+ * inbox. Only while the suggestion is still the one the correction dismissed and the expense still
+ * says what the correction wrote: if either moved, «cambió mientras tanto».
+ */
+export async function undoCorrection(
+  db: Database,
+  input: { id: string; expenseId: string; previousCents: number },
+): Promise<DecideOutcome> {
+  return db.transaction(async (tx) => {
+    await lockSuggestion(tx, input.id);
+    const [row] = await tx
+      .select()
+      .from(financeEmailSuggestions)
+      .where(eq(financeEmailSuggestions.id, input.id))
+      .for("update");
+    if (!row) return "notFound";
+    if (row.status === "pending") return "done";
+    if (row.status !== "dismissed" || row.amountCents === null) return "changed";
+    const existing = await selectExpenseById(tx, input.expenseId);
+    if (!existing || existing.amountCents !== row.amountCents) return "changed";
+    const reverted = await updateExpense(tx as unknown as Database, {
+      id: existing.id,
+      amount: input.previousCents,
+      description: existing.description,
+      currency: existing.currency,
+      categoryId: existing.category?.id ?? null,
+      paymentMethodId: existing.paymentMethod?.id ?? null,
+      spentOn: existing.spentOn,
+    });
+    if (typeof reverted === "string") return "changed";
+    await tx
+      .update(financeEmailSuggestions)
+      .set({ status: "pending", decidedAt: null })
+      .where(eq(financeEmailSuggestions.id, input.id));
+    return "done";
   });
 }
 

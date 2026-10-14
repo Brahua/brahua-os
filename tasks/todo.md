@@ -35,6 +35,8 @@ Spec: [`SPEC-finance-email.md`](../SPEC-finance-email.md) (aprobada el 2026-10-1
   - **Aceptación:** los seis criterios del addendum.
   - **Verificación:** unitarias del reconocedor (tildes, mayúsculas, palabras sueltas, empate, moneda); integración (una a la vez): pagar, deshacer, doble toque y dos a la vez, otro monto con alias, ya pagado, última cuota que archiva y «Deshacer» que reabre; componente de la fila; gate liviano. Sin E2E nueva.
 
+- [x] **E6: Corregir el monto de un período ya pagado** (S; `feat/finance-email-e6`) — «Registraste X; el banco cobró Y» + «Corregir a Y» con «Deshacer»; integración y componente.
+
 ### Checkpoint final
 - [ ] El owner instala el script y un correo real de cada formato llega a la bandeja con lo leído correcto (consumo BCP y BBVA, Yape, transferencia, Plin).
 - [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).

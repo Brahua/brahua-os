@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
 import { createExpenseInputSchema } from "../expense-input";
+import { AMOUNT_MAX_CENTS, AMOUNT_MIN_CENTS } from "../finance-constants";
 import type { Currency } from "../finance-constants";
 import { CARD_LAST4, OWN_NAME_MAX_LENGTH, OWN_NAMES_MAX_ITEMS } from "./constants";
 import type { EmailKind, EmailSource, SuggestionStatus } from "./constants";
@@ -20,6 +21,11 @@ export type SuggestionRecurring = {
   /** The payment's expected amount (null: variable) and whether the email's amount is it. */
   expectedCents: number | null;
   sameAmount: boolean;
+  /**
+   * `paid` only: the expense that period was paid with and what it says, so the row can tell «registraste
+   * X; el banco cobró Y» and offer to correct it. `sameAmount` is then about THAT amount.
+   */
+  paid: { expenseId: string; amountCents: number } | null;
 };
 
 /** What the screens get of a suggestion (never the whole row, never the email). */
@@ -70,6 +76,13 @@ export const undoRegisterInputSchema = z.object({
   expenseId: z.uuid(),
   /** Set when marking the payment as paid closed it (its last installment): the undo reopens it. */
   reopenStamp: z.string().max(40).nullish(),
+});
+
+export const undoCorrectInputSchema = z.object({
+  id,
+  expenseId: z.uuid(),
+  /** What the expense said before the correction. */
+  previousCents: z.number().int().min(AMOUNT_MIN_CENTS).max(AMOUNT_MAX_CENTS),
 });
 
 export const setMethodLast4InputSchema = z.object({

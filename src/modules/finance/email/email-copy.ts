@@ -39,6 +39,10 @@ export const EMAIL_COPY = {
   checkConnection: "Revisa tu conexión e inténtalo de nuevo.",
   needsReview:
     "Revisa esta sugerencia antes de registrarla: no pude verificar quién envió el correo.",
+  correct: (amount: string) => `Corregir a ${amount}`,
+  paidDiffers: (paid: string, charged: string) => `Registraste ${paid}; el banco cobró ${charged}.`,
+  correctedTitle: "Monto corregido",
+  correctedText: (name: string, spoken: string) => `${name}, ahora ${spoken}.`,
   markPaid: "Marcar como pagado",
   registerAsExpense: "Registrar como gasto",
   seemsPayment: (name: string, due: string) => `Parece el pago de «${name}» · ${due}`,

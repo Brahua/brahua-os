@@ -3,9 +3,11 @@
 import { startTransition, useId, useOptimistic, useRef, useState } from "react";
 import { Key } from "@/design-system";
 import {
+  correctEmailSuggestionAmount,
   dismissEmailSuggestion,
   markEmailSuggestionPaid,
   registerEmailSuggestion,
+  undoCorrectEmailSuggestionAmount,
   undoDismissEmailSuggestion,
   undoRegisterEmailSuggestion,
   type RegisteredSuggestion,
@@ -158,6 +160,56 @@ export function SuggestionsSection({ items }: SuggestionsSectionProps) {
     });
   }
 
+  function undoCorrect(item: SuggestionItem, expenseId: string, previousCents: number) {
+    startTransition(async () => {
+      const result = await enqueue(`email-suggestion:${item.id}`, () =>
+        undoCorrectEmailSuggestionAmount({ id: item.id, expenseId, previousCents }),
+      );
+      if (result.kind === "skipped") return;
+      if (result.kind === "done" && result.value.ok) {
+        announce(EMAIL_COPY.undone);
+        return;
+      }
+      failureToast(
+        EMAIL_COPY.notUndone,
+        result.kind === "done" && !result.value.ok ? result.value.error : undefined,
+      );
+    });
+  }
+
+  /** «Corregir a X»: the period already marked as paid takes the amount the bank charged. */
+  function correct(item: SuggestionItem) {
+    focusNeighborOf(item.id);
+    startTransition(async () => {
+      removeShown(item.id);
+      const result = await enqueue(`email-suggestion:${item.id}`, () =>
+        correctEmailSuggestionAmount({ id: item.id }),
+      );
+      if (result.kind === "skipped") return;
+      if (result.kind === "done" && result.value.ok) {
+        const done = result.value.data;
+        const spoken = spokenMoney(
+          done.expense.amountCents,
+          done.expense.currency,
+          done.expense.exchangeRateE4,
+        );
+        toaster.push({
+          title: EMAIL_COPY.correctedTitle,
+          text: EMAIL_COPY.correctedText(done.recurringName, spoken),
+          action: {
+            label: EMAIL_COPY.undo,
+            run: () => undoCorrect(item, done.expense.id, done.previousCents),
+          },
+        });
+        return;
+      }
+      failureToast(
+        EMAIL_COPY.notSavedTitle,
+        result.kind === "done" && !result.value.ok ? result.value.error : undefined,
+      );
+    });
+  }
+
   function undoDismiss(item: SuggestionItem) {
     startTransition(async () => {
       const result = await enqueue(`email-suggestion:${item.id}`, () =>
@@ -240,6 +292,7 @@ export function SuggestionsSection({ items }: SuggestionsSectionProps) {
                 }}
                 onRegister={() => registerDirect(item)}
                 onMarkPaid={() => markPaid(item)}
+                onCorrect={() => correct(item)}
                 onEdit={(key) => openSheet(item, key)}
                 onManual={(key) => openManual(item, key)}
                 onDismiss={() => dismiss(item)}
@@ -308,6 +361,7 @@ type SuggestionRowProps = {
   registerKey: (node: HTMLButtonElement | null) => void;
   onRegister: () => void;
   onMarkPaid: () => void;
+  onCorrect: () => void;
   onEdit: (key: HTMLElement | null) => void;
   onManual: (key: HTMLElement | null) => void;
   onDismiss: () => void;
@@ -319,6 +373,7 @@ function SuggestionRow({
   registerKey,
   onRegister,
   onMarkPaid,
+  onCorrect,
   onEdit,
   onManual,
   onDismiss,
@@ -335,6 +390,8 @@ function SuggestionRow({
   ].filter(Boolean);
   const editKey = useRef<HTMLButtonElement>(null);
   const recurring = unreadable ? null : item.recurring;
+  // A period already paid with another amount than the one the bank charged: it can be corrected.
+  const differs = recurring?.state === "paid" && !recurring.sameAmount && recurring.paid !== null;
 
   return (
     <li
@@ -361,7 +418,15 @@ function SuggestionRow({
           data-state={recurring.state}
         >
           {recurring.state === "paid" ? (
-            EMAIL_COPY.alreadyPaidNote(recurring.name)
+            <>
+              {EMAIL_COPY.alreadyPaidNote(recurring.name)}
+              {differs && recurring.paid && item.currency && item.amountCents !== null
+                ? ` ${EMAIL_COPY.paidDiffers(
+                    formatMoney(recurring.paid.amountCents, item.currency),
+                    formatMoney(item.amountCents, item.currency),
+                  )}`
+                : null}
+            </>
           ) : (
             <>
               <strong>
@@ -404,11 +469,23 @@ function SuggestionRow({
               </Key>
             </>
           ) : (
-            // Already marked as paid: dropping it is the main thing, a loose expense the other.
+            // Already marked as paid: with another amount, correcting it is the main thing; with
+            // the same one, dropping the suggestion. A loose expense is always the other way out.
             <>
-              <Key ref={registerKey} variant="signal" onClick={onDismiss}>
-                {EMAIL_COPY.dismiss}
-              </Key>
+              {differs && item.amountCents !== null && item.currency ? (
+                <>
+                  <Key ref={registerKey} variant="signal" onClick={onCorrect}>
+                    {EMAIL_COPY.correct(formatMoney(item.amountCents, item.currency))}
+                  </Key>
+                  <Key variant="ghost" onClick={onDismiss}>
+                    {EMAIL_COPY.dismiss}
+                  </Key>
+                </>
+              ) : (
+                <Key ref={registerKey} variant="signal" onClick={onDismiss}>
+                  {EMAIL_COPY.dismiss}
+                </Key>
+              )}
               <Key variant="ghost" onClick={onRegister}>
                 {EMAIL_COPY.registerAsExpense}
               </Key>
@@ -429,6 +506,7 @@ function SuggestionRow({
             {EMAIL_COPY.review}
           </Key>
         )}
+        {/* Dismiss is drawn inside the paid-state keys above. */}
         {recurring?.state === "paid" && item.senderVerified ? null : (
           <Key variant="ghost" onClick={onDismiss}>
             {EMAIL_COPY.dismiss}

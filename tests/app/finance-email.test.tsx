@@ -10,11 +10,13 @@ import { EmailSettingsSection } from "@/modules/finance/components/email-setting
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { SuggestionsSection } from "@/modules/finance/components/suggestions-section";
 import {
+  correctEmailSuggestionAmount,
   dismissEmailSuggestion,
   markEmailSuggestionPaid,
   registerEmailSuggestion,
   setMethodLast4,
   setOwnNames,
+  undoCorrectEmailSuggestionAmount,
   undoDismissEmailSuggestion,
   undoRegisterEmailSuggestion,
 } from "@/modules/finance/email/actions";
@@ -29,6 +31,8 @@ vi.mock("@/modules/finance/email/actions", () => ({
   registerEmailSuggestion: vi.fn(),
   dismissEmailSuggestion: vi.fn(),
   markEmailSuggestionPaid: vi.fn(),
+  correctEmailSuggestionAmount: vi.fn(),
+  undoCorrectEmailSuggestionAmount: vi.fn(),
   undoDismissEmailSuggestion: vi.fn(),
   undoRegisterEmailSuggestion: vi.fn(),
   setOwnNames: vi.fn(),
@@ -120,6 +124,8 @@ beforeEach(() => {
   for (const action of [
     registerEmailSuggestion,
     markEmailSuggestionPaid,
+    correctEmailSuggestionAmount,
+    undoCorrectEmailSuggestionAmount,
     dismissEmailSuggestion,
     undoDismissEmailSuggestion,
     undoRegisterEmailSuggestion,
@@ -390,6 +396,7 @@ describe("recurring payments that arrive by email (addendum E5)", () => {
     state: "pending" as const,
     expectedCents: 5000,
     sameAmount: true,
+    paid: null,
   };
 
   test("a pending period: «Parece el pago de …», Marcar como pagado first, Registrar como gasto after", () => {
@@ -480,5 +487,84 @@ describe("recurring payments that arrive by email (addendum E5)", () => {
     expect(screen.getByRole("button", { name: "Revisar" })).toBeVisible();
     expect(screen.queryByText(/Parece el pago/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Marcar como pagado" })).toBeNull();
+  });
+
+  describe("a period already paid with another amount (the tax varies)", () => {
+    const differing = () =>
+      suggestion({
+        merchant: "PARAMOUNT+",
+        amountCents: 646,
+        currency: "USD",
+        recurring: {
+          ...NETFLIX,
+          name: "Paramount+",
+          state: "paid",
+          expectedCents: 599,
+          sameAmount: false,
+          paid: { expenseId: "33333333-3333-4333-8333-000000000001", amountCents: 600 },
+        },
+      });
+
+    test("it says what was registered and what the bank charged, and offers to correct it first", () => {
+      renderSection([differing()]);
+      expect(
+        screen.getByText(
+          /Ya marcaste «Paramount\+» como pagado este mes\. Registraste USD\s6\.00; el banco cobró USD\s6\.46\./,
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: /^Corregir a USD\s6\.46$/ })).toBeVisible();
+      expect(screen.getAllByRole("button", { name: "Descartar" })).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Registrar como gasto" })).toBeVisible();
+    });
+
+    test("Corregir: the row leaves, «Monto corregido», and Deshacer carries the previous amount", async () => {
+      const user = userEvent.setup();
+      const item = differing();
+      vi.mocked(correctEmailSuggestionAmount).mockResolvedValue(
+        ok({
+          suggestionId: item.id,
+          expense: expense({ description: "Paramount+", amountCents: 646, currency: "USD" }),
+          previousCents: 600,
+          recurringName: "Paramount+",
+        }),
+      );
+      vi.mocked(undoCorrectEmailSuggestionAmount).mockResolvedValue(ok({ id: item.id }));
+      renderSection([item]);
+      await user.click(screen.getByRole("button", { name: /^Corregir a USD\s6\.46$/ }));
+      expect(correctEmailSuggestionAmount).toHaveBeenCalledWith({ id: item.id });
+      await waitFor(() => expect(screen.getByText("Monto corregido")).toBeVisible());
+      await user.click(screen.getByRole("button", { name: "Deshacer" }));
+      await waitFor(() =>
+        expect(undoCorrectEmailSuggestionAmount).toHaveBeenCalledWith({
+          id: item.id,
+          expenseId: "33333333-3333-4333-8333-000000000001",
+          previousCents: 600,
+        }),
+      );
+    });
+
+    test("a refusal brings the row back", async () => {
+      const user = userEvent.setup();
+      vi.mocked(correctEmailSuggestionAmount).mockResolvedValue(fail("Cambió mientras tanto."));
+      renderSection([differing()]);
+      await user.click(screen.getByRole("button", { name: /^Corregir a USD\s6\.46$/ }));
+      await waitFor(() => expect(screen.getByText("Sin guardar")).toBeVisible());
+      expect(screen.getByRole("button", { name: /^Corregir a USD\s6\.46$/ })).toBeVisible();
+    });
+
+    test("with the same amount there is nothing to correct", () => {
+      renderSection([
+        suggestion({
+          recurring: {
+            ...NETFLIX,
+            state: "paid",
+            sameAmount: true,
+            paid: { expenseId: "x", amountCents: 4320 },
+          },
+        }),
+      ]);
+      expect(screen.queryByRole("button", { name: /Corregir/ })).toBeNull();
+      expect(screen.queryByText(/Registraste/)).toBeNull();
+    });
   });
 });
