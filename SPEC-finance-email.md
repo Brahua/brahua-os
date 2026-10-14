@@ -68,7 +68,7 @@ Leídos con el conector de Gmail del owner (autorizado por él); nada de esto se
 
 | Tema | Decisión | Origen |
 |---|---|---|
-| Endpoint | `POST /api/finance/email-ingest` (Node, `maxDuration` corto, `force-dynamic`). Orden de la lección de `reminders`: secreto (cabecera, comparación en tiempo constante) → tamaño (≤ 64 KB por lote) → JSON → forma (Zod) → relevancia (remitente permitido) → y solo entonces escribir. | Lecciones de `reminders` |
+| Endpoint | `POST /api/finance/email-ingest` (Node, `maxDuration` corto, `force-dynamic`). Orden de la lección de `reminders`: secreto (cabecera, comparación en tiempo constante) → tamaño (≤ 128 KB por lote (hasta 10 correos)) → JSON → forma (Zod) → relevancia (remitente permitido) → y solo entonces escribir. | Lecciones de `reminders` |
 | Secreto | Variable `FINANCE_EMAIL_SECRET` (≥ 32 caracteres, validada en `env.ts` por nombre, nunca impresa). El owner la genera y la guarda en su terminal (`openssl rand … \| vercel env add … --sensitive`) y la pega en las propiedades del script de Google. El agente no la ve. | Lecciones de `core` y `reminders` |
 | Remitentes | Lista **fija en código** por parser (`bcp`, `bbva`, `yape`). El script también filtra por remitente en Gmail, pero el servidor **no confía** en eso. | Defensa en profundidad |
 | Autenticidad | El script envía además el resultado SPF/DKIM de Gmail si lo expone (cabecera `Authentication-Results`); si no es `pass`, la sugerencia entra marcada «Remitente no verificado» y sin botón directo de «Registrar» (hay que abrir la hoja). Como nada se registra solo, un correo falso nunca crea un gasto. | Seguridad; revisor de seguridad obligatorio |
@@ -153,7 +153,7 @@ export function parseBcpConsumption(message: EmailMessage): Reading | null {
 2. Reenviar el mismo lote 3 veces deja **una** sugerencia por mensaje; dos mensajes distintos con el mismo monto dejan dos.
 3. Un correo de transferencia recibida, de pago de tarjeta propia o entre cuentas propias no crea sugerencia; uno ilegible crea «No pude leerlo» y no rompe el lote.
 4. Registrar crea exactamente un gasto (en el mes correcto, en Lima) y «Deshacer» lo revierte sin tocar uno posterior.
-5. Una petición sin secreto, con secreto equivocado o de más de 64 KB se rechaza **antes** de tocar la base de datos.
+5. Una petición sin secreto, con secreto equivocado o de más de 128 KB se rechaza **antes** de tocar la base de datos.
 6. Desde que llega el correo hasta verlo en la bandeja pasa ≤ 6 min (disparador de 5 min), y registrar toma ≤ 2 toques en el celular.
 7. El owner recorre en producción un correo real de cada formato y confirma que lo leído coincide (Checkpoint).
 

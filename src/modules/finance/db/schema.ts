@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   date,
   index,
@@ -24,6 +25,15 @@ import {
   RECURRING_NOTES_MAX_LENGTH,
   SETTLEMENT_STATUSES,
 } from "../finance-constants";
+import {
+  CARD_LAST4,
+  EMAIL_KINDS,
+  EMAIL_SOURCES,
+  OWN_NAMES_MAX_ITEMS,
+  SUGGESTION_MERCHANT_MAX_LENGTH,
+  SUGGESTION_STATUSES,
+  SUGGESTION_SUBJECT_MAX_LENGTH,
+} from "../email/constants";
 
 export { CURRENCIES, PAYMENT_CYCLES, SETTLEMENT_STATUSES } from "../finance-constants";
 
@@ -74,11 +84,17 @@ export const financePaymentMethods = pgTable(
     name: text("name").notNull(), // 1–40
     // What a new expense with this method is in by default ("Débito dólares" → USD).
     currency: text("currency", { enum: CURRENCIES }).notNull().default("PEN"),
+    // Last four digits of the card (finance-email): how a bank email suggests this method.
+    last4: text("last4"),
     sortOrder: integer("sort_order").notNull(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check(
+      "finance_payment_methods_last4_check",
+      sql`${table.last4} ~ ${sql.raw(`'${CARD_LAST4.source}'`)}`,
+    ),
     check(
       "finance_payment_methods_name_length_check",
       sql`char_length(${table.name}) between 1 and ${n(CATALOG_NAME_MAX_LENGTH)}`,
@@ -313,6 +329,12 @@ export const financeSettings = pgTable(
     lastPaymentMethodId: uuid("last_payment_method_id").references(() => financePaymentMethods.id, {
       onDelete: "restrict",
     }),
+    // "Mis nombres" (finance-email): names that mean the owner's own account, so a transfer to one
+    // of them is not a suggestion. Each ≤ 80 and distinct are enforced in Zod.
+    ownNames: text("own_names")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -320,10 +342,93 @@ export const financeSettings = pgTable(
   },
   (table) => [
     check("finance_settings_single_row_check", sql`${table.id} = 1`),
+    check(
+      "finance_settings_own_names_check",
+      sql`coalesce(cardinality(${table.ownNames}) <= ${n(OWN_NAMES_MAX_ITEMS)}, false)`,
+    ),
     check("finance_settings_usd_to_pen_check", sql`${table.usdToPen} between 1 and 10`),
   ],
 );
 
+/**
+ * An expense found in a bank email, waiting for the owner (SPEC-finance-email). One row per Gmail
+ * message (`gmail_message_id` is unique: the script, a retry or two overlapping runs cannot make a
+ * second one). Only what was extracted is stored: never the body of the email.
+ */
+export const financeEmailSuggestions = pgTable(
+  "finance_email_suggestions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gmailMessageId: text("gmail_message_id").notNull(),
+    source: text("source", { enum: EMAIL_SOURCES }).notNull(),
+    // Null while `unreadable`.
+    kind: text("kind", { enum: EMAIL_KINDS }),
+    status: text("status", { enum: SUGGESTION_STATUSES }).notNull().default("pending"),
+    amountCents: bigint("amount_cents", { mode: "number" }),
+    currency: text("currency", { enum: CURRENCIES }),
+    merchant: text("merchant"), // ≤ 80, as written in the email
+    occurredOn: date("occurred_on"), // a Lima day
+    cardLast4: text("card_last4"),
+    subject: text("subject").notNull(), // ≤ 120
+    // Gmail's SPF/DKIM verdict was `pass`.
+    senderVerified: boolean("sender_verified").notNull().default(false),
+    // Set when `status = 'registered'`.
+    expenseId: uuid("expense_id").references(() => financeExpenses.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("finance_email_suggestions_message_unique").on(table.gmailMessageId),
+    check(
+      "finance_email_suggestions_source_check",
+      sql`${table.source} in (${sqlList(EMAIL_SOURCES)})`,
+    ),
+    check("finance_email_suggestions_kind_check", sql`${table.kind} in (${sqlList(EMAIL_KINDS)})`),
+    check(
+      "finance_email_suggestions_status_check",
+      sql`${table.status} in (${sqlList(SUGGESTION_STATUSES)})`,
+    ),
+    check(
+      "finance_email_suggestions_amount_check",
+      sql`${table.amountCents} between ${n(AMOUNT_MIN_CENTS)} and ${n(AMOUNT_MAX_CENTS)}`,
+    ),
+    check(
+      "finance_email_suggestions_currency_check",
+      sql`${table.currency} in (${sqlList(CURRENCIES)})`,
+    ),
+    check(
+      "finance_email_suggestions_text_check",
+      sql`char_length(${table.subject}) <= ${n(SUGGESTION_SUBJECT_MAX_LENGTH)}
+        and (${table.merchant} is null or char_length(${table.merchant}) between 1 and ${n(SUGGESTION_MERCHANT_MAX_LENGTH)})
+        and (${table.cardLast4} is null or ${table.cardLast4} ~ ${sql.raw(`'${CARD_LAST4.source}'`)})`,
+    ),
+    // Only an `unreadable` row may lack what an expense needs; the others carry all of it.
+    check(
+      "finance_email_suggestions_reading_check",
+      sql`coalesce(
+        ${table.status} = 'unreadable'
+        or (${table.kind} is not null and ${table.amountCents} is not null
+          and ${table.currency} is not null and ${table.merchant} is not null
+          and ${table.occurredOn} is not null),
+      false)`,
+    ),
+    // A registered suggestion points at its expense; a pending one never does.
+    check(
+      "finance_email_suggestions_expense_check",
+      sql`coalesce(
+        (${table.status} = 'registered' and ${table.expenseId} is not null)
+        or (${table.status} <> 'registered' and ${table.expenseId} is null),
+      false)`,
+    ),
+    // The inbox: what is waiting, newest first.
+    index("finance_email_suggestions_pending_idx")
+      .on(table.createdAt)
+      .where(sql`${table.status} in ('pending', 'unreadable')`),
+  ],
+);
+
+export type FinanceEmailSuggestion = typeof financeEmailSuggestions.$inferSelect;
+export type NewFinanceEmailSuggestion = typeof financeEmailSuggestions.$inferInsert;
 export type FinanceCategory = typeof financeCategories.$inferSelect;
 export type FinancePaymentMethod = typeof financePaymentMethods.$inferSelect;
 export type FinanceExpense = typeof financeExpenses.$inferSelect;

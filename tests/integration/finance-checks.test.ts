@@ -220,13 +220,19 @@ describe("expenses", () => {
     );
     expect(result.rows.map((row) => row.indexname)).toEqual([
       "finance_categories_name_unique",
+      "finance_email_suggestions_message_unique",
+      "finance_email_suggestions_pending_idx",
       "finance_expenses_recurring_idx",
       "finance_expenses_recurring_period_unique",
       "finance_expenses_spent_on_idx",
       "finance_payment_methods_name_unique",
       "finance_recurring_payments_archived_idx",
     ]);
-    for (const row of result.rows) expect(row.indexdef).toMatch(/WHERE/);
+    // Every one is partial except the Gmail id of finance-email, which is unique over all rows.
+    for (const row of result.rows) {
+      if (row.indexname === "finance_email_suggestions_message_unique") continue;
+      expect(row.indexdef).toMatch(/WHERE/);
+    }
   });
 });
 
