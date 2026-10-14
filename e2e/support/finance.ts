@@ -6,6 +6,7 @@ import { createDb } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import {
   financeCategories,
+  financeEmailSuggestions,
   financeExpenses,
   financePaymentMethods,
   financeRecurringPayments,
@@ -156,6 +157,11 @@ export function readExpenses(description: string) {
   return withDb((db) =>
     db.select().from(financeExpenses).where(eq(financeExpenses.description, description)),
   );
+}
+
+/** Every suggestion of the email inbox as stored (finance-email). */
+export function readSuggestions() {
+  return withDb((db) => db.select().from(financeEmailSuggestions));
 }
 
 /** Every expense as stored. */

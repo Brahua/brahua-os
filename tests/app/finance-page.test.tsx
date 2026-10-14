@@ -46,6 +46,11 @@ vi.mock("@/modules/finance/queries", () => ({
   getFinanceCatalog: vi.fn(),
   listMonthExpenses: vi.fn(),
 }));
+vi.mock("@/modules/finance/email/queries", () => ({
+  listSuggestions: vi.fn(async () => []),
+  getEmailSettings: vi.fn(async () => ({ ownNames: [], methods: [] })),
+}));
+vi.mock("@/modules/finance/email/actions", () => ({}));
 vi.mock("@/modules/finance/payment-queries", () => ({
   getPaymentsView: vi.fn(),
   getPendingForMonth: vi.fn(),
