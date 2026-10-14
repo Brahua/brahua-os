@@ -273,3 +273,40 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **Clicks right after `navigate` or while the page scrolls are lost:** the Chrome walkthrough had to retype a note once;
   check the field has the text before submitting.
 
+## Lessons from `household` (retrospective, 2026-10-14)
+
+- **A tag is the only link that survives a recurrence:** completing a recurring task creates the next one as another
+  row, so a view over "the cleaning" cannot hold task ids; it filters by tag (`limpieza` + `zona: …`). The first
+  integration test of a module that sits on another module's rows is the one that proves the link survives the
+  other module's write path (here: complete, and the next occurrence keeps both tags).
+- **A `CHECK` cannot hold a subquery:** "no repeated elements" of an array column lives in Zod; the table bounds the
+  allowed set and the size. Generate the migration, then apply it in an integration run before trusting it.
+- **Zod and the `CHECK` must accept exactly the same texts:** a case-insensitive regex in Zod against a case-sensitive
+  one in the table turned `HTTPS://…` into a generic 500 on the wrong field. Normalize what is stored (scheme in
+  lowercase) and reject control characters (NUL) in the same function the schema and the render path use.
+- **An optional field that is missing is not "none":** reusing a known row (add by name) keeps what it had unless the
+  input says otherwise; `preprocess` that turns `undefined` into `null` silently erased quantities. Test the
+  "missing" and the "empty" cases apart.
+- **Optimistic overrides settle with what the server answered:** after a successful action the screen shows the
+  returned row (never the snapshot from before: an old "Deshacer" can run later), drops an override when the server
+  shows the same thing or its save is over, and reconciles by the returned id when the server made a new row.
+- **Focus when a row leaves:** hand it to the neighbor's key in the same list (remember which section the key was
+  pressed in when a row shows twice), and when the server's props drop the row afterwards, put it back on the same
+  record's key or the add key. A `key` that changes with the value remounts the input and loses focus: sync the field
+  while rendering instead.
+- **Eslint `react-hooks/set-state-in-effect` is a rule here:** reset state on a prop change while rendering, not in an
+  effect.
+- **Component tests need the real Lima day:** a screen that refuses to act when its day has passed ignores clicks
+  under a fixed fake date. Compute the day in the test.
+- **Drizzle prints single-table columns without the table:** a raw subquery that mentions `${tasks.id}` reads the
+  inner table's `id`. Qualify it by hand (`"tasks"."id"`). The first real run of a new E2E is `update-screenshots.yml`:
+  one failing case there was a helper bug, reproduced locally with that one spec and fixed in a second push.
+- **Row cards are columns:** `.bo-card` is `flex-direction: column` and wins over utility classes, so a row layout
+  needs its own class (`.bo-card.bo-household-row` in `extensions.css`). Only the real browser showed it (the unit
+  tests and the E2E passed with the broken layout): look at the first deploy of any new screen before closing.
+- **Clicks and typing right after `navigate` are lost in production too:** wait, check the field holds the text
+  before sending, and re-click once. A form filled with the `form_input` tool on a select still reaches React state.
+- **Lima midnight again:** the PR's E2E failed on `projects`, `task-views` and `today-projects` when the run crossed
+  05:00 UTC; the rerun after midnight was green. Rerun first, debug after.
+- **Shell habits:** `sed -i` on macOS needs `''`; a bare `cat > file` waits on stdin and hangs; kill it.
+

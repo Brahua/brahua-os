@@ -1,7 +1,7 @@
 # Plan de implementación: household
 
-> Spec: [`SPEC-household.md`](../SPEC-household.md) (APROBADO v1.0, 2026-10-14) · Tareas: [`todo.md`](todo.md)
-> Planes anteriores en [`archive/`](archive/).
+> Spec: [`SPEC-household.md`](../../SPEC-household.md) (APROBADO v1.0, 2026-10-14) · Tareas: [`household-todo.md`](household-todo.md)
+> Planes anteriores en [`archive/`](archive/). **Cerrado el 2026-10-14.**
 
 ## Enfoque
 

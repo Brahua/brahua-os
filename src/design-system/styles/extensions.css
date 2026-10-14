@@ -284,3 +284,15 @@ html { scroll-padding-top: env(safe-area-inset-top); }
 @media (prefers-reduced-motion: reduce) {
   .bo-review-row { transition: none; }
 }
+
+/* Household (H1–H3): a product, cleaning or recipe is a card laid out as a row (the name and its
+   details on the left, the keys on the right, wrapping on a narrow screen). `.bo-card` is a column,
+   so the row is declared with its own specificity. Not a synced component: no PENDING UPSTREAM. */
+.bo-card.bo-household-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+}

@@ -28,6 +28,7 @@
     "db:demo:remove": "tsx scripts/demo-data.ts remove",
     "db:demo:replace": "tsx scripts/demo-data.ts replace",
     "db:finance:import": "tsx scripts/finance-import.ts",
+    "db:household:import": "tsx scripts/household-import.ts",
     "db:test:start": "tsx scripts/test-db.ts start",
     "db:test:stop": "tsx scripts/test-db.ts stop",
     "db:test:reset": "tsx scripts/test-db.ts reset",

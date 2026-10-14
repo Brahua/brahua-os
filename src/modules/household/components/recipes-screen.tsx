@@ -395,10 +395,7 @@ function RecipeRow({ recipe, busy, onEdit, onRemove }: RecipeRowProps) {
     recipe.weekdays.map((value) => WEEKDAY_ABBR[value - 1]).join(" "),
   ].filter(Boolean);
   return (
-    <li
-      data-recipe-row={recipe.id}
-      className="bo-card flex flex-wrap items-center justify-between gap-2 p-3"
-    >
+    <li data-recipe-row={recipe.id} className="bo-card bo-household-row">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {href ? (
           <a
