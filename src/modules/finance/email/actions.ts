@@ -8,7 +8,7 @@ import { ownerAction } from "@/lib/owner-action";
 import { ownerDateKey } from "@/lib/time";
 import type { ExpenseItem } from "../expense-input";
 import { expenseRefused } from "../failures";
-import { revalidateFinanceScreens } from "../revalidate";
+import { revalidateFinanceAndHome, revalidateFinanceScreens } from "../revalidate";
 import { EMAIL_COPY, EMAIL_ERRORS } from "./email-copy";
 import {
   registerSuggestionInputSchema,
@@ -25,6 +25,7 @@ import {
 } from "./settings";
 import {
   dismissSuggestion,
+  markSuggestionPaid,
   registerSuggestion,
   undoDismiss,
   undoRegister,
@@ -58,6 +59,48 @@ export async function registerEmailSuggestion(
   input: unknown,
 ): Promise<ActionResult<RegisteredSuggestion>> {
   return register(input);
+}
+
+export type PaidSuggestion = RegisteredSuggestion & {
+  recurringName: string;
+  /** Set when this pay closed the payment (its last installment): «Deshacer» reopens it. */
+  closedStamp: string | null;
+};
+
+const markPaid = ownerAction(
+  suggestionIdInputSchema,
+  async ({ id }) => {
+    const outcome = await markSuggestionPaid(getDb(), id, ownerDateKey(new Date()));
+    // The period leaves «Pendientes» and the home page's «Pagos»: both are revalidated.
+    revalidateFinanceAndHome();
+    if (outcome.kind === "failed") {
+      const message =
+        outcome.reason === "notFound"
+          ? EMAIL_COPY.notFound
+          : outcome.reason === "needsReview"
+            ? EMAIL_COPY.needsReview
+            : outcome.reason === "notPending"
+              ? EMAIL_COPY.alreadyDecided
+              : outcome.reason === "noMatch"
+                ? EMAIL_COPY.noMatch
+                : EMAIL_COPY.changedMeanwhile;
+      return fail<PaidSuggestion>(message);
+    }
+    return ok({
+      suggestionId: outcome.suggestionId,
+      expense: outcome.expense,
+      recurringName: outcome.recurringName,
+      closedStamp: outcome.closedStamp,
+    });
+  },
+  { name: "markEmailSuggestionPaid" },
+);
+
+/** «Marcar como pagado»: the suggestion is the payment of the recurring payment it looks like. */
+export async function markEmailSuggestionPaid(
+  input: unknown,
+): Promise<ActionResult<PaidSuggestion>> {
+  return markPaid(input);
 }
 
 function decided(outcome: DecideOutcome): ActionResult<{ id: string }> | null {
@@ -104,8 +147,9 @@ const undoRegistered = ownerAction(
   undoRegisterInputSchema,
   async (data) => {
     const outcome = await undoRegister(getDb(), data);
-    // The expense leaves the month and the home page's pending list may change.
-    revalidateFinanceScreens();
+    // The expense leaves the month and, if it paid a period, that period is pending again on the
+    // home page too.
+    revalidateFinanceAndHome();
     return decided(outcome) ?? ok({ id: data.id });
   },
   { name: "undoRegisterEmailSuggestion" },

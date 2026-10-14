@@ -8,6 +8,20 @@ import { CARD_LAST4, OWN_NAME_MAX_LENGTH, OWN_NAMES_MAX_ITEMS } from "./constant
 import type { EmailKind, EmailSource, SuggestionStatus } from "./constants";
 import { EMAIL_ERRORS } from "./email-copy";
 
+/**
+ * The recurring payment a suggestion looks like (SPEC-finance-email, addendum E5): `pending` has a
+ * period waiting to be paid (`dueOn`), `paid` already has this month's period marked as paid.
+ */
+export type SuggestionRecurring = {
+  id: string;
+  name: string;
+  dueOn: string;
+  state: "pending" | "paid";
+  /** The payment's expected amount (null: variable) and whether the email's amount is it. */
+  expectedCents: number | null;
+  sameAmount: boolean;
+};
+
 /** What the screens get of a suggestion (never the whole row, never the email). */
 export type SuggestionItem = {
   id: string;
@@ -28,6 +42,8 @@ export type SuggestionItem = {
   method: { id: string; name: string } | null;
   /** A visible expense with the same amount, currency and day already exists. */
   duplicate: boolean;
+  /** The recurring payment it looks like, if exactly one does. */
+  recurring: SuggestionRecurring | null;
 };
 
 /** What the «Correos del banco» section of Ajustes needs. */
@@ -49,7 +65,12 @@ export const registerSuggestionInputSchema = z.object({
     .optional(),
 });
 
-export const undoRegisterInputSchema = z.object({ id, expenseId: z.uuid() });
+export const undoRegisterInputSchema = z.object({
+  id,
+  expenseId: z.uuid(),
+  /** Set when marking the payment as paid closed it (its last installment): the undo reopens it. */
+  reopenStamp: z.string().max(40).nullish(),
+});
 
 export const setMethodLast4InputSchema = z.object({
   id: z.uuid({ error: EMAIL_ERRORS.methodGone }),
