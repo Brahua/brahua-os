@@ -235,6 +235,40 @@ const WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS = {
   message:
     "`weekly-review` depende de `core`, `habits`, `tasks`, `projects` y `goals`: no importa otros módulos.",
 };
+// `household` (SPEC-household "Contratos") is a consumer above `tasks`: it reads it only through
+// its contract (`contracts`) and its client-safe routes, imports no other module but `core`, and
+// nobody imports it.
+const HOUSEHOLD_IMPORT = {
+  group: ["@/modules/household", "@/modules/household/*"],
+  message: "`household` depende de este módulo: no puede importarlo.",
+};
+const HOUSEHOLD_MESSAGE =
+  "`household` lee `tasks` solo por su contrato (`contracts`) y sus rutas (`routes`).";
+// Same gotcha as GOALS_ONLY_CONTRACTS: the contracts and routes are let in after their folder.
+const HOUSEHOLD_ONLY_CONTRACTS = {
+  group: ["@/modules/tasks/*", "!@/modules/tasks/contracts", "!@/modules/tasks/routes"],
+  message: HOUSEHOLD_MESSAGE,
+};
+const HOUSEHOLD_NO_BARRELS = [{ name: "@/modules/tasks", message: HOUSEHOLD_MESSAGE }];
+const HOUSEHOLD_ONLY_CORE_AND_CONTRACTS = {
+  group: [
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/goals",
+    "@/modules/goals/*",
+    "@/modules/habits",
+    "@/modules/habits/*",
+    "@/modules/projects",
+    "@/modules/projects/*",
+    "@/modules/reminders",
+    "@/modules/reminders/*",
+    "@/modules/today",
+    "@/modules/today/*",
+    "@/modules/weekly-review",
+    "@/modules/weekly-review/*",
+  ],
+  message: "`household` depende de `core` y `tasks`: no importa otros módulos.",
+};
 const moduleBoundaries = [
   {
     files: ["src/modules/goals/**/*.{ts,tsx}"],
@@ -243,7 +277,12 @@ const moduleBoundaries = [
         "error",
         {
           paths: GOALS_NO_BARRELS,
-          patterns: [GOALS_ONLY_CONTRACTS, GOALS_ONLY_CORE_AND_CONTRACTS, WEEKLY_REVIEW_IMPORT],
+          patterns: [
+            GOALS_ONLY_CONTRACTS,
+            GOALS_ONLY_CORE_AND_CONTRACTS,
+            WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
+          ],
         },
       ],
     },
@@ -259,7 +298,7 @@ const moduleBoundaries = [
           paths: GOALS_NO_BARRELS,
           // Only the other modules' folders stay closed; the tables are let in by leaving the
           // habits/projects pattern out (a negation can't reopen a file inside a closed folder).
-          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS, WEEKLY_REVIEW_IMPORT],
+          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS, WEEKLY_REVIEW_IMPORT, HOUSEHOLD_IMPORT],
         },
       ],
     },
@@ -271,7 +310,23 @@ const moduleBoundaries = [
         "error",
         {
           paths: WEEKLY_REVIEW_NO_BARRELS,
-          patterns: [WEEKLY_REVIEW_ONLY_CONTRACTS, WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS],
+          patterns: [
+            WEEKLY_REVIEW_ONLY_CONTRACTS,
+            WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS,
+            HOUSEHOLD_IMPORT,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/household/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: HOUSEHOLD_NO_BARRELS,
+          patterns: [HOUSEHOLD_ONLY_CONTRACTS, HOUSEHOLD_ONLY_CORE_AND_CONTRACTS],
         },
       ],
     },
@@ -283,7 +338,7 @@ const moduleBoundaries = [
         "error",
         {
           paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL],
-          patterns: [FINANCE_FOR_TODAY, REMINDERS_IMPORT, WEEKLY_REVIEW_IMPORT],
+          patterns: [FINANCE_FOR_TODAY, REMINDERS_IMPORT, WEEKLY_REVIEW_IMPORT, HOUSEHOLD_IMPORT],
         },
       ],
     },
@@ -295,7 +350,7 @@ const moduleBoundaries = [
         "error",
         {
           paths: [GOALS_BARREL],
-          patterns: [REMINDERS_ONLY_CORE, GOALS_IMPORT, WEEKLY_REVIEW_IMPORT],
+          patterns: [REMINDERS_ONLY_CORE, GOALS_IMPORT, WEEKLY_REVIEW_IMPORT, HOUSEHOLD_IMPORT],
         },
       ],
     },
@@ -313,6 +368,7 @@ const moduleBoundaries = [
             REMINDERS_IMPORT,
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
           ],
         },
       ],
@@ -331,6 +387,7 @@ const moduleBoundaries = [
             REMINDERS_IMPORT,
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
           ],
         },
       ],
@@ -350,6 +407,7 @@ const moduleBoundaries = [
             REMINDERS_IMPORT,
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
           ],
         },
       ],
@@ -370,6 +428,7 @@ const moduleBoundaries = [
             REMINDERS_IMPORT,
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
           ],
         },
       ],
@@ -391,6 +450,7 @@ const moduleBoundaries = [
             REMINDERS_IMPORT,
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
           ],
         },
       ],

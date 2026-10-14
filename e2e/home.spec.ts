@@ -87,13 +87,13 @@ test("the navigation comes from the registry and marks the current page @respons
 
   const nav = page.getByRole("navigation", { name: "Principal" });
   await expect(nav).toHaveCount(1);
-  // Only available modules: Hoy, Proyectos, Tareas, Hábitos, Finanzas, Metas, Revisión, Áreas and Ajustes. On
+  // Only available modules: Hoy, Proyectos, Tareas, Hábitos, Finanzas, Metas, Revisión, Hogar, Áreas and Ajustes. On
   // desktop Áreas and Ajustes are pinned to the sidebar footer; on the phone seven don't fit around
   // the capture key, so Hábitos takes the cell after it (SPEC-habits) and Tareas, Finanzas, Metas,
-  // Revisión, Áreas and Ajustes go under "Más" (SPEC-finance "Navegación").
+  // Revisión, Hogar, Áreas and Ajustes go under "Más" (SPEC-finance "Navegación").
   const links = page.getByRole("navigation").getByRole("link");
   if (desktop) {
-    await expect(links).toHaveCount(9);
+    await expect(links).toHaveCount(10);
     await expect(links.nth(0)).toHaveAccessibleName("Hoy");
     await expect(links.nth(1)).toHaveAccessibleName("Proyectos");
     await expect(links.nth(2)).toHaveAccessibleName("Tareas");
@@ -101,8 +101,9 @@ test("the navigation comes from the registry and marks the current page @respons
     await expect(links.nth(4)).toHaveAccessibleName("Finanzas");
     await expect(links.nth(5)).toHaveAccessibleName("Metas");
     await expect(links.nth(6)).toHaveAccessibleName("Revisión");
-    await expect(links.nth(7)).toHaveAccessibleName("Áreas");
-    await expect(links.nth(8)).toHaveAccessibleName("Ajustes");
+    await expect(links.nth(7)).toHaveAccessibleName("Hogar");
+    await expect(links.nth(8)).toHaveAccessibleName("Áreas");
+    await expect(links.nth(9)).toHaveAccessibleName("Ajustes");
     const footer = page.getByRole("navigation", { name: "Secundaria" });
     await expect(footer.getByRole("link", { name: "Áreas" })).toBeVisible();
     await expect(footer.getByRole("link", { name: "Ajustes" })).toBeVisible();

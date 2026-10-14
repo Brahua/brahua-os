@@ -408,3 +408,65 @@ test.each([
   expect(messages).toHaveLength(1);
   expect(messages[0]).toContain("`weekly-review` depende de `core`, `habits`, `tasks`");
 });
+
+// SPEC-household "Contratos": `household` reads `tasks` only through its contract and routes and
+// imports no other module but `core`; none of the other modules imports `household`.
+const IMPORT_HOUSEHOLD = `import { HOUSEHOLD_PATH } from "@/modules/household/routes";
+export const path = HOUSEHOLD_PATH;
+`;
+const IMPORT_HOUSEHOLD_BARREL = `import * as household from "@/modules/household";
+export const all = household;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+  "src/modules/finance/expenses.ts",
+  "src/modules/reminders/engine.ts",
+  "src/modules/goals/goals.ts",
+  "src/modules/today/today-board.ts",
+  "src/modules/weekly-review/queries.ts",
+])("%s cannot import household", async (file) => {
+  for (const code of [IMPORT_HOUSEHOLD, IMPORT_HOUSEHOLD_BARREL]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`household` depende de este módulo");
+  }
+});
+
+test("household itself, its page and the registry may import it", async () => {
+  expect(await restricted(IMPORT_HOUSEHOLD, "src/modules/household/actions.ts")).toEqual([]);
+  expect(await restricted(IMPORT_HOUSEHOLD, "src/app/(app)/household/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_HOUSEHOLD, "src/lib/modules.ts")).toEqual([]);
+});
+
+test.each([
+  `import { getTasksByTag } from "@/modules/tasks/contracts";\nexport const x = getTasksByTag;\n`,
+  `import { taskPath } from "@/modules/tasks/routes";\nexport const x = taskPath;\n`,
+  `import { requireOwner } from "@/lib/auth";\nexport const x = requireOwner;\n`,
+])("household may read the contract and routes of tasks, and core %#", async (code) => {
+  expect(await restricted(code, "src/modules/household/actions.ts")).toEqual([]);
+});
+
+test.each([
+  `import { selectTaskById } from "@/modules/tasks/tasks";\nexport const x = selectTaskById;\n`,
+  `import { tasks } from "@/modules/tasks/db/schema";\nexport const x = tasks;\n`,
+  `import { createTask } from "@/modules/tasks/actions";\nexport const x = createTask;\n`,
+  `import * as tasks from "@/modules/tasks";\nexport const x = tasks;\n`,
+])("household cannot reach the internals of tasks %#", async (code) => {
+  const messages = await restricted(code, "src/modules/household/actions.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`household` lee `tasks` solo por su contrato");
+});
+
+test.each([
+  `import { getHabitsTodaySummary } from "@/modules/habits/contracts";\nexport const x = getHabitsTodaySummary;\n`,
+  `import { getGoalsWeekSummary } from "@/modules/goals/contracts";\nexport const x = getGoalsWeekSummary;\n`,
+  `import { getReviewInvite } from "@/modules/weekly-review/contracts";\nexport const x = getReviewInvite;\n`,
+])("household depends on core and tasks only %#", async (code) => {
+  const messages = await restricted(code, "src/modules/household/actions.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`household` depende de `core` y `tasks`");
+});
