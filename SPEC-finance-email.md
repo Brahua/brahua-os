@@ -1,6 +1,6 @@
 # Spec: finance-email (gastos desde correos)
 
-> Extensión del módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `finance`, `reminders` (el tick y el patrón de webhook con secreto) y `core` · Estado: **APROBADO v1.0** (2026-10-14; el owner aprobó la spec y respondió todas las preguntas; las reglas salen de correos reales de su Gmail).
+> Extensión del módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `finance`, `reminders` (el tick y el patrón de webhook con secreto) y `core` · Estado: **APROBADO v1.0** (2026-10-14; el owner aprobó la spec y respondió todas las preguntas; las reglas salen de correos reales de su Gmail) · **Cerrado** el 2026-10-14 (probado por el owner en producción; E5 y E6 añadidos tras el primer uso real).
 
 ## Objetivo
 
