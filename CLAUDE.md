@@ -320,4 +320,4 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **Estados terminales y CHECKs:** decidir qué campos puede no tener cada estado, incluido «descartada» de algo que nunca se leyó.
 - **Gmail agrupa por asunto:** nada de etiquetar hilos para saber qué se envió; marca de tiempo con solapamiento y servidor idempotente.
 - **Artefactos fuera de la app se vigilan con una prueba:** el script de Google vive en otra cuenta; una prueba fija sus límites, remitentes y la forma de la petición contra el código.
-
+- **El texto plano de un correo HTML no es el que viste:** `getPlainBody` aplana las tablas a su manera (el BCP es solo HTML). Los lectores se apoyan en la frase de arriba y en etiquetas con cualquier separador, y se prueban en varias formas de aplanado; el primer correo real de cada banco es parte del Checkpoint, no de la spec.

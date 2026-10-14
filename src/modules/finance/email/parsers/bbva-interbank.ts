@@ -5,11 +5,13 @@
 // spending: it is ignored. Otherwise it is a suggestion for the beneficiary.
 import type { Reading } from "../types";
 import { moneyAfter, storedName } from "./shared";
-import { parseSpanishDay } from "./text";
+import { dayAfter } from "./text";
 
-const HOLDER = /Titular de la cuenta\s+([^\n]+)/i;
-const BENEFICIARY = /Nombre del beneficiario\s+([^\n]+)/i;
-const WHEN = /Fecha y hora de la operación\s+([^\n]+)/i;
+// Each value ends at a line break, a tab or the next label: a layout that puts it all on one line
+// must not leak a field into the next.
+const HOLDER = /Titular de la cuenta\s+(.+?)\s*(?:\n|\t|\s+Tipo de operación|$)/i;
+const BENEFICIARY = /Nombre del beneficiario\s+(.+?)\s*(?:\n|\t|\s+Esta cuenta|\s+Recuerda|$)/i;
+const WHEN = /Fecha y hora de la operación/i;
 const OWN_ACCOUNT = /Esta cuenta es propia/i;
 
 const same = (a: string, b: string) =>
@@ -18,7 +20,7 @@ const same = (a: string, b: string) =>
 
 export function parseBbvaInterbank(text: string): Reading | "ignored" | null {
   const money = moneyAfter(text, "Importe transferido");
-  const occurredOn = parseSpanishDay(WHEN.exec(text)?.[1] ?? "");
+  const occurredOn = dayAfter(text, WHEN);
   const merchant = storedName(BENEFICIARY.exec(text)?.[1]);
   if (!money || !occurredOn || !merchant) return null;
   const holder = HOLDER.exec(text)?.[1];

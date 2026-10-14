@@ -9,6 +9,8 @@ import {
   BBVA_PLIN,
   BCP_CARD,
   BCP_TRANSFER,
+  LAYOUT_NAMES,
+  LAYOUTS,
   SUBJECTS,
   YAPE_PAYMENT,
   mail,
@@ -107,7 +109,12 @@ describe("BCP purchase", () => {
   });
 
   test.each([
-    ["no company", BCP_CARD({}).replace(/\| Empresa \|[^\n]*\n/, "")],
+    [
+      "no company anywhere (sentence or row)",
+      BCP_CARD({})
+        .replace(/\| Empresa \|[^\n]*\n/, "")
+        .replace(/ en TIENDA DEMO\+\./, "."),
+    ],
     ["no amount sentence", BCP_CARD({}).replace("consumo de", "consumo")],
     ["no date", BCP_CARD({}).replace(/\| Fecha y hora \|[^\n]*\n/, "")],
     ["a date it cannot read", BCP_CARD({ when: "ayer por la noche" })],
@@ -229,5 +236,104 @@ describe("«Mis nombres»", () => {
 
   test("with no names set nobody is the owner", () => {
     expect(isOwnName("Jhorman J Bravo H", [])).toBe(false);
+  });
+});
+
+// How Gmail's plain body lays a table out is not ours to count on: each format reads the same in
+// every layout (the real BCP emails are HTML only; the first BCP fix came from this).
+describe.each(LAYOUT_NAMES)("layout: %s", (layout) => {
+  const lay = LAYOUTS[layout];
+  const BBVA_CONSUMPTION =
+    "| Comercio: TIENDA DEMO SAC | |\n| Monto: 43.20 | Moneda: PEN |\n| Fecha: 11/10/2026 | Hora: 14:52:43 |\n| Este se cargará a tu tarjeta terminada en *1234 |\n";
+
+  test("BCP purchase (credit, USD)", () => {
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpCredit, lay(BCP_CARD({})))))).toEqual({
+      kind: "card",
+      amountCents: 646,
+      currency: "USD",
+      merchant: "TIENDA DEMO+",
+      occurredOn: "2026-10-14",
+      cardLast4: "1111",
+    });
+  });
+
+  test("BCP purchase through Plin (debit): a transfer to a person", () => {
+    const text = lay(
+      BCP_CARD({ kind: "Débito", symbol: "S/", amount: "20.00", company: "PLIN-MARIA DEMO" }),
+    );
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpDebit, text)))).toMatchObject({
+      kind: "transfer",
+      merchant: "MARIA DEMO",
+      amountCents: 2000,
+      occurredOn: "2026-10-14",
+    });
+  });
+
+  test("a merchant with a dot inside is not cut", () => {
+    const text = lay(BCP_CARD({ company: "TIENDA S.A.C. DEMO" }));
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpCredit, text))).merchant).toBe(
+      "TIENDA S.A.C. DEMO",
+    );
+  });
+
+  test("BCP transfer to a third party", () => {
+    expect(
+      reading(parseEmail(mail("bcp", SUBJECTS.bcpTransfer, lay(BCP_TRANSFER())))),
+    ).toMatchObject({
+      kind: "transfer",
+      amountCents: 40000,
+      merchant: "Perez Quispe Maria L.",
+      occurredOn: "2026-10-11",
+    });
+  });
+
+  test("BBVA purchase", () => {
+    expect(
+      reading(
+        parseEmail(
+          mail("bbva", "Has realizado un consumo con tu tarjeta BBVA", lay(BBVA_CONSUMPTION)),
+        ),
+      ),
+    ).toMatchObject({
+      merchant: "TIENDA DEMO SAC",
+      amountCents: 4320,
+      occurredOn: "2026-10-11",
+      cardLast4: "1234",
+    });
+  });
+
+  test("BBVA Plin", () => {
+    expect(reading(parseEmail(mail("bbva", SUBJECTS.bbvaPlin, lay(BBVA_PLIN()))))).toMatchObject({
+      merchant: "Luis M Torres R",
+      amountCents: 5000,
+      occurredOn: "2026-10-03",
+    });
+  });
+
+  test("BBVA interbank: to someone else, and to the holder (ignored)", () => {
+    expect(
+      reading(parseEmail(mail("bbva", SUBJECTS.bbvaInterbank, lay(BBVA_INTERBANK())))),
+    ).toMatchObject({
+      merchant: "Carlos Demo Rojas",
+      amountCents: 100000,
+      occurredOn: "2026-10-04",
+    });
+    expect(
+      parseEmail(
+        mail(
+          "bbva",
+          SUBJECTS.bbvaInterbank,
+          lay(BBVA_INTERBANK({ holder: "Ana Demo Perez", to: "Ana Demo Perez" })),
+        ),
+      ),
+    ).toEqual({ type: "ignored" });
+  });
+
+  test("Yape payment", () => {
+    expect(reading(parseEmail(mail("yape", SUBJECTS.yape, lay(YAPE_PAYMENT()))))).toMatchObject({
+      merchant: "TIENDA YAPE",
+      amountCents: 4990,
+      occurredOn: "2026-10-12",
+    });
   });
 });

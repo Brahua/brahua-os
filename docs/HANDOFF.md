@@ -2176,5 +2176,6 @@ Spec: `SPEC-finance-email.md`. Guía del owner: `docs/finance-email-setup.md`. S
 - Drizzle imprime sin tabla las columnas de una sola tabla: la marca de duplicado leyó las del subquery y daba «duplicado» siempre; solo la prueba de integración con control positivo lo vio. Calificar a mano en `exists (…)`.
 - Una tabla nueva con FK a otra de la que un helper E2E hace `truncate` rompe todo ese helper (`clearFinance`): buscar los `truncate` de `e2e/support/` al añadir FKs.
 - Gmail agrupa en un hilo los correos con el mismo asunto: el script recorre mensajes con su fecha (y una marca de tiempo), no etiqueta hilos.
+- Los correos de BCP son solo HTML: cómo aplana Gmail su tabla (`getPlainBody`) no es el de la conversión que se vio en las pruebas; los lectores leen la **frase** de arriba y buscan cada etiqueta con cualquier separador (barras, tabs, líneas o todo en una). Pasó en el primer uso real: los dos consumos BCP salieron «No pude leerlo». Probar cada formato en las cuatro formas de aplanado.
 - Un CHECK que dice «solo X puede carecer de campos» olvida que el dueño puede descartar X: pensar cada estado terminal.
 
