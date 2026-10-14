@@ -3,10 +3,9 @@
 export const HOUSEHOLD_PATH = "/household";
 
 /**
- * The views of `/household` (`?vista=`). H1 has only the cleaning; the shopping list (H2) and the
- * recipes (H3) join this list and the page's switch.
+ * The views of `/household` (`?vista=`). The recipes (H3) join this list and the page's switch.
  */
-export const HOUSEHOLD_VIEWS = ["limpieza"] as const;
+export const HOUSEHOLD_VIEWS = ["limpieza", "compras"] as const;
 export type HouseholdView = (typeof HOUSEHOLD_VIEWS)[number];
 
 export const VIEW_PARAM = "vista";

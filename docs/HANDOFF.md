@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-14 (módulo `weekly-review` cerrado; `household` con spec aprobada y plan H1–H4 en `tasks/plan.md`, sin código).
+> Última actualización: 2026-10-14 (módulo `weekly-review` cerrado; `household`: H1 en producción, H2 en curso).
 
 ## Cómo retomar
 
@@ -2119,3 +2119,14 @@ Rama `feat/household-h1`. La limpieza **no tiene tablas**: es una tarea de `task
 - **Para H2 y H3:** añadir su valor a `HOUSEHOLD_VIEWS` (`routes.ts`) y su rama en la página; la navegación entre vistas ya se dibuja sola cuando hay más de una. Los `*-copy.ts` nuevos los recoge la prueba de copy por glob.
 - **Decisiones autónomas para revisar con el owner:** «Quitar» elimina la tarea y corta la serie (recomendación aprobada); la primera fecha no puede ser pasada; el título de cada zona muestra el conteo «N tocan esta semana»; la zona nueva tiene como máximo 24 caracteres (la etiqueta lleva 6 de prefijo y `tasks` admite 30).
 - **E2E:** ninguno en H1 (el único del módulo llega en H3). `e2e/home.spec.ts` y `tests/lib/modules.test.ts` cuentan ahora «Hogar» entre Revisión y Áreas; tras el push, `update-screenshots.yml` (la barra lateral cambia en toda captura).
+
+### H2 — Compras
+
+Rama `feat/household-h2`. Primera tabla del módulo: `household_products` (migración aditiva `drizzle/0017_household_products.sql`; registrada en `src/lib/db.ts`, en `src/lib/data-export.ts` y en el respaldo).
+
+- **Datos:** una fila por producto que el owner alguna vez listó o compró: `status` `idle` (conocido, alimenta las sugerencias) · `needed` (en la lista) · `bought` (marcado). `name_key` (minúsculas, sin tildes, espacios colapsados: `productKey`) es único entre los vivos (índice parcial); `bought_at` existe si y solo si `status = 'bought'` (`CHECK`); borrado lógico `deleted_at`. Categorías fijas en código (`shopping-constants.ts`, en el orden del recorrido del súper: verduras, frutas, carnes, lácteos, especerías, productos naturales, limpieza, otros).
+- **Bloqueo** (`lock-keys.ts`): espacio **7000**, `(7000, hashtext(<name_key>))`, el primer lock de añadir y de restaurar un producto. El resto de escrituras son un `UPDATE` condicionado al estado que vio quien llama.
+- **Operaciones** (`products.ts`, con `Database`; las acciones están en `shopping-actions.ts`): añadir **reutiliza** el nombre existente (vuelve a `needed`, un comprado se desmarca y conserva categoría y cantidad si no se dan; una cantidad vacía sí la borra; **una cantidad ausente no es «ninguna»**), «Comprado» (idempotente, conserva la primera hora), cantidad, «Quitar» (a `idle`) con su «Deshacer» (solo si sigue `idle`), «Olvidar» (borrado lógico; su «Deshacer» no revive si otro producto tomó el nombre) y «Terminé la compra» (un `UPDATE` de todo lo comprado a `idle`; su «Deshacer» lleva id y hora de cada uno y solo revierte los que siguen `idle`).
+- **Pantalla** (`?vista=compras`, `components/shopping-screen.tsx`): campo «Producto» con sugerencias de lo ya comprado (un toque lo pone en la lista con lo que ya tenía), categoría y cantidad; lista por categoría; «Comprados» (plegado) con «Terminé la compra»; «Productos guardados» (plegado) con «Añadir» y «Olvidar». Cambios optimistas con overrides que se descartan cuando el servidor muestra lo mismo; un rechazo los quita y dice «Sin guardar».
+- **Decisiones autónomas para revisar con el owner:** en vez del menú por fila de la spec (no hay librería de menús), «Quitar» está en cada fila y «Olvidar» en «Productos guardados»; la cantidad se edita en la propia fila (se guarda con Enter o al salir del campo); el «Deshacer» de «Terminé la compra» también devuelve un producto que se quitó a mano mientras seguía conocido (`idle`), porque no se distingue de los demás; las sugerencias salen desde 2 letras y son 5 como máximo.
+- **E2E:** ninguno en H2 (el único del módulo llega en H3).
