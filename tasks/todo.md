@@ -1,24 +1,39 @@
 # Tareas
 
-> Último módulo cerrado: **`weekly-review`** (2026-10-14; plan y tareas en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md)). **Siguiente: `household`** (Hogar; aún sin spec: se arranca con `spec-driven-development`, ver el mapa), y después `health`. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Último módulo cerrado: **`weekly-review`** (2026-10-14; plan y tareas en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md)). **En curso: `household`** (Hogar; spec aprobada el 2026-10-14, plan en [`plan.md`](plan.md)), y después `health`. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Módulo `weekly-review`: cerrado el 2026-10-14
 
 Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md). W1–W4 en producción (#117–#120). **Siguiente: `household`** (Hogar, sin spec todavía) y después `health`.
 
-## Siguiente módulo: `household` (Hogar)
+## Módulo `household` (Hogar): en curso
 
-Entró al mapa el 2026-10-14 por decisión del owner, **antes de `health`**. Se empieza en una conversación nueva con `/spec-driven-development household`: leer `docs/HANDOFF.md`, `CAPABILITY-MAP.md` y este bloque, y **entrevistar al owner** antes de escribir la spec (alcance, qué se usaba de verdad en Notion y qué no).
+Spec: [`SPEC-household.md`](../SPEC-household.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(household): …`). Máximo un E2E nuevo en todo el módulo (H3).
 
-Punto de partida, el «Hogar» de su Notion (`Second Brain / Topics Second Brain / Hogar`, https://app.notion.com/p/07e000305fca4b7fb02516b27e7acd26):
+- [ ] **H1: Cimientos y Limpieza** (S/M, sin tablas)
+  - Contratos nuevos en `src/modules/tasks/contracts.ts`: `listTasksByTag(tag, now)` y `createTaskWithTags(input)`, reutilizando lo que `tasks` ya tiene (`createTask`, `tag-links.ts`, `completeTask`); sin duplicar lógica.
+  - `src/modules/household/`: `module.ts` («Hogar», `navOrder` 67, sin atajo), `routes.ts`, `cleaning-*.ts` puros (frecuencia → recurrencia, zona, agrupar por zona y por día), `components/`, página `/household` con pestañas y slots de Compras y Recetas.
+  - Vista «Por zona / Por día», «Hecho» con «Deshacer», «Añadir limpieza» (hoja), «Quitar» (elimina con «Deshacer»); regla de ESLint de fronteras; módulo en `MODULES`.
+  - **Aceptación:** una limpieza creada en Hogar sale en Hoy el día que toca; «Hecho» programa la siguiente con `limpieza` y su zona; las 5 frecuencias dan la fecha esperada; sin zona sale en «Sin zona»; ninguna cadena prohibida.
+  - **Verificación:** unitarias de lo puro y de los componentes; integración `rtk proxy pnpm test:integration <archivo>` de los contratos (incluida «la siguiente ocurrencia conserva las etiquetas»); gate liviano; tras el push, `update-screenshots.yml` y revisar `e2e/home.spec.ts`. Sin E2E nueva.
+  - **Archivos:** ~5 de `tasks` (contratos y su prueba) + el módulo nuevo; dividir en dos PR si pasa de ~5 por área.
+- [ ] **H2: Compras** (M) — depende de H1
+  - Migración aditiva `household_products` (`CHECK`, único parcial por `name_key`, lock `(7000, hashtext(name_key))` como primer lock), exportación y respaldo; acciones con `ownerAction`: añadir (reutiliza un nombre existente), «Comprado», editar cantidad, «Quitar de la lista», «Olvidar producto», «Terminé la compra» y su «Deshacer» exacto; vista agrupada por categoría con sugerencias y sección «Comprados».
+  - **Aceptación:** añadir un nombre existente no duplica; dos añadidos a la vez dejan una fila; «Terminé la compra» pasa lo comprado a guardado y «Deshacer» no pisa un producto cambiado a mano; 320 px sin scroll horizontal.
+  - **Verificación:** unitarias (normalización, orden de categorías, sugerencias, copy); integración (`CHECK` con inserts crudos, concurrencia con control positivo, «Deshacer» exacto, autorización, exportación); Prettier sobre el snapshot de Drizzle. Sin E2E nueva.
+- [ ] **H3: Recetas y E2E** (M) — depende de H1 (H2 no bloquea)
+  - Migración aditiva `household_recipes` (`CHECK` de tipos, días y URL), exportación; acciones de alta, edición y «Quitar» con «Deshacer»; vista con «Para hoy», filtros `?tipo=` y `?dia=`, chips y dominio del enlace.
+  - **El único E2E del módulo** `e2e/household.spec.ts`: crear una limpieza y marcarla, añadir un producto con sugerencia y «Terminé la compra», añadir una receta y filtrar; axe en 0 en ambos temas y 320 px con `afterSaveSettled`; una captura con `expectScreenshot`; entrada `["household", "tasks"]` en `SPEC_MODULES` y etiquetas `@today-tasks`.
+  - **Aceptación:** «Para hoy» sigue el día de Lima; `javascript:` se rechaza; los filtros viven en la URL.
+  - **Verificación:** unitarias e integración como arriba; tras el push, `update-screenshots.yml` (también hace de primera corrida de E2E).
+- [ ] **H4: Cierre** (S) — depende de H3
+  - `pnpm db:household:import`: solo las **limpiezas** del Notion (decisión del owner), como tareas recurrentes con sus fechas; ids deterministas, una transacción, confirmación por host y palabra, respaldo verificado antes, imprime conteos y nombres (nunca fuera del repo); lo corre el agente solo si el owner lo pide.
+  - Retrospectiva en `CLAUDE.md`, backlog, estado en el mapa, HANDOFF («Cómo funciona household»), archivar plan y tareas.
 
-- **Limpieza semanal** (base «Limpieza»): tareas de limpieza por frecuencia; candidata a reutilizar la recurrencia de `tasks` o los hábitos de `habits`.
-- **Productos** (base «Productos», con vistas): artículos del hogar y, por lo que se ve, la lista de compras.
-- **Recetas** (base «Recetas», con recursos y enlaces).
-- **Tareas del Hogar** (base propia): el mapa ya prevé importarlas a `tasks`; no consta que se haya hecho.
-- **Mascotas** («Mascotas» y «Control de mascotas»): **fuera de alcance**, se construye como app aparte.
-
-Reglas para la spec: id `household` (no `home`, que ya es el id del manifiesto de «Hoy»); depende de `core` y `tasks`; reutilizar contratos existentes (tareas recurrentes, `reminders`) antes que crear tablas paralelas; sin importación obligatoria (decisión por módulo, con el owner); un solo E2E nuevo.
+### Checkpoint final
+- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
+- [ ] Se cumplen los criterios de éxito de `SPEC-household.md`.
+- [ ] Revisión con el owner de las decisiones autónomas.
 
 ## Módulo `goals`: cerrado el 2026-10-13
 
