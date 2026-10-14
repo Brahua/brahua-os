@@ -412,7 +412,11 @@ describe("recurring payments that arrive by email (addendum E5)", () => {
     renderSection([
       suggestion({ amountCents: 6000, recurring: { ...NETFLIX, sameAmount: false } }),
     ]);
-    expect(screen.getByText(/El monto es distinto del previsto \(S\/ 50\.00\)\./)).toBeVisible();
+    expect(
+      screen.getByText(
+        /El monto es distinto del previsto \(S\/ 50\.00\): se marca con lo que cobró el banco \(S\/ 60\.00\)\./,
+      ),
+    ).toBeVisible();
   });
 
   test("it says when it is due: today, or still to come", () => {

@@ -49,7 +49,8 @@ export const EMAIL_COPY = {
   dueToday: "vence hoy",
   dueOn: (label: string) => `vence el ${label}`,
   wasDueOn: (label: string) => `venció el ${label}`,
-  amountDiffers: (expected: string) => `El monto es distinto del previsto (${expected}).`,
+  amountDiffers: (expected: string, charged: string) =>
+    `El monto es distinto del previsto (${expected}): se marca con lo que cobró el banco (${charged}).`,
   alreadyPaidNote: (name: string) => `Ya marcaste «${name}» como pagado este mes.`,
   markedTitle: "Pago marcado",
   markedText: (name: string, spoken: string) => `${name}, ${spoken}.`,

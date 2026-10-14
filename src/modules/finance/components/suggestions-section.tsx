@@ -432,9 +432,15 @@ function SuggestionRow({
               <strong>
                 {EMAIL_COPY.seemsPayment(recurring.name, dueLabel(recurring.dueOn, today))}.
               </strong>
-              {recurring.sameAmount || recurring.expectedCents === null || !item.currency
+              {recurring.sameAmount ||
+              recurring.expectedCents === null ||
+              !item.currency ||
+              item.amountCents === null
                 ? null
-                : ` ${EMAIL_COPY.amountDiffers(formatMoney(recurring.expectedCents, item.currency))}`}
+                : ` ${EMAIL_COPY.amountDiffers(
+                    formatMoney(recurring.expectedCents, item.currency),
+                    formatMoney(item.amountCents, item.currency),
+                  )}`}
             </>
           )}
         </p>
