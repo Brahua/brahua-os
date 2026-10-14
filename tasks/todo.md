@@ -1,6 +1,38 @@
 # Tareas
 
-> Último módulo cerrado: **`finance-email`** (extensión de `finance`, 2026-10-14; plan y tareas en [`archive/finance-email-plan.md`](archive/finance-email-plan.md) y [`archive/finance-email-todo.md`](archive/finance-email-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Módulo en curso: **`finance-motion`** (spec aprobada 2026-10-14). Último módulo cerrado: **`finance-email`** (extensión de `finance`, 2026-10-14; plan y tareas en [`archive/finance-email-plan.md`](archive/finance-email-plan.md) y [`archive/finance-email-todo.md`](archive/finance-email-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Módulo `finance-motion` (rediseño de Finanzas con movimiento): en curso
+
+Spec: [`SPEC-finance-motion.md`](../SPEC-finance-motion.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md) · Diseño: Claude Design, proyecto `3787b11d-b9b0-4ea2-bd5d-26d0f072f863`. Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(finance): …`). Un implementador a la vez; push una sola vez.
+
+- [ ] **M1: Contrato y movimiento base** (M)
+  - `src/lib/motion/`: `tokens.ts` (espejo de `tokens/motion.css` + test que falla si divergen), `provider.tsx` (`LazyMotion` con carga dinámica + `MotionConfig reducedMotion="user"`), `variants.ts` (`cascade`, `slideSwap`, `crossFade`, `collapse`, `pop`, `drawPath`, `flash`, cada una con su versión reducida), `test-utils.ts` (mock de Motion en jsdom y forzar movimiento reducido), y la sección del contrato en `docs/` (cómo usarlo desde otro módulo).
+  - Sobre lo existente en `/finance`: cascada de entrada (solo primera carga de la sesión), `NumberFlow` en categorías, medios, pendiente y %, barras que crecen y se interpolan, cambio de mes direccional (conservando la regla de `pendingMonth`), crossfade Mes/Pagos.
+  - **Aceptación:** misma funcionalidad y copy que hoy; con `prefers-reduced-motion` todo aparece en su estado final; ningún `setTimeout` sin limpieza; foco intacto al cambiar de mes y de vista.
+  - **Verificación:** unitarias (tokens, variantes con/sin reducido), componente (barras, cambio de mes rápido, foco); gate liviano. Sin E2E nuevo.
+  - **Archivos:** ~6 en `src/lib/motion`, `month-view.tsx`, `month-summary.tsx`, `finance-views.tsx`, `extensions.css`.
+- [ ] **M2: Estructura nueva** (L; depende de M1)
+  - Control de 4 secciones (Resumen · Gastos · Pendientes · Pagados) con indicador deslizante; cookie `FINANCE_VIEW_COOKIE` con `mes:res|mes:gas|pagos:pen|pagos:pag` (los valores antiguos `mes`/`pagos` siguen válidos); «Pendiente de pagar» y el filtro por categoría navegan a su sección y devuelven el foco (el filtro lleva a Gastos).
+  - Cabecera con delta neutro «vs. mes anterior al mismo punto del mes» y «Día n de m»; tarjetas `MetricCard` (*Gastado* con slot de sparkline, *Pendiente de pagar* con n.º de pagos y próxima fecha); `StackedBar` pulsable + lista por categoría; tarjeta única de «Por medio de pago» y «Recurrente / suelto»; total por día en los encabezados de Gastos; «Registrar gasto» en la cabecera.
+  - `trend.ts` (puro) y `getMonthlyTotals(month, 6)`; USD sin convertir fuera del delta, con nota.
+  - **Aceptación:** los números coinciden con `summarizeMonth` (prueba que compara); sin comparativo cuando no hay mes anterior o está vacío; el USD sin convertir sigue visible; foco restaurado en todo cambio de sección; contraste AA de los textos mono.
+  - **Verificación:** unitarias (`trend.ts`, casos que no coinciden), componente (secciones, cookie, filtro, `StackedBar` por teclado), integración de `getMonthlyTotals` de a un archivo; revisar `e2e/finance*.spec.ts`, `home.spec.ts` y `e2e/support/*`; gate liviano.
+  - **Archivos:** ~10 (agrupar en dos PR si pasa de ~5 por área: estructura y datos).
+- [ ] **M3: Color de categorías** (M; depende de M2)
+  - Migración aditiva `finance_categories.color_slot smallint NULL` (1…8) con backfill por orden y asignación del primer slot libre al crear; `category-color.ts`; `--cat-1…8` oscuro y claro en `overrides.css` con `PENDING UPSTREAM` y línea en HANDOFF; punto de 8 px, segmento de la barra apilada y línea de 2 px en la fila filtrada. Sin selector en Ajustes (decisión del owner).
+  - **Aceptación:** nunca se rellena una fila, tarjeta o barra completa; nombre y monto siempre presentes; más de 8 categorías repiten colores en orden; `NULL` es «Otros».
+  - **Verificación:** unitarias (asignación, repetición, `NULL`), integración de la migración y el backfill (un archivo), gate liviano; `pnpm db:generate` seguido de Prettier sobre el snapshot.
+- [ ] **M4: Gráfico de ritmo** (M; depende de M2)
+  - `AreaChart` SVG propio: línea del mes con `drawPath`, mes anterior punteado, «hoy» en `signal`, tooltip por cursor, toque y ← →, `role="img"` con descripción hablada; sparkline de 6 meses en *Gastado*; `getPreviousMonthCumulative(month)`; mes sin gastos muestra un mensaje, no ceros.
+  - **Aceptación:** el acumulado coincide con los gastos del mes (prueba); mes más corto acotado; sin antecesor no hay línea punteada; operable con teclado.
+  - **Verificación:** unitarias de geometría y de acumulados, componente (tooltip, teclado, descripción hablada), integración de la consulta (un archivo, con casos que no coinciden); gate liviano.
+- [ ] **M5: Acciones con vida, E2E y cierre** (L; depende de M3 y M4)
+  - `FilterChip` (entra con `pop`, sale en 150 ms, foco de vuelta a la categoría), filas que salen/suben al filtrar, filas nuevas que entran con destello del acento, borrar con colapso y «Deshacer» que la devuelve (sin tocar las reglas actuales), celebración de «Pagado» **solo tras el éxito** (check que se dibuja, fila a Pagados, contador con anillo `signal`, mensaje; apagada con movimiento reducido).
+  - **El único E2E del módulo** `e2e/finance-motion.spec.ts` (cambio de mes, filtro, registrar, «Pagado») con `reducedMotion: "reduce"` y `afterSaveSettled`, axe en ambos temas y 320 px, entrada en `SPEC_MODULES`; dispatch de `update-screenshots.yml` justo tras el push.
+  - Medir el JS añadido a `/finance` en CI (meta ≤ 25 kB gz); Checkpoint final en producción (datos `[QA]` que se borran); retrospectiva en `CLAUDE.md`, `CAPABILITY-MAP.md`, HANDOFF y archivo del plan y las tareas.
+  - **Aceptación:** criterios de éxito 3–6 y 8–10 de la spec; «Pagado» no celebra si la acción falla (prueba), omitir/deshacer/corrección de monto sin cambios.
+  - **Verificación:** unitarias y de componente (foco por cada salida animada, fallo de «Pagado»), E2E en CI, `security-auditor` no aplica (sin entrada nueva), revisión de accesibilidad; gate liviano.
 
 ## Módulo `finance-email` (gastos desde correos): cerrado el 2026-10-14
 
