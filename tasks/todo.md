@@ -1,10 +1,24 @@
 # Tareas
 
-> Último módulo cerrado: **`weekly-review`** (2026-10-14; plan y tareas en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md)). **Siguiente: `health`** (aún sin spec: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Último módulo cerrado: **`weekly-review`** (2026-10-14; plan y tareas en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md)). **Siguiente: `household`** (Hogar; aún sin spec: se arranca con `spec-driven-development`, ver el mapa), y después `health`. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Módulo `weekly-review`: cerrado el 2026-10-14
 
-Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md). W1–W4 en producción (#117–#120). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`).
+Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-review-plan.md) y [`archive/weekly-review-todo.md`](archive/weekly-review-todo.md). W1–W4 en producción (#117–#120). **Siguiente: `household`** (Hogar, sin spec todavía) y después `health`.
+
+## Siguiente módulo: `household` (Hogar)
+
+Entró al mapa el 2026-10-14 por decisión del owner, **antes de `health`**. Se empieza en una conversación nueva con `/spec-driven-development household`: leer `docs/HANDOFF.md`, `CAPABILITY-MAP.md` y este bloque, y **entrevistar al owner** antes de escribir la spec (alcance, qué se usaba de verdad en Notion y qué no).
+
+Punto de partida, el «Hogar» de su Notion (`Second Brain / Topics Second Brain / Hogar`, https://app.notion.com/p/07e000305fca4b7fb02516b27e7acd26):
+
+- **Limpieza semanal** (base «Limpieza»): tareas de limpieza por frecuencia; candidata a reutilizar la recurrencia de `tasks` o los hábitos de `habits`.
+- **Productos** (base «Productos», con vistas): artículos del hogar y, por lo que se ve, la lista de compras.
+- **Recetas** (base «Recetas», con recursos y enlaces).
+- **Tareas del Hogar** (base propia): el mapa ya prevé importarlas a `tasks`; no consta que se haya hecho.
+- **Mascotas** («Mascotas» y «Control de mascotas»): **fuera de alcance**, se construye como app aparte.
+
+Reglas para la spec: id `household` (no `home`, que ya es el id del manifiesto de «Hoy»); depende de `core` y `tasks`; reutilizar contratos existentes (tareas recurrentes, `reminders`) antes que crear tablas paralelas; sin importación obligatoria (decisión por módulo, con el owner); un solo E2E nuevo.
 
 ## Módulo `goals`: cerrado el 2026-10-13
 
