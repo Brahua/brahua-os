@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-14 (módulo `weekly-review` cerrado; `household`: H1 en producción, H2 en curso).
+> Última actualización: 2026-10-14 (módulo `weekly-review` cerrado; `household`: H1 y H2 en producción, H3 en curso).
 
 ## Cómo retomar
 
@@ -2130,3 +2130,13 @@ Rama `feat/household-h2`. Primera tabla del módulo: `household_products` (migra
 - **Pantalla** (`?vista=compras`, `components/shopping-screen.tsx`): campo «Producto» con sugerencias de lo ya comprado (un toque lo pone en la lista con lo que ya tenía), categoría y cantidad; lista por categoría; «Comprados» (plegado) con «Terminé la compra»; «Productos guardados» (plegado) con «Añadir» y «Olvidar». Cambios optimistas con overrides que se descartan cuando el servidor muestra lo mismo; un rechazo los quita y dice «Sin guardar».
 - **Decisiones autónomas para revisar con el owner:** en vez del menú por fila de la spec (no hay librería de menús), «Quitar» está en cada fila y «Olvidar» en «Productos guardados»; la cantidad se edita en la propia fila (se guarda con Enter o al salir del campo); el «Deshacer» de «Terminé la compra» también devuelve un producto que se quitó a mano mientras seguía conocido (`idle`), porque no se distingue de los demás; las sugerencias salen desde 2 letras y son 5 como máximo.
 - **E2E:** ninguno en H2 (el único del módulo llega en H3).
+
+### H3 — Recetas y el E2E del módulo
+
+Rama `feat/household-h3`. Segunda tabla: `household_recipes` (migración aditiva `drizzle/0018_household_recipes.sql`; registrada en `export.ts`/respaldo igual que los productos).
+
+- **Datos:** `name` (1–120), `meal_types text[]` (los seis tipos, `recipe-constants.ts`: breakfast, midmorning, lunch, afternoon, snack, dinner), `weekdays smallint[]` (ISO 1–7), `url` (http/https sin espacios, ≤ 2000), borrado lógico. Pueden repetirse nombres. **Un `CHECK` no admite subconsultas**, así que «sin repetidos» no se puede exigir en la base: la base solo limita el subconjunto permitido y el tamaño (≤ 6 y ≤ 7); quitar repetidos y ordenar lo hace Zod (`recipe-input.ts`). Sin lock avanzado: nada debe ser único y cada escritura es una sola sentencia sobre una fila.
+- **Enlace** (`recipe-url.ts`, puro): solo `http`/`https`, sin espacios, sin credenciales (`https://tienda.com@evil.example` se rechaza), ≤ 2000. El servidor **nunca** lo sigue (sin fetch ni vista previa); la pantalla muestra solo el dominio (sin `www.`) y lo abre con `target="_blank" rel="noopener noreferrer"`; un enlace guardado que no pase la validación no se pinta como `<a>`.
+- **Pantalla** (`?vista=recetas`, `components/recipes-screen.tsx` y `recipe-sheet.tsx`): «Para hoy · <día>» (las del día de la semana de Lima), «Todas las recetas» con filtros por tipo y por día **en la URL** (`?tipo=lunch&dia=3`; son enlaces, el activo lleva `aria-current` y se quita al tocarlo; valores raros se ignoran), una hoja para añadir y editar (teclas de alternancia para tipos y días), «Quitar» optimista con «Deshacer» (`undoRemoveRecipe` es idempotente).
+- **El único E2E del módulo** (`e2e/household.spec.ts`, con `e2e/support/household.ts`): limpieza (añadir, «Hecho», la siguiente conserva `limpieza` y la zona, «Deshacer»), compras (añadir, comprado, «Terminé la compra», sugerencia que conserva categoría y cantidad), recetas (añadir con enlace, filtrar, quitar y deshacer), axe en ambos temas en las tres vistas y en las hojas con errores, 320 px sin scroll horizontal y una captura (`household-shopping.png`, la lista de compras en oscuro). Cada prueba toma un lock de Postgres propio (`e2e_household`) y empieza y termina sin nada del Hogar (borra productos, recetas y las tareas con la etiqueta `limpieza`); las que crean tareas de hoy llevan `@today-tasks`. Entrada en `SPEC_MODULES`: `["household", "tasks"]`. **Tras el push hay que despachar `update-screenshots.yml`** (crea la referencia y es la primera corrida real del spec).
+- **Decisiones autónomas para revisar con el owner:** «Para hoy» sigue visible aunque haya filtros; el filtro por tipo y por día se combina (la receta debe cumplir ambos); no hay receta «de hoy» en la portada (decidido con el owner).

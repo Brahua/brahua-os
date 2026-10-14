@@ -127,6 +127,13 @@
       "when": 1791949540685,
       "tag": "0017_household_products",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791951060011,
+      "tag": "0018_household_recipes",
+      "breakpoints": true
     }
   ]
 }

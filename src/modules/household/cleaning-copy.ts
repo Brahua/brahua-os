@@ -15,7 +15,7 @@ export const WEEKDAY_NAMES = [
 export const CLEANING_COPY = {
   pageTitle: "Hogar",
   viewsNav: "Secciones del Hogar",
-  views: { limpieza: "Limpieza", compras: "Compras" },
+  views: { limpieza: "Limpieza", compras: "Compras", recetas: "Recetas" },
   noticesLabel: "Avisos del Hogar",
   undoHint: "Se puede deshacer",
 

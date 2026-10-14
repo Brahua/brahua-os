@@ -245,8 +245,8 @@ describe("routes", () => {
   test("view and grouping fall back to the defaults", () => {
     expect(parseView(undefined)).toBe("limpieza");
     expect(parseView("compras")).toBe("compras");
-    // Recipes join in H3: until then an unknown view is the first.
-    expect(parseView("recetas")).toBe("limpieza");
+    expect(parseView("recetas")).toBe("recetas");
+    expect(parseView("otra")).toBe("limpieza");
     expect(parseGroup("dia")).toBe("dia");
     expect(parseGroup("x")).toBe("zona");
     expect(householdPath()).toBe("/household");

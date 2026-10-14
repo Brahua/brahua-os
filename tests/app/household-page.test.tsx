@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import HouseholdPage, { metadata } from "@/app/(app)/household/page";
 import { requireOwner } from "@/lib/auth";
+import { getRecipes } from "@/modules/household/recipe-queries";
 import { getProducts } from "@/modules/household/shopping-queries";
 import { getTasksByTag, type TaggedTask } from "@/modules/tasks/contracts";
 
@@ -28,6 +29,13 @@ vi.mock("@/modules/household/shopping-actions", () => ({
   undoFinishShoppingTrip: vi.fn(),
 }));
 vi.mock("@/modules/household/shopping-queries", () => ({ getProducts: vi.fn() }));
+vi.mock("@/modules/household/recipe-queries", () => ({ getRecipes: vi.fn() }));
+vi.mock("@/modules/household/recipe-actions", () => ({
+  addRecipe: vi.fn(),
+  editRecipe: vi.fn(),
+  removeRecipe: vi.fn(),
+  undoRemoveRecipe: vi.fn(),
+}));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
@@ -63,6 +71,7 @@ beforeEach(() => {
     .mockResolvedValue(undefined as never);
   vi.mocked(getTasksByTag).mockReset().mockResolvedValue(TASKS);
   vi.mocked(getProducts).mockReset().mockResolvedValue([]);
+  vi.mocked(getRecipes).mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -113,9 +122,47 @@ describe("the page", () => {
     unmount();
     vi.mocked(getTasksByTag).mockClear();
     vi.mocked(getProducts).mockClear();
-    render(await HouseholdPage(search({ vista: "recetas" })));
+    render(await HouseholdPage(search({ vista: "otra" })));
     expect(getTasksByTag).toHaveBeenCalledTimes(1);
     expect(getProducts).not.toHaveBeenCalled();
+    expect(getRecipes).not.toHaveBeenCalled();
+  });
+
+  test("?vista=recetas reads only the recipes and passes the filters from the URL", async () => {
+    vi.mocked(getRecipes).mockResolvedValue([
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        name: "Tallarines",
+        mealTypes: ["lunch"],
+        weekdays: [3],
+        url: null,
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000002",
+        name: "Avena",
+        mealTypes: ["breakfast"],
+        weekdays: [3],
+        url: null,
+      },
+    ]);
+    render(await HouseholdPage(search({ vista: "recetas", tipo: "lunch", dia: "3" })));
+    expect(getRecipes).toHaveBeenCalledTimes(1);
+    expect(getTasksByTag).not.toHaveBeenCalled();
+    expect(getProducts).not.toHaveBeenCalled();
+    // Wednesday: «Para hoy» lists both; the filtered list only the lunch.
+    expect(screen.getByRole("heading", { name: "Para hoy · miércoles" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Filtrar por Almuerzo" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    // A tampered value is ignored, not an error.
+    const { unmount } = render(
+      await HouseholdPage(search({ vista: "recetas", tipo: "x", dia: "99" })),
+    );
+    expect(
+      screen.getAllByRole("link", { name: "Filtrar por Almuerzo" }).at(-1),
+    ).not.toHaveAttribute("aria-current");
+    unmount();
   });
 
   test("a refused owner never reads anything", async () => {
