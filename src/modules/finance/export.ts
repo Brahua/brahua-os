@@ -1,9 +1,10 @@
-// Tables `finance` offers to `pnpm db:export` (src/lib/data-export.ts): all six, with archived and
+// Tables `finance` offers to `pnpm db:export` (src/lib/data-export.ts): all seven (the email suggestions included), with archived and
 // deleted rows on purpose (the export is the owner's history, not a view). The weekly `pg_dump`
 // includes them on its own.
 import type { ExportableTable } from "@/lib/data-export";
 import {
   financeCategories,
+  financeEmailSuggestions,
   financeExpenses,
   financePaymentMethods,
   financeRecurringPayments,
@@ -27,4 +28,8 @@ export const financeExportTables: ExportableTable[] = [
     orderBy: [financeSettlements.recurringPaymentId, financeSettlements.dueOn],
   },
   { table: financeSettings, orderBy: [financeSettings.id] },
+  {
+    table: financeEmailSuggestions,
+    orderBy: [financeEmailSuggestions.createdAt, financeEmailSuggestions.id],
+  },
 ];

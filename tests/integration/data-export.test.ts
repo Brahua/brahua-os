@@ -159,6 +159,8 @@ describe("pnpm db:export", () => {
       "finance_expenses",
       "finance_settlements",
       "finance_settings",
+      // E1 of finance-email.
+      "finance_email_suggestions",
     ]) {
       expect(data.tables[name]).toEqual({ rowCount: 0, rows: [] });
     }

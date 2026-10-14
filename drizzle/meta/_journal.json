@@ -134,6 +134,13 @@
       "when": 1791951060011,
       "tag": "0018_household_recipes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791963718626,
+      "tag": "0019_finance_email_suggestions",
+      "breakpoints": true
     }
   ]
 }

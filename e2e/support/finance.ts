@@ -86,7 +86,7 @@ async function withDb<T>(run: (db: ReturnType<typeof createDb>) => Promise<T>): 
 export function clearFinance() {
   return withDb((db) =>
     db.execute(
-      sql`truncate finance_settlements, finance_expenses, finance_settings,
+      sql`truncate finance_email_suggestions, finance_settlements, finance_expenses, finance_settings,
           finance_recurring_payments, finance_payment_methods, finance_categories`,
     ),
   );
