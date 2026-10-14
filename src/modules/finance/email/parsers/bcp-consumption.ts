@@ -13,8 +13,9 @@ import type { Reading } from "../types";
 import { moneyAfter, storedName } from "./shared";
 import { dayAfter } from "./text";
 
+// The bold markers (`*…*`) of Gmail's plain body may sit around the card kind, the merchant and its dot.
 const SENTENCE_MERCHANT =
-  /Tarjeta de (?:Crédito|Débito) BCP\s+en\s+([\s\S]+?)\.\s*Por tu seguridad/i;
+  /Tarjeta de (?:Crédito|Débito) BCP[\s*]+en[\s*]+([\s\S]+?)[.\s*]*Por tu seguridad/i;
 // A fallback for the table row, if the sentence ever changes: the value ends at the next separator
 // or at the next label.
 const TABLE_MERCHANT = /Empresa[\s|]+([^|\n\t]+?)\s*(?:\||\n|\t|\s+Número de operación|$)/i;

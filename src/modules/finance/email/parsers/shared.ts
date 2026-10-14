@@ -3,7 +3,7 @@
 import type { Currency } from "../../finance-constants";
 import { SUGGESTION_MERCHANT_MAX_LENGTH } from "../constants";
 import { parseAmountToCents } from "./amounts";
-import { cleanText } from "./text";
+import { cleanText, stripBoldMarkers } from "./text";
 
 /** «S/ 20.00», «$ 6.46», «US$ 5», «S/49.90»: the symbol decides the currency. */
 const MONEY_SOURCE = String.raw`(S\/|US\$|\$)\s*([\d.,]+)`;
@@ -22,6 +22,6 @@ export function moneyAfter(text: string, lead: string): Money | null {
 
 /** A name or merchant as stored: no control characters, one line, ≤ 80. Null when nothing is left. */
 export function storedName(raw: string | undefined): string | null {
-  const cleaned = cleanText(raw ?? "");
+  const cleaned = stripBoldMarkers(cleanText(raw ?? ""));
   return cleaned === "" ? null : cleaned.slice(0, SUGGESTION_MERCHANT_MAX_LENGTH);
 }

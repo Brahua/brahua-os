@@ -11,6 +11,7 @@ import "server-only";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
+import { stripBoldMarkers } from "./parsers/text";
 import type { Tx } from "../catalog";
 import {
   financeEmailSuggestions,
@@ -83,6 +84,8 @@ export async function selectSuggestions(db: Database, today: string): Promise<Su
   const recurring = await recurringIndex(db, today);
   return rows.map((row) => ({
     ...row,
+    // Rows read before the markers were stripped may still carry them.
+    merchant: row.merchant === null ? null : stripBoldMarkers(row.merchant),
     status: row.status as SuggestionItem["status"],
     method: methodHint(methods, row.cardLast4),
     recurring:
@@ -243,7 +246,7 @@ export async function registerSuggestion(
     const hint = methodHint(methods, row.cardLast4);
 
     const merchant = row.merchant
-      ? normalizeName(row.merchant).slice(0, EXPENSE_DESCRIPTION_MAX_LENGTH)
+      ? normalizeName(stripBoldMarkers(row.merchant)).slice(0, EXPENSE_DESCRIPTION_MAX_LENGTH)
       : "";
     const readDescription = merchant !== "" && !hasInvisibleCharacters(merchant) ? merchant : null;
     const expenseInput: CreateExpenseInput = {

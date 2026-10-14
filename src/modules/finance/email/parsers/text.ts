@@ -1,5 +1,13 @@
 // Small helpers shared by the parsers: text that is safe to store and days that can be real.
 
+/**
+ * Gmail's plain body marks what is bold in the HTML with asterisks (`*PARAMOUNT+*`): the markers around
+ * a value are not part of it. Only the ends are trimmed; one inside (`DLC*helphbomaxcom`) stays.
+ */
+export function stripBoldMarkers(value: string): string {
+  return value.replace(/^[\s*]+|[\s*]+$/g, "");
+}
+
 /** Control characters (NUL included: Postgres refuses it) become spaces; runs of spaces collapse. */
 export function cleanText(value: string): string {
   return value

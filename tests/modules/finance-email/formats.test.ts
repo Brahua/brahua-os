@@ -8,6 +8,7 @@ import {
   BBVA_INTERBANK,
   BBVA_PLIN,
   BCP_CARD,
+  BCP_CARD_BOLD,
   BCP_TRANSFER,
   LAYOUT_NAMES,
   LAYOUTS,
@@ -335,5 +336,44 @@ describe.each(LAYOUT_NAMES)("layout: %s", (layout) => {
       amountCents: 4990,
       occurredOn: "2026-10-12",
     });
+  });
+});
+
+describe("bold markers (`*…*`) of Gmail's plain body", () => {
+  test("the BCP purchase keeps the merchant clean (the first real run printed *PARAMOUNT+*)", () => {
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpCredit, BCP_CARD_BOLD())))).toEqual({
+      kind: "card",
+      amountCents: 646,
+      currency: "USD",
+      merchant: "TIENDA DEMO+",
+      occurredOn: "2026-10-14",
+      cardLast4: "1111",
+    });
+  });
+
+  test("a star inside the merchant stays, the ones around it go", () => {
+    const r = reading(
+      parseEmail(
+        mail(
+          "bcp",
+          SUBJECTS.bcpDebit,
+          BCP_CARD_BOLD({ company: "DLC*helphbomaxcom", symbol: "S/", amount: "26.90" }),
+        ),
+      ),
+    );
+    expect(r).toMatchObject({ merchant: "DLC*helphbomaxcom", amountCents: 2690, currency: "PEN" });
+  });
+
+  test("the debit Plin payment loses the markers and the prefix", () => {
+    const r = reading(
+      parseEmail(
+        mail(
+          "bcp",
+          SUBJECTS.bcpDebit,
+          BCP_CARD_BOLD({ company: "PLIN-MARIA DEMO", symbol: "S/", amount: "20.00" }),
+        ),
+      ),
+    );
+    expect(r).toMatchObject({ kind: "transfer", merchant: "MARIA DEMO" });
   });
 });
