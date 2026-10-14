@@ -310,3 +310,14 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   05:00 UTC; the rerun after midnight was green. Rerun first, debug after.
 - **Shell habits:** `sed -i` on macOS needs `''`; a bare `cat > file` waits on stdin and hangs; kill it.
 
+## Lessons from `finance-email` (E1–E3, 2026-10-14)
+
+- **Entrada pública con secreto:** el secreto se comprueba antes de leer el cuerpo y todo lo demás (método, secreto, servidor sin configurar) responde 404 sin cuerpo; luego tamaño, JSON, forma, relevancia (remitente **y** asunto exactos) y recién escribir. Los límites de lote y de cuerpo se calculan juntos (20 × 8 KB no cabía en 64 KB). El servidor repite las reglas que la interfaz oculta (sin «Registrar» de un toque para un remitente no verificado).
+- **Una fila venenosa no frena el lote:** los errores permanentes de una fila (SQLSTATE 22/23) se omiten y se cuentan; solo los transitorios dan 500 para que el script reintente. Rechazar NUL y fechas fuera de rango en la puerta.
+- **El `From` no es el remitente:** tomar la última dirección `<…>` anclada al final; un nombre visible con la dirección del banco no pasa.
+- **Drizzle y los subqueries:** columnas de una sola tabla se imprimen sin tabla, así que `exists (select … where ${a.col} = ${b.col})` compara la columna consigo misma. Calificar a mano; la prueba necesita casos que **no** coincidan además del que sí.
+- **Helpers de E2E con `truncate`:** una FK nueva hacia `finance_expenses` rompió `clearFinance` en todas las specs de Finanzas; revisar `e2e/support/*` al añadir tablas.
+- **Estados terminales y CHECKs:** decidir qué campos puede no tener cada estado, incluido «descartada» de algo que nunca se leyó.
+- **Gmail agrupa por asunto:** nada de etiquetar hilos para saber qué se envió; marca de tiempo con solapamiento y servidor idempotente.
+- **Artefactos fuera de la app se vigilan con una prueba:** el script de Google vive en otra cuenta; una prueba fija sus límites, remitentes y la forma de la petición contra el código.
+
