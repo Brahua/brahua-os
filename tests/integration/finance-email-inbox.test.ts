@@ -167,6 +167,13 @@ describe("register", () => {
     expect(outcome.kind).toBe("registered");
   });
 
+  test("a merchant stored with bold markers is shown and registered clean", async () => {
+    const row = await suggest({ merchant: "*PARAMOUNT+*" });
+    expect((await selectSuggestions(testDb, TODAY))[0].merchant).toBe("PARAMOUNT+");
+    await registerSuggestion(testDb, { id: row.id }, TODAY);
+    expect((await expenses())[0].description).toBe("PARAMOUNT+");
+  });
+
   test("a USD suggestion makes a USD expense with the rate in force", async () => {
     const row = await suggest({ currency: "USD", amountCents: 646 });
     await registerSuggestion(testDb, { id: row.id }, TODAY);

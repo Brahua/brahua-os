@@ -196,3 +196,38 @@ export const LAYOUTS = {
 } as const;
 export type LayoutName = keyof typeof LAYOUTS;
 export const LAYOUT_NAMES = Object.keys(LAYOUTS) as LayoutName[];
+
+/**
+ * A BCP purchase as Gmail's `getPlainBody` prints it for the HTML-only email: what is bold in the HTML
+ * (amounts, card kind, merchant, table values) comes out between asterisks, the table cells on their own
+ * lines. This is the shape the owner's first real run produced (`*PARAMOUNT+*`).
+ */
+export const BCP_CARD_BOLD = (
+  opts: { company?: string; amount?: string; symbol?: string } = {},
+) => {
+  const company = opts.company ?? "TIENDA DEMO+";
+  return `Hola *Ana Demo,*
+
+Realizaste un consumo de *${opts.symbol ?? "$"} ${opts.amount ?? "6.46"}* con tu *Tarjeta de Crédito BCP* en *${company}.*
+
+Por tu seguridad, te enviamos los *datos de tu operación.*
+
+*Monto*
+
+Total del consumo
+*${opts.symbol ?? "$"} ${opts.amount ?? "6.46"}*
+
+*Datos de la operación*
+
+Operación realizada
+*Consumo Tarjeta de Crédito*
+Fecha y hora
+*14 de octubre de 2026 - 12:10 AM*
+Número de Tarjeta de Crédito
+*************1111*
+Empresa
+*${company}*
+Número de operación
+*0000458123*
+`;
+};
