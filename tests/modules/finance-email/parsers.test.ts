@@ -146,15 +146,4 @@ describe("relevance: exact sender AND a known subject", () => {
       ),
     ).toEqual({ type: "ignored" });
   });
-
-  test("a known format whose reader is not written yet is shown as unreadable (E2 fills it)", () => {
-    expect(
-      parseEmail(
-        message({
-          from: "notificaciones@yape.pe",
-          subject: "Pago exitoso",
-        }),
-      ),
-    ).toEqual({ type: "unreadable", source: "yape" });
-  });
 });

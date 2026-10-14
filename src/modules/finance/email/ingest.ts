@@ -7,10 +7,15 @@
 // nothing. Only what the parser extracted is stored (never the body) and nothing here is logged but
 // counts and an error class.
 import "server-only";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/lib/db";
 import { describeError } from "@/lib/describe-error";
-import { financeEmailSuggestions, type NewFinanceEmailSuggestion } from "../db/schema";
+import {
+  financeEmailSuggestions,
+  financeSettings,
+  type NewFinanceEmailSuggestion,
+} from "../db/schema";
 import {
   GMAIL_MESSAGE_ID,
   MAX_EMAIL_TEXT_LENGTH,
@@ -19,6 +24,7 @@ import {
   SUGGESTION_SUBJECT_MAX_LENGTH,
 } from "./constants";
 import { bearerToken, resolveIngestSecret, safeEqual } from "./env";
+import { isOwnName } from "./own-names";
 import { parseEmail } from "./parsers";
 import type { EmailMessage } from "./types";
 
@@ -50,6 +56,8 @@ export type IngestSummary = {
   unknown: number;
   /** Stored as «No pude leerlo». */
   unreadable: number;
+  /** A row that was «No pude leerlo» and is now read (the script re-sent it after a new rule). */
+  reread: number;
   /** The database refused the row for good (SQLSTATE 22/23): skipped so the rest of the batch goes in. */
   rejected: number;
 };
@@ -126,7 +134,21 @@ export async function handleEmailIngest(request: Request, deps: IngestDeps): Pro
     ignored: 0,
     unknown: 0,
     unreadable: 0,
+    reread: 0,
     rejected: 0,
+  };
+
+  // «Mis nombres», read once and only when a transfer needs it.
+  let ownNames: readonly string[] | null = null;
+  const loadOwnNames = async () => {
+    if (ownNames === null) {
+      const [row] = await deps.db
+        .select({ names: financeSettings.ownNames })
+        .from(financeSettings)
+        .limit(1);
+      ownNames = row?.names ?? [];
+    }
+    return ownNames;
   };
 
   try {
@@ -145,6 +167,15 @@ export async function handleEmailIngest(request: Request, deps: IngestDeps): Pro
         continue;
       }
       if (outcome.type === "ignored") {
+        summary.ignored += 1;
+        continue;
+      }
+      // A transfer to the owner's own account is money moving, not spending.
+      if (
+        outcome.type === "reading" &&
+        outcome.reading.kind === "transfer" &&
+        isOwnName(outcome.reading.merchant, await loadOwnNames())
+      ) {
         summary.ignored += 1;
         continue;
       }
@@ -167,13 +198,33 @@ export async function handleEmailIngest(request: Request, deps: IngestDeps): Pro
               cardLast4: outcome.reading.cardLast4,
             }
           : { ...base, status: "unreadable" };
-      let inserted: { id: string }[];
+      let inserted: { id: string; isNew: boolean }[];
       try {
-        inserted = await deps.db
-          .insert(financeEmailSuggestions)
-          .values(row)
-          .onConflictDoNothing({ target: financeEmailSuggestions.gmailMessageId })
-          .returning({ id: financeEmailSuggestions.id });
+        const insert = deps.db.insert(financeEmailSuggestions).values(row);
+        // A re-sent email that was «No pude leerlo» and now reads (a new rule) becomes the suggestion;
+        // anything already decided or already read stays as it is (the WHERE).
+        inserted = await (
+          outcome.type === "reading"
+            ? insert.onConflictDoUpdate({
+                target: financeEmailSuggestions.gmailMessageId,
+                set: {
+                  status: "pending",
+                  kind: row.kind,
+                  amountCents: row.amountCents,
+                  currency: row.currency,
+                  merchant: row.merchant,
+                  occurredOn: row.occurredOn,
+                  cardLast4: row.cardLast4,
+                  source: row.source,
+                },
+                setWhere: eq(financeEmailSuggestions.status, "unreadable"),
+              })
+            : insert.onConflictDoNothing({ target: financeEmailSuggestions.gmailMessageId })
+        ).returning({
+          id: financeEmailSuggestions.id,
+          // `xmax` is 0 for a row this statement inserted, not for one it updated.
+          isNew: sql<boolean>`(xmax = 0)`,
+        });
       } catch (error) {
         // One poisoned email must not stop the others (nor be retried forever): skip it, say so.
         if (!isPermanentRowError(error)) throw error;
@@ -184,8 +235,10 @@ export async function handleEmailIngest(request: Request, deps: IngestDeps): Pro
         continue;
       }
       if (inserted.length === 0) summary.duplicates += 1;
-      else if (outcome.type === "reading") summary.created += 1;
-      else summary.unreadable += 1;
+      else if (outcome.type === "reading") {
+        if (inserted[0].isNew) summary.created += 1;
+        else summary.reread += 1;
+      } else summary.unreadable += 1;
     }
   } catch (error) {
     // The script treats anything but 2xx as "try again later": every insert is idempotent.

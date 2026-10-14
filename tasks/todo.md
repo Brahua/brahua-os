@@ -6,13 +6,13 @@
 
 Spec: [`SPEC-finance-email.md`](../SPEC-finance-email.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(finance): …`). Máximo **una** E2E nueva en todo el módulo.
 
-- [ ] **E1: Datos y endpoint** (M)
+- [x] **E1: Datos y endpoint** (M; PR #129)
   - Migración aditiva: tabla `finance_email_suggestions` (`gmail_message_id` único, `source`, `kind`, `status`, `amount_cents`, `currency`, `merchant`, `occurred_on`, `card_last4`, `method_hint`, `subject`, `sender_verified`, `expense_id`, `created_at`, `decided_at`), `last4` en `finance_payment_methods` y «Mis nombres» (lista en ajustes de finanzas); Prettier sobre el snapshot de Drizzle; exportación y respaldo.
   - `FINANCE_EMAIL_SECRET` (≥ 32) validado por nombre en `env.ts`; `POST /api/finance/email-ingest` con el orden secreto (tiempo constante) → tamaño (≤ 128 KB) → JSON → Zod → remitente/asunto conocido → escribir; `INSERT … ON CONFLICT DO NOTHING` antes de interpretar; tipo `Reading` y un parser de juguete que fija el contrato.
   - **Aceptación:** sin secreto, con secreto equivocado o > 128 KB se rechaza antes de tocar la base de datos; el mismo mensaje tres veces deja una fila; dos ids distintos dejan dos; el cuerpo no se guarda ni se loguea.
   - **Verificación:** unitarias del esquema y del orden de validaciones; integración (una a la vez) de idempotencia con control positivo, carrera de dos lotes y `CHECK` con inserts crudos; revisión de seguridad (`security-auditor`); gate liviano.
   - **Archivos:** schema + migración, `env.ts`, ruta, `email/ingest.ts`, `email/types.ts` (~5).
-- [ ] **E2: Parsers por formato** (M) — depende de E1
+- [x] **E2: Parsers por formato** (M; `feat/finance-email-e2`; la migración `0020` deja descartar un «No pude leerlo») — depende de E1
   - Funciones puras en `src/modules/finance/email/parsers/`: consumo BCP (crédito y débito, `PLIN-` limpio), consumo BBVA, pago Yape, transferencia a terceros BCP, Plin BBVA (incluido «con QR») e interbancaria BBVA; `parseSpanishDateTime` y montos en las formas observadas; **ignorados**: pago de tarjeta propia, entre cuentas propias, puntos, estados de cuenta, comprobantes, promociones, recibidos; pase a «Mis nombres» se ignora.
   - Nota de seguridad de E1: las filas `unreadable` guardadas antes de E2 no se vuelven a leer (`ON CONFLICT DO NOTHING`): E2 añade la ruta de re-lectura (o el script reenvía solo lo no etiquetado). El rango de fechas y `cleanText` de `parsers/text.ts` se reutilizan en cada parser.
   - **Aceptación:** cada formato da monto, moneda, comercio o destinatario, fecha de Lima y últimos 4 correctos; lo desconocido devuelve `null` (→ «No pude leerlo») y nunca lanza; un lote con un correo ilegible no rompe a los demás.

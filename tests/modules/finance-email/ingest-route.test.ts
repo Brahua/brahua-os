@@ -125,11 +125,11 @@ describe("a row the database refuses", () => {
     return {
       insert: () => ({
         values: () => ({
-          onConflictDoNothing: () => ({
+          onConflictDoUpdate: () => ({
             returning: async () => {
               const next = queue.shift();
               if (next) throw next;
-              return [{ id: "row" }];
+              return [{ id: "row", isNew: true }];
             },
           }),
         }),
