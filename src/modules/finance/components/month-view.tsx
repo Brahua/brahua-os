@@ -15,9 +15,10 @@ import {
 import { Key } from "@/design-system";
 import { deleteExpense, restoreExpense } from "../actions";
 import type { ExpenseItem } from "../expense-input";
+import { Cascade, useDirectionalSwap } from "@/lib/motion";
 import { dayTitle, FINANCE_COPY, monthTitle } from "../finance-copy";
 import { expenseRowText, groupByDay } from "../month-list";
-import { FIRST_MONTH, monthHref, shiftMonth } from "../routes";
+import { FIRST_MONTH, monthHref, monthOrder, shiftMonth } from "../routes";
 import {
   expenseCategoryKey,
   groupKey,
@@ -73,6 +74,13 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [filter, setFilter] = useState<CategoryFilter | null>(null);
   const [navigating, startNavigation] = useTransition();
+  // Which way the arrow pressed last points: the content follows it while the next month loads.
+  const [intent, setIntent] = useState<1 | -1>(1);
+  const swap = useDirectionalSwap<HTMLDivElement>({
+    order: monthOrder(month),
+    pending: navigating,
+    intent,
+  });
   const addKey = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const categoriesHeading = useRef<HTMLHeadingElement>(null);
@@ -135,6 +143,7 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
     const target = shiftMonth(pendingMonth.current ?? month, delta);
     if (target < FIRST_MONTH || target > currentMonth) return;
     pendingMonth.current = target;
+    setIntent(delta > 0 ? 1 : -1);
     startNavigation(() => {
       router.push(monthHref(target, currentMonth), { scroll: false });
     });
@@ -238,7 +247,7 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
       className="flex flex-col gap-6"
       data-finance-month={month}
     >
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <Cascade index={2} className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-3">
           <div className="flex items-center gap-1">
             <MonthArrow
@@ -275,85 +284,103 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
         >
           {FINANCE_COPY.addExpense}
         </Key>
-      </div>
+      </Cascade>
 
-      <PendingStrip pending={pending} />
+      {/* What follows the month's arrows: it leaves towards the arrow while the next month loads
+          and arrives from the other side (`useDirectionalSwap`); focus stays on the arrow above. */}
+      <div ref={swap} className="flex flex-col gap-6">
+        {pending && pending.count > 0 ? (
+          <Cascade index={3}>
+            <PendingStrip pending={pending} />
+          </Cascade>
+        ) : null}
 
-      {shown.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-month-summary="">
-          <CategoryBars
-            categories={summary.categories}
-            activeKey={active?.key ?? null}
-            onToggle={toggleCategory}
-            registerBar={(key, element) => {
-              if (element) bars.current.set(key, element);
-              else bars.current.delete(key);
-            }}
-            headingRef={categoriesHeading}
-          />
-          <div className="flex flex-col gap-6">
-            <MethodRows methods={summary.methods} />
-            <RecurringSplit summary={summary} />
-          </div>
-        </div>
-      ) : null}
-
-      {shown.length === 0 ? (
-        <div className="bo-card max-w-160" data-finance-empty="">
-          <p className="bo-text-body font-semibold">{FINANCE_COPY.emptyMonthTitle}</p>
-          <p className="bo-text-body-sm text-text-secondary">{FINANCE_COPY.emptyMonthText}</p>
-        </div>
-      ) : (
-        <section aria-labelledby={listHeadingId} className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <h3 id={listHeadingId} className="bo-text-subheading">
-              {SUMMARY_COPY.listHeading}
-            </h3>
-            {active ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-month-filter="">
-                <p className="bo-text-body-sm text-text-secondary">
-                  {`${SUMMARY_COPY.filteredBy(active.name)} · ${SUMMARY_COPY.expenses(listed.length)}`}
-                </p>
-                <Key variant="ghost" icon={X} onClick={clearFilter}>
-                  {SUMMARY_COPY.clearFilter}
-                </Key>
-              </div>
-            ) : null}
-          </div>
-          {groups.length === 0 ? (
-            <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
-              {active ? SUMMARY_COPY.emptyFiltered(active.name) : null}
-            </p>
-          ) : (
+        {shown.length > 0 ? (
+          <Cascade
+            index={4}
+            className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+            attrs={{ "data-month-summary": "" }}
+          >
+            <CategoryBars
+              categories={summary.categories}
+              activeKey={active?.key ?? null}
+              onToggle={toggleCategory}
+              registerBar={(key, element) => {
+                if (element) bars.current.set(key, element);
+                else bars.current.delete(key);
+              }}
+              headingRef={categoriesHeading}
+            />
             <div className="flex flex-col gap-6">
-              {groups.map((group) => {
-                const dayId = `${ids}-${group.day}`;
-                return (
-                  <div key={group.day} className="flex flex-col gap-2">
-                    <h4 id={dayId} className="bo-section-label">
-                      <span className="bo-section-label__title">{dayTitle(group.day, today)}</span>
-                    </h4>
-                    <ul aria-labelledby={dayId} className="bo-list">
-                      {group.expenses.map((expense) => (
-                        <li key={expense.id}>
-                          <ExpenseRow
-                            expense={expense}
-                            ref={(element) => {
-                              if (element) rows.current.set(expense.id, element);
-                              else rows.current.delete(expense.id);
-                            }}
-                            onOpen={(element) => openSheet(expense, element)}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
+              <MethodRows methods={summary.methods} />
+              <RecurringSplit summary={summary} />
             </div>
-          )}
-        </section>
-      )}
+          </Cascade>
+        ) : null}
+
+        {shown.length === 0 ? (
+          <Cascade index={4}>
+            <div className="bo-card max-w-160" data-finance-empty="">
+              <p className="bo-text-body font-semibold">{FINANCE_COPY.emptyMonthTitle}</p>
+              <p className="bo-text-body-sm text-text-secondary">{FINANCE_COPY.emptyMonthText}</p>
+            </div>
+          </Cascade>
+        ) : (
+          <Cascade index={5}>
+            <section aria-labelledby={listHeadingId} className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <h3 id={listHeadingId} className="bo-text-subheading">
+                  {SUMMARY_COPY.listHeading}
+                </h3>
+                {active ? (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-month-filter="">
+                    <p className="bo-text-body-sm text-text-secondary">
+                      {`${SUMMARY_COPY.filteredBy(active.name)} · ${SUMMARY_COPY.expenses(listed.length)}`}
+                    </p>
+                    <Key variant="ghost" icon={X} onClick={clearFilter}>
+                      {SUMMARY_COPY.clearFilter}
+                    </Key>
+                  </div>
+                ) : null}
+              </div>
+              {groups.length === 0 ? (
+                <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
+                  {active ? SUMMARY_COPY.emptyFiltered(active.name) : null}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-6">
+                  {groups.map((group) => {
+                    const dayId = `${ids}-${group.day}`;
+                    return (
+                      <div key={group.day} className="flex flex-col gap-2">
+                        <h4 id={dayId} className="bo-section-label">
+                          <span className="bo-section-label__title">
+                            {dayTitle(group.day, today)}
+                          </span>
+                        </h4>
+                        <ul aria-labelledby={dayId} className="bo-list">
+                          {group.expenses.map((expense) => (
+                            <li key={expense.id}>
+                              <ExpenseRow
+                                expense={expense}
+                                ref={(element) => {
+                                  if (element) rows.current.set(expense.id, element);
+                                  else rows.current.delete(expense.id);
+                                }}
+                                onOpen={(element) => openSheet(expense, element)}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </Cascade>
+        )}
+      </div>
 
       {sheet ? (
         <ExpenseSheet

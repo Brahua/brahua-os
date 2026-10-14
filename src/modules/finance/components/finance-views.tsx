@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { SegmentedControl } from "@/design-system";
+import { Cascade, useCrossFade } from "@/lib/motion";
 import { FINANCE_COPY } from "../finance-copy";
 import { financeViewCookie, FINANCE_VIEWS, type FinanceView } from "../routes";
 
@@ -43,6 +44,7 @@ export function FinanceViews({ initialView, month, payments }: FinanceViewsProps
   const [view, setView] = useState<FinanceView>(initialView);
   const ids = useId();
   const tabs = useRef<HTMLDivElement>(null);
+  const panel = useCrossFade(view);
   const tabId = (value: FinanceView) => `${ids}-tab-${value}`;
   const panelId = (value: FinanceView) => `${ids}-panel-${value}`;
   // A view shown from inside a panel (F3's "Pendiente de pagar"): its tab takes focus once shown.
@@ -85,22 +87,25 @@ export function FinanceViews({ initialView, month, payments }: FinanceViewsProps
 
   return (
     <div className="flex flex-col gap-6">
-      <div ref={tabs} className="self-start">
-        <SegmentedControl
-          touch
-          label={FINANCE_COPY.viewsLabel}
-          options={FINANCE_VIEWS.map((value) => ({
-            value,
-            label: value === "month" ? FINANCE_COPY.viewMonth : FINANCE_COPY.viewPayments,
-          }))}
-          value={view}
-          onValueChange={choose}
-        />
-      </div>
+      <Cascade index={1} className="self-start">
+        <div ref={tabs}>
+          <SegmentedControl
+            touch
+            label={FINANCE_COPY.viewsLabel}
+            options={FINANCE_VIEWS.map((value) => ({
+              value,
+              label: value === "month" ? FINANCE_COPY.viewMonth : FINANCE_COPY.viewPayments,
+            }))}
+            value={view}
+            onValueChange={choose}
+          />
+        </div>
+      </Cascade>
       <FinanceViewsContext value={switcher}>
         {FINANCE_VIEWS.map((value) => (
           <div
             key={value}
+            ref={panel(value)}
             id={panelId(value)}
             role="tabpanel"
             aria-labelledby={tabId(value)}

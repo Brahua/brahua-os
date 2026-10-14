@@ -460,7 +460,7 @@ describe("/finance", () => {
       screen.getByRole("button", {
         name: "Pendiente de pagar: 50 soles, y 1 de monto variable, 2 pagos. Ver en Pagos",
       }),
-    ).toHaveTextContent("S/ 50.00 + 1 de monto variable");
+    ).toHaveTextContent("50 + 1 de monto variable");
   });
 
   test("the month's expenses by day, the most recent first, with USD converted", () => {

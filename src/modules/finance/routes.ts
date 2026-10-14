@@ -23,6 +23,11 @@ export function parseMonth(value: string | string[] | undefined, currentMonth: s
 /** The first month "Mes" goes back to (expenses are dated from 2000 on). */
 export const FIRST_MONTH = "2000-01";
 
+/** Months since year 0: orders months and tells which way a change of month goes. */
+export function monthOrder(month: string): number {
+  return Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7));
+}
+
 /** `month` (YYYY-MM) moved by `delta` months: shiftMonth("2026-01", -1) is "2025-12". */
 export function shiftMonth(month: string, delta: number): string {
   const [year, monthNumber] = month.split("-").map(Number);
