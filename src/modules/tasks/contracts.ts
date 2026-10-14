@@ -16,6 +16,10 @@
 // single postponement (`postponeTask`: only this occurrence of a recurring task) with an exact
 // undo that carries each task's id, the day it had and the day the move set.
 //
+// getTasksByTag(tag) / createTaskWithTags(input) / completeModuleTask(id) / reopenModuleTask(id) /
+// deleteModuleTask(id) / restoreModuleTask(id) (for `household`): a module's screen over tasks
+// marked with a tag, as the same operations `tasks` does (module-tasks.ts).
+//
 // (The progress source for `projects` lives in progress-source.ts, T5.)
 import "server-only";
 import { and, count, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
@@ -46,6 +50,16 @@ import {
 } from "./week-review-input";
 
 export type { TaskTodayDue, TaskTodayItem } from "./today-summary";
+export {
+  completeModuleTask,
+  createTaskWithTags,
+  deleteModuleTask,
+  getTasksByTag,
+  reopenModuleTask,
+  restoreModuleTask,
+} from "./module-tasks";
+export type { CompletedModuleTask, TaggedTask } from "./module-tasks";
+export type { TaskRecurrence } from "./task-input";
 export type {
   MoveTasksResult,
   MovedTask,

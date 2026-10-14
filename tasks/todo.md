@@ -10,7 +10,7 @@ Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-rev
 
 Spec: [`SPEC-household.md`](../SPEC-household.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(household): …`). Máximo un E2E nuevo en todo el módulo (H3).
 
-- [ ] **H1: Cimientos y Limpieza** (S/M, sin tablas)
+- [x] **H1: Cimientos y Limpieza** (S/M, sin tablas; `feat/household-h1`, ver `docs/HANDOFF.md` → «Cómo funciona household → H1»)
   - Contratos nuevos en `src/modules/tasks/contracts.ts`: `listTasksByTag(tag, now)` y `createTaskWithTags(input)`, reutilizando lo que `tasks` ya tiene (`createTask`, `tag-links.ts`, `completeTask`); sin duplicar lógica.
   - `src/modules/household/`: `module.ts` («Hogar», `navOrder` 67, sin atajo), `routes.ts`, `cleaning-*.ts` puros (frecuencia → recurrencia, zona, agrupar por zona y por día), `components/`, página `/household` con pestañas y slots de Compras y Recetas.
   - Vista «Por zona / Por día», «Hecho» con «Deshacer», «Añadir limpieza» (hoja), «Quitar» (elimina con «Deshacer»); regla de ESLint de fronteras; módulo en `MODULES`.
