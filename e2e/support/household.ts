@@ -178,9 +178,11 @@ export function readCleaning(title: string) {
         dueDate: tasks.dueDate,
         doneAt: tasks.doneAt,
         deletedAt: tasks.deletedAt,
+        // Qualified by hand: Drizzle prints a single-table column without its table, and a bare
+        // "id" would read the tag's own inside the subquery.
         tags: sql<string[]>`coalesce((
           select array_agg(t.name order by t.name) from task_tag_links l
-          join task_tags t on t.id = l.tag_id where l.task_id = ${tasks.id}), '{}')`,
+          join task_tags t on t.id = l.tag_id where l.task_id = "tasks"."id"), '{}')`,
       })
       .from(tasks)
       .where(eq(tasks.title, title));
