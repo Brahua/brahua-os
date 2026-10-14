@@ -9,6 +9,8 @@ import { CLEANING_TAG } from "@/modules/household/cleaning";
 import { CLEANING_COPY as COPY } from "@/modules/household/cleaning-copy";
 import { toCleaningItem } from "@/modules/household/cleaning-view";
 import { CleaningScreen } from "@/modules/household/components/cleaning-screen";
+import { ShoppingScreen } from "@/modules/household/components/shopping-screen";
+import { getProducts } from "@/modules/household/shopping-queries";
 import {
   GROUP_PARAM,
   HOUSEHOLD_VIEWS,
@@ -27,8 +29,8 @@ type HouseholdPageProps = {
 };
 
 /**
- * Hogar (SPEC-household "Pantallas"): `?vista=` picks the view (H1: Limpieza; Compras and Recetas
- * join it in H2 and H3) and `?agrupar=` how the cleaning is grouped. The cleaning is the pending
+ * Hogar (SPEC-household "Pantallas"): `?vista=` picks the view (Limpieza and Compras; Recetas joins
+ * it in H3) and `?agrupar=` how the cleaning is grouped. The cleaning is the pending
  * tasks tagged `limpieza`, read through `tasks`' contract in one query; one Lima day for the page.
  */
 export default async function HouseholdPage({ searchParams }: HouseholdPageProps) {
@@ -39,8 +41,10 @@ export default async function HouseholdPage({ searchParams }: HouseholdPageProps
   const view = parseView(search[VIEW_PARAM]);
   const group = parseGroup(search[GROUP_PARAM]);
 
-  const tasks = await getTasksByTag(CLEANING_TAG);
-  const items = tasks.map(toCleaningItem);
+  // Each view reads only its own data.
+  const cleaning =
+    view === "limpieza" ? (await getTasksByTag(CLEANING_TAG)).map(toCleaningItem) : null;
+  const products = view === "compras" ? await getProducts() : null;
 
   return (
     <ScreenServicesProvider
@@ -74,7 +78,8 @@ export default async function HouseholdPage({ searchParams }: HouseholdPageProps
             </ul>
           </nav>
         ) : null}
-        {view === "limpieza" ? <CleaningScreen items={items} today={today} group={group} /> : null}
+        {cleaning ? <CleaningScreen items={cleaning} today={today} group={group} /> : null}
+        {products ? <ShoppingScreen products={products} /> : null}
       </div>
     </ScreenServicesProvider>
   );

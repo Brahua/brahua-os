@@ -10,14 +10,14 @@ Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-rev
 
 Spec: [`SPEC-household.md`](../SPEC-household.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(household): …`). Máximo un E2E nuevo en todo el módulo (H3).
 
-- [x] **H1: Cimientos y Limpieza** (S/M, sin tablas; `feat/household-h1`, ver `docs/HANDOFF.md` → «Cómo funciona household → H1»)
+- [x] **H1: Cimientos y Limpieza** (S/M, sin tablas; PR #124, ver `docs/HANDOFF.md` → «Cómo funciona household → H1»)
   - Contratos nuevos en `src/modules/tasks/contracts.ts`: `listTasksByTag(tag, now)` y `createTaskWithTags(input)`, reutilizando lo que `tasks` ya tiene (`createTask`, `tag-links.ts`, `completeTask`); sin duplicar lógica.
   - `src/modules/household/`: `module.ts` («Hogar», `navOrder` 67, sin atajo), `routes.ts`, `cleaning-*.ts` puros (frecuencia → recurrencia, zona, agrupar por zona y por día), `components/`, página `/household` con pestañas y slots de Compras y Recetas.
   - Vista «Por zona / Por día», «Hecho» con «Deshacer», «Añadir limpieza» (hoja), «Quitar» (elimina con «Deshacer»); regla de ESLint de fronteras; módulo en `MODULES`.
   - **Aceptación:** una limpieza creada en Hogar sale en Hoy el día que toca; «Hecho» programa la siguiente con `limpieza` y su zona; las 5 frecuencias dan la fecha esperada; sin zona sale en «Sin zona»; ninguna cadena prohibida.
   - **Verificación:** unitarias de lo puro y de los componentes; integración `rtk proxy pnpm test:integration <archivo>` de los contratos (incluida «la siguiente ocurrencia conserva las etiquetas»); gate liviano; tras el push, `update-screenshots.yml` y revisar `e2e/home.spec.ts`. Sin E2E nueva.
   - **Archivos:** ~5 de `tasks` (contratos y su prueba) + el módulo nuevo; dividir en dos PR si pasa de ~5 por área.
-- [ ] **H2: Compras** (M) — depende de H1
+- [x] **H2: Compras** (M; `feat/household-h2`, ver `docs/HANDOFF.md` → «Cómo funciona household → H2») — depende de H1
   - Migración aditiva `household_products` (`CHECK`, único parcial por `name_key`, lock `(7000, hashtext(name_key))` como primer lock), exportación y respaldo; acciones con `ownerAction`: añadir (reutiliza un nombre existente), «Comprado», editar cantidad, «Quitar de la lista», «Olvidar producto», «Terminé la compra» y su «Deshacer» exacto; vista agrupada por categoría con sugerencias y sección «Comprados».
   - **Aceptación:** añadir un nombre existente no duplica; dos añadidos a la vez dejan una fila; «Terminé la compra» pasa lo comprado a guardado y «Deshacer» no pisa un producto cambiado a mano; 320 px sin scroll horizontal.
   - **Verificación:** unitarias (normalización, orden de categorías, sugerencias, copy); integración (`CHECK` con inserts crudos, concurrencia con control positivo, «Deshacer» exacto, autorización, exportación); Prettier sobre el snapshot de Drizzle. Sin E2E nueva.

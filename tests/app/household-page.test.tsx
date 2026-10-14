@@ -1,9 +1,10 @@
 // `household` H1: /household as a page, with `tasks`' contract mocked (no database): what it
 // reads (one call, the `limpieza` tag), the grouping from the URL and the authorization.
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import HouseholdPage, { metadata } from "@/app/(app)/household/page";
 import { requireOwner } from "@/lib/auth";
+import { getProducts } from "@/modules/household/shopping-queries";
 import { getTasksByTag, type TaggedTask } from "@/modules/tasks/contracts";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
@@ -15,6 +16,18 @@ vi.mock("@/modules/household/actions", () => ({
   removeCleaning: vi.fn(),
   restoreCleaning: vi.fn(),
 }));
+vi.mock("@/modules/household/shopping-actions", () => ({
+  addShoppingProduct: vi.fn(),
+  markProductBought: vi.fn(),
+  changeProductQuantity: vi.fn(),
+  removeProductFromShoppingList: vi.fn(),
+  undoRemoveProduct: vi.fn(),
+  forgetShoppingProduct: vi.fn(),
+  undoForgetProduct: vi.fn(),
+  finishShoppingTrip: vi.fn(),
+  undoFinishShoppingTrip: vi.fn(),
+}));
+vi.mock("@/modules/household/shopping-queries", () => ({ getProducts: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
@@ -49,6 +62,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(undefined as never);
   vi.mocked(getTasksByTag).mockReset().mockResolvedValue(TASKS);
+  vi.mocked(getProducts).mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -77,13 +91,37 @@ describe("the page", () => {
     expect(screen.getByRole("heading", { name: "Hoy · miércoles 14" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Sin fecha" })).toBeVisible();
     unmount();
-    render(await HouseholdPage(search({ agrupar: "x", vista: "compras" })));
+    render(await HouseholdPage(search({ agrupar: "x" })));
     expect(screen.getByRole("heading", { name: /Baño/ })).toBeVisible();
+  });
+
+  test("?vista=compras reads only the products, and an unknown view falls back to the cleaning", async () => {
+    const { unmount } = render(await HouseholdPage(search({ vista: "compras" })));
+    expect(getProducts).toHaveBeenCalledTimes(1);
+    expect(getTasksByTag).not.toHaveBeenCalled();
+    expect(screen.getByText("La lista está vacía.")).toBeVisible();
+    // The two views are a navigation, the current one marked.
+    const nav = screen.getByRole("navigation", { name: "Secciones del Hogar" });
+    expect(within(nav).getByRole("link", { name: "Compras" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(nav).getByRole("link", { name: "Limpieza" })).toHaveAttribute(
+      "href",
+      "/household",
+    );
+    unmount();
+    vi.mocked(getTasksByTag).mockClear();
+    vi.mocked(getProducts).mockClear();
+    render(await HouseholdPage(search({ vista: "recetas" })));
+    expect(getTasksByTag).toHaveBeenCalledTimes(1);
+    expect(getProducts).not.toHaveBeenCalled();
   });
 
   test("a refused owner never reads anything", async () => {
     vi.mocked(requireOwner).mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(HouseholdPage(search())).rejects.toThrow("NEXT_REDIRECT");
     expect(getTasksByTag).not.toHaveBeenCalled();
+    expect(getProducts).not.toHaveBeenCalled();
   });
 });
