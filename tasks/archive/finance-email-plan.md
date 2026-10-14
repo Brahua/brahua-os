@@ -1,7 +1,7 @@
 # Plan de implementación: finance-email
 
-> Spec: [`SPEC-finance-email.md`](../SPEC-finance-email.md) (APROBADO v1.0, 2026-10-14) · Tareas: [`todo.md`](todo.md) → «Módulo `finance-email`»
-> Planes anteriores en [`archive/`](archive/).
+> Spec: [`SPEC-finance-email.md`](../../SPEC-finance-email.md) (APROBADO v1.0, 2026-10-14; addendum E5 aprobado el mismo día) · Tareas: [`finance-email-todo.md`](finance-email-todo.md)
+> Planes anteriores en [`archive/`](archive/). **Cerrado el 2026-10-14** (E1–E6 más tres arreglos del primer uso real).
 
 ## Enfoque
 
