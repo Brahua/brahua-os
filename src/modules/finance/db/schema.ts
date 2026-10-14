@@ -402,11 +402,12 @@ export const financeEmailSuggestions = pgTable(
         and (${table.merchant} is null or char_length(${table.merchant}) between 1 and ${n(SUGGESTION_MERCHANT_MAX_LENGTH)})
         and (${table.cardLast4} is null or ${table.cardLast4} ~ ${sql.raw(`'${CARD_LAST4.source}'`)})`,
     ),
-    // Only an `unreadable` row may lack what an expense needs; the others carry all of it.
+    // Only an `unreadable` row (or one the owner dismissed, which may have been unreadable) may lack
+    // what an expense needs; the others carry all of it.
     check(
       "finance_email_suggestions_reading_check",
       sql`coalesce(
-        ${table.status} = 'unreadable'
+        ${table.status} in ('unreadable', 'dismissed')
         or (${table.kind} is not null and ${table.amountCents} is not null
           and ${table.currency} is not null and ${table.merchant} is not null
           and ${table.occurredOn} is not null),

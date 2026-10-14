@@ -1,17 +1,21 @@
 // Picks the parser of an email by its exact sender AND a known subject (SPEC-finance-email "Remitentes"):
 // anything else is `unknown` and never leaves the Gmail of the owner nor reaches the database.
-// E1 ships the BBVA purchase as the contract's first reader; E2 fills the other formats in. A
-// known format without a reader yet answers `unreadable` (shown as «No pude leerlo»).
+// The formats are the ones seen in the owner's real emails (BCP, BBVA, Yape).
 import type { EmailSource } from "../constants";
 import type { EmailMessage, ParseOutcome, Reading } from "../types";
 import { parseBbvaConsumption } from "./bbva-consumption";
+import { parseBbvaInterbank } from "./bbva-interbank";
+import { parseBbvaPlin } from "./bbva-plin";
+import { parseBcpConsumption } from "./bcp-consumption";
+import { parseBcpTransfer } from "./bcp-transfer";
+import { parseYapePayment } from "./yape-payment";
 
 type Format = {
   source: EmailSource;
   from: RegExp;
   subject: RegExp;
-  /** `null`: not an expense (own-account moves, card payments, points…). */
-  parse: ((text: string) => Reading | null) | "ignore" | "pending";
+  /** `"ignore"`: not an expense (own-account moves, card payments, points…). A reader may also answer `"ignored"`. */
+  parse: ((text: string) => Reading | "ignored" | null) | "ignore";
 };
 
 const BCP = /^notificaciones@notificacionesbcp\.com\.pe$/i;
@@ -22,42 +26,46 @@ const FORMATS: readonly Format[] = [
   {
     source: "bbva",
     from: BBVA,
-    subject: /Has realizado un consumo con tu tarjeta BBVA/i,
+    subject: /^Has realizado un consumo con tu tarjeta BBVA$/i,
     parse: parseBbvaConsumption,
   },
-  // E2: the readers of these.
   {
     source: "bcp",
     from: BCP,
-    subject: /Realizaste un consumo con tu Tarjeta de (?:Cr[eé]dito|D[eé]bito) BCP/i,
-    parse: "pending",
+    subject: /^Realizaste un consumo con tu Tarjeta de (?:Cr[eé]dito|D[eé]bito) BCP\b/i,
+    parse: parseBcpConsumption,
   },
   {
     source: "bcp",
     from: BCP,
-    subject: /Constancia de Transferencia a Terceros BCP/i,
-    parse: "pending",
+    subject: /^Constancia de Transferencia a Terceros BCP\b/i,
+    parse: parseBcpTransfer,
   },
-  { source: "yape", from: YAPE, subject: /^Pago exitoso$/i, parse: "pending" },
+  { source: "yape", from: YAPE, subject: /^Pago exitoso$/i, parse: parseYapePayment },
   {
     source: "bbva",
     from: BBVA,
-    subject: /Constancia de operaci[oó]n transferencia PLIN/i,
-    parse: "pending",
+    subject: /^Constancia de operaci[oó]n transferencia PLIN(?: con QR)?$/i,
+    parse: parseBbvaPlin,
   },
-  { source: "bbva", from: BBVA, subject: /Constancia Transf\. Interbancaria/i, parse: "pending" },
+  {
+    source: "bbva",
+    from: BBVA,
+    subject: /^BBVA - Constancia Transf\. Interbancaria$/i,
+    parse: parseBbvaInterbank,
+  },
   // Money that is not a new expense: the card payment (each purchase already arrived) and own accounts.
   {
     source: "bbva",
     from: BBVA,
     subject:
-      /Constancia Pago de Tarjetas propias|Constancia Transf\. a ctas\. propias|Paga tus consumos con puntos/i,
+      /^BBVA - (?:Constancia Pago de Tarjetas propias|Constancia Transf\. a ctas\. propias|Paga tus consumos con puntos)$/i,
     parse: "ignore",
   },
   {
     source: "bcp",
     from: BCP,
-    subject: /Constancia de Pago de Tarjeta de Cr[eé]dito Propia/i,
+    subject: /^Constancia de Pago de Tarjeta de Cr[eé]dito Propia\b/i,
     parse: "ignore",
   },
 ];
@@ -79,9 +87,9 @@ export function parseEmail(message: EmailMessage): ParseOutcome {
   const format = FORMATS.find((f) => f.from.test(address) && f.subject.test(message.subject));
   if (!format) return { type: "unknown" };
   if (format.parse === "ignore") return { type: "ignored" };
-  if (format.parse === "pending") return { type: "unreadable", source: format.source };
   try {
     const reading = format.parse(message.text);
+    if (reading === "ignored") return { type: "ignored" };
     return reading
       ? { type: "reading", source: format.source, reading }
       : { type: "unreadable", source: format.source };

@@ -141,6 +141,13 @@
       "when": 1791963718626,
       "tag": "0019_finance_email_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791966253115,
+      "tag": "0020_finance_email_dismiss_unreadable",
+      "breakpoints": true
     }
   ]
 }

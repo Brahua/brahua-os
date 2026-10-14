@@ -116,6 +116,55 @@ describe("POST /api/finance/email-ingest", () => {
     expect(await rows()).toHaveLength(0);
   });
 
+  test("a re-sent unreadable email that now reads becomes the suggestion (once)", async () => {
+    await post([bbva("abc12345def67890", "nothing useful here")]);
+    expect((await rows())[0].status).toBe("unreadable");
+    const again = await post([bbva("abc12345def67890")]);
+    expect(await again.json()).toMatchObject({ created: 0, reread: 1, duplicates: 0 });
+    expect((await rows())[0]).toMatchObject({ status: "pending", amountCents: 4320 });
+    // Read now: a third send changes nothing.
+    const third = await post([bbva("abc12345def67890")]);
+    expect(await third.json()).toMatchObject({ reread: 0, duplicates: 1 });
+  });
+
+  test("a decided row is never re-read, even when it was unreadable", async () => {
+    await post([bbva("abc12345def67890", "nothing useful here")]);
+    await testDb
+      .update(financeEmailSuggestions)
+      .set({ status: "dismissed", decidedAt: new Date() });
+    await post([bbva("abc12345def67890")]);
+    expect((await rows())[0]).toMatchObject({ status: "dismissed", amountCents: null });
+  });
+
+  describe("transfers and «Mis nombres»", () => {
+    const plin = (id: string, to: string) => ({
+      id,
+      from: "procesos@bbva.com.pe",
+      subject: "Constancia de operación transferencia PLIN",
+      receivedAt: "2026-10-14T07:04:23Z",
+      text: `| Plineaste S/ 10.00 a ${to} | |\n| Fecha y hora: | 14 de octubre, 2026 02:04 |`,
+      auth: "pass",
+    });
+
+    test("without names set, a Plin to anyone is a suggestion (positive control)", async () => {
+      await post([plin("abc12345def67890", "Jhorman J Bravo H")]);
+      expect(await rows()).toHaveLength(1);
+    });
+
+    test("with the owner's name set, a Plin to their own account is ignored; others are not", async () => {
+      await testDb
+        .insert(financeSettings)
+        .values({ id: 1, ownNames: ["Jhorman Josue Bravo Huaman"] });
+      const response = await post([
+        plin("abc12345def67890", "Jhorman J Bravo H"),
+        plin("abc12345def67891", "Maria Perez Quispe"),
+      ]);
+      expect(await response.json()).toMatchObject({ created: 1, ignored: 1 });
+      const [row] = await rows();
+      expect(row).toMatchObject({ merchant: "Maria Perez Quispe", kind: "transfer" });
+    });
+  });
+
   test("a wrong secret is a bare 404 and writes nothing", async () => {
     const response = await post([bbva("abc12345def67890")], { authorization: "Bearer nope" });
     expect(response.status).toBe(404);
@@ -171,6 +220,23 @@ describe("CHECKs (defense behind Zod)", () => {
     ],
   ])("rejects %s", async (_label, over, constraint) => {
     expect(await insert(over)).toEqual(check(constraint));
+  });
+
+  test("an unreadable row, dismissed, still needs none of the reading fields", async () => {
+    expect(
+      await insert({
+        status: "dismissed",
+        kind: null,
+        amountCents: null,
+        currency: null,
+        merchant: null,
+        occurredOn: null,
+      }),
+    ).toBeNull();
+    // …but a pending one does (positive control of the rule above).
+    expect(await insert({ gmailMessageId: "abc12345def67899", amountCents: null })).toEqual(
+      check("finance_email_suggestions_reading_check"),
+    );
   });
 
   test("an unreadable row needs none of the reading fields", async () => {
