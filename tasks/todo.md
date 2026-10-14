@@ -30,6 +30,11 @@ Spec: [`SPEC-finance-email.md`](../SPEC-finance-email.md) (aprobada el 2026-10-1
   - El owner genera el secreto en su terminal (`openssl rand … | vercel env add … --sensitive`) y lo pega en las propiedades del script; redeploy tras el cambio.
   - Retrospectiva en `CLAUDE.md`, backlog, nota en el mapa de capacidades y HANDOFF («Cómo funciona finance-email»), archivar plan y tareas.
 
+- [x] **E5: Pagos recurrentes por correo** (M; `feat/finance-email-e5`; addendum de la spec aprobado) — depende de E3
+  - Migración aditiva `email_aliases` en `finance_recurring_payments`; `recurring-match.ts` puro (alias aprendido > nombre + monto > solo nombre; empate = ninguno; misma moneda); `markSuggestionPaid` (candados: sugerencia y pago antes de cualquier fila; reutiliza `payPeriod` con el monto, el día y el medio del correo) y su «Deshacer» exacto (`undoPaidPeriod`); fila «Parece el pago de …» con «Marcar como pagado», «Registrar como gasto» y «Descartar»; estado «Ya pagado».
+  - **Aceptación:** los seis criterios del addendum.
+  - **Verificación:** unitarias del reconocedor (tildes, mayúsculas, palabras sueltas, empate, moneda); integración (una a la vez): pagar, deshacer, doble toque y dos a la vez, otro monto con alias, ya pagado, última cuota que archiva y «Deshacer» que reabre; componente de la fila; gate liviano. Sin E2E nueva.
+
 ### Checkpoint final
 - [ ] El owner instala el script y un correo real de cada formato llega a la bandeja con lo leído correcto (consumo BCP y BBVA, Yape, transferencia, Plin).
 - [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).

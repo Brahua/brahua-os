@@ -11,6 +11,7 @@ import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { SuggestionsSection } from "@/modules/finance/components/suggestions-section";
 import {
   dismissEmailSuggestion,
+  markEmailSuggestionPaid,
   registerEmailSuggestion,
   setMethodLast4,
   setOwnNames,
@@ -27,6 +28,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 vi.mock("@/modules/finance/email/actions", () => ({
   registerEmailSuggestion: vi.fn(),
   dismissEmailSuggestion: vi.fn(),
+  markEmailSuggestionPaid: vi.fn(),
   undoDismissEmailSuggestion: vi.fn(),
   undoRegisterEmailSuggestion: vi.fn(),
   setOwnNames: vi.fn(),
@@ -68,6 +70,7 @@ function suggestion(over: Partial<SuggestionItem> = {}): SuggestionItem {
     senderVerified: true,
     method: null,
     duplicate: false,
+    recurring: null,
     ...over,
   };
 }
@@ -116,6 +119,7 @@ beforeEach(() => {
   })) as unknown as typeof window.matchMedia;
   for (const action of [
     registerEmailSuggestion,
+    markEmailSuggestionPaid,
     dismissEmailSuggestion,
     undoDismissEmailSuggestion,
     undoRegisterEmailSuggestion,
@@ -188,6 +192,7 @@ describe("Registrar", () => {
       expect(undoRegisterEmailSuggestion).toHaveBeenCalledWith({
         id: first.id,
         expenseId: "33333333-3333-4333-8333-000000000001",
+        reopenStamp: null,
       }),
     );
   });
@@ -374,5 +379,106 @@ describe("«Correos del banco» in Ajustes", () => {
     await waitFor(() =>
       expect(setMethodLast4).toHaveBeenCalledWith({ id: BBVA.id, last4: "1234" }),
     );
+  });
+});
+
+describe("recurring payments that arrive by email (addendum E5)", () => {
+  const NETFLIX = {
+    id: "55555555-5555-4555-8555-000000000001",
+    name: "Netflix",
+    dueOn: "2026-10-10",
+    state: "pending" as const,
+    expectedCents: 5000,
+    sameAmount: true,
+  };
+
+  test("a pending period: «Parece el pago de …», Marcar como pagado first, Registrar como gasto after", () => {
+    renderSection([suggestion({ merchant: "NETFLIX.COM", amountCents: 5000, recurring: NETFLIX })]);
+    expect(screen.getByText(/Parece el pago de «Netflix» · venció el 10 de octubre/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Marcar como pagado" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Registrar como gasto" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Registrar" })).toBeNull();
+    expect(screen.queryByText(/El monto es distinto/)).toBeNull();
+  });
+
+  test("another amount than the expected one is said, in soles", () => {
+    renderSection([
+      suggestion({ amountCents: 6000, recurring: { ...NETFLIX, sameAmount: false } }),
+    ]);
+    expect(screen.getByText(/El monto es distinto del previsto \(S\/ 50\.00\)\./)).toBeVisible();
+  });
+
+  test("it says when it is due: today, or still to come", () => {
+    renderSection([suggestion({ recurring: { ...NETFLIX, dueOn: TODAY } })]);
+    expect(screen.getByText(/vence hoy/)).toBeVisible();
+  });
+
+  test("Marcar como pagado: the row leaves, «Pago marcado», and Deshacer carries the expense and the stamp", async () => {
+    const user = userEvent.setup();
+    const item = suggestion({ recurring: NETFLIX });
+    vi.mocked(markEmailSuggestionPaid).mockResolvedValue(
+      ok({
+        suggestionId: item.id,
+        expense: expense({ description: "Netflix", amountCents: 5000 }),
+        recurringName: "Netflix",
+        closedStamp: "2026-10-14T12:00:00.000Z",
+      }),
+    );
+    vi.mocked(undoRegisterEmailSuggestion).mockResolvedValue(ok({ id: item.id }));
+    renderSection([item]);
+    await user.click(screen.getByRole("button", { name: "Marcar como pagado" }));
+    expect(markEmailSuggestionPaid).toHaveBeenCalledWith({ id: item.id });
+    await waitFor(() => expect(screen.getByText("Pago marcado")).toBeVisible());
+    expect(registerEmailSuggestion).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Deshacer" }));
+    await waitFor(() =>
+      expect(undoRegisterEmailSuggestion).toHaveBeenCalledWith({
+        id: item.id,
+        expenseId: "33333333-3333-4333-8333-000000000001",
+        reopenStamp: "2026-10-14T12:00:00.000Z",
+      }),
+    );
+  });
+
+  test("a refusal brings the row back with the reason", async () => {
+    const user = userEvent.setup();
+    vi.mocked(markEmailSuggestionPaid).mockResolvedValue(
+      fail("Ya no parece el pago de un recurrente: revisa la sugerencia."),
+    );
+    renderSection([suggestion({ recurring: NETFLIX })]);
+    await user.click(screen.getByRole("button", { name: "Marcar como pagado" }));
+    await waitFor(() => expect(screen.getByText("Sin guardar")).toBeVisible());
+    expect(screen.getByRole("button", { name: "Marcar como pagado" })).toBeVisible();
+  });
+
+  test("Registrar como gasto is the plain register (the payment stays pending)", async () => {
+    const user = userEvent.setup();
+    const item = suggestion({ recurring: NETFLIX });
+    vi.mocked(registerEmailSuggestion).mockResolvedValue(
+      ok({ suggestionId: item.id, expense: expense() }),
+    );
+    renderSection([item]);
+    await user.click(screen.getByRole("button", { name: "Registrar como gasto" }));
+    expect(registerEmailSuggestion).toHaveBeenCalledWith({ id: item.id });
+    expect(markEmailSuggestionPaid).not.toHaveBeenCalled();
+  });
+
+  test("a period already marked as paid: the note and Descartar first, never Marcar como pagado", async () => {
+    const user = userEvent.setup();
+    const item = suggestion({ recurring: { ...NETFLIX, state: "paid" } });
+    vi.mocked(dismissEmailSuggestion).mockResolvedValue(ok({ id: item.id }));
+    renderSection([item]);
+    expect(screen.getByText("Ya marcaste «Netflix» como pagado este mes.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Marcar como pagado" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Descartar" })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Descartar" }));
+    expect(dismissEmailSuggestion).toHaveBeenCalledWith({ id: item.id });
+  });
+
+  test("an unverified sender is looked at first: Revisar, and no «parece el pago»", () => {
+    renderSection([suggestion({ senderVerified: false, recurring: NETFLIX })]);
+    expect(screen.getByRole("button", { name: "Revisar" })).toBeVisible();
+    expect(screen.queryByText(/Parece el pago/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Marcar como pagado" })).toBeNull();
   });
 });

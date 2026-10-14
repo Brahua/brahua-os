@@ -186,3 +186,50 @@ E2 y E3 pueden ir en paralelo tras E1 (contrato: la tabla y el tipo `Reading`); 
 ## Preguntas abiertas
 
 Ninguna. Falta la aprobación del owner para pasar al plan (`tasks/plan.md`, `tasks/todo.md`).
+
+## Addendum E5: pagos recurrentes que llegan por correo (APROBADO, 2026-10-14)
+
+Origen: el primer uso real (el owner, 2026-10-14). Los pagos recurrentes (Netflix, Spotify, ChatGPT…) también avisan por correo, así que aparecen como sugerencias de gasto suelto y habría que registrarlos aparte de su período pendiente en «Pagos». Decisiones del owner, mismo día:
+
+- **Un toque para confirmar** (no se marca solo): la sugerencia dice «Parece el pago de «Netflix»» y su tecla principal es **«Marcar como pagado»**.
+- **Reconocer por nombre y monto, y aprender:** la primera vez que el owner confirma un pago, la app recuerda el comercio del correo para ese pago recurrente; la siguiente vez lo propone por ese comercio aunque cambie el monto.
+- **Período ya pagado:** si el owner ya lo marcó a mano, la sugerencia queda con la nota «Ya marcaste «Netflix» como pagado este mes» y **«Descartar»** como tecla principal.
+
+### Reglas
+
+1. **Candidatos:** pagos recurrentes activos y no eliminados, con la misma **moneda** que la sugerencia. Un pago con otra moneda nunca coincide.
+2. **Coincidencia** (se evalúa en el servidor, nunca se confía en el cliente), en este orden:
+   a. **Alias aprendido:** el comercio normalizado de la sugerencia es uno de los alias del pago.
+   b. **Nombre + monto:** todas las palabras del nombre del pago (≥ 3 letras, sin tildes ni mayúsculas) están en el comercio normalizado **y** el monto es igual al previsto (o el pago es de monto variable).
+   c. **Solo nombre:** las mismas palabras, pero el monto difiere: se propone igual con la nota «El monto es distinto del previsto (S/ 50.00)»; al marcar, queda el monto **real** del correo.
+   Con varios candidatos gana el de mayor regla (a > b > c); con empate de regla gana el nombre que dice más (más palabras: «Netflix Premium» sobre «Netflix»); si eso tampoco separa, ninguno (sigue como gasto suelto: nunca se adivina entre dos).
+3. **Período:** el más antiguo **pendiente** de ese pago (la misma lista que «Pendientes»). Si no hay pendiente pero el período de este mes ya está pagado, estado «Ya pagado».
+4. **Marcar como pagado** = el «Pagado» de Pagos (`payPeriod`) con el monto, el día de Lima del correo (nunca después de hoy) y el medio que sugieren los 4 dígitos (si no, el del pago). Mismo gasto con `recurring_payment_id` y `recurring_due_on`, misma regla de última cuota (archiva). La sugerencia pasa a `registered` con ese gasto.
+5. **Aprender:** al marcar, el comercio normalizado se añade a los alias del pago (máx. 10; el más viejo sale). No se aprende al descartar ni al registrar como gasto suelto (esa es la forma de decir «no es ese pago»; ver 7).
+6. **Deshacer:** quita el gasto y libera el período exacto (`undoPaidPeriod`, con el sello si la última cuota archivó el pago); el alias aprendido **se conserva** (decisión autónoma: si el owner deshace por error de toque, el reconocimiento sigue valiendo; se quita editando el pago, backlog).
+7. **«Registrar como gasto»** sigue disponible en la misma fila (el gasto suelto de siempre).
+8. **Remitente no verificado:** igual que antes, sin toque directo (se revisa en la hoja, que registra como gasto suelto).
+
+### Datos y pantallas
+
+- Migración aditiva: `finance_recurring_payments.email_aliases text[] not null default '{}'` (CHECK: ≤ 10 elementos, cada uno ≤ 80). Exportada con el resto.
+- `SuggestionItem.recurring`: `{ id, name, dueOn, state: "pending" | "paid", sameAmount, expectedCents }` o `null`.
+- Fila: la línea «Parece el pago de «Netflix» · vence el 8 de octubre» (o «venció el …», sin la palabra «atrasado»), teclas «Marcar como pagado» · «Registrar como gasto» · «Descartar». Estado «Ya pagado»: nota + «Descartar» (principal) · «Registrar como gasto».
+- Acciones: `markSuggestionPaid({ id })` y su «Deshacer» (`undoMarkSuggestionPaid({ id, expenseId, reopenStamp })`).
+
+### Bloqueos
+
+Los candados advisory van **antes** que cualquier candado de fila: se lee la sugerencia y se calcula la coincidencia sin candados, luego se toman `(5000, hashtext('finance:email:<id>'))` y el del pago recurrente, y recién después se bloquea la fila de la sugerencia y se revalida (si cambió la coincidencia, «cambió mientras tanto»).
+
+### Criterios de éxito
+
+1. Un correo de Netflix de S/ 50.00 con «Netflix» pendiente propone «Marcar como pagado»; un toque marca el período con ese monto, el día del correo y su medio, y «Deshacer» lo deja pendiente otra vez.
+2. Un cobro de otro monto de un pago con el comercio ya aprendido se propone igual; sin alias ni nombre, no.
+3. Con dos pagos que coinciden por igual no se propone ninguno.
+4. Un período ya pagado a mano muestra «Ya pagado» y nunca crea un segundo gasto.
+5. Dos toques o dos pestañas dejan un solo gasto y un solo período pagado.
+6. Un pago en otra moneda nunca coincide.
+
+### Corte E5 (≈ M)
+
+Migración y `recurring-match.ts` puro (normalizar, reglas a/b/c, desempate), `markSuggestionPaid` con candados y su «Deshacer», fila nueva y copy, aprendizaje de alias; pruebas unitarias del reconocedor, de integración (pagar, deshacer, doble toque, otra moneda, empate, ya pagado, última cuota) y de componente. **Sin E2E nueva** (presupuesto): se amplía la existente solo si cabe sin una pantalla nueva; si no, solo unitarias e integración.

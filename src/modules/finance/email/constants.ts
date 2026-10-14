@@ -27,6 +27,9 @@ export const MAX_EMAIL_TEXT_LENGTH = 8 * 1024;
 // 10 emails of 8 KB fit the body limit with room for JSON escaping; the script sends in chunks.
 export const MAX_MESSAGES_PER_BATCH = 10;
 
+/** The merchants a recurring payment remembers from the emails that paid it (the oldest leaves). */
+export const EMAIL_ALIASES_MAX_ITEMS = 10;
+
 /** "Mis nombres" (Ajustes): the names that mean "my own account" (SPEC-finance-email). */
 export const OWN_NAMES_MAX_ITEMS = 10;
 export const OWN_NAME_MAX_LENGTH = 80;

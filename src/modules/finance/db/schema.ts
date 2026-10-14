@@ -27,6 +27,7 @@ import {
 } from "../finance-constants";
 import {
   CARD_LAST4,
+  EMAIL_ALIASES_MAX_ITEMS,
   EMAIL_KINDS,
   EMAIL_SOURCES,
   OWN_NAMES_MAX_ITEMS,
@@ -132,6 +133,12 @@ export const financeRecurringPayments = pgTable(
     // Cuotas (polish → installments): the payment ends after this many due dates counted from
     // `start_date` (the Nth is the last). Null: it never ends. Monthly only, 1–120.
     installmentsTotal: integer("installments_total"),
+    // finance-email: the merchants of the bank emails that were this payment (normalized, ≤ 80 each,
+    // at most 10): how a suggestion recognizes it the next time.
+    emailAliases: text("email_aliases")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     notes: text("notes"), // ≤ 500
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     // Soft delete: its past expenses stay (with their name).
@@ -201,6 +208,10 @@ export const financeRecurringPayments = pgTable(
       sql`coalesce(${table.installmentsTotal} is null or (
         ${table.installmentsTotal} between 1 and 120 and ${table.cycle} = 'monthly'
       ), false)`,
+    ),
+    check(
+      "finance_recurring_payments_email_aliases_check",
+      sql`coalesce(cardinality(${table.emailAliases}) <= ${n(EMAIL_ALIASES_MAX_ITEMS)}, false)`,
     ),
     // "Todos" and "Archivados" of the Pagos view (F2).
     index("finance_recurring_payments_archived_idx")

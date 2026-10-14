@@ -148,6 +148,13 @@
       "when": 1791966253115,
       "tag": "0020_finance_email_dismiss_unreadable",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792001927549,
+      "tag": "0021_finance_email_aliases",
+      "breakpoints": true
     }
   ]
 }

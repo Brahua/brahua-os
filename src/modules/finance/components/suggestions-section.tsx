@@ -4,6 +4,7 @@ import { startTransition, useId, useOptimistic, useRef, useState } from "react";
 import { Key } from "@/design-system";
 import {
   dismissEmailSuggestion,
+  markEmailSuggestionPaid,
   registerEmailSuggestion,
   undoDismissEmailSuggestion,
   undoRegisterEmailSuggestion,
@@ -70,10 +71,14 @@ export function SuggestionsSection({ items }: SuggestionsSectionProps) {
     });
   }
 
-  function undoRegister(item: SuggestionItem, expenseId: string) {
+  function undoRegister(
+    item: SuggestionItem,
+    expenseId: string,
+    reopenStamp: string | null = null,
+  ) {
     startTransition(async () => {
       const result = await enqueue(`email-suggestion:${item.id}`, () =>
-        undoRegisterEmailSuggestion({ id: item.id, expenseId }),
+        undoRegisterEmailSuggestion({ id: item.id, expenseId, reopenStamp }),
       );
       if (result.kind === "skipped") return;
       if (result.kind === "done" && result.value.ok) {
@@ -113,6 +118,39 @@ export function SuggestionsSection({ items }: SuggestionsSectionProps) {
         return;
       }
       // Back in the list (the optimistic removal ends with the transition).
+      failureToast(
+        EMAIL_COPY.notRegistered,
+        result.kind === "done" && !result.value.ok ? result.value.error : undefined,
+      );
+    });
+  }
+
+  /** «Marcar como pagado»: the period of the recurring payment it looks like, paid with the email's data. */
+  function markPaid(item: SuggestionItem) {
+    focusNeighborOf(item.id);
+    startTransition(async () => {
+      removeShown(item.id);
+      const result = await enqueue(`email-suggestion:${item.id}`, () =>
+        markEmailSuggestionPaid({ id: item.id }),
+      );
+      if (result.kind === "skipped") return;
+      if (result.kind === "done" && result.value.ok) {
+        const paid = result.value.data;
+        const spoken = spokenMoney(
+          paid.expense.amountCents,
+          paid.expense.currency,
+          paid.expense.exchangeRateE4,
+        );
+        toaster.push({
+          title: EMAIL_COPY.markedTitle,
+          text: EMAIL_COPY.markedText(paid.recurringName, spoken),
+          action: {
+            label: EMAIL_COPY.undo,
+            run: () => undoRegister(item, paid.expense.id, paid.closedStamp),
+          },
+        });
+        return;
+      }
       failureToast(
         EMAIL_COPY.notRegistered,
         result.kind === "done" && !result.value.ok ? result.value.error : undefined,
@@ -201,6 +239,7 @@ export function SuggestionsSection({ items }: SuggestionsSectionProps) {
                   else primaryKeys.current.delete(item.id);
                 }}
                 onRegister={() => registerDirect(item)}
+                onMarkPaid={() => markPaid(item)}
                 onEdit={(key) => openSheet(item, key)}
                 onManual={(key) => openManual(item, key)}
                 onDismiss={() => dismiss(item)}
@@ -250,11 +289,25 @@ export function SuggestionsSection({ items }: SuggestionsSectionProps) {
   );
 }
 
+const DUE_DAY = new Intl.DateTimeFormat("es-PE", {
+  day: "numeric",
+  month: "long",
+  timeZone: "UTC",
+});
+
+/** «vence hoy», «vence el 8 de octubre», «venció el 5 de octubre» (never «atrasado»). */
+function dueLabel(dueOn: string, today: string): string {
+  if (dueOn === today) return EMAIL_COPY.dueToday;
+  const label = DUE_DAY.format(new Date(`${dueOn}T00:00:00Z`));
+  return dueOn > today ? EMAIL_COPY.dueOn(label) : EMAIL_COPY.wasDueOn(label);
+}
+
 type SuggestionRowProps = {
   item: SuggestionItem;
   today: string;
   registerKey: (node: HTMLButtonElement | null) => void;
   onRegister: () => void;
+  onMarkPaid: () => void;
   onEdit: (key: HTMLElement | null) => void;
   onManual: (key: HTMLElement | null) => void;
   onDismiss: () => void;
@@ -265,6 +318,7 @@ function SuggestionRow({
   today,
   registerKey,
   onRegister,
+  onMarkPaid,
   onEdit,
   onManual,
   onDismiss,
@@ -280,6 +334,7 @@ function SuggestionRow({
     item.method?.name ?? (item.cardLast4 ? `·${item.cardLast4}` : null),
   ].filter(Boolean);
   const editKey = useRef<HTMLButtonElement>(null);
+  const recurring = unreadable ? null : item.recurring;
 
   return (
     <li
@@ -298,6 +353,26 @@ function SuggestionRow({
       </p>
       {unreadable ? (
         <p className="bo-text-body-sm text-text-secondary">{EMAIL_COPY.unreadableHelp}</p>
+      ) : null}
+      {recurring && item.senderVerified ? (
+        <p
+          className="bo-text-body-sm text-text-secondary"
+          data-flag="recurring"
+          data-state={recurring.state}
+        >
+          {recurring.state === "paid" ? (
+            EMAIL_COPY.alreadyPaidNote(recurring.name)
+          ) : (
+            <>
+              <strong>
+                {EMAIL_COPY.seemsPayment(recurring.name, dueLabel(recurring.dueOn, today))}.
+              </strong>
+              {recurring.sameAmount || recurring.expectedCents === null || !item.currency
+                ? null
+                : ` ${EMAIL_COPY.amountDiffers(formatMoney(recurring.expectedCents, item.currency))}`}
+            </>
+          )}
+        </p>
       ) : null}
       {item.duplicate ? (
         <p className="bo-text-body-sm text-text-secondary" data-flag="duplicate">
@@ -318,6 +393,27 @@ function SuggestionRow({
           >
             {EMAIL_COPY.registerByHand}
           </Key>
+        ) : recurring && item.senderVerified ? (
+          recurring.state === "pending" ? (
+            <>
+              <Key ref={registerKey} variant="signal" onClick={onMarkPaid}>
+                {EMAIL_COPY.markPaid}
+              </Key>
+              <Key variant="ghost" onClick={onRegister}>
+                {EMAIL_COPY.registerAsExpense}
+              </Key>
+            </>
+          ) : (
+            // Already marked as paid: dropping it is the main thing, a loose expense the other.
+            <>
+              <Key ref={registerKey} variant="signal" onClick={onDismiss}>
+                {EMAIL_COPY.dismiss}
+              </Key>
+              <Key variant="ghost" onClick={onRegister}>
+                {EMAIL_COPY.registerAsExpense}
+              </Key>
+            </>
+          )
         ) : item.senderVerified ? (
           <>
             <Key ref={registerKey} variant="signal" onClick={onRegister}>
@@ -333,9 +429,11 @@ function SuggestionRow({
             {EMAIL_COPY.review}
           </Key>
         )}
-        <Key variant="ghost" onClick={onDismiss}>
-          {EMAIL_COPY.dismiss}
-        </Key>
+        {recurring?.state === "paid" && item.senderVerified ? null : (
+          <Key variant="ghost" onClick={onDismiss}>
+            {EMAIL_COPY.dismiss}
+          </Key>
+        )}
       </div>
     </li>
   );

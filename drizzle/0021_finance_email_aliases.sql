@@ -1,0 +1,2 @@
+ALTER TABLE "finance_recurring_payments" ADD COLUMN "email_aliases" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "finance_recurring_payments" ADD CONSTRAINT "finance_recurring_payments_email_aliases_check" CHECK (coalesce(cardinality("finance_recurring_payments"."email_aliases") <= 10, false));

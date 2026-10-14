@@ -115,6 +115,10 @@ Google mostrará «Google no ha verificado esta aplicación»: es **tu propio sc
 3. Haz un gasto con la tarjeta; en menos de 6 minutos debe llegar una sugerencia nueva. Toca **Registrar** y comprueba el gasto en el mes; **Deshacer** lo quita.
 4. Si una sugerencia dice «Remitente no verificado», Gmail no pudo comprobar de quién era el correo: **Revisar** abre la hoja en lugar de registrar de un toque. Si pasa con correos legítimos del banco de forma habitual, dímelo: se ajusta cómo el script lee `Authentication-Results`.
 
+## Pagos recurrentes (Netflix, Spotify…)
+
+Si el cobro parece un pago recurrente tuyo (por el nombre y el monto, o por un comercio que ya confirmaste antes), la sugerencia dice **«Parece el pago de «Netflix» · vence el 8 de octubre»** y su tecla principal es **Marcar como pagado**: marca ese período en Pagos con el monto, el día y la tarjeta reales del correo. «Registrar como gasto» lo deja como gasto suelto (y el pago sigue pendiente). La primera vez que confirmas uno, la app recuerda el comercio del correo («EBN*SPOTIFY» → Spotify) y la siguiente lo reconoce aunque cambie el monto. Si ya habías marcado el pago a mano, la sugerencia dice «Ya marcaste … como pagado este mes» y solo hay que **Descartar**. Con dos pagos que podrían ser el mismo cobro, no propone ninguno. «Deshacer» deja el período pendiente otra vez.
+
 ## Límites de Google (cuentas personales, leídos el 2026-10-14)
 
 | Límite | Valor | Tu uso |
