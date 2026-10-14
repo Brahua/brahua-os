@@ -3,9 +3,9 @@
 export const HOUSEHOLD_PATH = "/household";
 
 /**
- * The views of `/household` (`?vista=`). The recipes (H3) join this list and the page's switch.
+ * The views of `/household` (`?vista=`): the cleaning, the shopping list and the recipes.
  */
-export const HOUSEHOLD_VIEWS = ["limpieza", "compras"] as const;
+export const HOUSEHOLD_VIEWS = ["limpieza", "compras", "recetas"] as const;
 export type HouseholdView = (typeof HOUSEHOLD_VIEWS)[number];
 
 export const VIEW_PARAM = "vista";
@@ -33,4 +33,15 @@ export function householdPath(view: HouseholdView = HOUSEHOLD_VIEWS[0], group?: 
   if (group && group !== "zona") params.set(GROUP_PARAM, group);
   const query = params.toString();
   return query ? `${HOUSEHOLD_PATH}?${query}` : HOUSEHOLD_PATH;
+}
+
+/**
+ * The recipes' URL with its filters: the meal (`?tipo=`) and the weekday (`?dia=`, ISO 1–7). A
+ * filter that is null stays out of the query.
+ */
+export function recipesPath(meal: string | null = null, day: number | null = null): string {
+  const params = new URLSearchParams({ [VIEW_PARAM]: "recetas" });
+  if (meal) params.set("tipo", meal);
+  if (day) params.set("dia", String(day));
+  return `${HOUSEHOLD_PATH}?${params.toString()}`;
 }

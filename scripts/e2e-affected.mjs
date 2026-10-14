@@ -48,6 +48,7 @@ export const SPEC_MODULES = {
   "habits-skip.spec.ts": ["habits", "tasks"],
   "habits-streaks.spec.ts": ["habits"],
   "habits.spec.ts": ["habits", "today"],
+  "household.spec.ts": ["household", "tasks"],
   "home.spec.ts": ["today", "tasks", "habits", "finance", "projects"],
   "login.spec.ts": ["core"],
   "passkey.spec.ts": ["core"],

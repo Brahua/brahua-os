@@ -150,6 +150,8 @@ describe("pnpm db:export", () => {
       "weekly_reviews",
       // H2 of household (filled rows: tests/integration/household-shopping.test.ts → "export").
       "household_products",
+      // H3 of household (filled rows: tests/integration/household-recipes.test.ts → "export").
+      "household_recipes",
       // F1 of finance: all six (filled rows: tests/integration/finance.test.ts → "export").
       "finance_categories",
       "finance_payment_methods",
