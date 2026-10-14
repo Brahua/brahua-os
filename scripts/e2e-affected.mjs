@@ -36,6 +36,7 @@ export const SPEC_MODULES = {
   "capture-nl-tasks.spec.ts": ["tasks", "finance", "projects"],
   "design-system.spec.ts": ["core"],
   "error-pages.spec.ts": ["core"],
+  "finance-email.spec.ts": ["finance"],
   "finance-installments.spec.ts": ["finance", "today"],
   "finance-payments.spec.ts": ["finance", "today"],
   "finance-summary.spec.ts": ["finance"],

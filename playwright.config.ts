@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_FINANCE_EMAIL_SECRET } from "./e2e/support/finance-email-env";
 import { E2E_OWNER, OWNER_STORAGE_STATE } from "./e2e/support/owner";
 import { E2E_TELEGRAM, E2E_VAPID, FAKE_TELEGRAM_PORT } from "./e2e/support/reminders-env";
 import { isGitHubActions, screenshotsEnabled } from "./e2e/support/screenshot-env";
@@ -26,6 +27,8 @@ const appEnv = {
   TELEGRAM_WEBHOOK_SECRET: E2E_TELEGRAM.webhookSecret,
   TELEGRAM_BOT_USERNAME: E2E_TELEGRAM.botUsername,
   REMINDERS_CRON_SECRET: E2E_TELEGRAM.cronSecret,
+  // `finance-email`: the secret the E2E sends as the owner's Apps Script would.
+  FINANCE_EMAIL_SECRET: E2E_FINANCE_EMAIL_SECRET,
   TELEGRAM_API_BASE: `http://127.0.0.1:${FAKE_TELEGRAM_PORT}`,
   // Push web: shaped like real keys, so Ajustes offers the device (nothing is ever sent).
   VAPID_PUBLIC_KEY: E2E_VAPID.publicKey,

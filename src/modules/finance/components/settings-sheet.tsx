@@ -41,7 +41,9 @@ import {
 import type { Currency } from "../finance-constants";
 import { FINANCE_COPY } from "../finance-copy";
 import { formatRate, rateToInput } from "../money";
-import { useFinanceScreen, useRegisterSettings } from "./finance-screen";
+import type { EmailSettings } from "../email/input";
+import { EmailSettingsSection } from "./email-settings-section";
+import { useEmailSettings, useFinanceScreen, useRegisterSettings } from "./finance-screen";
 
 type Result = ActionResult<FinanceCatalog>;
 
@@ -67,6 +69,7 @@ async function call(action: (input: unknown) => Promise<Result>, input: unknown)
  */
 export function FinanceSettings() {
   const { catalog } = useFinanceScreen();
+  const emailSettings = useEmailSettings();
   const register = useRegisterSettings();
   const [open, setOpen] = useState(false);
   // A new sheet per opening (it starts from the page's catalog).
@@ -112,6 +115,7 @@ export function FinanceSettings() {
           }}
           returnFocusRef={returnFocus}
           initialCatalog={catalog}
+          initialEmailSettings={emailSettings}
         />
       ) : null}
     </>
@@ -123,6 +127,7 @@ type SettingsSheetProps = {
   onOpenChange: (open: boolean) => void;
   returnFocusRef: React.RefObject<HTMLElement | null>;
   initialCatalog: FinanceCatalog;
+  initialEmailSettings?: EmailSettings;
 };
 
 /**
@@ -135,6 +140,7 @@ export function SettingsSheet({
   onOpenChange,
   returnFocusRef,
   initialCatalog,
+  initialEmailSettings = { ownNames: [], methods: [] },
 }: SettingsSheetProps) {
   const isDesktop = useIsDesktop();
   const [catalog, setCatalog] = useState(initialCatalog);
@@ -231,6 +237,7 @@ export function SettingsSheet({
           busyTag={busyTag}
           run={run}
         />
+        <EmailSettingsSection initial={initialEmailSettings} sheetBusy={pending} />
         <p role="status" className="sr-only" data-settings-status="">
           {announcement}
         </p>

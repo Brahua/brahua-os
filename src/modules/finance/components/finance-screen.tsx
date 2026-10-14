@@ -7,6 +7,7 @@ import {
   type ScreenServices,
 } from "@/modules/core/components/screen-services";
 import type { FinanceCatalog } from "../catalog-input";
+import type { EmailSettings } from "../email/input";
 import { FINANCE_COPY } from "../finance-copy";
 
 // ── Shared by every part of the finance screen (the month, the sheets, F2's Pagos, F3's summary) ──
@@ -21,7 +22,11 @@ type FinanceScreenData = {
 /** Opens "Ajustes"; focus returns to `returnTo` when it closes (the header key without one). */
 export type OpenSettings = (returnTo?: HTMLElement | null) => void;
 
+/** «Mis nombres» and the methods' last four digits, for the «Correos del banco» part of Ajustes. */
+const NO_EMAIL_SETTINGS: EmailSettings = { ownNames: [], methods: [] };
+
 type FinanceScreenContextValue = FinanceScreenData & {
+  emailSettings: EmailSettings;
   openSettings: OpenSettings;
   /** `FinanceSettings` (the header key) registers how to open its sheet; null when it unmounts. */
   registerSettings: (open: OpenSettings | null) => void;
@@ -48,6 +53,13 @@ export function useFinanceScreen(): FinanceScreenValue {
   return { today, catalog, openSettings, enqueue, toaster, announce };
 }
 
+/** For `FinanceSettings` only: what the «Correos del banco» section starts from. */
+export function useEmailSettings(): EmailSettings {
+  const data = use(FinanceScreenContext);
+  if (!data) throw new Error("useEmailSettings must be used inside FinanceScreen");
+  return data.emailSettings;
+}
+
 /** For `FinanceSettings` only: registers the opener of its sheet (F3's "Fijar tipo de cambio"). */
 export function useRegisterSettings(): (open: OpenSettings | null) => void {
   const data = use(FinanceScreenContext);
@@ -55,21 +67,29 @@ export function useRegisterSettings(): (open: OpenSettings | null) => void {
   return data.registerSettings;
 }
 
-type FinanceScreenProps = FinanceScreenData & { children: React.ReactNode };
+type FinanceScreenProps = FinanceScreenData & {
+  emailSettings?: EmailSettings;
+  children: React.ReactNode;
+};
 
 /**
  * Wraps /finance: one save queue, one notice viewport and one polite announcer for everything on
  * it. It watches Lima's day: left open past midnight, the page is read again (today moves on).
  */
-export function FinanceScreen({ today, catalog, children }: FinanceScreenProps) {
+export function FinanceScreen({
+  today,
+  catalog,
+  emailSettings = NO_EMAIL_SETTINGS,
+  children,
+}: FinanceScreenProps) {
   const settings = useRef<OpenSettings | null>(null);
   const registerSettings = useCallback((open: OpenSettings | null) => {
     settings.current = open;
   }, []);
   const openSettings = useCallback<OpenSettings>((returnTo) => settings.current?.(returnTo), []);
   const value = useMemo(
-    () => ({ today, catalog, openSettings, registerSettings }),
-    [today, catalog, openSettings, registerSettings],
+    () => ({ today, catalog, emailSettings, openSettings, registerSettings }),
+    [today, catalog, emailSettings, openSettings, registerSettings],
   );
   return (
     <ScreenServicesProvider

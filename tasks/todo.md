@@ -18,7 +18,7 @@ Spec: [`SPEC-finance-email.md`](../SPEC-finance-email.md) (aprobada el 2026-10-1
   - **Aceptación:** cada formato da monto, moneda, comercio o destinatario, fecha de Lima y últimos 4 correctos; lo desconocido devuelve `null` (→ «No pude leerlo») y nunca lanza; un lote con un correo ilegible no rompe a los demás.
   - **Verificación:** unitarias con fixtures **anonimizados** (montos y nombres inventados con el mismo formato; los correos reales no entran al repo), incluidos AM/PM, 24 h, `1,000.50`, USD, `&amp;`, HTML en vez de texto; gate liviano.
   - **Archivos:** 6 parsers + `parsers/index.ts`, `dates.ts`, `amounts.ts`, fixtures (agrupar en dos PR si pasa de ~5 por área).
-- [ ] **E3: Bandeja, ajustes y E2E** (M/L) — depende de E1 (y de E2 para datos reales)
+- [x] **E3: Bandeja, ajustes y E2E** (M/L; `feat/finance-email-e3`) — depende de E1 (y de E2 para datos reales)
   - Sección «Sugerencias» arriba de Finanzas (solo si hay): fila con monto, comercio/destinatario, fecha, medio sugerido por banco + últimos 4; «Registrar» (abre la hoja del gasto con lo leído), «Descartar» y «Deshacer» exacto (`suggestionId` + `expenseId`); «Posible duplicado» (mismo monto, moneda y día); «Remitente no verificado» sin registro directo; «No pude leerlo» con «Registrar a mano».
   - Finanzas → Ajustes: «Mis nombres» y «Últimos 4 dígitos» por medio de pago. Limpieza de decididas a los 90 días en el tick.
   - **El único E2E del módulo** `e2e/finance-email.spec.ts`: POST de un lote al endpoint de prueba, ver la sugerencia, registrar y comprobar el gasto en el mes; axe en ambos temas y 320 px con `afterSaveSettled`; entrada en `SPEC_MODULES` (`scripts/e2e-affected.mjs`); si lleva captura, `expectScreenshot` y `update-screenshots.yml` tras el push.
