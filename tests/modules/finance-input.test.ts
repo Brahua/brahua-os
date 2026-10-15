@@ -30,7 +30,7 @@ import {
   RATE_ERRORS,
 } from "@/modules/finance/finance-copy";
 import { expenseRowText, groupByDay } from "@/modules/finance/month-list";
-import { parseFinanceView, parseMonth } from "@/modules/finance/routes";
+import { parseFinanceSection, parseMonth } from "@/modules/finance/routes";
 
 const ID = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -217,11 +217,15 @@ describe("routes", () => {
     expect(parseMonth(value, "2026-10")).toBe(month);
   });
 
-  test("the remembered view", () => {
-    expect(parseFinanceView("payments")).toBe("payments");
-    expect(parseFinanceView("month")).toBe("month");
-    expect(parseFinanceView(undefined)).toBe("month");
-    expect(parseFinanceView("x")).toBe("month");
+  test("the remembered section; the old values still open their group", () => {
+    expect(parseFinanceSection("mes:gas")).toBe("mes:gas");
+    expect(parseFinanceSection("pagos:pag")).toBe("pagos:pag");
+    expect(parseFinanceSection("payments")).toBe("pagos:pen");
+    expect(parseFinanceSection("pagos")).toBe("pagos:pen");
+    expect(parseFinanceSection("month")).toBe("mes:res");
+    expect(parseFinanceSection("mes")).toBe("mes:res");
+    expect(parseFinanceSection(undefined)).toBe("mes:res");
+    expect(parseFinanceSection("x")).toBe("mes:res");
   });
 });
 

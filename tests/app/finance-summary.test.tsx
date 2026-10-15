@@ -14,6 +14,8 @@ import { MonthView } from "@/modules/finance/components/month-view";
 import { FinanceSettings } from "@/modules/finance/components/settings-sheet";
 import type { ExpenseItem } from "@/modules/finance/expense-input";
 import type { MonthPending } from "@/modules/finance/summary";
+import type { FinanceSection } from "@/modules/finance/routes";
+import type { MonthlyTotal } from "@/modules/finance/trend";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => ({
@@ -95,16 +97,26 @@ type RenderOptions = {
   month?: string;
   catalog?: FinanceCatalog;
   pending?: MonthPending | null;
+  /** The section the screen opens on (default «Resumen»). */
+  section?: FinanceSection;
+  /** The six months `getMonthlyTotals` reads (default none: no comparison). */
+  trend?: MonthlyTotal[];
 };
 
 function renderMonth(expenses: ExpenseItem[], options: RenderOptions = {}) {
-  const { month = "2026-10", catalog = CATALOG, pending = null } = options;
+  const {
+    month = "2026-10",
+    catalog = CATALOG,
+    pending = null,
+    section = "mes:res",
+    trend = [],
+  } = options;
   const tree = (rows: ExpenseItem[], shownMonth: string) => (
     <FinanceScreen today={TODAY} catalog={catalog}>
       <FinanceSettings />
       <FinanceViews
-        initialView="month"
-        month={<MonthView month={shownMonth} expenses={rows} pending={pending} />}
+        initialSection={section}
+        month={<MonthView month={shownMonth} expenses={rows} pending={pending} trend={trend} />}
         payments={<p>Pagos</p>}
       />
     </FinanceScreen>
@@ -191,7 +203,7 @@ describe("the month's total", () => {
     const user = userEvent.setup();
     const cafe = expense({ description: "Café", amountCents: 1250 });
     vi.mocked(deleteExpense).mockImplementation(hang);
-    renderMonth([cafe, expense({ amountCents: 500 })]);
+    renderMonth([cafe, expense({ amountCents: 500 })], { section: "mes:gas" });
     expect(flowValue()).toBe("17.5");
     await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
     await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
@@ -218,20 +230,22 @@ describe("Por categoría", () => {
     ]);
     for (const bar of bars) {
       expect(bar).toHaveAttribute("aria-pressed", "false");
-      expect(bar.querySelector(".bo-summary-bar")).toHaveAttribute("aria-hidden", "true");
+      expect(bar.querySelector(".bo-cat-dot")).toHaveAttribute("aria-hidden", "true");
     }
     expect(bars[0]).toHaveTextContent("Comida");
     expect(bars[0]).toHaveTextContent("54%");
-    expect(bars[0].querySelector(".bo-summary-bar__fill")).toHaveStyle({ width: "53.33%" });
   });
 
-  test("a bar filters the list (toggle), says so, and Quitar filtro brings focus back to it", async () => {
+  test("a bar filters the list (toggle), takes you to Gastos, says so, and Quitar filtro keeps you there", async () => {
     const user = userEvent.setup();
     renderMonth(rows());
+    const backToSummary = () => user.click(screen.getByRole("tab", { name: "Resumen" }));
     const comida = screen.getByRole("button", { name: /^Comida, 80 soles/ });
     await user.click(comida);
+    // The filter lives in «Gastos»: its tab is chosen and has focus; the bar keeps its state.
+    expect(screen.getByRole("tab", { name: "Gastos" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Gastos" })).toHaveFocus());
     expect(comida).toHaveAttribute("aria-pressed", "true");
-    expect(comida).toHaveFocus();
     expect(screen.getByRole("button", { name: /^Editar Mercado/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Editar Café/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Editar Luz/ })).toBeNull();
@@ -244,21 +258,26 @@ describe("Por categoría", () => {
     );
 
     // Another bar moves the filter; the same bar again takes it off.
-    const none = screen.getByRole("button", { name: /^Sin categoría/ });
-    await user.click(none);
+    await backToSummary();
+    await user.click(screen.getByRole("button", { name: /^Sin categoría/ }));
     expect(comida).toHaveAttribute("aria-pressed", "false");
     expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(1);
-    await user.click(none);
+    await backToSummary();
+    await user.click(screen.getByRole("button", { name: /^Sin categoría/ }));
+    // Taking a filter off leaves you where you are; «Gastos» shows the whole month again.
+    await user.click(screen.getByRole("tab", { name: "Gastos" }));
     expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4);
     await waitFor(() => expect(announcer()).toHaveTextContent("Sin filtro: 4 gastos del mes."));
 
-    // "Quitar filtro" goes away: focus returns to the bar that set the filter.
+    // "Quitar filtro" goes away: focus goes to the list's heading, in Gastos.
+    await backToSummary();
     await user.click(screen.getByRole("button", { name: /^Casa/ }));
     await user.click(screen.getByRole("button", { name: "Quitar filtro" }));
     expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull();
-    expect(screen.getByRole("button", { name: /^Casa/ })).toHaveFocus();
-    expect(screen.getByRole("button", { name: /^Casa/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("heading", { name: "Gastos del mes" })).toHaveFocus();
     expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4);
+    await backToSummary();
+    expect(screen.getByRole("button", { name: /^Casa/ })).toHaveAttribute("aria-pressed", "false");
   });
 
   test("the filter stays with its month: another month shows the whole list", async () => {
@@ -352,27 +371,41 @@ describe("Pendiente de pagar", () => {
   test("the strip with amount and count; it shows Pagos and focus goes to its tab", async () => {
     const user = userEvent.setup();
     renderMonth([], {
-      pending: { count: 2, totalPenCents: 125_000, unconvertedUsdCents: 9500, variableCount: 0 },
+      pending: {
+        count: 2,
+        totalPenCents: 125_000,
+        unconvertedUsdCents: 9500,
+        variableCount: 0,
+        nextDueOn: "2026-10-18",
+      },
     });
     const strip = screen.getByRole("button", {
-      name: "Pendiente de pagar: 1,250 soles, y 95 dólares sin convertir, 2 pagos. Ver en Pagos",
+      name: /^Pendiente de pagar: 1,250 soles, y 95 dólares sin convertir, próximo .+, 2\ pagos\. Ver pendientes$/,
     });
     expect(strip).toHaveTextContent("2 pagos");
     // The PEN figure rolls (mocked here as its raw value); the rest of the line is plain text.
-    expect(strip).toHaveTextContent("1250 + USD 95.00 sin convertir");
+    expect(strip).toHaveTextContent("+ USD 95.00 sin convertir");
     await user.click(strip);
-    const tab = screen.getByRole("tab", { name: "Pagos" });
+    const tab = screen.getByRole("tab", { name: "Pendientes" });
     expect(tab).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(tab).toHaveFocus());
-    expect(document.cookie).toContain("bo_finance_view=payments");
+    expect(document.cookie).toContain("bo_finance_view=pagos:pen");
   });
 
   test("one payment, singular", () => {
     renderMonth([], {
-      pending: { count: 1, totalPenCents: 5000, unconvertedUsdCents: 0, variableCount: 0 },
+      pending: {
+        count: 1,
+        totalPenCents: 5000,
+        unconvertedUsdCents: 0,
+        variableCount: 0,
+        nextDueOn: "2026-10-18",
+      },
     });
     expect(
-      screen.getByRole("button", { name: "Pendiente de pagar: 50 soles, 1 pago. Ver en Pagos" }),
+      screen.getByRole("button", {
+        name: /^Pendiente de pagar: 50 soles, próximo .+, 1\ pago\. Ver pendientes$/,
+      }),
     ).toBeInTheDocument();
   });
 
@@ -382,25 +415,37 @@ describe("Pendiente de pagar", () => {
         <MonthView
           month="2026-10"
           expenses={[]}
-          pending={{ count: 3, totalPenCents: 5000, unconvertedUsdCents: 0, variableCount: 2 }}
+          pending={{
+            count: 3,
+            totalPenCents: 5000,
+            unconvertedUsdCents: 0,
+            variableCount: 2,
+            nextDueOn: "2026-10-18",
+          }}
         />
       </FinanceScreen>,
     );
     const mixed = screen.getByRole("button", {
-      name: "Pendiente de pagar: 50 soles, y 2 de monto variable, 3 pagos. Ver en Pagos",
+      name: /^Pendiente de pagar: 50 soles, y 2 de monto variable, próximo .+, 3\ pagos\. Ver pendientes$/,
     });
-    expect(mixed).toHaveTextContent("50 + 2 de monto variable");
+    expect(mixed).toHaveTextContent("+ 2 de monto variable");
     rerender(
       <FinanceScreen today={TODAY} catalog={CATALOG}>
         <MonthView
           month="2026-10"
           expenses={[]}
-          pending={{ count: 1, totalPenCents: 0, unconvertedUsdCents: 0, variableCount: 1 }}
+          pending={{
+            count: 1,
+            totalPenCents: 0,
+            unconvertedUsdCents: 0,
+            variableCount: 1,
+            nextDueOn: "2026-10-18",
+          }}
         />
       </FinanceScreen>,
     );
     const onlyVariable = screen.getByRole("button", {
-      name: "Pendiente de pagar: 1 de monto variable, 1 pago. Ver en Pagos",
+      name: /^Pendiente de pagar: 1 de monto variable, próximo .+, 1\ pago\. Ver pendientes$/,
     });
     expect(onlyVariable).not.toHaveTextContent("S/");
     rerender(
@@ -408,7 +453,13 @@ describe("Pendiente de pagar", () => {
         <MonthView
           month="2026-10"
           expenses={[]}
-          pending={{ count: 0, totalPenCents: 0, unconvertedUsdCents: 0, variableCount: 0 }}
+          pending={{
+            count: 0,
+            totalPenCents: 0,
+            unconvertedUsdCents: 0,
+            variableCount: 0,
+            nextDueOn: "2026-10-18",
+          }}
         />
       </FinanceScreen>,
     );
@@ -419,8 +470,9 @@ describe("Pendiente de pagar", () => {
 describe("the summary follows deletes, undo and the filter", () => {
   const notices = () => screen.getByRole("region", { name: "Avisos de Finanzas" });
   const barLabels = () =>
-    within(screen.getByRole("list", { name: "Por categoría" }))
-      .getAllByRole("button")
+    // The bars live in «Resumen», which is hidden while «Gastos» shows.
+    within(screen.getByRole("list", { name: "Por categoría", hidden: true }))
+      .getAllByRole("button", { hidden: true })
       .map((bar) => bar.getAttribute("aria-label"));
 
   test("a refused delete rolls the total and the bars back", async () => {
@@ -428,7 +480,7 @@ describe("the summary follows deletes, undo and the filter", () => {
     const cafe = expense({ description: "Café", amountCents: 1250, category: COMIDA });
     const pan = expense({ description: "Pan", amountCents: 500, category: CASA });
     vi.mocked(deleteExpense).mockResolvedValue(fail("Este gasto ya no existe (se eliminó)."));
-    renderMonth([cafe, pan]);
+    renderMonth([cafe, pan], { section: "mes:gas" });
     await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
     await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
     await waitFor(() => expect(within(notices()).getByText("Sin guardar")).toBeInTheDocument());
@@ -449,7 +501,7 @@ describe("the summary follows deletes, undo and the filter", () => {
     const pan = expense({ description: "Pan", amountCents: 500, category: CASA });
     vi.mocked(deleteExpense).mockResolvedValue(ok(cafe));
     vi.mocked(restoreExpense).mockResolvedValue(ok(cafe));
-    const { rerenderWith } = renderMonth([cafe, pan]);
+    const { rerenderWith } = renderMonth([cafe, pan], { section: "mes:gas" });
     await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
     await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
     await waitFor(() => expect(within(notices()).getByText("Gasto eliminado")).toBeInTheDocument());
@@ -539,20 +591,18 @@ describe("the summary follows deletes, undo and the filter", () => {
     expect(screen.getByRole("button", { name: "Quitar filtro" })).toBeInTheDocument();
   });
 
-  test("each bar is described by the hint; a bar with nothing in PEN draws no fill", () => {
+  test("each bar is described by the hint; a bar with nothing in PEN still reads", () => {
     renderMonth([
       expense({ amountCents: 500, category: CASA }),
       expense({ currency: "USD", amountCents: 900, category: COMIDA }),
     ]);
     const casa = screen.getByRole("button", { name: /^Casa,/ });
-    const comida = screen.getByRole("button", { name: /^Comida,/ });
+    // The segment of the bar is named apart ("Barra, …"), so this is the list's row alone.
+    expect(screen.getAllByRole("button", { name: /^Comida,/ })).toHaveLength(1);
     expect(casa).toHaveAccessibleDescription("Toca una categoría para ver solo sus gastos.");
     expect(screen.getByRole("list", { name: "Por categoría" })).not.toHaveAttribute(
       "aria-describedby",
     );
-    expect(casa.querySelector(".bo-summary-bar__fill")).not.toBeNull();
-    expect(comida.querySelector(".bo-summary-bar")).not.toBeNull();
-    expect(comida.querySelector(".bo-summary-bar__fill")).toBeNull();
   });
 
   test("fast arrow clicks add up: two clicks go two months back", async () => {
@@ -566,5 +616,142 @@ describe("the summary follows deletes, undo and the filter", () => {
       "/finance?mes=2026-09",
       "/finance?mes=2026-08",
     ]);
+  });
+});
+
+describe("the four sections (finance-motion M2)", () => {
+  const SEPT = (uptoDayPenCents: number, unconvertedUsdCents = 0): MonthlyTotal[] => [
+    { month: "2026-09", penCents: 99_999, uptoDayPenCents, unconvertedUsdCents },
+  ];
+
+  test("the control has four tabs; choosing one shows only its panel and remembers it", async () => {
+    const user = userEvent.setup();
+    renderMonth([expense({ description: "Café" })]);
+    const tabs = within(screen.getByRole("tablist", { name: "Vista de Finanzas" }));
+    expect(tabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Resumen",
+      "Gastos",
+      "Pendientes",
+      "Pagados",
+    ]);
+    expect(document.querySelector('[data-finance-view="mes:gas"]')).toHaveAttribute("hidden");
+    await user.click(tabs.getByRole("tab", { name: "Gastos" }));
+    expect(document.querySelector('[data-finance-view="mes:res"]')).toHaveAttribute("hidden");
+    expect(document.querySelector('[data-finance-view="mes:gas"]')).not.toHaveAttribute("hidden");
+    expect(document.cookie).toContain("bo_finance_view=mes:gas");
+    // Month's header belongs to both of its sections, not to Pagos.
+    expect(document.querySelector("[data-finance-month]")).not.toHaveAttribute("hidden");
+    await user.click(tabs.getByRole("tab", { name: "Pagados" }));
+    expect(document.querySelector("[data-finance-month]")).toHaveAttribute("hidden");
+  });
+
+  test("the context line: neutral delta at the same point of the month, and Día n de m", () => {
+    // Today is the 5th: 12.50 spent by then against 10.00 by the 5th of September: +25 %.
+    renderMonth([expense({ amountCents: 1250 })], { trend: SEPT(1000) });
+    const context = document.querySelector("[data-month-context]");
+    expect(context).toHaveTextContent("+25 % vs. mes anterior al mismo punto del mes");
+    expect(context).toHaveTextContent("Día 5 de 31");
+    expect(document.querySelector("[data-month-delta]")).toHaveAttribute("data-month-delta", "up");
+    expect(screen.getByText(/25 por ciento más que el mes anterior/)).toBeInTheDocument();
+  });
+
+  test("a delete moves the delta at once (the current side reads the optimistic list)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(deleteExpense).mockImplementation(hang);
+    renderMonth(
+      [expense({ description: "Café", amountCents: 1250 }), expense({ amountCents: 500 })],
+      {
+        section: "mes:gas",
+        trend: SEPT(1000),
+      },
+    );
+    expect(document.querySelector("[data-month-delta]")).toHaveTextContent("+75 %");
+    await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
+    await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
+    await waitFor(() =>
+      expect(document.querySelector("[data-month-delta]")).toHaveTextContent("−50 %"),
+    );
+  });
+
+  test("no comparison without a previous month or with nothing spent by then", () => {
+    const { unmount } = renderMonth([expense()]);
+    expect(document.querySelector("[data-month-delta]")).toBeNull();
+    // The day is still said while the month is current.
+    expect(document.querySelector("[data-month-day]")).toHaveTextContent("Día 5 de 31");
+    unmount();
+    renderMonth([expense()], { trend: SEPT(0) });
+    expect(document.querySelector("[data-month-delta]")).toBeNull();
+  });
+
+  test("unconverted USD is left out of the comparison and the line says so", () => {
+    renderMonth([expense({ amountCents: 1000 })], { trend: SEPT(1000, 500) });
+    expect(document.querySelector("[data-month-context]")).toHaveTextContent(
+      "La comparación no incluye dólares sin convertir.",
+    );
+  });
+
+  test("another month is compared whole and has no «Día n de m»", () => {
+    renderMonth([expense({ spentOn: "2026-09-10", amountCents: 500 })], {
+      month: "2026-09",
+      trend: [{ month: "2026-08", penCents: 1000, uptoDayPenCents: 1000, unconvertedUsdCents: 0 }],
+    });
+    const context = document.querySelector("[data-month-context]");
+    expect(context).toHaveTextContent("−50 % vs. mes anterior");
+    expect(context).not.toHaveTextContent("al mismo punto");
+    expect(document.querySelector("[data-month-day]")).toBeNull();
+  });
+
+  test("«Gastado» repeats the total and counts the expenses", () => {
+    renderMonth([expense({ amountCents: 1250 }), expense({ amountCents: 500 })]);
+    const card = document.querySelector("[data-spent-card]");
+    expect(card).toHaveAccessibleName("Gastado: 17.50 soles, 2 gastos");
+  });
+
+  test("the stacked bar: one toggle per category with PEN, reachable by keyboard, same state as its row", async () => {
+    const user = userEvent.setup();
+    renderMonth([
+      expense({ amountCents: 6000, category: COMIDA }),
+      expense({ amountCents: 2000, category: CASA }),
+      expense({ currency: "USD", amountCents: 900, exchangeRateE4: null, category: null }),
+    ]);
+    const bar = document.querySelector("[data-stacked-bar]") as HTMLElement;
+    const segments = within(bar).getAllByRole("button");
+    // The USD without a rate has no PEN: no segment, only its row.
+    expect(segments.map((segment) => segment.getAttribute("aria-label"))).toEqual([
+      "Barra, Comida: 60 soles",
+      "Barra, Casa: 20 soles",
+    ]);
+    segments[0].focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("tab", { name: "Gastos" })).toHaveAttribute("aria-selected", "true");
+    expect(segments[0]).toHaveAttribute("aria-pressed", "true");
+    expect(segments[1]).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /^Comida, 60 soles/, hidden: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  test("each day of «Gastos» shows its total (and says it), the list keeps its name", () => {
+    renderMonth(
+      [
+        expense({ description: "Café", amountCents: 1250 }),
+        expense({ description: "Pan", amountCents: 300 }),
+        expense({ description: "Antes", amountCents: 700, spentOn: "2026-10-04" }),
+      ],
+      { section: "mes:gas" },
+    );
+    expect(document.querySelector('[data-day-total="2026-10-05"]')).toHaveTextContent(
+      "S/ 15.50Total del día: 15.50 soles",
+    );
+    expect(document.querySelector('[data-day-total="2026-10-04"]')).toHaveTextContent("S/ 7.00");
+    expect(screen.getByRole("list", { name: "Hoy" })).toBeInTheDocument();
+  });
+
+  test("one card holds «Por medio de pago» and «Recurrente y suelto»", () => {
+    renderMonth([expense({ amountCents: 1000, paymentMethod: EFECTIVO })]);
+    const card = document.querySelector("[data-month-mix]") as HTMLElement;
+    expect(within(card).getByRole("list", { name: "Por medio de pago" })).toBeInTheDocument();
+    expect(within(card).getByText("Recurrente y suelto")).toBeInTheDocument();
   });
 });

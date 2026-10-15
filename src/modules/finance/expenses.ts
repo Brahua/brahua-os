@@ -16,6 +16,7 @@ import {
 import type { CreateExpenseInput, ExpenseItem, UpdateExpenseInput } from "./expense-input";
 import type { Currency } from "./finance-constants";
 import { rateFromDb } from "./money";
+import type { TrendExpense } from "./trend";
 
 type Reader = Database | Tx;
 
@@ -116,6 +117,38 @@ export async function selectMonthExpenses(db: Reader, month: string): Promise<Ex
       lt(financeExpenses.spentOn, nextMonthStart(month)),
     ),
   );
+}
+
+/**
+ * The thin rows of the months `from`..`to` (YYYY-MM, both included): what `trend.ts` needs to total
+ * each month. Visible expenses only, one query (the spent_on index).
+ */
+export async function selectTrendRows(
+  db: Reader,
+  from: string,
+  to: string,
+): Promise<TrendExpense[]> {
+  const rows = await db
+    .select({
+      amountCents: financeExpenses.amountCents,
+      currency: financeExpenses.currency,
+      exchangeRate: financeExpenses.exchangeRate,
+      spentOn: financeExpenses.spentOn,
+    })
+    .from(financeExpenses)
+    .where(
+      and(
+        visibleExpense,
+        gte(financeExpenses.spentOn, `${from}-01`),
+        lt(financeExpenses.spentOn, nextMonthStart(to)),
+      ),
+    );
+  return rows.map((row) => ({
+    amountCents: row.amountCents,
+    currency: row.currency,
+    exchangeRateE4: rateFromDb(row.exchangeRate),
+    spentOn: row.spentOn,
+  }));
 }
 
 /** A category still visible, locked FOR SHARE (an archive at the same time waits). */

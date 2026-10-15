@@ -14,6 +14,7 @@ import {
   insertCategory,
   insertExpense,
   insertMethod,
+  openExpenses,
   openReady,
   readAllExpenses,
   readExpenses,
@@ -178,7 +179,7 @@ test("edit an expense from the month; delete it and undo", async ({ page }) => {
     paymentMethodId: methodId,
   });
   await insertExpense({ description: "Pan", amountCents: 450, spentOn: today() });
-  await openReady(page, "/finance");
+  await openExpenses(page);
   await expect(expenseRow(page, "Mercado")).toHaveAccessibleName(
     "Editar Mercado, 80 soles, Crédito",
   );
@@ -381,6 +382,8 @@ for (const theme of THEMES) {
     await setTheme(page, theme);
     expect(await axeViolations(page)).toEqual([]);
 
+    await page.getByRole("tab", { name: "Gastos" }).click();
+    expect(await axeViolations(page)).toEqual([]);
     await expenseRow(page, "Café").click();
     await expect(expenseSheet(page, "Editar gasto")).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);

@@ -250,7 +250,7 @@ for (const theme of THEMES) {
     const id = await insertRecurring({ name: "Notebook", installmentsTotal: 3 });
     await openReady(page, "/finance");
     await setTheme(page, theme);
-    await page.getByRole("tab", { name: "Pagos" }).click();
+    await page.getByRole("tab", { name: "Pendientes" }).click();
     await expect(pendingList(page)).toContainText("Cuota 1 de 3");
     expect(await axeViolations(page)).toEqual([]);
     await expectScreenshot(pendingList(page), `finance-installments-pending-${theme}.png`);

@@ -107,3 +107,29 @@
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--color-divider);
 }
+
+/*
+ * PENDING UPSTREAM (2026-10-14, finance-motion M2): the category accents --cat-1…8 of the Finanzas
+ * design (Finanzas.dc.html, --c1…--c8) are not in the synced tokens. One subtle accent per
+ * category: a dot, a stacked-bar segment, never a fill. Apply in Claude Design, then remove here.
+ */
+[data-theme="dark"] {
+  --cat-1: #d8bc84;
+  --cat-2: #6fc0bb;
+  --cat-3: #82b8e8;
+  --cat-4: #e39abf;
+  --cat-5: #b79fea;
+  --cat-6: #8e9bf0;
+  --cat-7: #bdb2a5;
+  --cat-8: #8c98a8;
+}
+[data-theme="light"] {
+  --cat-1: #8a6a1e;
+  --cat-2: #0f7470;
+  --cat-3: #1f6ca8;
+  --cat-4: #a8326f;
+  --cat-5: #6d45c2;
+  --cat-6: #3a4fc4;
+  --cat-7: #7a6c5c;
+  --cat-8: #566274;
+}

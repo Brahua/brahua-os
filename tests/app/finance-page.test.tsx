@@ -45,6 +45,7 @@ vi.mock("@number-flow/react", () => ({ default: ({ value }: { value: number }) =
 vi.mock("@/modules/finance/queries", () => ({
   getFinanceCatalog: vi.fn(),
   listMonthExpenses: vi.fn(),
+  getMonthlyTotals: vi.fn(async () => []),
 }));
 vi.mock("@/modules/finance/email/queries", () => ({
   listSuggestions: vi.fn(async () => []),
@@ -434,6 +435,7 @@ describe("/finance", () => {
       totalPenCents: 5000,
       unconvertedUsdCents: 0,
       variableCount: 1,
+      nextDueOn: "2026-09-20",
     });
     cookieJar.value = "payments";
     render(await FinancePage({ searchParams: Promise.resolve({ mes: "2026-09" }) }));
@@ -441,26 +443,26 @@ describe("/finance", () => {
     expect(listMonthExpenses).toHaveBeenCalledWith("2026-09");
     expect(screen.getByRole("heading", { level: 1, name: "Finanzas" })).toBeInTheDocument();
     const tabs = screen.getByRole("tablist", { name: "Vista de Finanzas" });
-    expect(within(tabs).getByRole("tab", { name: "Pagos" })).toHaveAttribute(
+    expect(within(tabs).getByRole("tab", { name: "Pendientes" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(document.querySelector('[data-finance-view="month"]')).toHaveAttribute("hidden");
+    expect(document.querySelector('[data-finance-view="mes:res"]')).toHaveAttribute("hidden");
     // F2: "Pagos" shows its sections.
     expect(getPaymentsView).toHaveBeenCalledWith(TODAY);
     expect(screen.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
     // Switching writes the cookie.
-    await userEvent.setup().click(within(tabs).getByRole("tab", { name: "Mes" }));
-    expect(document.cookie).toContain("bo_finance_view=month");
+    await userEvent.setup().click(within(tabs).getByRole("tab", { name: "Resumen" }));
+    expect(document.cookie).toContain("bo_finance_view=mes:res");
     expect(screen.getByRole("heading", { level: 2, name: "Setiembre 2026" })).toBeVisible();
     expect(screen.getByText("Sin gastos este mes")).toBeVisible();
     // F3: the month's "Pendiente de pagar", from F2's getPendingForMonth.
     expect(getPendingForMonth).toHaveBeenCalledWith("2026-09", TODAY);
     expect(
       screen.getByRole("button", {
-        name: "Pendiente de pagar: 50 soles, y 1 de monto variable, 2 pagos. Ver en Pagos",
+        name: /^Pendiente de pagar: 50 soles, y 1 de monto variable, próximo .+, 2 pagos\. Ver pendientes$/,
       }),
-    ).toHaveTextContent("50 + 1 de monto variable");
+    ).toHaveTextContent("50");
   });
 
   test("the month's expenses by day, the most recent first, with USD converted", () => {

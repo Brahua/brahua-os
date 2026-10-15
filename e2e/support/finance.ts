@@ -257,11 +257,18 @@ export function readRecurringExpenses(recurringId: string) {
   );
 }
 
-/** Opens /finance on "Pagos" (the switch remembers it on the device). */
+/** Opens /finance on «Pendientes» (the switch remembers it on the device). */
 export async function openPayments(page: Page) {
   await openReady(page, "/finance");
-  await page.getByRole("tab", { name: "Pagos" }).click();
+  await page.getByRole("tab", { name: "Pendientes" }).click();
   await expect(page.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
+}
+
+/** Opens /finance on «Gastos»: the month's rows (the screen opens on «Resumen»). */
+export async function openExpenses(page: Page) {
+  await openReady(page, "/finance");
+  await page.getByRole("tab", { name: "Gastos" }).click();
+  await expect(page.getByRole("heading", { level: 3, name: "Gastos del mes" })).toBeVisible();
 }
 
 /** A pending row's "Pagado" key (one tap) or "Pagado…" (variable), by the payment's name. */

@@ -177,7 +177,7 @@ export function TodayPayments({ today, payments }: TodayPaymentsProps) {
               // /finance opens on "Pagos" (the view switch remembers it on the device).
               onClick={() => {
                 document.cookie = financeViewCookie(
-                  "payments",
+                  "pagos:pen",
                   window.location.protocol === "https:",
                 );
               }}

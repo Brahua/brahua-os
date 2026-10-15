@@ -113,6 +113,7 @@ test("a posted batch becomes suggestions; Registrar makes the expense with the m
     spentOn: today,
     paymentMethodId: methodId,
   });
+  await page.getByRole("tab", { name: "Gastos" }).click();
   await expect(page.getByRole("button", { name: /^Editar TIENDA DEMO/ })).toBeVisible();
 
   // Deshacer: the expense goes and the suggestion is back in the inbox.

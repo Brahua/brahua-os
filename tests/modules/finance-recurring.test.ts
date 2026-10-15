@@ -377,12 +377,14 @@ describe("pendingForMonth (F3's Pendiente de pagar)", () => {
       totalPenCents: 10_000 + 3750,
       unconvertedUsdCents: 0,
       variableCount: 1,
+      nextDueOn: expect.any(String),
     });
     expect(pendingForMonth(items, settlements, "2026-10", "2026-10-05", null)).toEqual({
       count: 3,
       totalPenCents: 10_000,
       unconvertedUsdCents: 1000,
       variableCount: 1,
+      nextDueOn: expect.any(String),
     });
   });
 

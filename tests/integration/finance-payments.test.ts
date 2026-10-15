@@ -525,6 +525,7 @@ describe("reads", () => {
       totalPenCents: 10_000 + 4000,
       unconvertedUsdCents: 0,
       variableCount: 1,
+      nextDueOn: expect.any(String),
     });
     unwrap(await markPaid({ id: pen.id, dueOn: today() }));
     unwrap(await skipPeriod({ id: usd.id, dueOn: today() }));
@@ -533,6 +534,7 @@ describe("reads", () => {
       totalPenCents: 0,
       unconvertedUsdCents: 0,
       variableCount: 1,
+      nextDueOn: expect.any(String),
     });
   });
 });
