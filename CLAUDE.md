@@ -345,5 +345,9 @@ Recurring review findings and incidents, turned into rules. Apply them before re
   is CSS; Motion is for changes after hydration (`AnimatePresence initial={false}`).
 - **A color per category is data, not index:** the accent lives in `color_slot` (backfilled by order,
   first free slot on create); drawing by list position changed the color of a category whenever the order did.
-- **Unmeasured:** the JS added to `/finance` (goal ≤ 25 kB gz) was not measured (CI prints no size); the
-  Checkpoint in production and the iPhone check are still pending.
+- **Measure the JS with two builds:** CI prints no size. Build the commit before the module and the one
+  after, and sum the gzip of the chunks listed in `.next/server/app/(app)/finance/page_client-reference-manifest.js`
+  (+42.2 kB gz against a goal of 25: set the goal with the first slice, not at the end).
+- **A Chrome tab driven by the agent can be hidden:** `document.visibilityState` was `hidden`, so
+  `requestAnimationFrame` and CSS animations stood still (rows stuck mid-fold, sheets that never finished
+  closing). Check it first; motion needs the owner's eyes (iPhone), the data checks do not.
