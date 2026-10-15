@@ -20,6 +20,11 @@ type FinanceViewsValue = {
   section: FinanceSection;
   /** Shows a section as its tab would (remembered too) and moves focus to its tab. */
   showSection: (section: FinanceSection) => void;
+  /**
+   * «Pagado» saved: the «Pagados» tab pulses with a `signal` ring for a second (nothing with
+   * reduced motion). Call it only after the action succeeded.
+   */
+  celebratePaid: () => void;
   /** The ids, ref and visibility of a section's panel (`ViewPanel` applies them). */
   panelFor: (section: FinanceSection) => {
     id: string;
@@ -35,6 +40,9 @@ const FinanceViewsContext = createContext<FinanceViewsValue | null>(null);
 export function useFinanceViews(): FinanceViewsValue | null {
   return use(FinanceViewsContext);
 }
+
+/** How long the «Pagados» tab keeps its ring (SPEC: the celebration lasts 1000 ms). */
+const PULSE_MS = 1000;
 
 const SECTION_LABEL: Record<FinanceSection, string> = {
   "mes:res": FINANCE_COPY.sectionSummary,
@@ -99,6 +107,24 @@ export function FinanceViews({ initialSection, month, payments }: FinanceViewsPr
   // A section shown from inside a panel (the summary's cards): its tab takes focus once shown.
   const focusTab = useRef<FinanceSection | null>(null);
 
+  // The celebration alternates between two attribute values so a second one restarts the CSS
+  // animation; the timer is cleared with the screen.
+  const [pulse, setPulse] = useState(0);
+  const celebratePaid = useCallback(() => setPulse((count) => count + 1), []);
+  useEffect(() => {
+    if (pulse === 0) return;
+    const button =
+      tabs.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[
+        FINANCE_SECTIONS.indexOf("pagos:pag")
+      ];
+    button?.setAttribute("data-paid-pulse", pulse % 2 === 0 ? "b" : "a");
+    const timer = setTimeout(() => button?.removeAttribute("data-paid-pulse"), PULSE_MS);
+    return () => {
+      clearTimeout(timer);
+      button?.removeAttribute("data-paid-pulse");
+    };
+  }, [pulse]);
+
   const choose = useCallback((next: FinanceSection) => {
     setSection(next);
     document.cookie = financeViewCookie(next, window.location.protocol === "https:");
@@ -106,6 +132,7 @@ export function FinanceViews({ initialSection, month, payments }: FinanceViewsPr
   const switcher = useMemo<FinanceViewsValue>(
     () => ({
       section,
+      celebratePaid,
       showSection: (next) => {
         focusTab.current = next;
         choose(next);
@@ -119,7 +146,7 @@ export function FinanceViews({ initialSection, month, payments }: FinanceViewsPr
     }),
     // `panel` and the id helpers are recreated each render but only read `section` and `ids`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [section, choose, ids],
+    [section, choose, ids, celebratePaid],
   );
 
   useEffect(() => {

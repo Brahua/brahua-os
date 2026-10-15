@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
   startTransition,
@@ -50,6 +51,8 @@ import {
 } from "./month-summary";
 import { AreaChart } from "./area-chart";
 import { Sparkline } from "./sparkline";
+import { FilterChip } from "./filter-chip";
+import { PresenceItem } from "./presence-item";
 import { StackedBar } from "./stacked-bar";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
@@ -423,16 +426,7 @@ export function MonthView({
               >
                 {SUMMARY_COPY.listHeading}
               </h3>
-              {active ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-month-filter="">
-                  <p className="bo-text-body-sm text-text-secondary">
-                    {`${SUMMARY_COPY.filteredBy(active.name)} · ${SUMMARY_COPY.expenses(listed.length)}`}
-                  </p>
-                  <Key variant="ghost" icon={X} onClick={clearFilter}>
-                    {SUMMARY_COPY.clearFilter}
-                  </Key>
-                </div>
-              ) : null}
+              <FilterChip name={active?.name ?? null} count={listed.length} onClear={clearFilter} />
             </div>
             {shown.length === 0 ? (
               <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
@@ -467,20 +461,22 @@ export function MonthView({
                         ) : null}
                       </div>
                       <ul aria-labelledby={dayId} className="bo-list">
-                        {group.expenses.map((expense) => (
-                          <li key={expense.id}>
-                            <ExpenseRow
-                              expense={expense}
-                              ref={(element) => {
-                                if (element) rows.current.set(expense.id, element);
-                                else rows.current.delete(expense.id);
-                              }}
-                              onOpen={(element) => openSheet(expense, element)}
-                              accent={active ? expense.category?.colorSlot : undefined}
-                              filtered={active !== null}
-                            />
-                          </li>
-                        ))}
+                        <AnimatePresence initial={false}>
+                          {group.expenses.map((expense) => (
+                            <PresenceItem key={expense.id}>
+                              <ExpenseRow
+                                expense={expense}
+                                ref={(element) => {
+                                  if (element) rows.current.set(expense.id, element);
+                                  else rows.current.delete(expense.id);
+                                }}
+                                onOpen={(element) => openSheet(expense, element)}
+                                accent={active ? expense.category?.colorSlot : undefined}
+                                filtered={active !== null}
+                              />
+                            </PresenceItem>
+                          ))}
+                        </AnimatePresence>
                       </ul>
                     </div>
                   );

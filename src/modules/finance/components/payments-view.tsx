@@ -31,7 +31,7 @@ import type { RecurringItem } from "../recurring-input";
 import { recurringPaymentPath } from "../routes";
 import { monthOfDay } from "../schedule";
 import { installmentOf } from "../today-summary";
-import { ViewPanel } from "./finance-views";
+import { useFinanceViews, ViewPanel } from "./finance-views";
 import { useFinanceScreen } from "./finance-screen";
 import { PaySheet, type PayOverrides } from "./pay-sheet";
 import { RecurringSheet } from "./recurring-sheet";
@@ -79,6 +79,7 @@ type Settled = "paid" | "skipped";
  */
 export function PaymentsView({ data }: { data: PaymentsViewData }) {
   const { today, catalog, enqueue, toaster, announce } = useFinanceScreen();
+  const views = useFinanceViews();
   const completion = useMemo(
     () => paymentCompletion({ enqueue, toaster, announce }),
     [enqueue, toaster, announce],
@@ -175,9 +176,11 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
       settle([periodKey(period), "paid"]);
       // A failure puts it back in the list (the optimistic removal ends with the transition),
       // unless it was already paid: the page's new data leaves it out.
-      await completion.pay(payable(period), overrides, (expenseId, closedStamp) =>
+      const outcome = await completion.pay(payable(period), overrides, (expenseId, closedStamp) =>
         undoPay(period, expenseId, closedStamp),
       );
+      // Only a saved pay celebrates: a refusal, a network error or a newer call do not.
+      if (outcome === "saved") views?.celebratePaid();
     });
   }
 
