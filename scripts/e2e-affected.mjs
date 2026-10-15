@@ -37,6 +37,7 @@ export const SPEC_MODULES = {
   "design-system.spec.ts": ["core"],
   "error-pages.spec.ts": ["core"],
   "finance-email.spec.ts": ["finance"],
+  "finance-gastos.spec.ts": ["finance"],
   "finance-installments.spec.ts": ["finance", "today"],
   "finance-motion.spec.ts": ["finance"],
   "finance-payments.spec.ts": ["finance", "today"],
