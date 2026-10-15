@@ -35,7 +35,16 @@ export function Cascade({ index, className, attrs, children }: CascadeProps) {
       </div>
     );
   return (
-    <m.div className={className} variants={cascade} custom={index} initial="hidden" animate="shown">
+    <m.div
+      className={className}
+      {...attrs}
+      // E2E waits for it to finish (`animationsSettled`): Motion moves it with frames, not CSS.
+      data-motion-cascade=""
+      variants={cascade}
+      custom={index}
+      initial="hidden"
+      animate="shown"
+    >
       {children}
     </m.div>
   );

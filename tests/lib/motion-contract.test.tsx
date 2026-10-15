@@ -1,4 +1,6 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Cascade,
@@ -8,10 +10,12 @@ import {
   drawPath,
   flash,
   MotionProvider,
+  markEntered,
   pop,
   resetEntryForTests,
   slideSwap,
   SCREEN,
+  useCrossFade,
   useDirectionalSwap,
   useValueTransition,
 } from "@/lib/motion";
@@ -136,6 +140,8 @@ describe("useDirectionalSwap", () => {
     const { rerender } = render(<Swap order={10} pending={false} intent={1} />);
     rerender(<Swap order={10} pending intent={1} />);
     expect(calls().at(-1)![1]).toMatchObject({ opacity: 0.4, transform: "translateX(-8px)" });
+    // The exit finished and left the content dimmed (the browser commits its end style).
+    screen.getByText("contenido").style.opacity = "0.4";
     rerender(<Swap order={11} pending={false} intent={1} />);
     expect(calls().at(-1)![1]).toMatchObject({
       opacity: [0.4, 1],
@@ -175,5 +181,134 @@ describe("useDirectionalSwap", () => {
     rerender(<Swap order={10} pending intent={1} />);
     act(() => unmount());
     expect(cancel).toHaveBeenCalled();
+  });
+});
+
+describe("useDirectionalSwap: fast sequences", () => {
+  function Swap(props: { order: number; pending: boolean; intent: 1 | -1 }) {
+    const ref = useDirectionalSwap<HTMLDivElement>(props);
+    return <div ref={ref}>contenido</div>;
+  }
+
+  it("never cancels an animation when the next one starts (that would snap the content back)", () => {
+    const cancel = vi.fn();
+    animate.mockReturnValue({ cancel });
+    const { rerender, unmount } = render(<Swap order={10} pending={false} intent={1} />);
+    rerender(<Swap order={10} pending intent={1} />);
+    // The arrow is pressed the other way before the answer: the exit turns around.
+    rerender(<Swap order={10} pending intent={-1} />);
+    rerender(<Swap order={9} pending={false} intent={-1} />);
+    expect(animate).toHaveBeenCalledTimes(3);
+    expect(cancel).not.toHaveBeenCalled();
+    unmount();
+    expect(cancel).toHaveBeenCalledTimes(3);
+    animate.mockReset();
+    animate.mockReturnValue({ cancel: vi.fn() });
+  });
+});
+
+describe("useCrossFade", () => {
+  function Panels({ shown }: { shown: "a" | "b" }) {
+    const panel = useCrossFade(shown);
+    return (
+      <>
+        <div ref={panel("a")} hidden={shown !== "a"}>
+          panel a
+        </div>
+        <div ref={panel("b")} hidden={shown !== "b"}>
+          panel b
+        </div>
+      </>
+    );
+  }
+
+  it("animates nothing on the first render and fades in the panel that appears", () => {
+    const { rerender } = render(<Panels shown="a" />);
+    expect(animate).not.toHaveBeenCalled();
+    rerender(<Panels shown="b" />);
+    const [element, keyframes] = animate.mock.calls.at(-1) as unknown as [
+      HTMLElement,
+      Record<string, unknown>,
+    ];
+    expect(element).toHaveTextContent("panel b");
+    expect(keyframes).toMatchObject({ opacity: [0, 1], transform: ["translateY(6px)", "none"] });
+  });
+
+  it("with reduced motion it only fades", () => {
+    reducedMotion(true);
+    const { rerender } = render(<Panels shown="a" />);
+    rerender(<Panels shown="b" />);
+    const [, keyframes] = animate.mock.calls.at(-1) as unknown as [
+      HTMLElement,
+      Record<string, unknown>,
+    ];
+    expect(keyframes).toMatchObject({ opacity: [0, 1], transform: ["none", "none"] });
+  });
+
+  it("does nothing without Web Animations", () => {
+    // @ts-expect-error the stub is removed to look like jsdom
+    delete HTMLElement.prototype.animate;
+    const { rerender } = render(<Panels shown="a" />);
+    rerender(<Panels shown="b" />);
+    expect(animate).not.toHaveBeenCalled();
+  });
+});
+
+describe("Cascade: stability and hydration", () => {
+  it("keeps its element when the first block closes the entry (positive control: it did close)", () => {
+    const tree = (
+      <MotionProvider>
+        <Cascade index={0}>
+          <p>bloque</p>
+        </Cascade>
+      </MotionProvider>
+    );
+    const { rerender } = render(tree);
+    const before = screen.getByText("bloque").parentElement;
+    expect(before).toHaveAttribute("data-motion-cascade");
+    // Its own effect called markEntered: a block mounted now is plain…
+    const { container } = render(
+      <MotionProvider>
+        <Cascade index={1}>
+          <p>tarde</p>
+        </Cascade>
+      </MotionProvider>,
+    );
+    expect(container.querySelector("[data-motion-cascade]")).toBeNull();
+    // …but the first one is still the same node, not remounted as a plain div.
+    rerender(tree);
+    expect(screen.getByText("bloque").parentElement).toBe(before);
+  });
+
+  it("hydrates what the server rendered without a mismatch", () => {
+    resetEntryForTests();
+    const tree = (
+      <MotionProvider>
+        <Cascade index={0} attrs={{ "data-x": "1" }}>
+          <p>servidor</p>
+        </Cascade>
+      </MotionProvider>
+    );
+    const html = renderToString(tree);
+    expect(html).toContain("opacity:0");
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    document.body.append(host);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    act(() => {
+      hydrateRoot(host, tree);
+    });
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+    expect(host.querySelector("[data-x]")).toHaveAttribute("data-motion-cascade");
+    host.remove();
+  });
+});
+
+describe("markEntered", () => {
+  it("is idempotent", () => {
+    resetEntryForTests();
+    markEntered();
+    expect(() => markEntered()).not.toThrow();
   });
 });
