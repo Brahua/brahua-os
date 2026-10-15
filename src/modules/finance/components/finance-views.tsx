@@ -145,8 +145,8 @@ export function FinanceViews({ initialSection, month, payments }: FinanceViewsPr
 
   return (
     <div className="flex flex-col gap-6">
-      <Cascade index={1} className="self-start">
-        <div ref={tabs} data-finance-sections="">
+      <Cascade index={1} className="max-w-full self-start">
+        <div ref={tabs} className="bo-finance-sections" data-finance-sections="">
           <SegmentedControl
             touch
             label={FINANCE_COPY.viewsLabel}

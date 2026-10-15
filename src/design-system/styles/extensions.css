@@ -334,3 +334,8 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
   .bo-stacked-bar__segment, .bo-cat-dot { forced-color-adjust: none; background: CanvasText; }
   .bo-stacked-bar__segment[aria-pressed="true"] { box-shadow: 0 0 0 2px Canvas, 0 0 0 4px Highlight; }
 }
+
+/* finance-motion M2: four sections must fit a 320 px screen: tighter items, and the control scrolls
+   inside its own box (never the page) if the labels still do not fit. */
+.bo-finance-sections { max-width: 100%; overflow-x: auto; }
+.bo-finance-sections .bo-segmented__item { padding: 0 10px; white-space: nowrap; }
