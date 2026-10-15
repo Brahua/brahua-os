@@ -257,11 +257,18 @@ export function readRecurringExpenses(recurringId: string) {
   );
 }
 
-/** Opens /finance on «Pendientes» (the switch remembers it on the device). */
+/** Opens /finance on «Gastos», where the payments left to pay are paid or skipped («Por pagar»). */
 export async function openPayments(page: Page) {
   await openReady(page, "/finance");
-  await page.getByRole("tab", { name: "Pendientes" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
+  await page.getByRole("tab", { name: "Gastos" }).click();
+  await expect(page.getByRole("heading", { level: 3, name: "Por pagar" })).toBeVisible();
+}
+
+/** Opens /finance on «Recurrentes», the upkeep of the recurring payments. */
+export async function openRecurring(page: Page) {
+  await openReady(page, "/finance");
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Pagos recurrentes" })).toBeVisible();
 }
 
 /** Opens /finance on «Gastos»: the month's rows (the screen opens on «Resumen»). */

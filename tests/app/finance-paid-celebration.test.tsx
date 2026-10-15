@@ -1,4 +1,4 @@
-// finance-motion M5: «Pagado» celebrates only after the action saved: the «Pagados» tab gets a
+// finance-motion M5: «Pagado» celebrates only after the action saved: the month's total gets a
 // signal ring for a second. A refusal does not, and the ring goes away on its own.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,7 +7,7 @@ import { fail, ok } from "@/lib/action-result";
 import type { FinanceCatalog } from "@/modules/finance/catalog-input";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { FinanceViews } from "@/modules/finance/components/finance-views";
-import { PaymentsView } from "@/modules/finance/components/payments-view";
+import { MonthView } from "@/modules/finance/components/month-view";
 import { markPaid } from "@/modules/finance/payment-actions";
 import { RECURRING_ERRORS } from "@/modules/finance/payments-copy";
 import { buildPaymentsView } from "@/modules/finance/payments-view";
@@ -61,15 +61,21 @@ function renderScreen() {
   return render(
     <FinanceScreen today={TODAY} catalog={CATALOG}>
       <FinanceViews
-        initialSection="pagos:pen"
-        month={<p>Mes</p>}
-        payments={<PaymentsView data={buildPaymentsView([INTERNET], [], TODAY)} />}
+        initialSection="mes:gas"
+        month={
+          <MonthView
+            month="2026-10"
+            expenses={[]}
+            pendingPeriods={buildPaymentsView([INTERNET], [], TODAY).pending}
+          />
+        }
+        payments={<p>Recurrentes</p>}
       />
     </FinanceScreen>,
   );
 }
 
-const paidTab = () => screen.getByRole("tab", { name: "Pagados" });
+const paidTotal = () => document.querySelector("[data-month-total]") as HTMLElement;
 const payKey = () => screen.getByRole("button", { name: /^Pagado: Internet,/ });
 
 beforeEach(() => {
@@ -83,7 +89,7 @@ beforeEach(() => {
 });
 
 describe("«Pagado» celebration", () => {
-  test("after the pay saved, the «Pagados» tab pulses; the ring goes away by itself", async () => {
+  test("after the pay saved, the month total pulses; the ring goes away by itself", async () => {
     const user = userEvent.setup();
     vi.mocked(markPaid).mockResolvedValue(
       ok({
@@ -104,13 +110,13 @@ describe("«Pagado» celebration", () => {
       }),
     );
     renderScreen();
-    expect(paidTab()).not.toHaveAttribute("data-paid-pulse");
+    expect(paidTotal()).not.toHaveAttribute("data-paid-pulse");
     await user.click(payKey());
-    await waitFor(() => expect(paidTab()).toHaveAttribute("data-paid-pulse"));
+    await waitFor(() => expect(paidTotal()).toHaveAttribute("data-paid-pulse"));
     await within(screen.getByRole("region", { name: "Avisos de Finanzas" })).findByText(
       "Pago registrado",
     );
-    await waitFor(() => expect(paidTab()).not.toHaveAttribute("data-paid-pulse"), {
+    await waitFor(() => expect(paidTotal()).not.toHaveAttribute("data-paid-pulse"), {
       timeout: 2500,
     });
   });
@@ -123,6 +129,6 @@ describe("«Pagado» celebration", () => {
     await within(screen.getByRole("region", { name: "Avisos de Finanzas" })).findByText(
       /No se pudo registrar el pago/,
     );
-    expect(paidTab()).not.toHaveAttribute("data-paid-pulse");
+    expect(paidTotal()).not.toHaveAttribute("data-paid-pulse");
   });
 });

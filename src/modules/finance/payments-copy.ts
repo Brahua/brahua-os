@@ -159,11 +159,11 @@ export const isUrgent = (state: DueState) => state.kind === "overdue" || state.k
 
 export const PAYMENTS_COPY = {
   // Sections of "Pagos"
-  pendingHeading: "Pendientes",
+  pendingHeading: "Por pagar",
   pendingEmpty: "Nada pendiente: no hay pagos vencidos ni que venzan en los próximos 7 días.",
   monthHeading: (month: string) => `Este mes · ${month}`,
   monthEmpty: "Ningún pago recurrente activo.",
-  allHeading: "Todos",
+  allHeading: "Pagos recurrentes",
   allEmpty: "Todavía no hay pagos recurrentes. Crea el primero con «Nuevo pago recurrente».",
   archivedHeading: (count: number) => `Archivados (${count})`,
   newPayment: "Nuevo pago recurrente",

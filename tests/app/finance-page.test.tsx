@@ -444,14 +444,14 @@ describe("/finance", () => {
     expect(listMonthExpenses).toHaveBeenCalledWith("2026-09");
     expect(screen.getByRole("heading", { level: 1, name: "Finanzas" })).toBeInTheDocument();
     const tabs = screen.getByRole("tablist", { name: "Vista de Finanzas" });
-    expect(within(tabs).getByRole("tab", { name: "Pendientes" })).toHaveAttribute(
+    expect(within(tabs).getByRole("tab", { name: "Recurrentes" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     expect(document.querySelector('[data-finance-view="mes:res"]')).toHaveAttribute("hidden");
-    // F2: "Pagos" shows its sections.
+    // F2: «Recurrentes» shows the payments.
     expect(getPaymentsView).toHaveBeenCalledWith(TODAY);
-    expect(screen.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: "Pagos recurrentes" })).toBeVisible();
     // Switching writes the cookie.
     await userEvent.setup().click(within(tabs).getByRole("tab", { name: "Resumen" }));
     expect(document.cookie).toContain("bo_finance_view=mes:res");

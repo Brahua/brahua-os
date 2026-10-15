@@ -206,7 +206,7 @@ describe("what a row shows", () => {
     expect(link).toHaveAttribute("href", "/finance");
     link.addEventListener("click", (event) => event.preventDefault());
     await user.click(link);
-    expect(document.cookie).toContain("bo_finance_view=pagos:pen");
+    expect(document.cookie).toContain("bo_finance_view=recurrentes");
   });
 
   test("with no payments the section renders nothing (the slot stays mounted)", () => {

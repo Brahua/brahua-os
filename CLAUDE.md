@@ -323,3 +323,27 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **El texto plano de un correo HTML no es el que viste:** `getPlainBody` aplana las tablas a su manera (el BCP es solo HTML). Los lectores se apoyan en la frase de arriba y en etiquetas con cualquier separador, y se prueban en varias formas de aplanado; el primer correo real de cada banco es parte del Checkpoint, no de la spec.
 - **El texto plano de Gmail marca la negrita con asteriscos** (`*PARAMOUNT+*`): se recortan solo los extremos de cada valor (un `*` interno, como `DLC*help`, se queda). Ver el primer correo real de cada formato antes de dar por buenas las fixtures.
 
+
+## Lessons from `finance-motion` (retrospective, 2026-10-15)
+
+- **Moving a block between hidden panels breaks every spec that reads it:** hidden panels are out of the
+  accessibility tree, so `getByRole` finds nothing. Before restructuring tabs, grep `e2e/` and the component
+  tests for the rows, lists and headings that move (`expenseRow`, `payKey`, list names) and give the specs a
+  helper that opens the right tab (`openPayments`, `openRecurring`, `openExpenses`).
+- **Count the width of a segmented control at 320 px:** four tabs gave 411 px of scroll width on every
+  finance page and failed five @responsive specs. Check each control's width with its longest labels.
+- **Exit animations need `waitFor` in tests:** with `AnimatePresence` a row or chip stays in the DOM until its
+  exit ends; assert its absence inside `waitFor`. An unresolved `deferred()` in a failing test also keeps the
+  following tests' transitions pending: resolve it before any assertion that can throw.
+- **Stacked branches after a squash merge:** `git rebase --onto origin/main <old base> <branch>` for each
+  branch in order; a plain rebase replays the already-merged commits and conflicts on the files both appended
+  to (`extensions.css`).
+- **A new E2E spec's first run is `update-screenshots.yml`:** it also regenerates the references that the
+  restructure changed; approve the `action_required` run afterwards. Two failed CI rounds came from specs I
+  did not update (rows read from the wrong tab): grep every spec that touches the screen before the first push.
+- **CSS-only entry and draw:** anything that must be visible in the server HTML (cascade, the chart's line)
+  is CSS; Motion is for changes after hydration (`AnimatePresence initial={false}`).
+- **A color per category is data, not index:** the accent lives in `color_slot` (backfilled by order,
+  first free slot on create); drawing by list position changed the color of a category whenever the order did.
+- **Unmeasured:** the JS added to `/finance` (goal ≤ 25 kB gz) was not measured (CI prints no size); the
+  Checkpoint in production and the iPhone check are still pending.

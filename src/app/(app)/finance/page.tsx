@@ -77,7 +77,7 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
   // Back from deleting a payment on its page: "Pagos", with its "Deshacer" notice.
   const section =
     deletedName !== null
-      ? "pagos:pen"
+      ? "recurrentes"
       : parseFinanceSection((await cookies()).get(FINANCE_VIEW_COOKIE)?.value);
 
   return (
@@ -103,6 +103,7 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
               pending={pending}
               trend={trend}
               previousCumulative={previousCumulative}
+              pendingPeriods={payments.pending}
             />
           }
           payments={<PaymentsView data={payments} />}

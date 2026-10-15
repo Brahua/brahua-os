@@ -219,9 +219,12 @@ describe("routes", () => {
 
   test("the remembered section; the old values still open their group", () => {
     expect(parseFinanceSection("mes:gas")).toBe("mes:gas");
-    expect(parseFinanceSection("pagos:pag")).toBe("pagos:pag");
-    expect(parseFinanceSection("payments")).toBe("pagos:pen");
-    expect(parseFinanceSection("pagos")).toBe("pagos:pen");
+    expect(parseFinanceSection("recurrentes")).toBe("recurrentes");
+    expect(parseFinanceSection("payments")).toBe("recurrentes");
+    expect(parseFinanceSection("pagos")).toBe("recurrentes");
+    // The two values of the four-section version still open «Recurrentes».
+    expect(parseFinanceSection("pagos:pen")).toBe("recurrentes");
+    expect(parseFinanceSection("pagos:pag")).toBe("recurrentes");
     expect(parseFinanceSection("month")).toBe("mes:res");
     expect(parseFinanceSection("mes")).toBe("mes:res");
     expect(parseFinanceSection(undefined)).toBe("mes:res");
