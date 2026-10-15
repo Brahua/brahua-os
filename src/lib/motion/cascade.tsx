@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as m from "motion/react-m";
+import { cn } from "../cn";
 import { markEntered, useEntryPending } from "./entry";
-import { useMotionEnabled } from "./provider";
-import { cascade } from "./variants";
 
 type CascadeProps = {
   /** Position in the cascade: block 0 appears first. */
@@ -16,36 +14,25 @@ type CascadeProps = {
 };
 
 /**
- * A block of the entry cascade. Without a `MotionProvider`, or once the cascade has played in
- * this tab, it is a plain `div`. The first block to mount closes the entry for later screens.
+ * A block of the entry cascade: the first time the app opens in a tab it rises and fades in (the
+ * `.bo-cascade` animation in extensions.css, one step per `index`); later screens in the same tab
+ * appear as they are. It is CSS, so it plays from the first paint of the server HTML without
+ * waiting for hydration, and it needs no `MotionProvider`. Whether it animates is decided once, at
+ * mount (the server always says yes): the element never changes type or class afterwards, and
+ * the first block to mount closes the entry for the screens that come later.
  */
 export function Cascade({ index, className, attrs, children }: CascadeProps) {
-  const enabled = useMotionEnabled();
-  // Decided once, when the block mounts: the element must keep its type for its whole life (a
-  // `div` that turned into an animated one, or back, would remount its children and cut the
-  // animation) even though the first block closes the entry for the ones that come later.
-  const [pending] = useState(useEntryPending());
+  const [entering] = useState(useEntryPending());
   useEffect(() => {
-    if (enabled) markEntered();
-  }, [enabled]);
-  if (!enabled || !pending)
-    return (
-      <div className={className} {...attrs}>
-        {children}
-      </div>
-    );
+    markEntered();
+  }, []);
   return (
-    <m.div
-      className={className}
+    <div
+      className={cn(entering && "bo-cascade", className)}
+      style={entering ? ({ "--cascade-index": index } as React.CSSProperties) : undefined}
       {...attrs}
-      // E2E waits for it to finish (`animationsSettled`): Motion moves it with frames, not CSS.
-      data-motion-cascade=""
-      variants={cascade}
-      custom={index}
-      initial="hidden"
-      animate="shown"
     >
       {children}
-    </m.div>
+    </div>
   );
 }

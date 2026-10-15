@@ -33,8 +33,6 @@ export const TRAVEL = 8;
 
 /** Seconds. Timing of Finanzas that the design fixes and the CSS tokens don't name yet. */
 export const SCREEN = {
-  /** A block of the entry cascade appears after this many staggers per position (3 × 24 ms). */
-  cascadeStep: STAGGER * 3,
   /** The content leaves (towards the arrow) while the next month loads. */
   swapOut: 0.12,
   /** The next month's content arrives. */
