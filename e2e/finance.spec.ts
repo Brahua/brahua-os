@@ -106,6 +106,7 @@ test("phone: with Gasto remembered, an expense in 3 interactions and under 10 s,
     .getByRole("link", { name: "Finanzas" })
     .click();
   await expect(page).toHaveURL("/finance");
+  await page.getByRole("tab", { name: "Gastos" }).click();
   await expect(expenseRow(page, "Sin categoría")).toHaveCount(1);
   await expect(expenseRow(page, "Sin categoría")).toHaveAccessibleName(/4\.20 soles/);
 });
@@ -281,6 +282,7 @@ test("Ajustes: the rate, a category (new, archived, back) and a method in dollar
   await amountField(page).press("Enter");
   await expect(expenseStatus(page)).toHaveText("Registrado: 20 dólares, unos 75 soles.");
   await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Gastos" }).click();
   await expect(expenseRow(page, "Sin categoría")).toHaveAccessibleName(
     "Editar Sin categoría, 20 dólares, unos 75 soles, Débito dólares",
   );
