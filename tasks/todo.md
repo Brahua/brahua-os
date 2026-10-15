@@ -2,12 +2,12 @@
 
 > Módulo en curso: **`finance-motion`** (spec aprobada 2026-10-14). Último módulo cerrado: **`finance-email`** (extensión de `finance`, 2026-10-14; plan y tareas en [`archive/finance-email-plan.md`](archive/finance-email-plan.md) y [`archive/finance-email-todo.md`](archive/finance-email-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`). Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `finance-gastos` (filtros y paginación en «Gastos»): en curso
+## Módulo `finance-gastos` (filtros y paginación en «Gastos»): cerrado en código el 2026-10-15
 
 Spec: [`SPEC-finance-gastos.md`](../SPEC-finance-gastos.md) (aprobado el 2026-10-15). Un implementador a la vez; gate local liviano; push una sola vez por corte; a lo sumo **una** E2E nueva (en G2).
 
 - [x] **G1: Motor puro y panel** (`feat/finance-gastos-g1`): `expense-filters.ts` (filtros, orden, páginas y resumen de la selección, con todos los campos del spec), panel plegable con categoría, medio, texto y orden, chips por filtro, línea «N gastos · S/ …», estado vacío, filtro de categoría de «Resumen» como conjunto (suma o quita). Decisiones autónomas: cambiar de mes limpia los filtros; un gasto nuevo que los filtros ocultarían los quita todos y lo dice; ya no se quita solo el filtro cuando se vacía (hay estado vacío con «Quitar todos»).
-- [ ] **G2: Resto de filtros y paginación** (monto, fechas, tipo y moneda en el panel; «Mostrar más» por días ya está en la lista; E2E único `e2e/finance-gastos.spec.ts` + `SPEC_MODULES`; capturas).
+- [x] **G2: Resto de filtros y cierre** (`feat/finance-gastos-g2`): monto en soles, días del mes, tipo y moneda en el panel con sus chips; «Mostrar más» por días ya venía en G1; E2E único `e2e/finance-gastos.spec.ts` + `SPEC_MODULES`. **Módulo cerrado en código;** pendiente del owner revisar las decisiones autónomas del spec.
 
 ## Módulo `finance-motion` (rediseño de Finanzas con movimiento): código en producción; cierre pendiente
 

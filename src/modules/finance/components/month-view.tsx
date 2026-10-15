@@ -47,6 +47,7 @@ import {
   type MonthlyTotal,
 } from "../trend";
 import { groupKey, summarizeMonth, type MonthPending, type SummaryGroup } from "../summary";
+import { shortDay } from "../payments-copy";
 import { moneyTotalText, spokenTotal, SUMMARY_COPY } from "../summary-copy";
 import { ExpenseSheet } from "./expense-sheet";
 import { useFinanceScreen } from "./finance-screen";
@@ -339,6 +340,48 @@ export function MonthView({
           },
         ]
       : []),
+    ...(active.minCents !== null || active.maxCents !== null
+      ? [
+          {
+            key: "amount",
+            label: SUMMARY_COPY.chipAmount(
+              active.minCents === null ? null : formatMoney(active.minCents, "PEN"),
+              active.maxCents === null ? null : formatMoney(active.maxCents, "PEN"),
+            ),
+            onRemove: () => removeChip("amount", { minCents: null, maxCents: null }),
+          },
+        ]
+      : []),
+    ...(active.from !== null || active.to !== null
+      ? [
+          {
+            key: "days",
+            label: SUMMARY_COPY.chipDays(
+              active.from === null ? null : shortDay(active.from),
+              active.to === null ? null : shortDay(active.to),
+            ),
+            onRemove: () => removeChip("days", { from: null, to: null }),
+          },
+        ]
+      : []),
+    ...(active.kind !== "all"
+      ? [
+          {
+            key: "kind",
+            label: SUMMARY_COPY.kindOptions[active.kind],
+            onRemove: () => removeChip("kind", { kind: "all" }),
+          },
+        ]
+      : []),
+    ...(active.currency !== "all"
+      ? [
+          {
+            key: "currency",
+            label: SUMMARY_COPY.currencyOptions[active.currency],
+            onRemove: () => removeChip("currency", { currency: "all" }),
+          },
+        ]
+      : []),
   ];
 
   function openSheet(expense: ExpenseItem | null, opener: HTMLElement | null) {
@@ -587,6 +630,7 @@ export function MonthView({
                   onToggle={() => setPanelOpen((open) => !open)}
                   activeCount={activeCount}
                   buttonRef={filtersButton}
+                  month={month}
                 />
                 <FilterChips
                   chips={chips}

@@ -975,5 +975,70 @@ describe("the three sections (finance-motion M2)", () => {
       // The first new row takes focus when the button is gone.
       expect(screen.getByRole("button", { name: /^Editar Gasto 8/ })).toHaveFocus();
     });
+
+    describe("amount, days, kind and currency", () => {
+      const rows = () => [
+        expense({ description: "Café", amountCents: 1250, category: COMIDA }),
+        expense({ description: "Alquiler", amountCents: 80_000, recurringPaymentId: "r-1" }),
+        expense({ description: "Pan", amountCents: 300, spentOn: "2026-10-04" }),
+        expense({
+          description: "Libro",
+          amountCents: 2000,
+          currency: "USD",
+          exchangeRateE4: 37_500,
+          spentOn: "2026-10-03",
+        }),
+      ];
+      const open = async (user: ReturnType<typeof userEvent.setup>) => {
+        renderMonth(rows(), { section: "mes:gas" });
+        await user.click(screen.getByRole("button", { name: "Filtros" }));
+      };
+
+      test("a range of amount in soles converts the USD with its own rate; a wrong number says so and filters nothing", async () => {
+        const user = userEvent.setup();
+        await open(user);
+        const min = screen.getByRole("textbox", { name: "Desde" });
+        await user.type(min, "1x");
+        expect(await screen.findByText(/Escribe solo el número/)).toBeInTheDocument();
+        expect(editRows()).toHaveLength(4);
+        await user.clear(min);
+        await user.type(min, "12,50");
+        await user.type(screen.getByRole("textbox", { name: "Hasta" }), "100");
+        // Café 12.50, Libro USD 20 × 3.75 = 75.00; Alquiler 800 and Pan 3 are out.
+        await waitFor(() => expect(editRows()).toHaveLength(2));
+        expect(document.querySelector("[data-month-filter]")).toHaveTextContent(
+          "S/ 12.50 – S/ 100.00",
+        );
+        await user.click(screen.getByRole("button", { name: /^Quitar filtro: S\/.12\.50/ }));
+        await waitFor(() => expect(editRows()).toHaveLength(4));
+        expect(min).toHaveValue("");
+      });
+
+      test("days are inclusive and bounded to the month; kind and currency are one choice each", async () => {
+        const user = userEvent.setup();
+        await open(user);
+        const from = screen.getByLabelText("Desde el día");
+        expect(from).toHaveAttribute("min", "2026-10-01");
+        expect(from).toHaveAttribute("max", "2026-10-31");
+        await user.type(from, "2026-10-04");
+        await waitFor(() => expect(editRows()).toHaveLength(3));
+        await user.selectOptions(screen.getByRole("combobox", { name: "Tipo" }), "recurring");
+        await waitFor(() => expect(editRows()).toHaveLength(1));
+        expect(editRows()[0]).toMatch(/^Editar Alquiler/);
+        await user.selectOptions(screen.getByRole("combobox", { name: "Tipo" }), "all");
+        await user.selectOptions(screen.getByRole("combobox", { name: "Moneda" }), "USD");
+        // The USD one is on the 3rd, before the 4th: nothing is left, and the way out is there.
+        await waitFor(() =>
+          expect(document.querySelector("[data-filter-empty]")).toHaveTextContent("Ningún gasto"),
+        );
+        await user.click(
+          within(document.querySelector("[data-filter-empty]") as HTMLElement).getByRole("button", {
+            name: "Quitar todos",
+          }),
+        );
+        await waitFor(() => expect(editRows()).toHaveLength(4));
+        expect(screen.getByRole("button", { name: "Filtros" })).toHaveFocus();
+      });
+    });
   });
 });
