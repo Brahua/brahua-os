@@ -125,7 +125,7 @@ test("the summary: total in PEN with a USD expense, USD without a rate apart, Aj
   await expect(unconverted).toContainText("+ USD 10.00 sin convertir");
 });
 
-test("Pendiente de pagar: the month's pending payments, variable ones apart; it opens Pendientes", async ({
+test("Pendiente de pagar: the month's pending payments, variable ones apart; it opens «Gastos»", async ({
   page,
 }) => {
   // Both due today (the helper's default), neither paid: pending this month.
@@ -140,10 +140,10 @@ test("Pendiente de pagar: the month's pending payments, variable ones apart; it 
   // soles"); the visible line keeps the variable payments in plain text.
   await expect(strip).toContainText("1 de monto variable");
   await strip.click();
-  const tab = page.getByRole("tab", { name: "Pendientes" });
+  const tab = page.getByRole("tab", { name: "Gastos" });
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await expect(tab).toBeFocused();
-  await expect(page.locator('[data-finance-view="pagos:pen"]')).toBeVisible();
+  await expect(page.locator('[data-finance-view="mes:gas"]')).toBeVisible();
   await expect(page.locator('[data-finance-view="mes:res"]')).toBeHidden();
 });
 

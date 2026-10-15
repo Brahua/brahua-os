@@ -104,7 +104,7 @@ export function RecurringDetail({ item, nextDues, history, headingId }: Recurrin
       );
       if (result.kind === "done" && result.value.ok) {
         // Back to "Pagos", where the notice offers "Deshacer" (like habits and tasks).
-        document.cookie = financeViewCookie("pagos:pen", window.location.protocol === "https:");
+        document.cookie = financeViewCookie("recurrentes", window.location.protocol === "https:");
         router.push(`${FINANCE_PATH}?${DELETED_PAYMENT_PARAM}=${item.id}`);
         return;
       }

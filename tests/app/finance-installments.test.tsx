@@ -9,6 +9,7 @@ import { INVALID_FIELDS_MESSAGE, ok } from "@/lib/action-result";
 import type { FinanceCatalog } from "@/modules/finance/catalog-input";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { PaymentsView } from "@/modules/finance/components/payments-view";
+import { PendingPayments } from "@/modules/finance/components/pending-payments";
 import { RecurringDetail } from "@/modules/finance/components/recurring-detail";
 import {
   createRecurringPayment,
@@ -92,6 +93,7 @@ const lastMonth = (item: RecurringItem): SettlementItem => ({
 function renderView(items: RecurringItem[]) {
   return render(
     <FinanceScreen today={TODAY} catalog={CATALOG}>
+      <PendingPayments pending={buildPaymentsView(items, items.map(lastMonth), TODAY).pending} />
       <PaymentsView data={buildPaymentsView(items, items.map(lastMonth), TODAY)} />
     </FinanceScreen>,
   );
@@ -226,18 +228,18 @@ describe("the sheet's field", () => {
 });
 
 describe("Cuota 3 de 6", () => {
-  test("Pendientes and Este mes say the installment; the cycle says how many", () => {
+  test("Por pagar says the installment; the cycle says how many", () => {
     renderView([NOTEBOOK]);
-    const pending = screen.getByRole("list", { name: "Pendientes" });
+    const pending = screen.getByRole("list", { name: "Por pagar" });
     expect(within(pending).getByText("Cuota 5 de 6")).toBeInTheDocument();
-    const month = document.querySelector(`[data-month-row="${NOTEBOOK.id}"]`);
-    expect(month).toHaveTextContent("Cuota 5 de 6");
     // The name is described with it for screen readers.
     expect(within(pending).getByRole("link", { name: "Notebook" })).toHaveAccessibleDescription(
       /Cuota 5 de 6/,
     );
     expect(
-      within(screen.getByRole("list", { name: "Todos" })).getByRole("link", { name: /Notebook/ }),
+      within(screen.getByRole("list", { name: "Pagos recurrentes" })).getByRole("link", {
+        name: /Notebook/,
+      }),
     ).toHaveTextContent("Mensual, día 5 · 6 cuotas");
   });
 
@@ -248,7 +250,7 @@ describe("Cuota 3 de 6", () => {
 
   test("a plan that ended unsettled is Terminado in Archivados, with nothing to reactivate", () => {
     renderView([{ ...NOTEBOOK, startDate: "2025-01-05", installmentsTotal: 3 }]);
-    expect(screen.queryByRole("list", { name: "Todos" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Pagos recurrentes" })).toBeNull();
     expect(screen.getByText(/· Terminado/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Reactivar/ })).toBeNull();
   });

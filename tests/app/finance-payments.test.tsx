@@ -12,6 +12,7 @@ import { ExpenseSheet } from "@/modules/finance/components/expense-sheet";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { PaymentsDeletedNotice } from "@/modules/finance/components/payments-deleted-notice";
 import { PaymentsView } from "@/modules/finance/components/payments-view";
+import { PendingPayments } from "@/modules/finance/components/pending-payments";
 import { RecurringDetail } from "@/modules/finance/components/recurring-detail";
 import {
   archiveRecurringPayment,
@@ -116,12 +117,13 @@ function deferred<T>() {
 function renderView(items: RecurringItem[]) {
   return render(
     <FinanceScreen today={TODAY} catalog={CATALOG}>
+      <PendingPayments pending={buildPaymentsView(items, [], TODAY).pending} />
       <PaymentsView data={buildPaymentsView(items, [], TODAY)} />
     </FinanceScreen>,
   );
 }
 
-const pendingList = () => screen.getByRole("list", { name: "Pendientes" });
+const pendingList = () => screen.getByRole("list", { name: "Por pagar" });
 const payKey = (name: string) =>
   screen.getByRole("button", { name: new RegExp(`^Pagado(, con monto)?: ${name},`) });
 const notices = () => screen.getByRole("region", { name: "Avisos de Finanzas" });
@@ -166,9 +168,11 @@ describe("Pagos", () => {
     expect(within(rows[1]).getByText("Monto variable")).toBeInTheDocument();
     expect(payKey("Luz")).toHaveTextContent("Pagado…");
     expect(payKey("Luz")).toHaveAttribute("aria-haspopup", "dialog");
-    const month = screen.getByRole("list", { name: /^Este mes/ });
-    expect(within(month).getAllByRole("listitem").at(-1)).toHaveTextContent("No toca este mes");
-    const all = screen.getByRole("list", { name: "Todos" });
+    const all = screen.getByRole("list", { name: "Pagos recurrentes" });
+    // Each row says this month's state: Internet is due (today) and unpaid; the yearly one is not
+    // due this month, so it says nothing.
+    expect(within(all).getByRole("link", { name: /Internet/ })).toHaveTextContent("Pendiente");
+    expect(within(all).getByRole("link", { name: /Seguro/ })).not.toHaveTextContent("Pendiente");
     expect(within(all).getByRole("link", { name: /Seguro/ })).toHaveTextContent("Anual, 23 mar");
     expect(screen.getByText("Archivados (1)")).toBeInTheDocument();
   });
@@ -222,15 +226,10 @@ describe("Pagos", () => {
     vi.mocked(markPaid).mockReturnValue(answer.promise);
     renderView([internet]);
     await user.click(payKey("Internet"));
-    const heading = screen.getByRole("heading", { level: 2, name: "Pendientes" });
+    const heading = screen.getByRole("heading", { level: 3, name: "Por pagar" });
     await waitFor(() => expect(heading).toHaveFocus());
     // The empty message is read with the heading.
     expect(heading).toHaveAccessibleDescription(/Nada pendiente/);
-    // "Este mes" already says it was paid.
-    expect(document.querySelector(`[data-month-row="${internet.id}"]`)).toHaveAttribute(
-      "data-status",
-      "paid",
-    );
     answer.resolve(fail(RECURRING_ERRORS.alreadyPaid));
     await within(notices()).findByText(/Ya estaba pagado/);
   });
@@ -318,10 +317,11 @@ describe("Pagos", () => {
     await user.click(within(sheet).getByRole("button", { name: "Omitir este período" }));
     await within(notices()).findByText(/No se pudo omitir el período/);
     await waitFor(() => expect(within(pendingList()).getAllByRole("listitem")).toHaveLength(1));
-    expect(document.querySelector(`[data-month-row="${internet.id}"]`)).toHaveAttribute(
-      "data-status",
-      "pending",
-    );
+    expect(
+      within(screen.getByRole("list", { name: "Pagos recurrentes" })).getByRole("link", {
+        name: /Internet/,
+      }),
+    ).toHaveTextContent("Pendiente");
   });
 
   test("the Pagado… sheet of an overdue period speaks in the past tense", async () => {
@@ -582,7 +582,7 @@ describe("the payment's page", () => {
     expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(`/finance?deleted=${seguro.id}`));
-    expect(document.cookie).toContain("bo_finance_view=pagos:pen");
+    expect(document.cookie).toContain("bo_finance_view=recurrentes");
   });
 
   test("a refused archive comes back: the key says Archivar again and keeps focus", async () => {

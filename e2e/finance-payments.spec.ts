@@ -8,6 +8,7 @@ import {
   insertMethod,
   insertRecurring,
   openPayments,
+  openRecurring,
   openReady,
   payKey,
   readRecurring,
@@ -41,7 +42,7 @@ async function axeViolations(page: Page) {
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
-const pendingList = (page: Page) => page.getByRole("list", { name: "Pendientes" });
+const pendingList = (page: Page) => page.getByRole("list", { name: "Por pagar" });
 
 test("pay a monthly payment with one tap and undo it", async ({ page }) => {
   const methodId = await insertMethod("Tarjeta de prueba");
@@ -66,11 +67,12 @@ test("pay a monthly payment with one tap and undo it", async ({ page }) => {
     paymentMethodId: methodId,
     recurringDueOn: today(),
   });
-  await page.getByRole("tab", { name: "Pagados" }).click();
+  // «Recurrentes» says this month's state of each payment.
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await expect(
-    page.getByRole("list", { name: /^Este mes/ }).getByText("Pagado · S/ 50.00"),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Pendientes" }).click();
+    page.getByRole("list", { name: "Pagos recurrentes" }).getByRole("link", { name: /Internet/ }),
+  ).toContainText("Pagado · S/ 50.00");
+  await page.getByRole("tab", { name: "Gastos" }).click();
 
   await untilSaved(page, () =>
     financeNotices(page).getByRole("button", { name: "Deshacer" }).click(),
@@ -122,11 +124,11 @@ test("skip a period, and undo it", async ({ page }) => {
     .poll(async () => (await readSettlements(id)).map((row) => row.status))
     .toEqual(["skipped"]);
   expect(await readRecurringExpenses(id)).toHaveLength(0);
-  await page.getByRole("tab", { name: "Pagados" }).click();
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await expect(
-    page.getByRole("list", { name: /^Este mes/ }).getByText("Omitido", { exact: true }),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Pendientes" }).click();
+    page.getByRole("list", { name: "Pagos recurrentes" }).getByRole("link", { name: /Gimnasio/ }),
+  ).toContainText("Omitido");
+  await page.getByRole("tab", { name: "Gastos" }).click();
   await untilSaved(page, () =>
     financeNotices(page).getByRole("button", { name: "Deshacer" }).click(),
   );
@@ -138,7 +140,7 @@ test("create a yearly payment; its page: archive, reactivate, delete and undo", 
   page,
 }) => {
   await insertMethod("Débito de prueba");
-  await openPayments(page);
+  await openRecurring(page);
   await page.getByRole("button", { name: "Nuevo pago recurrente" }).click();
   const sheet = page.getByRole("dialog", { name: "Nuevo pago recurrente" });
   await expect(sheet.getByRole("textbox", { name: "Nombre" })).toBeFocused();
@@ -161,7 +163,9 @@ test("create a yearly payment; its page: archive, reactivate, delete and undo", 
     weekday: null,
     intervalMonths: null,
   });
-  const link = page.getByRole("list", { name: "Todos" }).getByRole("link", { name: /Seguro/ });
+  const link = page
+    .getByRole("list", { name: "Pagos recurrentes" })
+    .getByRole("link", { name: /Seguro/ });
   await expect(link).toContainText("Anual, 23 mar");
 
   await link.click();
@@ -183,12 +187,12 @@ test("create a yearly payment; its page: archive, reactivate, delete and undo", 
   await page.getByRole("button", { name: "Eliminar" }).click();
   await expect(page).toHaveURL(/\/finance$/);
   await expect(financeNotices(page).getByText("Pago recurrente eliminado")).toBeVisible();
-  await expect(page.getByRole("list", { name: "Todos" })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Pagos recurrentes" })).toHaveCount(0);
   await untilSaved(page, () =>
     financeNotices(page).getByRole("button", { name: "Deshacer" }).click(),
   );
   await expect(
-    page.getByRole("list", { name: "Todos" }).getByRole("link", { name: /Seguro/ }),
+    page.getByRole("list", { name: "Pagos recurrentes" }).getByRole("link", { name: /Seguro/ }),
   ).toBeVisible();
   expect((await readRecurring("Seguro de prueba"))?.deletedAt).toBeNull();
   // A deleted or unknown payment is a 404 inside the shell.
@@ -218,6 +222,7 @@ test("at 320 px nothing scrolls sideways (Pagos, Pagado…, the new payment shee
   expect(await payBody.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.keyboard.press("Escape");
   await expect(pay).toBeHidden();
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await page.getByRole("button", { name: "Nuevo pago recurrente" }).click();
   const create = page.getByRole("dialog", { name: "Nuevo pago recurrente" });
   await create.getByRole("combobox", { name: "Ciclo" }).selectOption("every_n_months");
@@ -312,9 +317,10 @@ for (const theme of THEMES) {
     await insertRecurring({ name: "Antiguo", archived: true });
     await openReady(page, "/finance");
     await setTheme(page, theme);
-    await page.getByRole("tab", { name: "Pendientes" }).click();
+    await page.getByRole("tab", { name: "Recurrentes" }).click();
     await page.getByText("Archivados (1)").click();
     expect(await axeViolations(page)).toEqual([]);
+    await page.getByRole("tab", { name: "Gastos" }).click();
     await expectScreenshot(pendingList(page), `finance-payments-pending-${theme}.png`);
 
     await page.getByRole("button", { name: "Más acciones de Internet" }).click();
@@ -322,6 +328,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");
 
+    await page.getByRole("tab", { name: "Recurrentes" }).click();
     await page.getByRole("button", { name: "Nuevo pago recurrente" }).click();
     const create = page.getByRole("dialog", { name: "Nuevo pago recurrente" });
     await create.getByRole("button", { name: "Guardar" }).click();
@@ -332,6 +339,7 @@ for (const theme of THEMES) {
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");
 
+    await page.getByRole("tab", { name: "Gastos" }).click();
     await untilSaved(page, () => payKey(page, "Internet").click());
     await openReady(page, `/finance/payments/${id}`);
     await expect(page.getByRole("list", { name: "Historial" })).toContainText("S/ 50.00");

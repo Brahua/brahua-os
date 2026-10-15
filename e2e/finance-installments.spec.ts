@@ -6,6 +6,7 @@ import {
   financeNotices,
   insertRecurring,
   openPayments,
+  openRecurring,
   openReady,
   payKey,
   readRecurring,
@@ -38,7 +39,7 @@ async function axeViolations(page: Page) {
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
-const pendingList = (page: Page) => page.getByRole("list", { name: "Pendientes" });
+const pendingList = (page: Page) => page.getByRole("list", { name: "Por pagar" });
 const FIELD = "Termina después de N pagos (opcional)";
 
 /**
@@ -52,7 +53,7 @@ const dayOf = (day: string) => Number(day.slice(8, 10));
 test("a plan of 3 payments: create it, pay the 3 from Pagos, the last one archives it and Deshacer brings it back", async ({
   page,
 }) => {
-  await openPayments(page);
+  await openRecurring(page);
   await page.getByRole("button", { name: "Nuevo pago recurrente" }).click();
   const sheet = page.getByRole("dialog", { name: "Nuevo pago recurrente" });
   await expect(sheet.getByRole("textbox", { name: "Nombre" })).toBeFocused();
@@ -72,10 +73,11 @@ test("a plan of 3 payments: create it, pay the 3 from Pagos, the last one archiv
   const stored = await readRecurring("Notebook de prueba");
   expect(stored).toMatchObject({ cycle: "monthly", installmentsTotal: 3, amountCents: 25_000 });
   await expect(
-    page.getByRole("list", { name: "Todos" }).getByRole("link", { name: /Notebook/ }),
+    page.getByRole("list", { name: "Pagos recurrentes" }).getByRole("link", { name: /Notebook/ }),
   ).toContainText("· 3 cuotas");
 
   // The 3 installments are pending, numbered by position: never a 4th.
+  await page.getByRole("tab", { name: "Gastos" }).click();
   const rows = pendingList(page).getByRole("listitem");
   await expect(rows).toHaveCount(3);
   for (const [index, label] of ["Cuota 1 de 3", "Cuota 2 de 3", "Cuota 3 de 3"].entries()) {
@@ -95,8 +97,10 @@ test("a plan of 3 payments: create it, pay the 3 from Pagos, the last one archiv
   await expect
     .poll(async () => (await readRecurring("Notebook de prueba"))?.archivedAt)
     .not.toBeNull();
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await expect(page.getByText("Archivados (1)")).toBeVisible();
-  await expect(page.getByRole("list", { name: "Todos" })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Pagos recurrentes" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Gastos" }).click();
   expect(await readSettlements(stored!.id)).toHaveLength(3);
 
   // Deshacer: the 3rd pay goes and the payment is active again, with the 3rd pending.
@@ -104,6 +108,7 @@ test("a plan of 3 payments: create it, pay the 3 from Pagos, the last one archiv
   await expect.poll(async () => (await readRecurring("Notebook de prueba"))?.archivedAt).toBeNull();
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("Cuota 3 de 3");
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await expect(page.getByText(/^Archivados/)).toHaveCount(0);
   expect(await readSettlements(stored!.id)).toHaveLength(2);
   const expenses = await readRecurringExpenses(stored!.id);
@@ -185,6 +190,7 @@ test("paying the last one while an earlier one is pending does not archive; sett
   await expect
     .poll(async () => (await readRecurring("Cuotas pendientes"))?.archivedAt)
     .not.toBeNull();
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await expect(page.getByText("Archivados (1)")).toBeVisible();
 });
 
@@ -226,6 +232,7 @@ test("at 320 px the field, the rows and the page with installments don't scroll 
   const scrollWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
   expect(await scrollWidth()).toBeLessThanOrEqual(320);
   await expect(pendingList(page)).toContainText("Cuota 1 de 120");
+  await page.getByRole("tab", { name: "Recurrentes" }).click();
   await page.getByRole("button", { name: "Nuevo pago recurrente" }).click();
   const create = page.getByRole("dialog", { name: "Nuevo pago recurrente" });
   await expect(create.getByRole("textbox", { name: FIELD })).toBeVisible();
@@ -250,11 +257,12 @@ for (const theme of THEMES) {
     const id = await insertRecurring({ name: "Notebook", installmentsTotal: 3 });
     await openReady(page, "/finance");
     await setTheme(page, theme);
-    await page.getByRole("tab", { name: "Pendientes" }).click();
+    await page.getByRole("tab", { name: "Gastos" }).click();
     await expect(pendingList(page)).toContainText("Cuota 1 de 3");
     expect(await axeViolations(page)).toEqual([]);
     await expectScreenshot(pendingList(page), `finance-installments-pending-${theme}.png`);
 
+    await page.getByRole("tab", { name: "Recurrentes" }).click();
     await page.getByRole("button", { name: "Nuevo pago recurrente" }).click();
     const sheet = page.getByRole("dialog", { name: "Nuevo pago recurrente" });
     await sheet.getByRole("textbox", { name: FIELD }).fill("0");

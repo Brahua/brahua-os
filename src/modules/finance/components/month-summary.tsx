@@ -73,8 +73,14 @@ type MonthTotalProps = {
  * soles" (NumberFlow exposes each digit separately, so the animation is hidden from them).
  */
 export function MonthTotal({ total, rateSet, onSetRate }: MonthTotalProps) {
+  const views = useFinanceViews();
   return (
-    <div className="flex flex-col gap-2" data-month-total={total.penCents}>
+    <div
+      className="flex flex-col gap-2 self-start rounded-md"
+      data-month-total={total.penCents}
+      // «Pagado» saved: a ring for a second (finance-motion).
+      data-paid-pulse={views?.paidPulse ?? undefined}
+    >
       <p className="bo-stat bo-month-total">
         <span className="bo-stat__value" aria-hidden>
           <NumberFlow
@@ -226,7 +232,7 @@ export function PendingCard({ pending }: { pending: MonthPending | null }) {
       ]
         .filter(Boolean)
         .join(" · ")}
-      onClick={() => views?.showSection("pagos:pen")}
+      onClick={() => views?.showSection("mes:gas")}
     />
   );
 }

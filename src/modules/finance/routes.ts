@@ -41,24 +41,25 @@ export function monthHref(month: string, currentMonth: string): string {
 }
 
 /**
- * The four sections of /finance (Resumen · Gastos under "Mes", Pendientes · Pagados under
- * "Pagos"), remembered per device in this cookie.
+ * The three sections of /finance — Resumen · Gastos under "Mes", and Recurrentes (the recurring
+ * payments' upkeep) — remembered per device in this cookie.
  */
-export const FINANCE_SECTIONS = ["mes:res", "mes:gas", "pagos:pen", "pagos:pag"] as const;
+export const FINANCE_SECTIONS = ["mes:res", "mes:gas", "recurrentes"] as const;
 export type FinanceSection = (typeof FINANCE_SECTIONS)[number];
 export const FINANCE_VIEW_COOKIE = "bo_finance_view";
 
 /** The group a section belongs to. */
 export const sectionGroup = (section: FinanceSection): "month" | "payments" =>
-  section.startsWith("mes") ? "month" : "payments";
+  section === "recurrentes" ? "payments" : "month";
 
 /**
- * The remembered section. The two values the cookie held before (`mes`, `pagos`; also spelled
- * `month`, `payments`) still work and open the first section of their group; anything unknown is
- * "Resumen".
+ * The remembered section. Every value the cookie held before still works: `mes`/`month` open
+ * «Resumen»; `pagos`/`payments` and the old `pagos:pen`/`pagos:pag` open «Recurrentes»; anything
+ * unknown is «Resumen».
  */
 export function parseFinanceSection(value: string | undefined): FinanceSection {
-  if (value === "payments" || value === "pagos") return "pagos:pen";
+  if (value === "payments" || value === "pagos" || value?.startsWith("pagos:"))
+    return "recurrentes";
   return FINANCE_SECTIONS.find((section) => section === value) ?? "mes:res";
 }
 

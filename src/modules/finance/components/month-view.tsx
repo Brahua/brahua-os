@@ -20,6 +20,7 @@ import { Cascade, useDirectionalSwap } from "@/lib/motion";
 import { dayTitle, FINANCE_COPY, monthTitle } from "../finance-copy";
 import { categoryStyle } from "../category-color";
 import { formatMoney } from "../money";
+import type { PendingPeriod } from "../payments-view";
 import { expenseRowText, groupByDay } from "../month-list";
 import { FIRST_MONTH, monthHref, monthOrder, sectionGroup, shiftMonth } from "../routes";
 import {
@@ -53,6 +54,7 @@ import { AreaChart } from "./area-chart";
 import { Sparkline } from "./sparkline";
 import { FilterChip } from "./filter-chip";
 import { PresenceItem } from "./presence-item";
+import { PendingPayments } from "./pending-payments";
 import { StackedBar } from "./stacked-bar";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
@@ -74,6 +76,8 @@ type MonthViewProps = {
   trend?: MonthlyTotal[];
   /** The previous month's running total per day over this month's days (null: no month before). */
   previousCumulative?: number[] | null;
+  /** The recurring payments to pay now (overdue or due within 7 days); shown in the current month. */
+  pendingPeriods?: PendingPeriod[];
 };
 
 /**
@@ -89,6 +93,7 @@ export function MonthView({
   pending = null,
   trend = [],
   previousCumulative = null,
+  pendingPeriods = [],
 }: MonthViewProps) {
   const views = useFinanceViews();
   const { today, catalog, enqueue, toaster, announce, openSettings } = useFinanceScreen();
@@ -416,6 +421,8 @@ export function MonthView({
         </ViewPanel>
 
         <ViewPanel section="mes:gas">
+          {/* What is left to pay (overdue or due within 7 days) belongs to now: only this month. */}
+          {month === currentMonth ? <PendingPayments pending={pendingPeriods} /> : null}
           <section aria-labelledby={listHeadingId} className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <h3

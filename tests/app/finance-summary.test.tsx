@@ -15,6 +15,7 @@ import { FinanceSettings } from "@/modules/finance/components/settings-sheet";
 import type { ExpenseItem } from "@/modules/finance/expense-input";
 import type { MonthPending } from "@/modules/finance/summary";
 import type { FinanceSection } from "@/modules/finance/routes";
+import type { PendingPeriod } from "@/modules/finance/payments-view";
 import type { MonthlyTotal } from "@/modules/finance/trend";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }));
@@ -102,6 +103,7 @@ type RenderOptions = {
   /** The six months `getMonthlyTotals` reads (default none: no comparison). */
   trend?: MonthlyTotal[];
   previousCumulative?: number[] | null;
+  pendingPeriods?: PendingPeriod[];
 };
 
 function renderMonth(expenses: ExpenseItem[], options: RenderOptions = {}) {
@@ -112,6 +114,7 @@ function renderMonth(expenses: ExpenseItem[], options: RenderOptions = {}) {
     section = "mes:res",
     trend = [],
     previousCumulative = null,
+    pendingPeriods = [],
   } = options;
   const tree = (rows: ExpenseItem[], shownMonth: string) => (
     <FinanceScreen today={TODAY} catalog={catalog}>
@@ -125,6 +128,7 @@ function renderMonth(expenses: ExpenseItem[], options: RenderOptions = {}) {
             pending={pending}
             trend={trend}
             previousCumulative={previousCumulative}
+            pendingPeriods={pendingPeriods}
           />
         }
         payments={<p>Pagos</p>}
@@ -388,7 +392,7 @@ describe("Pendiente de pagar", () => {
     expect(document.querySelector("[data-month-pending]")).toBeNull();
   });
 
-  test("the strip with amount and count; it shows Pagos and focus goes to its tab", async () => {
+  test("the strip with amount and count; it shows «Gastos» (where they are paid) and focus goes to its tab", async () => {
     const user = userEvent.setup();
     renderMonth([], {
       pending: {
@@ -406,10 +410,10 @@ describe("Pendiente de pagar", () => {
     // The PEN figure rolls (mocked here as its raw value); the rest of the line is plain text.
     expect(strip).toHaveTextContent("+ USD 95.00 sin convertir");
     await user.click(strip);
-    const tab = screen.getByRole("tab", { name: "Pendientes" });
+    const tab = screen.getByRole("tab", { name: "Gastos" });
     expect(tab).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(tab).toHaveFocus());
-    expect(document.cookie).toContain("bo_finance_view=pagos:pen");
+    expect(document.cookie).toContain("bo_finance_view=mes:gas");
   });
 
   test("one payment, singular", () => {
@@ -644,29 +648,28 @@ describe("the summary follows deletes, undo and the filter", () => {
   });
 });
 
-describe("the four sections (finance-motion M2)", () => {
+describe("the three sections (finance-motion M2)", () => {
   const SEPT = (uptoDayPenCents: number, unconvertedUsdCents = 0): MonthlyTotal[] => [
     { month: "2026-09", penCents: 99_999, uptoDayPenCents, unconvertedUsdCents },
   ];
 
-  test("the control has four tabs; choosing one shows only its panel and remembers it", async () => {
+  test("the control has three tabs; choosing one shows only its panel and remembers it", async () => {
     const user = userEvent.setup();
     renderMonth([expense({ description: "Café" })]);
     const tabs = within(screen.getByRole("tablist", { name: "Vista de Finanzas" }));
     expect(tabs.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Resumen",
       "Gastos",
-      "Pendientes",
-      "Pagados",
+      "Recurrentes",
     ]);
     expect(document.querySelector('[data-finance-view="mes:gas"]')).toHaveAttribute("hidden");
     await user.click(tabs.getByRole("tab", { name: "Gastos" }));
     expect(document.querySelector('[data-finance-view="mes:res"]')).toHaveAttribute("hidden");
     expect(document.querySelector('[data-finance-view="mes:gas"]')).not.toHaveAttribute("hidden");
     expect(document.cookie).toContain("bo_finance_view=mes:gas");
-    // Month's header belongs to both of its sections, not to Pagos.
+    // Month's header belongs to both of its sections, not to Recurrentes.
     expect(document.querySelector("[data-finance-month]")).not.toHaveAttribute("hidden");
-    await user.click(tabs.getByRole("tab", { name: "Pagados" }));
+    await user.click(tabs.getByRole("tab", { name: "Recurrentes" }));
     expect(document.querySelector("[data-finance-month]")).toHaveAttribute("hidden");
   });
 
@@ -840,5 +843,40 @@ describe("the four sections (finance-motion M2)", () => {
       })),
     });
     expect(document.querySelector("[data-spent-card] [data-sparkline]")).not.toBeNull();
+  });
+
+  test("«Por pagar» sits in «Gastos» above the list, only in the current month", () => {
+    const period = {
+      recurring: {
+        id: "55555555-5555-4555-8555-000000000009",
+        name: "Internet",
+        amountCents: 5000,
+        currency: "PEN" as const,
+        category: null,
+        paymentMethod: null,
+        cycle: "monthly" as const,
+        weekday: null,
+        dayOfMonth: 5,
+        intervalMonths: null,
+        anchorMonth: null,
+        startDate: "2026-10-01",
+        installmentsTotal: null,
+        notes: null,
+        archived: false,
+      },
+      dueOn: TODAY,
+    };
+    const { unmount } = renderMonth([expense({ description: "Café" })], {
+      section: "mes:gas",
+      pendingPeriods: [period],
+    });
+    const block = document.querySelector("[data-pending-payments]") as HTMLElement;
+    const list = screen.getByRole("heading", { name: "Gastos del mes" });
+    expect(block.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(block).getByRole("button", { name: /^Pagado: Internet,/ })).toBeInTheDocument();
+    unmount();
+    // Another month: what is left to pay belongs to now, so the block is not there.
+    renderMonth([], { month: "2026-09", section: "mes:gas", pendingPeriods: [period] });
+    expect(document.querySelector("[data-pending-payments]")).toBeNull();
   });
 });

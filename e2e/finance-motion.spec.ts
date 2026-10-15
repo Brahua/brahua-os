@@ -21,8 +21,8 @@ import { fontsLoaded } from "./support/fonts";
 import { afterSaveSettled } from "./support/saves";
 
 // finance-motion (M5): the one E2E of the module. It walks the redesigned /finance with reduced
-// motion (the final state is deterministic): the four sections, the month's arrows, the category
-// filter and its chip, registering an expense, and «Pagado» (its «Pagados» tab). Then axe in both
+// motion (the final state is deterministic): the three sections, the month's arrows, the category
+// filter and its chip, registering an expense, and «Pagado» (the total pulses, «Recurrentes» says it). Then axe in both
 // themes on «Resumen» and «Gastos», and nothing scrolling sideways at 320 px. Made-up data only.
 // Every test holds the finance lock (shared data).
 
@@ -68,7 +68,7 @@ async function seed() {
   });
 }
 
-test("the four sections, the month's arrows, the filter chip, a new expense and «Pagado» (reduced motion)", async ({
+test("the three sections, the month's arrows, the filter chip, a new expense and «Pagado» (reduced motion)", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -126,16 +126,18 @@ test("the four sections, the month's arrows, the filter chip, a new expense and 
   await expect.poll(async () => (await readAllExpenses()).length).toBe(4);
   await expect(expenseRow(page, "Sin categoría")).toHaveCount(1);
 
-  // «Pagado»: from «Pendientes» one tap; its row passes to «Pagados» and the tab pulses.
-  await tab(page, "Pendientes").click();
-  await expect(page.getByRole("heading", { level: 2, name: "Pendientes" })).toBeVisible();
+  // «Pagado»: «Por pagar» sits in «Gastos» under the total; one tap pays it and the total pulses.
+  await expect(page.getByRole("heading", { level: 3, name: "Por pagar" })).toBeVisible();
   await page.getByRole("button", { name: /^Pagado: Internet,/ }).click();
-  await expect(tab(page, "Pagados")).toHaveAttribute("data-paid-pulse", /.+/, { timeout: 5_000 });
+  await expect(page.locator("[data-month-total]")).toHaveAttribute("data-paid-pulse", /.+/, {
+    timeout: 5_000,
+  });
   await expect(financeNotices(page)).toContainText("Pago registrado");
-  await tab(page, "Pagados").click();
+  // «Recurrentes» says this month's state of the payment.
+  await tab(page, "Recurrentes").click();
   await expect(
-    page.getByRole("list", { name: /^Este mes/ }).getByText("Pagado · S/ 50.00"),
-  ).toBeVisible();
+    page.getByRole("list", { name: "Pagos recurrentes" }).getByRole("link", { name: /Internet/ }),
+  ).toContainText("Pagado · S/ 50.00");
 });
 
 for (const theme of THEMES) {
