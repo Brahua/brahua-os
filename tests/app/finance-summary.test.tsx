@@ -101,6 +101,7 @@ type RenderOptions = {
   section?: FinanceSection;
   /** The six months `getMonthlyTotals` reads (default none: no comparison). */
   trend?: MonthlyTotal[];
+  previousCumulative?: number[] | null;
 };
 
 function renderMonth(expenses: ExpenseItem[], options: RenderOptions = {}) {
@@ -110,13 +111,22 @@ function renderMonth(expenses: ExpenseItem[], options: RenderOptions = {}) {
     pending = null,
     section = "mes:res",
     trend = [],
+    previousCumulative = null,
   } = options;
   const tree = (rows: ExpenseItem[], shownMonth: string) => (
     <FinanceScreen today={TODAY} catalog={catalog}>
       <FinanceSettings />
       <FinanceViews
         initialSection={section}
-        month={<MonthView month={shownMonth} expenses={rows} pending={pending} trend={trend} />}
+        month={
+          <MonthView
+            month={shownMonth}
+            expenses={rows}
+            pending={pending}
+            trend={trend}
+            previousCumulative={previousCumulative}
+          />
+        }
         payments={<p>Pagos</p>}
       />
     </FinanceScreen>
@@ -789,5 +799,31 @@ describe("the four sections (finance-motion M2)", () => {
     expect(
       screen.getByRole("button", { name: /^Editar Mercado/ }).style.getPropertyValue("--_cat"),
     ).toBe("var(--cat-3)");
+  });
+
+  test("the pace chart sits between the cards and the breakdown; an empty month says so instead", () => {
+    const { unmount } = renderMonth([expense({ amountCents: 1250 })], {
+      previousCumulative: Array(31).fill(1000),
+    });
+    expect(screen.getByRole("heading", { name: "Ritmo del mes" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: /^Gasto acumulado del mes: 12.50 soles al día 5\./ }),
+    ).toBeInTheDocument();
+    expect(document.querySelector("[data-chart-empty]")).toBeNull();
+    unmount();
+    renderMonth([]);
+    expect(document.querySelector("[data-chart-empty]")).toBeNull(); // no expenses: the month's own empty card
+  });
+
+  test("the sparkline of «Gastado» comes from the six months", () => {
+    renderMonth([expense()], {
+      trend: [100, 200, 300].map((penCents, i) => ({
+        month: `2026-0${i + 7}`,
+        penCents,
+        uptoDayPenCents: penCents,
+        unconvertedUsdCents: 0,
+      })),
+    });
+    expect(document.querySelector("[data-spent-card] [data-sparkline]")).not.toBeNull();
   });
 });

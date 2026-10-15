@@ -21,7 +21,13 @@ import { categoryStyle } from "../category-color";
 import { formatMoney } from "../money";
 import { expenseRowText, groupByDay } from "../month-list";
 import { FIRST_MONTH, monthHref, monthOrder, sectionGroup, shiftMonth } from "../routes";
-import { compareToPrevious, monthlyTotals, monthPoint, type MonthlyTotal } from "../trend";
+import {
+  compareToPrevious,
+  cumulativeByDay,
+  monthlyTotals,
+  monthPoint,
+  type MonthlyTotal,
+} from "../trend";
 import {
   expenseCategoryKey,
   groupKey,
@@ -42,6 +48,8 @@ import {
   PendingCard,
   SpentCard,
 } from "./month-summary";
+import { AreaChart } from "./area-chart";
+import { Sparkline } from "./sparkline";
 import { StackedBar } from "./stacked-bar";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
@@ -61,6 +69,8 @@ type MonthViewProps = {
   pending?: MonthPending | null;
   /** The six months ending at `month` (`getMonthlyTotals`): the comparison reads the previous one. */
   trend?: MonthlyTotal[];
+  /** The previous month's running total per day over this month's days (null: no month before). */
+  previousCumulative?: number[] | null;
 };
 
 /**
@@ -70,7 +80,13 @@ type MonthViewProps = {
  * row opens "Editar gasto"; deleting is optimistic (the summary follows at once) with "Deshacer"
  * in the screen's notices.
  */
-export function MonthView({ month, expenses, pending = null, trend = [] }: MonthViewProps) {
+export function MonthView({
+  month,
+  expenses,
+  pending = null,
+  trend = [],
+  previousCumulative = null,
+}: MonthViewProps) {
   const views = useFinanceViews();
   const { today, catalog, enqueue, toaster, announce, openSettings } = useFinanceScreen();
   const router = useRouter();
@@ -117,6 +133,14 @@ export function MonthView({ month, expenses, pending = null, trend = [] }: Month
         : null,
     [shown, month, point.day, previousTotal],
   );
+  // The pace chart: the month's running total (the optimistic list, so a delete moves it) up to
+  // today while the month is current, against the previous month over the same days.
+  const shownDays = point.isCurrent ? point.day : point.total;
+  const current = useMemo(
+    () => cumulativeByDay(shown, month, point.total).slice(0, shownDays),
+    [shown, month, point.total, shownDays],
+  );
+  const previousSeries = previousCumulative ? previousCumulative.slice(0, shownDays) : null;
   // A filter belongs to the month it was set on: the arrows leave it behind.
   const active = filter?.month === month ? filter : null;
   const listed = active
@@ -330,14 +354,36 @@ export function MonthView({ month, expenses, pending = null, trend = [] }: Month
       <div ref={swap} className="flex flex-col gap-6">
         <ViewPanel section="mes:res">
           <Cascade index={3} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SpentCard total={summary.total} />
+            <SpentCard
+              total={summary.total}
+              sparkline={<Sparkline totals={trend.map((entry) => entry.penCents)} />}
+            />
             {pending && pending.count > 0 ? <PendingCard pending={pending} /> : null}
           </Cascade>
 
           {shown.length > 0 ? (
             <>
+              <Cascade index={4} className="flex flex-col gap-3">
+                <h3 className="bo-text-subheading">{SUMMARY_COPY.chartHeading}</h3>
+                {summary.total.penCents > 0 ? (
+                  <AreaChart
+                    key={month}
+                    current={current}
+                    previous={previousSeries}
+                    days={point.total}
+                    today={point.isCurrent ? point.day : null}
+                  />
+                ) : (
+                  <p
+                    className="bo-card bo-text-body-sm max-w-160 text-text-secondary"
+                    data-chart-empty=""
+                  >
+                    {SUMMARY_COPY.chartEmpty}
+                  </p>
+                )}
+              </Cascade>
               <Cascade
-                index={4}
+                index={5}
                 className="flex flex-col gap-4"
                 attrs={{ "data-month-summary": "" }}
               >
@@ -352,7 +398,7 @@ export function MonthView({ month, expenses, pending = null, trend = [] }: Month
                   onToggle={toggleCategory}
                 />
               </Cascade>
-              <Cascade index={5}>
+              <Cascade index={6}>
                 <MixCard summary={summary} />
               </Cascade>
             </>

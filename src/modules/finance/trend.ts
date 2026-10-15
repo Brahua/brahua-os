@@ -99,3 +99,25 @@ export function compareToPrevious(
     direction: percent > 0 ? "up" : percent < 0 ? "down" : "same",
   };
 }
+
+/**
+ * The month's running total in PEN cents, one entry per day (index 0 is day 1) for `days` days:
+ * what the chart draws. Unconverted USD is left out (like every figure here). Days past `days`
+ * are ignored (a longer previous month is bounded by the shorter current one).
+ */
+export function cumulativeByDay(
+  expenses: readonly TrendExpense[],
+  month: string,
+  days = daysInMonth(month),
+): number[] {
+  const perDay = Array.from({ length: days }, () => 0);
+  for (const expense of expenses) {
+    if (expense.spentOn.slice(0, 7) !== month) continue;
+    const day = Number(expense.spentOn.slice(8, 10));
+    if (day < 1 || day > days) continue;
+    const pen = toPenCents(expense.amountCents, expense.currency, expense.exchangeRateE4);
+    if (pen !== null) perDay[day - 1] += pen;
+  }
+  let sum = 0;
+  return perDay.map((value) => (sum += value));
+}

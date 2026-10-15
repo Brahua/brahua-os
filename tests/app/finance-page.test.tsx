@@ -46,6 +46,7 @@ vi.mock("@/modules/finance/queries", () => ({
   getFinanceCatalog: vi.fn(),
   listMonthExpenses: vi.fn(),
   getMonthlyTotals: vi.fn(async () => []),
+  getPreviousMonthCumulative: vi.fn(async () => null),
 }));
 vi.mock("@/modules/finance/email/queries", () => ({
   listSuggestions: vi.fn(async () => []),

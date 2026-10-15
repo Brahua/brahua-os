@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { financeExpenses } from "@/modules/finance/db/schema";
-import { getMonthlyTotals } from "@/modules/finance/queries";
+import { getMonthlyTotals, getPreviousMonthCumulative } from "@/modules/finance/queries";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
 
@@ -104,5 +104,36 @@ describe("getMonthlyTotals", () => {
     // Positive control: the owner reads it.
     request.headers = new Headers({ cookie: await sessionCookieFor(OWNER) });
     expect((await getMonthlyTotals("2026-10")).at(-1)?.penCents).toBe(1000);
+  });
+});
+
+describe("getPreviousMonthCumulative", () => {
+  test("the previous month's running total per day, bounded to the days of the asked month", async () => {
+    await insert([
+      { spentOn: "2026-09-01", amountCents: 100 },
+      { spentOn: "2026-09-03", amountCents: 250 },
+      { spentOn: "2026-09-30", amountCents: 9000 },
+      { spentOn: "2026-09-05", amountCents: 100, currency: "USD", exchangeRate: "3.7500" },
+      { spentOn: "2026-09-06", amountCents: 700, currency: "USD" },
+      { spentOn: "2026-09-07", amountCents: 999, deletedAt: new Date() },
+      // Other months never leak in.
+      { spentOn: "2026-10-01", amountCents: 5555 },
+      { spentOn: "2026-08-31", amountCents: 4444 },
+    ]);
+    // October has 31 days: September's 30 run flat on the 31st.
+    const october = (await getPreviousMonthCumulative("2026-10"))!;
+    expect(october).toHaveLength(31);
+    expect(october.slice(0, 7)).toEqual([100, 100, 350, 350, 725, 725, 725]);
+    expect(october[29]).toBe(9725);
+    // A month with 30 days after one with 31: the 31st is ignored (August → September).
+    const september = (await getPreviousMonthCumulative("2026-09"))!;
+    expect(september).toHaveLength(30);
+    // August 31st (4444) is outside September's 30 days: ignored.
+    expect(september[29]).toBe(0);
+  });
+
+  test("no month before 2000-01; a month with nothing before is all zeros", async () => {
+    expect(await getPreviousMonthCumulative("2000-01")).toBeNull();
+    expect(await getPreviousMonthCumulative("2026-02")).toEqual(Array(28).fill(0));
   });
 });
