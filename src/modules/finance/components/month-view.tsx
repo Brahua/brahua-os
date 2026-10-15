@@ -5,8 +5,10 @@ import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import {
   startTransition,
+  useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useOptimistic,
   useRef,
@@ -21,6 +23,20 @@ import { dayTitle, FINANCE_COPY, monthTitle } from "../finance-copy";
 import { categoryStyle } from "../category-color";
 import { formatMoney } from "../money";
 import type { PendingPeriod } from "../payments-view";
+import {
+  applyFilters,
+  countActive,
+  DAYS_PER_PAGE,
+  EXPENSES_PER_PAGE,
+  matches,
+  NO_FILTERS,
+  NO_METHOD_KEY,
+  paginate,
+  sortExpenses,
+  summarizeSelection,
+  type ExpenseFilters,
+  type SortKey,
+} from "../expense-filters";
 import { expenseRowText, groupByDay } from "../month-list";
 import { FIRST_MONTH, monthHref, monthOrder, sectionGroup, shiftMonth } from "../routes";
 import {
@@ -30,14 +46,8 @@ import {
   monthPoint,
   type MonthlyTotal,
 } from "../trend";
-import {
-  expenseCategoryKey,
-  groupKey,
-  summarizeMonth,
-  type MonthPending,
-  type SummaryGroup,
-} from "../summary";
-import { spokenTotal, SUMMARY_COPY } from "../summary-copy";
+import { groupKey, summarizeMonth, type MonthPending, type SummaryGroup } from "../summary";
+import { moneyTotalText, spokenTotal, SUMMARY_COPY } from "../summary-copy";
 import { ExpenseSheet } from "./expense-sheet";
 import { useFinanceScreen } from "./finance-screen";
 import { useFinanceViews, ViewPanel } from "./finance-views";
@@ -52,15 +62,16 @@ import {
 } from "./month-summary";
 import { AreaChart } from "./area-chart";
 import { Sparkline } from "./sparkline";
-import { FilterChip } from "./filter-chip";
+import { FilterChips, type ChipItem } from "./filter-chip";
+import { ExpenseFiltersPanel, type Option } from "./expense-filters-panel";
 import { PresenceItem } from "./presence-item";
 import { PendingPayments } from "./pending-payments";
 import { StackedBar } from "./stacked-bar";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
 
-/** The list's filter: a category (or "none") of one month; another month shows no filter. */
-type CategoryFilter = { month: string; key: string; name: string };
+/** The list's filters and pages of one month; another month shows none. */
+type ListState = { month: string; filters: ExpenseFilters; pages: number };
 
 type MonthViewProps = {
   /** YYYY-MM (Lima). */
@@ -105,7 +116,9 @@ export function MonthView({
     list.filter((expense) => expense.id !== id),
   );
   const [sheet, setSheet] = useState<SheetState | null>(null);
-  const [filter, setFilter] = useState<CategoryFilter | null>(null);
+  const [listState, setListState] = useState<ListState | null>(null);
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [panelOpen, setPanelOpen] = useState(false);
   const [navigating, startNavigation] = useTransition();
   // Which way the arrow pressed last points: the content follows it while the next month loads.
   const [intent, setIntent] = useState<1 | -1>(1);
@@ -117,6 +130,11 @@ export function MonthView({
   const addKey = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const listHeading = useRef<HTMLHeadingElement>(null);
+  const filtersButton = useRef<HTMLButtonElement>(null);
+  const chipRemovers = useRef(new Map<string, HTMLButtonElement>());
+  const moreButton = useRef<HTMLButtonElement>(null);
+  // The first row a «Mostrar más» brings: it takes focus if the button goes away with it.
+  const moreFocus = useRef<string | null>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
   // Where focus goes when the sheet closes: the row (or key) that opened it, or a neighbor.
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -149,11 +167,19 @@ export function MonthView({
     [shown, month, point.total, shownDays],
   );
   const previousSeries = previousCumulative ? previousCumulative.slice(0, shownDays) : null;
-  // A filter belongs to the month it was set on: the arrows leave it behind.
-  const active = filter?.month === month ? filter : null;
-  const listed = active
-    ? shown.filter((expense) => expenseCategoryKey(expense) === active.key)
-    : shown;
+  // The filters and pages belong to the month they were set on: the arrows leave them behind.
+  const scoped = listState?.month === month ? listState : null;
+  const active = scoped?.filters ?? NO_FILTERS;
+  const pages = scoped?.pages ?? 1;
+  const activeCount = countActive(active);
+  // The lens over the list only: the month's total, the chart and the summary read every row.
+  const filtered = useMemo(
+    () => sortExpenses(applyFilters(shown, active), sort),
+    [shown, active, sort],
+  );
+  const page = useMemo(() => paginate(filtered, sort, pages), [filtered, sort, pages]);
+  const listed = page.items;
+  const selection = useMemo(() => summarizeSelection(filtered), [filtered]);
 
   // Another month arrived (the arrows, or back/forward): say which and its total, once.
   const shownMonth = useRef(month);
@@ -170,30 +196,47 @@ export function MonthView({
     announce(monthMessage);
   }, [month, monthMessage, announce]);
 
-  // A filter never hides what the month has: it goes away when its category has nothing left
-  // (the last one deleted or moved), and when an expense of another category arrives (a new one,
-  // from the sheet or the quick capture), saying why. Adjusted while rendering (React's
-  // "storing information from previous renders"), not in an effect; only the saying is one.
+  // A filter never hides what the month has: when an expense the filters would hide arrives (a new
+  // one, from the sheet or the quick capture) they all go away, saying why. Adjusted while
+  // rendering (React's "storing information from previous renders"); only the saying is an effect.
   const [seenExpenses, setSeenExpenses] = useState(expenses);
   const [filterNotice, setFilterNotice] = useState<{ text: string } | null>(null);
-  if (active && listed.length === 0) {
-    setFilter(null);
-    setFilterNotice({ text: SUMMARY_COPY.emptyFiltered(active.name) });
-  }
   if (seenExpenses !== expenses) {
     setSeenExpenses(expenses);
     const seen = new Set(seenExpenses.map((expense) => expense.id));
-    const outside = expenses.some(
-      (expense) => !seen.has(expense.id) && expenseCategoryKey(expense) !== active?.key,
-    );
-    if (active && outside) {
-      setFilter(null);
-      setFilterNotice({ text: SUMMARY_COPY.filterClearedByNew(active.name, expenses.length) });
+    const outside = expenses.some((expense) => !seen.has(expense.id) && !matches(expense, active));
+    if (activeCount > 0 && outside) {
+      setListState(null);
+      setFilterNotice({ text: SUMMARY_COPY.filtersClearedByNew(expenses.length) });
     }
   }
   useEffect(() => {
     if (filterNotice) announce(filterNotice.text);
   }, [filterNotice, announce]);
+
+  // What the filters leave is said once after a pause (not on every key), and so is going back to
+  // the whole month.
+  const resultMessage =
+    activeCount > 0
+      ? SUMMARY_COPY.resultSpoken(
+          selection.count,
+          spokenTotal(selection.penCents, selection.unconvertedUsdCents),
+        )
+      : null;
+  const wasFiltering = useRef(false);
+  const monthCount = shown.length;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (resultMessage) {
+        wasFiltering.current = true;
+        announce(resultMessage);
+      } else if (wasFiltering.current) {
+        wasFiltering.current = false;
+        announce(SUMMARY_COPY.filterOff(monthCount));
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [resultMessage, monthCount, announce]);
 
   function goBy(delta: number) {
     const target = shiftMonth(pendingMonth.current ?? month, delta);
@@ -205,27 +248,98 @@ export function MonthView({
     });
   }
 
+  /** Changes some filters of this month's list; the pages start over. */
+  const updateFilters = useCallback(
+    (next: Partial<ExpenseFilters>) => {
+      setListState((previous) => ({
+        month,
+        filters: { ...(previous?.month === month ? previous.filters : NO_FILTERS), ...next },
+        pages: 1,
+      }));
+    },
+    [month],
+  );
+
   function toggleCategory(group: SummaryGroup) {
     const key = groupKey(group);
-    if (active?.key === key) {
-      setFilter(null);
-      announce(SUMMARY_COPY.filterOff(shown.length));
-      return;
-    }
-    const name = group.name ?? SUMMARY_COPY.uncategorized;
-    setFilter({ month, key, name });
-    const count = shown.filter((expense) => expenseCategoryKey(expense) === key).length;
-    announce(SUMMARY_COPY.filterOn(name, count));
-    // The filter lives in «Gastos»: a category tapped in «Resumen» takes you there.
-    views?.showSection("mes:gas");
+    const adding = !active.categories.includes(key);
+    updateFilters({
+      categories: adding ? [...active.categories, key] : active.categories.filter((c) => c !== key),
+    });
+    // The list lives in «Gastos»: a category added in «Resumen» takes you there.
+    if (adding) views?.showSection("mes:gas");
   }
 
-  function clearFilter() {
-    // "Quitar filtro" goes away: focus goes to the list's heading (the list stays in view).
-    setFilter(null);
-    announce(SUMMARY_COPY.filterOff(shown.length));
-    listHeading.current?.focus();
+  function clearAll() {
+    setListState(null);
+    filtersButton.current?.focus();
   }
+
+  /** Quits one chip; focus goes to the next chip's key, else the «Filtros» key. */
+  function removeChip(key: string, next: Partial<ExpenseFilters>) {
+    // Only the chips that are still on (one that is leaving may still be in the map).
+    const keys = chips.map((chip) => chip.key);
+    const neighbor = keys[keys.indexOf(key) + 1] ?? keys[keys.indexOf(key) - 1];
+    updateFilters(next);
+    const target = neighbor ? chipRemovers.current.get(neighbor) : undefined;
+    (target ?? filtersButton.current)?.focus();
+  }
+
+  function showMore() {
+    const next = paginate(filtered, sort, pages + 1).items[listed.length];
+    moreFocus.current = next?.id ?? null;
+    setListState((previous) => ({
+      month,
+      filters: previous?.month === month ? previous.filters : NO_FILTERS,
+      pages: (previous?.month === month ? previous.pages : 1) + 1,
+    }));
+  }
+
+  // «Mostrar más» that brought the last page goes away: focus moves to the first new row.
+  useLayoutEffect(() => {
+    const id = moreFocus.current;
+    if (!id) return;
+    moreFocus.current = null;
+    if (!moreButton.current) rows.current.get(id)?.focus();
+  });
+
+  const categoryNames = useMemo(() => {
+    const names = new Map<string, string>([["none", SUMMARY_COPY.uncategorized]]);
+    for (const item of [...catalog.categories, ...catalog.archivedCategories]) {
+      names.set(item.id, item.name);
+    }
+    return names;
+  }, [catalog]);
+  const methodNames = useMemo(() => {
+    const names = new Map<string, string>([[NO_METHOD_KEY, SUMMARY_COPY.noMethod]]);
+    for (const item of [...catalog.methods, ...catalog.archivedMethods]) {
+      names.set(item.id, item.name);
+    }
+    return names;
+  }, [catalog]);
+  const chips: ChipItem[] = [
+    ...active.categories.map((key) => ({
+      key: `cat:${key}`,
+      label: categoryNames.get(key) ?? key,
+      onRemove: () =>
+        removeChip(`cat:${key}`, { categories: active.categories.filter((c) => c !== key) }),
+    })),
+    ...active.methods.map((key) => ({
+      key: `met:${key}`,
+      label: methodNames.get(key) ?? key,
+      onRemove: () =>
+        removeChip(`met:${key}`, { methods: active.methods.filter((m) => m !== key) }),
+    })),
+    ...(active.text.trim() !== ""
+      ? [
+          {
+            key: "text",
+            label: SUMMARY_COPY.chipText(active.text.trim()),
+            onRemove: () => removeChip("text", { text: "" }),
+          },
+        ]
+      : []),
+  ];
 
   function openSheet(expense: ExpenseItem | null, opener: HTMLElement | null) {
     returnFocus.current = opener;
@@ -296,6 +410,34 @@ export function MonthView({
   const groups = groupByDay(listed);
   const previous = month > FIRST_MONTH ? shiftMonth(month, -1) : null;
   const next = month < currentMonth ? shiftMonth(month, 1) : null;
+
+  /** One row of the list; sorted by amount the rows are flat, so each one says its day. */
+  function renderRow(expense: ExpenseItem, withDay: boolean) {
+    return (
+      <PresenceItem key={expense.id}>
+        <ExpenseRow
+          expense={expense}
+          ref={(element) => {
+            if (element) rows.current.set(expense.id, element);
+            else rows.current.delete(expense.id);
+          }}
+          onOpen={(element) => openSheet(expense, element)}
+          accent={activeCount > 0 ? expense.category?.colorSlot : undefined}
+          filtered={activeCount > 0}
+          dayLabel={withDay ? dayTitle(expense.spentOn, today) : undefined}
+        />
+      </PresenceItem>
+    );
+  }
+  // The options of the panel: the catalog plus whatever the month's rows already use.
+  const filterCategories = optionsOf(
+    catalog.categories,
+    shown.map((e) => e.category),
+  );
+  const filterMethods = optionsOf(
+    catalog.methods,
+    shown.map((e) => e.paymentMethod),
+  );
 
   const monthHidden = views ? sectionGroup(views.section) !== "month" : false;
   const dayTotals = new Map(
@@ -397,12 +539,12 @@ export function MonthView({
               >
                 <StackedBar
                   categories={summary.categories}
-                  activeKey={active?.key ?? null}
+                  activeKeys={active.categories}
                   onToggle={toggleCategory}
                 />
                 <CategoryBars
                   categories={summary.categories}
-                  activeKey={active?.key ?? null}
+                  activeKeys={active.categories}
                   onToggle={toggleCategory}
                 />
               </Cascade>
@@ -424,26 +566,66 @@ export function MonthView({
           {/* What is left to pay (overdue or due within 7 days) belongs to now: only this month. */}
           {month === currentMonth ? <PendingPayments pending={pendingPeriods} /> : null}
           <section aria-labelledby={listHeadingId} className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <h3
-                ref={listHeading}
-                id={listHeadingId}
-                tabIndex={-1}
-                className="bo-text-subheading outline-none"
-              >
-                {SUMMARY_COPY.listHeading}
-              </h3>
-              <FilterChip name={active?.name ?? null} count={listed.length} onClear={clearFilter} />
-            </div>
+            <h3
+              ref={listHeading}
+              id={listHeadingId}
+              tabIndex={-1}
+              className="bo-text-subheading outline-none"
+            >
+              {SUMMARY_COPY.listHeading}
+            </h3>
+            {shown.length > 0 ? (
+              <>
+                <ExpenseFiltersPanel
+                  filters={active}
+                  onChange={updateFilters}
+                  sort={sort}
+                  onSort={setSort}
+                  categories={filterCategories}
+                  methods={filterMethods}
+                  open={panelOpen}
+                  onToggle={() => setPanelOpen((open) => !open)}
+                  activeCount={activeCount}
+                  buttonRef={filtersButton}
+                />
+                <FilterChips
+                  chips={chips}
+                  onClearAll={clearAll}
+                  registerRemove={(key, element) => {
+                    if (element) chipRemovers.current.set(key, element);
+                    else chipRemovers.current.delete(key);
+                  }}
+                />
+                {activeCount > 0 ? (
+                  <p
+                    className="bo-amount bo-text-body-sm text-text-secondary"
+                    data-filter-result=""
+                  >
+                    <span aria-hidden>
+                      {SUMMARY_COPY.resultLine(
+                        selection.count,
+                        moneyTotalText(selection.penCents, selection.unconvertedUsdCents),
+                      )}
+                    </span>
+                  </p>
+                ) : null}
+              </>
+            ) : null}
             {shown.length === 0 ? (
               <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
                 {FINANCE_COPY.emptyMonthText}
               </p>
-            ) : groups.length === 0 ? (
-              <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
-                {active ? SUMMARY_COPY.emptyFiltered(active.name) : null}
-              </p>
-            ) : (
+            ) : filtered.length === 0 ? (
+              <div
+                className="bo-card flex max-w-160 flex-col items-start gap-3"
+                data-filter-empty=""
+              >
+                <p className="bo-text-body-sm text-text-secondary">{SUMMARY_COPY.noResults}</p>
+                <Key variant="ghost" onClick={clearAll}>
+                  {SUMMARY_COPY.clearAll}
+                </Key>
+              </div>
+            ) : page.byDay ? (
               <div className="flex flex-col gap-6">
                 {groups.map((group) => {
                   const dayId = `${ids}-${group.day}`;
@@ -469,27 +651,34 @@ export function MonthView({
                       </div>
                       <ul aria-labelledby={dayId} className="bo-list">
                         <AnimatePresence initial={false}>
-                          {group.expenses.map((expense) => (
-                            <PresenceItem key={expense.id}>
-                              <ExpenseRow
-                                expense={expense}
-                                ref={(element) => {
-                                  if (element) rows.current.set(expense.id, element);
-                                  else rows.current.delete(expense.id);
-                                }}
-                                onOpen={(element) => openSheet(expense, element)}
-                                accent={active ? expense.category?.colorSlot : undefined}
-                                filtered={active !== null}
-                              />
-                            </PresenceItem>
-                          ))}
+                          {group.expenses.map((expense) => renderRow(expense, false))}
                         </AnimatePresence>
                       </ul>
                     </div>
                   );
                 })}
               </div>
+            ) : (
+              <ul aria-labelledby={listHeadingId} className="bo-list" data-flat-list="">
+                <AnimatePresence initial={false}>
+                  {listed.map((expense) => renderRow(expense, true))}
+                </AnimatePresence>
+              </ul>
             )}
+            {page.hasMore ? (
+              <div className="flex flex-wrap items-center gap-3" data-more="">
+                <Key ref={moreButton} variant="ghost" onClick={showMore}>
+                  {page.byDay
+                    ? SUMMARY_COPY.showMoreDays(DAYS_PER_PAGE)
+                    : SUMMARY_COPY.showMoreExpenses(EXPENSES_PER_PAGE)}
+                </Key>
+                <p className="bo-text-body-sm text-text-secondary">
+                  {page.byDay
+                    ? SUMMARY_COPY.shownDays(page.shown, page.total)
+                    : SUMMARY_COPY.shownExpenses(page.shown, page.total)}
+                </p>
+              </div>
+            ) : null}
           </section>
         </ViewPanel>
       </div>
@@ -541,14 +730,17 @@ type ExpenseRowProps = {
   /** The category's accent slot, drawn as a 2 px line only while the list is filtered. */
   accent?: number | null;
   filtered?: boolean;
+  /** Set when the list is flat (sorted by amount): the row says which day it is from. */
+  dayLabel?: string;
   onOpen: (element: HTMLButtonElement) => void;
   ref: React.Ref<HTMLButtonElement>;
 };
 
 /** One expense: what, amount (and "≈ S/" for USD), method; the whole row opens its edit sheet. */
-function ExpenseRow({ expense, onOpen, accent, filtered = false, ref }: ExpenseRowProps) {
+function ExpenseRow({ expense, onOpen, accent, filtered = false, dayLabel, ref }: ExpenseRowProps) {
   const text = expenseRowText(expense);
-  const spoken = [text.spoken, ...text.meta].join(", ");
+  const meta = dayLabel ? [dayLabel, ...text.meta] : text.meta;
+  const spoken = [text.spoken, ...meta].join(", ");
   return (
     <button
       ref={ref}
@@ -563,8 +755,8 @@ function ExpenseRow({ expense, onOpen, accent, filtered = false, ref }: ExpenseR
     >
       <span className="bo-row__body" aria-hidden>
         <span className="bo-row__title truncate">{text.label}</span>
-        {text.meta.length > 0 ? (
-          <span className="bo-row__subtitle truncate">{text.meta.join(" · ")}</span>
+        {meta.length > 0 ? (
+          <span className="bo-row__subtitle truncate">{meta.join(" · ")}</span>
         ) : null}
       </span>
       <span className="bo-row__trail flex-col items-end gap-0.5" aria-hidden>
@@ -575,4 +767,14 @@ function ExpenseRow({ expense, onOpen, accent, filtered = false, ref }: ExpenseR
       </span>
     </button>
   );
+}
+
+/** The panel's options: the catalog's visible items plus the ones the month's rows already use. */
+function optionsOf(
+  catalog: readonly { id: string; name: string }[],
+  used: readonly ({ id: string; name: string } | null)[],
+): Option[] {
+  const known = new Map<string, Option>(catalog.map((item) => [item.id, item]));
+  for (const item of used) if (item && !known.has(item.id)) known.set(item.id, item);
+  return [...known.values()].map(({ id, name }) => ({ id, name }));
 }

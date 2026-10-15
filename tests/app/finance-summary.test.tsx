@@ -250,13 +250,13 @@ describe("Por categoría", () => {
     expect(bars[0]).toHaveTextContent("54%");
   });
 
-  test("a bar filters the list (toggle), takes you to Gastos, says so, and Quitar filtro keeps you there", async () => {
+  test("a bar adds its category to the filters, takes you to Gastos and says what is left; the chips take them off", async () => {
     const user = userEvent.setup();
     renderMonth(rows());
     const backToSummary = () => user.click(screen.getByRole("tab", { name: "Resumen" }));
     const comida = screen.getByRole("button", { name: /^Comida, 80 soles/ });
     await user.click(comida);
-    // The filter lives in «Gastos»: its tab is chosen and has focus; the bar keeps its state.
+    // The list lives in «Gastos»: its tab is chosen and has focus; the bar keeps its state.
     expect(screen.getByRole("tab", { name: "Gastos" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(screen.getByRole("tab", { name: "Gastos" })).toHaveFocus());
     expect(comida).toHaveAttribute("aria-pressed", "true");
@@ -264,39 +264,36 @@ describe("Por categoría", () => {
     expect(screen.getByRole("button", { name: /^Editar Café/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Editar Luz/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Editar Varios/ })).toBeNull();
-    expect(document.querySelector("[data-month-filter]")).toHaveTextContent(
-      "Solo Comida · 2 gastos",
-    );
+    // The chip, the line of what the filters leave (never the month's total) and the button count.
+    expect(document.querySelector("[data-month-filter]")).toHaveTextContent("Comida");
+    expect(document.querySelector("[data-filter-result]")).toHaveTextContent("2 gastos · S/ 80.00");
+    expect(screen.getByRole("button", { name: "Filtros (1)" })).toBeInTheDocument();
+    await waitFor(() => expect(announcer()).toHaveTextContent("2 gastos, 80 soles."));
+
+    // Another bar adds to the filters (a set); the same bar again takes it off.
+    await backToSummary();
+    await user.click(screen.getByRole("button", { name: /^Casa/ }));
+    expect(comida).toHaveAttribute("aria-pressed", "true");
     await waitFor(() =>
-      expect(announcer()).toHaveTextContent("Lista filtrada por Comida: 2 gastos."),
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(3),
+    );
+    await backToSummary();
+    await user.click(screen.getByRole("button", { name: /^Casa/ }));
+    await user.click(screen.getByRole("tab", { name: "Gastos" }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2),
     );
 
-    // Another bar moves the filter; the same bar again takes it off.
-    await backToSummary();
-    await user.click(screen.getByRole("button", { name: /^Sin categoría/ }));
-    expect(comida).toHaveAttribute("aria-pressed", "false");
+    // A chip's key takes its filter off; the last one hands focus to «Filtros».
+    await user.click(screen.getByRole("button", { name: "Quitar filtro: Comida" }));
     await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(1),
+      expect(screen.queryByRole("button", { name: "Quitar filtro: Comida" })).toBeNull(),
     );
-    await backToSummary();
-    await user.click(screen.getByRole("button", { name: /^Sin categoría/ }));
-    // Taking a filter off leaves you where you are; «Gastos» shows the whole month again.
-    await user.click(screen.getByRole("tab", { name: "Gastos" }));
+    expect(screen.getByRole("button", { name: "Filtros" })).toHaveFocus();
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4),
     );
     await waitFor(() => expect(announcer()).toHaveTextContent("Sin filtro: 4 gastos del mes."));
-
-    // "Quitar filtro" goes away: focus goes to the list's heading, in Gastos.
-    await backToSummary();
-    await user.click(screen.getByRole("button", { name: /^Casa/ }));
-    await user.click(screen.getByRole("button", { name: "Quitar filtro" }));
-    // The chip leaves with its exit animation (150 ms): gone a moment later.
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
-    expect(screen.getByRole("heading", { name: "Gastos del mes" })).toHaveFocus();
-    await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4),
-    );
     await backToSummary();
     expect(screen.getByRole("button", { name: /^Casa/ })).toHaveAttribute("aria-pressed", "false");
   });
@@ -544,7 +541,7 @@ describe("the summary follows deletes, undo and the filter", () => {
     ]);
   });
 
-  test("deleting the last expense of the filtered category takes the filter away, said", async () => {
+  test("deleting the last expense the filters leave shows the empty state with a way out", async () => {
     const user = userEvent.setup();
     const cafe = expense({ description: "Café", category: COMIDA });
     const pan = expense({ description: "Pan", category: CASA });
@@ -554,39 +551,42 @@ describe("the summary follows deletes, undo and the filter", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /^Editar Pan/ })).toBeNull());
     await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
     await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
-    expect(screen.getByRole("button", { name: /^Editar Pan/ })).toBeInTheDocument();
+    // Nothing is cleared behind the owner's back: the list says nothing matches.
     await waitFor(() =>
-      expect(announcer()).toHaveTextContent(
-        "Ya no quedan gastos de Comida este mes: se quitó el filtro.",
+      expect(document.querySelector("[data-filter-empty]")).toHaveTextContent(
+        "Ningún gasto cumple los filtros.",
       ),
     );
+    await user.click(screen.getByRole("button", { name: "Quitar todos" }));
+    expect(await screen.findByRole("button", { name: /^Editar Pan/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filtros" })).toHaveFocus();
   });
 
-  test("a new expense of another category takes the filter away; one of the same keeps it", async () => {
+  test("a new expense the filters would hide takes them all away, said; one that fits keeps them", async () => {
     const user = userEvent.setup();
     const cafe = expense({ description: "Café", category: COMIDA });
     const pan = expense({ description: "Pan", category: CASA });
     const { rerenderWith } = renderMonth([cafe, pan]);
     await user.click(screen.getByRole("button", { name: /^Comida,/ }));
-    // Positive control: a new one in the filtered category keeps the filter.
+    // Positive control: a new one in the filtered category keeps the filters.
     const mercado = expense({ description: "Mercado", category: COMIDA });
     rerenderWith([mercado, cafe, pan], "2026-10");
-    expect(screen.getByRole("button", { name: "Quitar filtro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quitar filtro: Comida" })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2),
     );
     // A new one elsewhere (the sheet or the quick capture): the whole month shows, said once.
     const agua = expense({ description: "Agua", category: CASA });
     rerenderWith([agua, mercado, cafe, pan], "2026-10");
-    // The chip leaves with its exit animation (150 ms): gone a moment later.
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Quitar filtro: Comida" })).toBeNull(),
+    );
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4),
     );
     await waitFor(() =>
       expect(announcer()).toHaveTextContent(
-        "Se quitó el filtro de Comida para mostrar el gasto nuevo: 4 gastos del mes.",
+        "Se quitaron los filtros para mostrar el gasto nuevo: 4 gastos del mes.",
       ),
     );
   });
@@ -617,7 +617,7 @@ describe("the summary follows deletes, undo and the filter", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /^Editar Mercado/ })).toHaveFocus(),
     );
-    expect(screen.getByRole("button", { name: "Quitar filtro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quitar filtro: Comida" })).toBeInTheDocument();
   });
 
   test("each bar is described by the hint; a bar with nothing in PEN still reads", () => {
@@ -878,5 +878,102 @@ describe("the three sections (finance-motion M2)", () => {
     // Another month: what is left to pay belongs to now, so the block is not there.
     renderMonth([], { month: "2026-09", section: "mes:gas", pendingPeriods: [period] });
     expect(document.querySelector("[data-pending-payments]")).toBeNull();
+  });
+
+  describe("the filters panel (finance-gastos)", () => {
+    const panelRows = () => [
+      expense({
+        description: "Café",
+        amountCents: 1250,
+        category: COMIDA,
+        paymentMethod: EFECTIVO,
+      }),
+      expense({ description: "Alquiler", amountCents: 80_000, category: CASA }),
+      expense({ description: "Pan", amountCents: 300, category: COMIDA, spentOn: "2026-10-04" }),
+    ];
+    const editRows = () =>
+      screen
+        .getAllByRole("button", { name: /^Editar / })
+        .map((row) => row.getAttribute("aria-label"));
+
+    test("«Filtros» folds the panel (aria-expanded, aria-controls); text filters after a pause and says what is left", async () => {
+      const user = userEvent.setup();
+      renderMonth(panelRows(), { section: "mes:gas" });
+      const button = screen.getByRole("button", { name: "Filtros" });
+      expect(button).toHaveAttribute("aria-expanded", "false");
+      const panel = document.querySelector("[data-filters-panel]") as HTMLElement;
+      expect(button).toHaveAttribute("aria-controls", panel.id);
+      expect(panel).toHaveAttribute("hidden");
+      await user.click(button);
+      expect(button).toHaveAttribute("aria-expanded", "true");
+      expect(panel).not.toHaveAttribute("hidden");
+      // Accents and case do not matter; the list follows after ~250 ms, not on every key.
+      await user.type(screen.getByRole("searchbox", { name: /^Buscar en descripción/ }), "CAFE");
+      await waitFor(() => expect(editRows()).toHaveLength(1));
+      expect(editRows()[0]).toMatch(/^Editar Café/);
+      expect(document.querySelector("[data-filter-result]")).toHaveTextContent(
+        "1 gasto · S/ 12.50",
+      );
+      // The month's total did not move.
+      expect(document.querySelector("[data-month-total]")).toHaveAttribute(
+        "data-month-total",
+        "81550",
+      );
+      // The chip takes the text off and the field follows.
+      await user.click(screen.getByRole("button", { name: "Quitar filtro: “CAFE”" }));
+      await waitFor(() => expect(editRows()).toHaveLength(3));
+      expect(screen.getByRole("searchbox", { name: /^Buscar en descripción/ })).toHaveValue("");
+    });
+
+    test("payment methods and categories are sets of checkboxes; «Sin medio de pago» is one too", async () => {
+      const user = userEvent.setup();
+      renderMonth(panelRows(), { section: "mes:gas" });
+      await user.click(screen.getByRole("button", { name: "Filtros" }));
+      const methods = within(screen.getByRole("group", { name: "Medio de pago" }));
+      await user.click(methods.getByRole("checkbox", { name: "Efectivo" }));
+      await waitFor(() => expect(editRows()).toHaveLength(1));
+      await user.click(methods.getByRole("checkbox", { name: "Sin medio de pago" }));
+      await waitFor(() => expect(editRows()).toHaveLength(3));
+      const categories = within(screen.getByRole("group", { name: "Categoría" }));
+      await user.click(categories.getByRole("checkbox", { name: "Casa" }));
+      await waitFor(() => expect(editRows()).toHaveLength(1));
+      expect(editRows()[0]).toMatch(/^Editar Alquiler/);
+    });
+
+    test("sorting by amount makes the list flat and each row says its day; by date groups again", async () => {
+      const user = userEvent.setup();
+      renderMonth(panelRows(), { section: "mes:gas" });
+      expect(screen.getAllByRole("heading", { level: 4 })).toHaveLength(2);
+      await user.selectOptions(screen.getByRole("combobox", { name: "Orden" }), "highest");
+      await waitFor(() => expect(screen.queryAllByRole("heading", { level: 4 })).toHaveLength(0));
+      expect(editRows().map((label) => label?.split(",")[0])).toEqual([
+        "Editar Alquiler",
+        "Editar Café",
+        "Editar Pan",
+      ]);
+      expect(editRows()[2]).toContain("Ayer");
+      await user.selectOptions(screen.getByRole("combobox", { name: "Orden" }), "oldest");
+      await waitFor(() => expect(screen.getAllByRole("heading", { level: 4 })).toHaveLength(2));
+      expect(editRows()[0]).toMatch(/^Editar Pan/);
+    });
+
+    test("«Mostrar 7 días más» brings the next 7 days and goes away when nothing is left", async () => {
+      const user = userEvent.setup();
+      const days = Array.from({ length: 9 }, (_, index) =>
+        expense({
+          description: `Gasto ${index + 1}`,
+          spentOn: `2026-10-${String(9 - index).padStart(2, "0")}`,
+        }),
+      );
+      renderMonth(days, { section: "mes:gas" });
+      expect(editRows()).toHaveLength(7);
+      expect(screen.getByText("Mostrando 7 de 9 días")).toBeInTheDocument();
+      const more = screen.getByRole("button", { name: "Mostrar 7 días más" });
+      await user.click(more);
+      await waitFor(() => expect(editRows()).toHaveLength(9));
+      expect(screen.queryByRole("button", { name: /Mostrar 7 días más/ })).toBeNull();
+      // The first new row takes focus when the button is gone.
+      expect(screen.getByRole("button", { name: /^Editar Gasto 8/ })).toHaveFocus();
+    });
   });
 });

@@ -6,7 +6,7 @@ import { SUMMARY_COPY, spokenTotal } from "../summary-copy";
 
 type StackedBarProps = {
   categories: SummaryGroup[];
-  activeKey: string | null;
+  activeKeys: readonly string[];
   onToggle: (group: SummaryGroup) => void;
 };
 
@@ -15,7 +15,7 @@ type StackedBarProps = {
  * segment is a toggle like its row in the list (the list carries the names and amounts; this is the
  * shortcut), so a screen reader gets the same name and state.
  */
-export function StackedBar({ categories, activeKey, onToggle }: StackedBarProps) {
+export function StackedBar({ categories, activeKeys, onToggle }: StackedBarProps) {
   const shown = categories.filter((group) => group.share > 0);
   if (shown.length === 0) return null;
   return (
@@ -28,7 +28,7 @@ export function StackedBar({ categories, activeKey, onToggle }: StackedBarProps)
               type="button"
               className="bo-stacked-bar__segment"
               style={categoryStyle(group.colorSlot)}
-              aria-pressed={activeKey === key}
+              aria-pressed={activeKeys.includes(key)}
               aria-label={SUMMARY_COPY.segmentLabel(
                 group.name ?? SUMMARY_COPY.uncategorized,
                 spokenTotal(group.penCents, 0),

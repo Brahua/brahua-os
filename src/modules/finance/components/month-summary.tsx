@@ -251,8 +251,8 @@ function spokenGroup(group: SummaryGroup, none: string): string {
 
 type CategoryBarsProps = {
   categories: SummaryGroup[];
-  /** The category the list is filtered by ("none" for "Sin categoría"), if any. */
-  activeKey: string | null;
+  /** The categories the list is filtered by ("none" for "Sin categoría"). */
+  activeKeys: readonly string[];
   onToggle: (group: SummaryGroup) => void;
 };
 
@@ -260,7 +260,7 @@ type CategoryBarsProps = {
  * "Por categoría": one row per category with its name, amount and percentage over a horizontal
  * CSS bar (decorative: the row's name says it all). Each row is a toggle that filters the list.
  */
-export function CategoryBars({ categories, activeKey, onToggle }: CategoryBarsProps) {
+export function CategoryBars({ categories, activeKeys, onToggle }: CategoryBarsProps) {
   const ids = useId();
   return (
     <section aria-labelledby={`${ids}-heading`} className="flex flex-col gap-3">
@@ -275,7 +275,7 @@ export function CategoryBars({ categories, activeKey, onToggle }: CategoryBarsPr
       <ul className="bo-list" aria-labelledby={`${ids}-heading`}>
         {categories.map((group) => {
           const key = groupKey(group);
-          const pressed = activeKey === key;
+          const pressed = activeKeys.includes(key);
           const percent = percentText(group.percent);
           return (
             <li key={key}>

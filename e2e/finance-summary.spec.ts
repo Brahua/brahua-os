@@ -159,11 +159,10 @@ test("a category's bar filters the list; Quitar filtro brings the whole month ba
   await expect(expenseRow(page, "Mercado")).toBeVisible();
   await expect(expenseRow(page, "Suscripción")).toHaveCount(0);
   await expect(expenseRow(page, "Hosting")).toHaveCount(0);
-  await expect(page.locator("[data-screen-announcer]")).toHaveText(
-    "Lista filtrada por Comida: 1 gasto.",
-  );
-  await page.getByRole("button", { name: "Quitar filtro" }).click();
-  await expect(page.getByRole("heading", { level: 3, name: "Gastos del mes" })).toBeFocused();
+  // What the filters leave is said once, after a pause.
+  await expect(page.locator("[data-screen-announcer]")).toHaveText("1 gasto, 40 soles.");
+  await page.getByRole("button", { name: "Quitar filtro: Comida" }).click();
+  await expect(page.getByRole("button", { name: "Filtros" })).toBeFocused();
   await expect(page.getByRole("button", { name: /^Editar / })).toHaveCount(3);
   await page.getByRole("tab", { name: "Resumen" }).click();
   await expect(comida).toHaveAttribute("aria-pressed", "false");
@@ -256,7 +255,7 @@ test("at 320 px the summary doesn't scroll sideways @responsive", async ({ page 
   await animationsSettled(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await categoryList(page).getByRole("button").first().click();
-  await expect(page.getByRole("button", { name: "Quitar filtro" })).toBeVisible();
+  await expect(page.locator("[data-month-filter]")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
@@ -275,7 +274,7 @@ for (const theme of THEMES) {
     await categoryList(page)
       .getByRole("button", { name: /^Comida,/ })
       .click();
-    await expect(page.getByRole("button", { name: "Quitar filtro" })).toBeVisible();
+    await expect(page.locator("[data-month-filter]")).toBeVisible();
     await afterSaveSettled(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });

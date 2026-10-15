@@ -107,10 +107,11 @@ test("the three sections, the month's arrows, the filter chip, a new expense and
   await expect(tab(page, "Gastos")).toHaveAttribute("aria-selected", "true");
   await expect(expenseRow(page, "Alquiler")).toBeVisible();
   await expect(expenseRow(page, "Mercado")).toHaveCount(0);
-  await expect(page.locator("[data-month-filter]")).toContainText("Solo Casa · 1 gasto");
-  await page.getByRole("button", { name: "Quitar filtro" }).click();
+  await expect(page.locator("[data-month-filter]")).toContainText("Casa");
+  await expect(page.locator("[data-filter-result]")).toContainText("1 gasto");
+  await page.getByRole("button", { name: "Quitar filtro: Casa" }).click();
   await expect(page.locator("[data-month-filter]")).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 3, name: "Gastos del mes" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Filtros" })).toBeFocused();
   await expect(expenseRow(page, "Mercado")).toBeVisible();
   // Each day shows its total.
   await expect(page.locator(`[data-day-total="${today()}"]`)).toContainText("120.00");
