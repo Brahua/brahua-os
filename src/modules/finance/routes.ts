@@ -40,17 +40,29 @@ export function monthHref(month: string, currentMonth: string): string {
   return month === currentMonth ? FINANCE_PATH : `${FINANCE_PATH}?${MONTH_PARAM}=${month}`;
 }
 
-/** The view switch of /finance ("Mes · Pagos"), remembered per device in this cookie. */
-export const FINANCE_VIEWS = ["month", "payments"] as const;
-export type FinanceView = (typeof FINANCE_VIEWS)[number];
+/**
+ * The four sections of /finance (Resumen · Gastos under "Mes", Pendientes · Pagados under
+ * "Pagos"), remembered per device in this cookie.
+ */
+export const FINANCE_SECTIONS = ["mes:res", "mes:gas", "pagos:pen", "pagos:pag"] as const;
+export type FinanceSection = (typeof FINANCE_SECTIONS)[number];
 export const FINANCE_VIEW_COOKIE = "bo_finance_view";
 
-/** The remembered view; anything unknown (or none) is "Mes". */
-export function parseFinanceView(value: string | undefined): FinanceView {
-  return value === "payments" ? "payments" : "month";
+/** The group a section belongs to. */
+export const sectionGroup = (section: FinanceSection): "month" | "payments" =>
+  section.startsWith("mes") ? "month" : "payments";
+
+/**
+ * The remembered section. The two values the cookie held before (`mes`, `pagos`; also spelled
+ * `month`, `payments`) still work and open the first section of their group; anything unknown is
+ * "Resumen".
+ */
+export function parseFinanceSection(value: string | undefined): FinanceSection {
+  if (value === "payments" || value === "pagos") return "pagos:pen";
+  return FINANCE_SECTIONS.find((section) => section === value) ?? "mes:res";
 }
 
-/** The cookie that remembers the view for a year (client-side; `secure` on HTTPS). */
-export function financeViewCookie(view: FinanceView, secure: boolean): string {
-  return `${FINANCE_VIEW_COOKIE}=${view}; Path=/; Max-Age=31536000; SameSite=Lax${secure ? "; Secure" : ""}`;
+/** The cookie that remembers the section for a year (client-side; `secure` on HTTPS). */
+export function financeViewCookie(section: FinanceSection, secure: boolean): string {
+  return `${FINANCE_VIEW_COOKIE}=${section}; Path=/; Max-Age=31536000; SameSite=Lax${secure ? "; Secure" : ""}`;
 }

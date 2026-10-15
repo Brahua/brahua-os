@@ -18,6 +18,11 @@ export const FINANCE_COPY = {
   viewsLabel: "Vista de Finanzas",
   viewMonth: "Mes",
   viewPayments: "Pagos",
+  /** The four sections: «Mes» holds the first two, «Pagos» the last two. */
+  sectionSummary: "Resumen",
+  sectionExpenses: "Gastos",
+  sectionPending: "Pendientes",
+  sectionPaid: "Pagados",
   /** F2 replaces it with the recurring payments. */
   paymentsEmpty: "Aquí verás tus pagos recurrentes.",
 

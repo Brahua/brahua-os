@@ -318,3 +318,24 @@ html { scroll-padding-top: env(safe-area-inset-top); }
     animation-duration: var(--duration-state);
   }
 }
+
+/* finance-motion M2: metric cards, the stacked bar, the category dot, the day total. */
+.bo-metric-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; text-align: left; }
+button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 100%; }
+.bo-metric-card__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 24px; line-height: 1; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+@media (min-width: 640px) { .bo-metric-card__value { font-size: 28px; } }
+.bo-stacked-bar { display: flex; gap: 2px; height: 44px; margin: 0; padding: 0; list-style: none; }
+.bo-stacked-bar > li { display: flex; min-width: 6px; }
+.bo-stacked-bar__segment { flex: 1; min-width: 0; border: 0; border-radius: var(--radius-xs); background: var(--_cat, var(--color-text-secondary)); cursor: pointer; padding: 0; }
+.bo-stacked-bar__segment[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-text); }
+.bo-stacked-bar__segment:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.bo-cat-dot { display: inline-block; width: 8px; height: 8px; flex: none; border-radius: var(--radius-full); background: var(--_cat, var(--color-text-secondary)); }
+@media (forced-colors: active) {
+  .bo-stacked-bar__segment, .bo-cat-dot { forced-color-adjust: none; background: CanvasText; }
+  .bo-stacked-bar__segment[aria-pressed="true"] { box-shadow: 0 0 0 2px Canvas, 0 0 0 4px Highlight; }
+}
+
+/* finance-motion M2: four sections must fit a 320 px screen: tighter items, and the control scrolls
+   inside its own box (never the page) if the labels still do not fit. */
+.bo-finance-sections { max-width: 100%; overflow-x: auto; }
+.bo-finance-sections .bo-segmented__item { padding: 0 10px; white-space: nowrap; }

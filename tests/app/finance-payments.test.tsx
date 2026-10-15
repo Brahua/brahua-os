@@ -582,7 +582,7 @@ describe("the payment's page", () => {
     expect(within(notices()).getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Eliminar" }));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(`/finance?deleted=${seguro.id}`));
-    expect(document.cookie).toContain("bo_finance_view=payments");
+    expect(document.cookie).toContain("bo_finance_view=pagos:pen");
   });
 
   test("a refused archive comes back: the key says Archivar again and keeps focus", async () => {

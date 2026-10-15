@@ -4,12 +4,16 @@
 // sin convertir", the "Pendiente de pagar" strip and the blocks (by category, by payment method,
 // recurring and one-off). Only the data: no comparisons, no guilt, no red.
 import NumberFlow from "@number-flow/react";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Equal } from "lucide-react";
 import { useId } from "react";
 import { Icon, IconKey, Key } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatMoney, spokenMoney } from "../money";
+import { categoryStyle } from "../category-color";
 import { GrowFill } from "./grow-fill";
+import { MetricCard } from "./metric-card";
+import { shortDay, spokenDay } from "../payments-copy";
+import type { Delta } from "../trend";
 import { MoneyFlow, PercentFlow } from "./money-flow";
 import type { MonthPending, MonthSummary, MoneyTotal, SummaryGroup } from "../summary";
 import { groupKey } from "../summary";
@@ -115,13 +119,78 @@ export function MonthTotal({ total, rateSet, onSetRate }: MonthTotalProps) {
   );
 }
 
-// ── "Pendiente de pagar" ────────────────────────────────────────────────────────────────────────
+// ── Context line ───────────────────────────────────────────────────────────────────────────────
+
+type MonthContextProps = {
+  delta: Delta | null;
+  /** The month is still going: the comparison is up to today's day number. */
+  samePoint: boolean;
+  /** "Día 14 de 31" while the month is current; null otherwise. */
+  point: { day: number; total: number } | null;
+  /** Unconverted USD is left out of the comparison: say so. */
+  excludesUsd: boolean;
+};
+
+/** Under the total: the neutral comparison with the previous month and where the month stands. */
+export function MonthContext({ delta, samePoint, point, excludesUsd }: MonthContextProps) {
+  if (!delta && !point) return null;
+  const icon =
+    delta?.direction === "up" ? ArrowUp : delta?.direction === "down" ? ArrowDown : Equal;
+  return (
+    <p
+      className="bo-text-body-sm flex flex-wrap items-center gap-x-3 gap-y-1 text-text-secondary"
+      data-month-context=""
+    >
+      {delta ? (
+        <span className="inline-flex items-center gap-1" data-month-delta={delta.direction}>
+          <Icon icon={icon} size="sm" />
+          <span className="bo-amount" aria-hidden>
+            {SUMMARY_COPY.deltaVs(delta.percent, delta.direction, samePoint)}
+          </span>
+          <span className="sr-only">
+            {SUMMARY_COPY.deltaSpoken(delta.percent, delta.direction, samePoint)}
+          </span>
+        </span>
+      ) : null}
+      {point ? (
+        <span className="bo-amount" data-month-day="">
+          {SUMMARY_COPY.dayOf(point.day, point.total)}
+        </span>
+      ) : null}
+      {delta && excludesUsd ? <span>{SUMMARY_COPY.deltaExcludesUsd}</span> : null}
+    </p>
+  );
+}
+
+// ── "Gastado" and "Pendiente de pagar" ─────────────────────────────────────────────────────────
+
+/** «Gastado»: the month's total again as a card, with a slot for the six-month sparkline (M4). */
+export function SpentCard({
+  total,
+  sparkline,
+}: {
+  total: MoneyTotal;
+  sparkline?: React.ReactNode;
+}) {
+  return (
+    <MetricCard
+      attr="data-spent-card"
+      label={SUMMARY_COPY.spent}
+      value={<MoneyFlow cents={total.penCents} />}
+      spoken={`${SUMMARY_COPY.spent}: ${spokenMoney(total.penCents, "PEN")}, ${SUMMARY_COPY.expenses(total.count)}`}
+      hint={SUMMARY_COPY.expenses(total.count)}
+    >
+      {sparkline}
+    </MetricCard>
+  );
+}
 
 /**
- * "Pendiente de pagar: S/ 1,250.00 · 2 pagos" (F2's recurring payments still due this month); it
- * shows Pagos. Nothing when there is nothing pending (or F2's data isn't wired: null).
+ * "Pendiente de pagar: S/ 1,250.00 · 2 pagos · próximo 18 oct" (F2's recurring payments still due
+ * this month); it shows «Pendientes». Nothing when there is nothing pending (or F2's data isn't
+ * wired: null).
  */
-export function PendingStrip({ pending }: { pending: MonthPending | null }) {
+export function PendingCard({ pending }: { pending: MonthPending | null }) {
   const views = useFinanceViews();
   if (!pending || pending.count === 0) return null;
   // Variable payments have no amount: counted apart ("+ 1 de monto variable"); with only those,
@@ -139,30 +208,26 @@ export function PendingStrip({ pending }: { pending: MonthPending | null }) {
   ]
     .filter(Boolean)
     .join(", ");
+  const next = pending.nextDueOn;
   return (
-    <ul className="bo-list" aria-label={SUMMARY_COPY.pendingTitle} data-month-pending="">
-      <li>
-        <button
-          type="button"
-          className="bo-row"
-          aria-label={SUMMARY_COPY.pendingLabel(spoken, pending.count)}
-          onClick={() => views?.showView("payments")}
-        >
-          <span className="bo-row__body" aria-hidden>
-            <span className="bo-row__title">{SUMMARY_COPY.pendingTitle}</span>
-            <span className="bo-row__subtitle">{SUMMARY_COPY.pendingCount(pending.count)}</span>
-          </span>
-          <span className="bo-row__trail" aria-hidden>
-            <span className="bo-amount bo-text-body text-text">
-              {known ? <MoneyFlow cents={pending.totalPenCents} /> : null}
-              {unconvertedText ? ` ${unconvertedText}` : null}
-              {variableText ? `${known ? " " : ""}${variableText}` : null}
-            </span>
-            <Icon icon={ChevronRight} size="sm" />
-          </span>
-        </button>
-      </li>
-    </ul>
+    <MetricCard
+      attr="data-month-pending"
+      label={SUMMARY_COPY.pendingTitle}
+      value={known ? <MoneyFlow cents={pending.totalPenCents} /> : <span>{variableText}</span>}
+      spoken={SUMMARY_COPY.pendingLabel(
+        next ? `${spoken}, ${SUMMARY_COPY.nextPayment(spokenDay(next))}` : spoken,
+        pending.count,
+      )}
+      hint={[
+        SUMMARY_COPY.pendingCount(pending.count),
+        next ? SUMMARY_COPY.nextPayment(shortDay(next)) : null,
+        known ? variableText : null,
+        unconvertedText,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      onClick={() => views?.showSection("pagos:pen")}
+    />
   );
 }
 
@@ -183,32 +248,18 @@ type CategoryBarsProps = {
   /** The category the list is filtered by ("none" for "Sin categoría"), if any. */
   activeKey: string | null;
   onToggle: (group: SummaryGroup) => void;
-  /** Each bar's key, to bring focus back to it after "Quitar filtro". */
-  registerBar: (key: string, element: HTMLButtonElement | null) => void;
-  headingRef: React.Ref<HTMLHeadingElement>;
 };
 
 /**
  * "Por categoría": one row per category with its name, amount and percentage over a horizontal
  * CSS bar (decorative: the row's name says it all). Each row is a toggle that filters the list.
  */
-export function CategoryBars({
-  categories,
-  activeKey,
-  onToggle,
-  registerBar,
-  headingRef,
-}: CategoryBarsProps) {
+export function CategoryBars({ categories, activeKey, onToggle }: CategoryBarsProps) {
   const ids = useId();
   return (
     <section aria-labelledby={`${ids}-heading`} className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h3
-          ref={headingRef}
-          id={`${ids}-heading`}
-          tabIndex={-1}
-          className="bo-text-subheading outline-none"
-        >
+        <h3 id={`${ids}-heading`} className="bo-text-subheading">
           {SUMMARY_COPY.byCategory}
         </h3>
         <p id={`${ids}-hint`} className="bo-text-body-sm text-text-secondary">
@@ -223,7 +274,6 @@ export function CategoryBars({
           return (
             <li key={key}>
               <button
-                ref={(element) => registerBar(key, element)}
                 type="button"
                 aria-pressed={pressed}
                 aria-label={spokenGroup(group, SUMMARY_COPY.uncategorized)}
@@ -234,6 +284,7 @@ export function CategoryBars({
               >
                 <span className="bo-summary-row__line" aria-hidden>
                   <span className="bo-row__title flex min-w-0 items-center gap-1.5">
+                    <span className="bo-cat-dot" style={categoryStyle(index)} aria-hidden />
                     {pressed ? <Icon icon={Check} size="sm" /> : null}
                     <span className="truncate">{groupName(group, SUMMARY_COPY.uncategorized)}</span>
                   </span>
@@ -253,10 +304,6 @@ export function CategoryBars({
                     {SUMMARY_COPY.unconverted(formatMoney(group.unconvertedUsdCents, "USD"))}
                   </span>
                 ) : null}
-                <span className="bo-summary-bar" aria-hidden>
-                  {/* Nothing in PEN (only USD without a rate): an empty track, no sliver. */}
-                  {group.share > 0 ? <GrowFill share={group.share} index={index} /> : null}
-                </span>
               </button>
             </li>
           );
@@ -317,7 +364,7 @@ export function RecurringSplit({ summary }: { summary: MonthSummary }) {
       <h3 id={`${ids}-heading`} className="bo-text-subheading">
         {SUMMARY_COPY.split}
       </h3>
-      <div className="bo-card">
+      <div className="flex flex-col gap-3">
         <dl className="grid grid-cols-2 gap-4">
           {parts.map((part) => (
             <div key={part.tone} className="flex min-w-0 flex-col gap-1" data-split={part.tone}>
@@ -350,5 +397,15 @@ export function RecurringSplit({ summary }: { summary: MonthSummary }) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+/** One card for «Por medio de pago» and «Recurrente y suelto» (the design's single card). */
+export function MixCard({ summary }: { summary: MonthSummary }) {
+  return (
+    <div className="bo-card flex flex-col gap-6" data-month-mix="">
+      <MethodRows methods={summary.methods} />
+      <RecurringSplit summary={summary} />
+    </div>
   );
 }

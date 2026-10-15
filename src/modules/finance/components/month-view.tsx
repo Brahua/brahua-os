@@ -17,8 +17,10 @@ import { deleteExpense, restoreExpense } from "../actions";
 import type { ExpenseItem } from "../expense-input";
 import { Cascade, useDirectionalSwap } from "@/lib/motion";
 import { dayTitle, FINANCE_COPY, monthTitle } from "../finance-copy";
+import { formatMoney } from "../money";
 import { expenseRowText, groupByDay } from "../month-list";
-import { FIRST_MONTH, monthHref, monthOrder, shiftMonth } from "../routes";
+import { FIRST_MONTH, monthHref, monthOrder, sectionGroup, shiftMonth } from "../routes";
+import { compareToPrevious, monthlyTotals, monthPoint, type MonthlyTotal } from "../trend";
 import {
   expenseCategoryKey,
   groupKey,
@@ -29,14 +31,17 @@ import {
 import { spokenTotal, SUMMARY_COPY } from "../summary-copy";
 import { ExpenseSheet } from "./expense-sheet";
 import { useFinanceScreen } from "./finance-screen";
+import { useFinanceViews, ViewPanel } from "./finance-views";
 import {
   CategoryBars,
-  MethodRows,
+  MixCard,
   MonthArrow,
+  MonthContext,
   MonthTotal,
-  PendingStrip,
-  RecurringSplit,
+  PendingCard,
+  SpentCard,
 } from "./month-summary";
+import { StackedBar } from "./stacked-bar";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
 
@@ -53,6 +58,8 @@ type MonthViewProps = {
    * null or none: nothing to show.
    */
   pending?: MonthPending | null;
+  /** The six months ending at `month` (`getMonthlyTotals`): the comparison reads the previous one. */
+  trend?: MonthlyTotal[];
 };
 
 /**
@@ -62,7 +69,8 @@ type MonthViewProps = {
  * row opens "Editar gasto"; deleting is optimistic (the summary follows at once) with "Deshacer"
  * in the screen's notices.
  */
-export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
+export function MonthView({ month, expenses, pending = null, trend = [] }: MonthViewProps) {
+  const views = useFinanceViews();
   const { today, catalog, enqueue, toaster, announce, openSettings } = useFinanceScreen();
   const router = useRouter();
   const ids = useId();
@@ -83,9 +91,8 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
   });
   const addKey = useRef<HTMLButtonElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const categoriesHeading = useRef<HTMLHeadingElement>(null);
+  const listHeading = useRef<HTMLHeadingElement>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
-  const bars = useRef(new Map<string, HTMLButtonElement>());
   // Where focus goes when the sheet closes: the row (or key) that opened it, or a neighbor.
   const returnFocus = useRef<HTMLElement | null>(null);
   // What to say, and where focus goes, once the sheet has closed after an edit.
@@ -93,6 +100,22 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
 
   const currentMonth = today.slice(0, 7);
   const summary = useMemo(() => summarizeMonth(month, shown), [month, shown]);
+  // The comparison with the previous month at the same point of the month (trend.ts); the current
+  // side reads the optimistic list, so a delete moves it at once.
+  const point = monthPoint(month, today);
+  const previousTotal = trend.find((entry) => entry.month === shiftMonth(month, -1));
+  const delta = useMemo(
+    () =>
+      previousTotal
+        ? compareToPrevious(
+            month,
+            FIRST_MONTH,
+            monthlyTotals(shown, month, 1, point.day)[0].uptoDayPenCents,
+            previousTotal.uptoDayPenCents,
+          )
+        : null,
+    [shown, month, point.day, previousTotal],
+  );
   // A filter belongs to the month it was set on: the arrows leave it behind.
   const active = filter?.month === month ? filter : null;
   const listed = active
@@ -160,14 +183,15 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
     setFilter({ month, key, name });
     const count = shown.filter((expense) => expenseCategoryKey(expense) === key).length;
     announce(SUMMARY_COPY.filterOn(name, count));
+    // The filter lives in «Gastos»: a category tapped in «Resumen» takes you there.
+    views?.showSection("mes:gas");
   }
 
   function clearFilter() {
-    // "Quitar filtro" goes away: focus returns to the bar that set the filter (or its heading).
-    const bar = active ? bars.current.get(active.key) : undefined;
+    // "Quitar filtro" goes away: focus goes to the list's heading (the list stays in view).
     setFilter(null);
     announce(SUMMARY_COPY.filterOff(shown.length));
-    (bar ?? categoriesHeading.current)?.focus();
+    listHeading.current?.focus();
   }
 
   function openSheet(expense: ExpenseItem | null, opener: HTMLElement | null) {
@@ -240,12 +264,18 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
   const previous = month > FIRST_MONTH ? shiftMonth(month, -1) : null;
   const next = month < currentMonth ? shiftMonth(month, 1) : null;
 
+  const monthHidden = views ? sectionGroup(views.section) !== "month" : false;
+  const dayTotals = new Map(
+    groups.map((group) => [group.day, summarizeMonth(month, group.expenses).total]),
+  );
+
   return (
     <section
       aria-labelledby={headingId}
       aria-busy={navigating || undefined}
       className="flex flex-col gap-6"
       data-finance-month={month}
+      hidden={monthHidden}
     >
       <Cascade index={2} className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-3">
@@ -274,6 +304,14 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
             rateSet={catalog.usdToPenE4 !== null}
             onSetRate={(opener) => openSettings(opener)}
           />
+          <MonthContext
+            delta={delta}
+            samePoint={point.isCurrent}
+            point={point.isCurrent ? point : null}
+            excludesUsd={
+              summary.total.unconvertedUsdCents > 0 || (previousTotal?.unconvertedUsdCents ?? 0) > 0
+            }
+          />
         </div>
         <Key
           ref={addKey}
@@ -289,97 +327,119 @@ export function MonthView({ month, expenses, pending = null }: MonthViewProps) {
       {/* What follows the month's arrows: it leaves towards the arrow while the next month loads
           and arrives from the other side (`useDirectionalSwap`); focus stays on the arrow above. */}
       <div ref={swap} className="flex flex-col gap-6">
-        {pending && pending.count > 0 ? (
-          <Cascade index={3}>
-            <PendingStrip pending={pending} />
+        <ViewPanel section="mes:res">
+          <Cascade index={3} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SpentCard total={summary.total} />
+            {pending && pending.count > 0 ? <PendingCard pending={pending} /> : null}
           </Cascade>
-        ) : null}
 
-        {shown.length > 0 ? (
-          <Cascade
-            index={4}
-            className="grid grid-cols-1 gap-6 lg:grid-cols-2"
-            attrs={{ "data-month-summary": "" }}
-          >
-            <CategoryBars
-              categories={summary.categories}
-              activeKey={active?.key ?? null}
-              onToggle={toggleCategory}
-              registerBar={(key, element) => {
-                if (element) bars.current.set(key, element);
-                else bars.current.delete(key);
-              }}
-              headingRef={categoriesHeading}
-            />
-            <div className="flex flex-col gap-6">
-              <MethodRows methods={summary.methods} />
-              <RecurringSplit summary={summary} />
-            </div>
-          </Cascade>
-        ) : null}
-
-        {shown.length === 0 ? (
-          <Cascade index={4}>
-            <div className="bo-card max-w-160" data-finance-empty="">
-              <p className="bo-text-body font-semibold">{FINANCE_COPY.emptyMonthTitle}</p>
-              <p className="bo-text-body-sm text-text-secondary">{FINANCE_COPY.emptyMonthText}</p>
-            </div>
-          </Cascade>
-        ) : (
-          <Cascade index={5}>
-            <section aria-labelledby={listHeadingId} className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <h3 id={listHeadingId} className="bo-text-subheading">
-                  {SUMMARY_COPY.listHeading}
-                </h3>
-                {active ? (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-month-filter="">
-                    <p className="bo-text-body-sm text-text-secondary">
-                      {`${SUMMARY_COPY.filteredBy(active.name)} · ${SUMMARY_COPY.expenses(listed.length)}`}
-                    </p>
-                    <Key variant="ghost" icon={X} onClick={clearFilter}>
-                      {SUMMARY_COPY.clearFilter}
-                    </Key>
-                  </div>
-                ) : null}
+          {shown.length > 0 ? (
+            <>
+              <Cascade
+                index={4}
+                className="flex flex-col gap-4"
+                attrs={{ "data-month-summary": "" }}
+              >
+                <StackedBar
+                  categories={summary.categories}
+                  activeKey={active?.key ?? null}
+                  onToggle={toggleCategory}
+                />
+                <CategoryBars
+                  categories={summary.categories}
+                  activeKey={active?.key ?? null}
+                  onToggle={toggleCategory}
+                />
+              </Cascade>
+              <Cascade index={5}>
+                <MixCard summary={summary} />
+              </Cascade>
+            </>
+          ) : (
+            <Cascade index={4}>
+              <div className="bo-card max-w-160" data-finance-empty="">
+                <p className="bo-text-body font-semibold">{FINANCE_COPY.emptyMonthTitle}</p>
+                <p className="bo-text-body-sm text-text-secondary">{FINANCE_COPY.emptyMonthText}</p>
               </div>
-              {groups.length === 0 ? (
-                <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
-                  {active ? SUMMARY_COPY.emptyFiltered(active.name) : null}
-                </p>
-              ) : (
-                <div className="flex flex-col gap-6">
-                  {groups.map((group) => {
-                    const dayId = `${ids}-${group.day}`;
-                    return (
-                      <div key={group.day} className="flex flex-col gap-2">
-                        <h4 id={dayId} className="bo-section-label">
+            </Cascade>
+          )}
+        </ViewPanel>
+
+        <ViewPanel section="mes:gas">
+          <section aria-labelledby={listHeadingId} className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <h3
+                ref={listHeading}
+                id={listHeadingId}
+                tabIndex={-1}
+                className="bo-text-subheading outline-none"
+              >
+                {SUMMARY_COPY.listHeading}
+              </h3>
+              {active ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-month-filter="">
+                  <p className="bo-text-body-sm text-text-secondary">
+                    {`${SUMMARY_COPY.filteredBy(active.name)} · ${SUMMARY_COPY.expenses(listed.length)}`}
+                  </p>
+                  <Key variant="ghost" icon={X} onClick={clearFilter}>
+                    {SUMMARY_COPY.clearFilter}
+                  </Key>
+                </div>
+              ) : null}
+            </div>
+            {shown.length === 0 ? (
+              <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
+                {FINANCE_COPY.emptyMonthText}
+              </p>
+            ) : groups.length === 0 ? (
+              <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
+                {active ? SUMMARY_COPY.emptyFiltered(active.name) : null}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-6">
+                {groups.map((group) => {
+                  const dayId = `${ids}-${group.day}`;
+                  const dayTotal = dayTotals.get(group.day);
+                  return (
+                    <div key={group.day} className="flex flex-col gap-2">
+                      <div className="flex items-baseline gap-3">
+                        <h4 id={dayId} className="bo-section-label min-w-0 flex-1">
                           <span className="bo-section-label__title">
                             {dayTitle(group.day, today)}
                           </span>
                         </h4>
-                        <ul aria-labelledby={dayId} className="bo-list">
-                          {group.expenses.map((expense) => (
-                            <li key={expense.id}>
-                              <ExpenseRow
-                                expense={expense}
-                                ref={(element) => {
-                                  if (element) rows.current.set(expense.id, element);
-                                  else rows.current.delete(expense.id);
-                                }}
-                                onOpen={(element) => openSheet(expense, element)}
-                              />
-                            </li>
-                          ))}
-                        </ul>
+                        {dayTotal ? (
+                          <span className="bo-amount bo-text-body-sm" data-day-total={group.day}>
+                            <span aria-hidden>{formatMoney(dayTotal.penCents, "PEN")}</span>
+                            <span className="sr-only">
+                              {SUMMARY_COPY.dayTotalSpoken(
+                                spokenTotal(dayTotal.penCents, dayTotal.unconvertedUsdCents),
+                              )}
+                            </span>
+                          </span>
+                        ) : null}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </Cascade>
-        )}
+                      <ul aria-labelledby={dayId} className="bo-list">
+                        {group.expenses.map((expense) => (
+                          <li key={expense.id}>
+                            <ExpenseRow
+                              expense={expense}
+                              ref={(element) => {
+                                if (element) rows.current.set(expense.id, element);
+                                else rows.current.delete(expense.id);
+                              }}
+                              onOpen={(element) => openSheet(expense, element)}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </ViewPanel>
       </div>
 
       {sheet ? (

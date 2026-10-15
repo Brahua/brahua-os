@@ -125,7 +125,7 @@ test("the summary: total in PEN with a USD expense, USD without a rate apart, Aj
   await expect(unconverted).toContainText("+ USD 10.00 sin convertir");
 });
 
-test("Pendiente de pagar: the month's pending payments, variable ones apart; it opens Pagos", async ({
+test("Pendiente de pagar: the month's pending payments, variable ones apart; it opens Pendientes", async ({
   page,
 }) => {
   // Both due today (the helper's default), neither paid: pending this month.
@@ -133,18 +133,18 @@ test("Pendiente de pagar: the month's pending payments, variable ones apart; it 
   await insertRecurring({ name: "Luz", amountCents: null });
   await openReady(page, "/finance");
   const strip = page.getByRole("button", {
-    name: "Pendiente de pagar: 50 soles, y 1 de monto variable, 2 pagos. Ver en Pagos",
+    name: /^Pendiente de pagar: 50 soles, y 1 de monto variable, próximo .+, 2 pagos\. Ver pendientes$/,
   });
   await expect(strip).toBeVisible();
   // The PEN figure rolls (its digits are separate elements): the button's name carries it ("50
   // soles"); the visible line keeps the variable payments in plain text.
-  await expect(strip).toContainText("+ 1 de monto variable");
+  await expect(strip).toContainText("1 de monto variable");
   await strip.click();
-  const tab = page.getByRole("tab", { name: "Pagos" });
+  const tab = page.getByRole("tab", { name: "Pendientes" });
   await expect(tab).toHaveAttribute("aria-selected", "true");
   await expect(tab).toBeFocused();
-  await expect(page.locator('[data-finance-view="payments"]')).toBeVisible();
-  await expect(page.locator('[data-finance-view="month"]')).toBeHidden();
+  await expect(page.locator('[data-finance-view="pagos:pen"]')).toBeVisible();
+  await expect(page.locator('[data-finance-view="mes:res"]')).toBeHidden();
 });
 
 test("a category's bar filters the list; Quitar filtro brings the whole month back", async ({
@@ -154,7 +154,8 @@ test("a category's bar filters the list; Quitar filtro brings the whole month ba
   await openReady(page, "/finance");
   const comida = categoryList(page).getByRole("button", { name: /^Comida,/ });
   await comida.click();
-  await expect(comida).toHaveAttribute("aria-pressed", "true");
+  // The filter lives in «Gastos»: the category takes you there.
+  await expect(page.getByRole("tab", { name: "Gastos" })).toHaveAttribute("aria-selected", "true");
   await expect(expenseRow(page, "Mercado")).toBeVisible();
   await expect(expenseRow(page, "Suscripción")).toHaveCount(0);
   await expect(expenseRow(page, "Hosting")).toHaveCount(0);
@@ -162,9 +163,10 @@ test("a category's bar filters the list; Quitar filtro brings the whole month ba
     "Lista filtrada por Comida: 1 gasto.",
   );
   await page.getByRole("button", { name: "Quitar filtro" }).click();
-  await expect(comida).toBeFocused();
-  await expect(comida).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("heading", { level: 3, name: "Gastos del mes" })).toBeFocused();
   await expect(page.getByRole("button", { name: /^Editar / })).toHaveCount(3);
+  await page.getByRole("tab", { name: "Resumen" }).click();
+  await expect(comida).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("[data-screen-announcer]")).toHaveText("Sin filtro: 3 gastos del mes.");
 });
 
@@ -184,10 +186,11 @@ test("the arrows go to the previous month and back; never past the current one",
   await back.click();
   await expect(page).toHaveURL(new RegExp(`\\?mes=${previous}$`));
   await expect(totalText(page)).toHaveText("Total del mes: 30 soles");
-  await expect(expenseRow(page, "Libro")).toBeVisible();
-  await expect(expenseRow(page, "Pan")).toHaveCount(0);
   await expect(back).toBeFocused();
   await expect(page.locator("[data-screen-announcer]")).toContainText("30 soles en total.");
+  await page.getByRole("tab", { name: "Gastos" }).click();
+  await expect(expenseRow(page, "Libro")).toBeVisible();
+  await expect(expenseRow(page, "Pan")).toHaveCount(0);
 
   await next.click();
   await expect(page).toHaveURL(/\/finance$/);

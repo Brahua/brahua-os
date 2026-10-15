@@ -17,12 +17,13 @@ import {
   getPaymentsView,
   getPendingForMonth,
 } from "@/modules/finance/payment-queries";
+import { monthPoint } from "@/modules/finance/trend";
 import { DELETED_PAYMENT_PARAM } from "@/modules/finance/payment-routes";
-import { getFinanceCatalog, listMonthExpenses } from "@/modules/finance/queries";
+import { getFinanceCatalog, getMonthlyTotals, listMonthExpenses } from "@/modules/finance/queries";
 import {
   FINANCE_VIEW_COOKIE,
   MONTH_PARAM,
-  parseFinanceView,
+  parseFinanceSection,
   parseMonth,
 } from "@/modules/finance/routes";
 
@@ -33,7 +34,7 @@ type FinancePageProps = {
 };
 
 /**
- * Finanzas (SPEC-finance "Pantallas"): "Mes · Pagos" (the switch is remembered per device, in a
+ * Finanzas (SPEC-finance "Pantallas"): Resumen · Gastos · Pendientes · Pagados (the switch is remembered per device, in a
  * cookie read here so the first paint is right) and "Ajustes" in the header. "Mes": the month's
  * expenses with its summary, arrows and "Pendiente de pagar" (F3); "Pagos": the recurring
  * payments (F2).
@@ -45,10 +46,12 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
   const today = ownerDateKey(new Date());
   const month = parseMonth(search[MONTH_PARAM], today.slice(0, 7));
   const deletedId = search[DELETED_PAYMENT_PARAM];
-  const [catalog, expenses, payments, pending, deletedName, suggestions, emailSettings] =
+  const [catalog, expenses, trend, payments, pending, deletedName, suggestions, emailSettings] =
     await Promise.all([
       getFinanceCatalog(),
       listMonthExpenses(month),
+      // Six months for the comparison, each also up to today's day number ("same point").
+      getMonthlyTotals(month, 6, monthPoint(month, today).day),
       getPaymentsView(today),
       getPendingForMonth(month, today),
       typeof deletedId === "string" ? getDeletedRecurringName(deletedId) : null,
@@ -57,10 +60,10 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
       getEmailSettings().catch(() => ({ ownNames: [], methods: [] })),
     ]);
   // Back from deleting a payment on its page: "Pagos", with its "Deshacer" notice.
-  const view =
+  const section =
     deletedName !== null
-      ? "payments"
-      : parseFinanceView((await cookies()).get(FINANCE_VIEW_COOKIE)?.value);
+      ? "pagos:pen"
+      : parseFinanceSection((await cookies()).get(FINANCE_VIEW_COOKIE)?.value);
 
   return (
     <FinanceScreen today={today} catalog={catalog} emailSettings={emailSettings}>
@@ -76,9 +79,9 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
         {/* SPEC-finance-email: the expenses found in the bank emails, above the month. */}
         <SuggestionsSection items={suggestions} />
         <FinanceViews
-          initialView={view}
+          initialSection={section}
           // The summary is computed from these rows on the client (summary.ts): no extra query.
-          month={<MonthView month={month} expenses={expenses} pending={pending} />}
+          month={<MonthView month={month} expenses={expenses} pending={pending} trend={trend} />}
           payments={<PaymentsView data={payments} />}
         />
       </div>

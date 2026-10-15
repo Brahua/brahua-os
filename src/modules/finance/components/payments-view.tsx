@@ -31,6 +31,7 @@ import type { RecurringItem } from "../recurring-input";
 import { recurringPaymentPath } from "../routes";
 import { monthOfDay } from "../schedule";
 import { installmentOf } from "../today-summary";
+import { ViewPanel } from "./finance-views";
 import { useFinanceScreen } from "./finance-screen";
 import { PaySheet, type PayOverrides } from "./pay-sheet";
 import { RecurringSheet } from "./recurring-sheet";
@@ -272,191 +273,190 @@ export function PaymentsView({ data }: { data: PaymentsViewData }) {
   };
 
   return (
-    <div
-      className="flex flex-col gap-8"
-      data-payments-view=""
-      data-saving={saving ? "" : undefined}
-    >
-      <section aria-labelledby={sectionIds.pending} className="flex flex-col gap-3">
-        <h2
-          ref={pendingHeading}
-          id={sectionIds.pending}
-          tabIndex={-1}
-          // When the last row leaves, focus lands here and the empty message is read with it.
-          aria-describedby={pending.length === 0 ? sectionIds.pendingEmpty : undefined}
-          className="bo-text-title outline-none"
-        >
-          {PAYMENTS_COPY.pendingHeading}
-        </h2>
-        {pending.length === 0 ? (
-          <p
-            id={sectionIds.pendingEmpty}
-            className="bo-card bo-text-body-sm max-w-160 text-text-secondary"
-            data-pending-empty=""
+    <div className="contents" data-payments-view="" data-saving={saving ? "" : undefined}>
+      <ViewPanel section="pagos:pen" className="flex flex-col gap-8">
+        <section aria-labelledby={sectionIds.pending} className="flex flex-col gap-3">
+          <h2
+            ref={pendingHeading}
+            id={sectionIds.pending}
+            tabIndex={-1}
+            // When the last row leaves, focus lands here and the empty message is read with it.
+            aria-describedby={pending.length === 0 ? sectionIds.pendingEmpty : undefined}
+            className="bo-text-title outline-none"
           >
-            {PAYMENTS_COPY.pendingEmpty}
-          </p>
-        ) : (
-          <ul aria-labelledby={sectionIds.pending} className="bo-list" data-pending-list="">
-            {pending.map((period) => (
-              <li key={periodKey(period)}>
-                <PendingRow
-                  period={period}
-                  today={today}
-                  payRef={(element) => {
-                    if (element) payKeys.current.set(periodKey(period), element);
-                    else payKeys.current.delete(periodKey(period));
-                  }}
-                  onPay={(element) =>
-                    period.recurring.amountCents === null
-                      ? openPaySheet(period, element)
-                      : payNow(period)
-                  }
-                  onMore={(element) => openPaySheet(period, element)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section aria-labelledby={sectionIds.month} className="flex flex-col gap-3">
-        <h2 id={sectionIds.month} className="bo-text-title">
-          {PAYMENTS_COPY.monthHeading(monthTitle(monthOfDay(today)))}
-        </h2>
-        {data.thisMonth.length === 0 ? (
-          <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
-            {PAYMENTS_COPY.monthEmpty}
-          </p>
-        ) : (
-          <ul aria-labelledby={sectionIds.month} className="bo-list" data-month-list="">
-            {data.thisMonth.map((entry) => (
-              <li key={`${entry.recurring.id}:${entry.dueOn ?? "none"}`}>
-                <MonthRow
-                  entry={entry}
-                  settledNow={
-                    entry.status === "pending"
-                      ? settled.get(periodKey({ recurring: entry.recurring, dueOn: entry.dueOn }))
-                      : undefined
-                  }
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section aria-labelledby={sectionIds.all} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 id={sectionIds.all} className="bo-text-title">
-            {PAYMENTS_COPY.allHeading}
+            {PAYMENTS_COPY.pendingHeading}
           </h2>
-          <Key
-            ref={newKey}
-            variant="signal"
-            icon={Plus}
-            aria-haspopup="dialog"
-            onClick={(event) => openNew(event.currentTarget)}
-          >
-            {PAYMENTS_COPY.newPayment}
-          </Key>
-        </div>
-        {data.active.length === 0 ? (
-          <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary" data-all-empty="">
-            {PAYMENTS_COPY.allEmpty}
-          </p>
-        ) : (
-          <ul aria-labelledby={sectionIds.all} className="bo-list" data-all-list="">
-            {data.active.map(({ recurring, nextDue }) => (
-              <li key={recurring.id}>
-                <Link
-                  href={recurringPaymentPath(recurring.id)}
-                  className="bo-row"
-                  // Spoken in words: "S/" and "jue 9 oct" read badly.
-                  aria-label={[
-                    recurring.name,
-                    cycleSummary(recurring),
-                    recurring.paymentMethod?.name,
-                    spokenExpected(recurring),
-                    nextDue
-                      ? PAYMENTS_COPY.nextDueSpoken(spokenDay(nextDue))
-                      : PAYMENTS_COPY.noMoreDues,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                  data-payment-link={recurring.id}
-                >
-                  <span className="bo-row__body" aria-hidden>
-                    <span className="bo-row__title truncate">{recurring.name}</span>
-                    <span className="bo-row__subtitle">
-                      {[cycleSummary(recurring), recurring.paymentMethod?.name]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </span>
-                  <span className="bo-row__trail flex-col items-end gap-0.5" aria-hidden>
-                    <span className="bo-amount bo-text-body text-text">
-                      {expectedAmount(recurring)}
-                    </span>
-                    <span className="bo-text-body-sm">
-                      {nextDue
-                        ? PAYMENTS_COPY.nextDue(shortDay(nextDue))
-                        : PAYMENTS_COPY.noMoreDues}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {archived.length > 0 ? (
-        <details className="group flex flex-col gap-3" data-archived-payments="">
-          <summary
-            ref={archivedSummary}
-            id={sectionIds.archived}
-            className="bo-text-body-sm flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-md font-semibold text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            <Icon icon={ChevronDown} size="sm" className="group-open:rotate-180" />
-            {PAYMENTS_COPY.archivedHeading(archived.length)}
-          </summary>
-          <ul aria-labelledby={sectionIds.archived} className="bo-list mt-3">
-            {archived.map((item) => (
-              <li key={item.id} className="bo-row bo-row--static">
-                <span className="bo-row__body">
-                  <Link
-                    href={recurringPaymentPath(item.id)}
-                    className="bo-task-title bo-row-link bo-row__title w-fit"
-                  >
-                    {item.name}
-                  </Link>
-                  <span className="bo-row__subtitle">
-                    {item.archived
-                      ? cycleSummary(item)
-                      : `${cycleSummary(item)} · ${PAYMENTS_COPY.endedLabel}`}
-                  </span>
-                </span>
-                {/* A plan that ended unsettled isn't archived: there is nothing to reactivate. */}
-                {item.archived ? (
-                  <Key
-                    ref={(element) => {
-                      if (element) reactivateKeys.current.set(item.id, element);
-                      else reactivateKeys.current.delete(item.id);
+          {pending.length === 0 ? (
+            <p
+              id={sectionIds.pendingEmpty}
+              className="bo-card bo-text-body-sm max-w-160 text-text-secondary"
+              data-pending-empty=""
+            >
+              {PAYMENTS_COPY.pendingEmpty}
+            </p>
+          ) : (
+            <ul aria-labelledby={sectionIds.pending} className="bo-list" data-pending-list="">
+              {pending.map((period) => (
+                <li key={periodKey(period)}>
+                  <PendingRow
+                    period={period}
+                    today={today}
+                    payRef={(element) => {
+                      if (element) payKeys.current.set(periodKey(period), element);
+                      else payKeys.current.delete(periodKey(period));
                     }}
-                    variant="ghost"
-                    aria-label={`${PAYMENTS_COPY.reactivate} «${item.name}»`}
-                    onClick={() => reactivateItem(item)}
-                  >
-                    {PAYMENTS_COPY.reactivate}
-                  </Key>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+                    onPay={(element) =>
+                      period.recurring.amountCents === null
+                        ? openPaySheet(period, element)
+                        : payNow(period)
+                    }
+                    onMore={(element) => openPaySheet(period, element)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
+        <section aria-labelledby={sectionIds.all} className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h2 id={sectionIds.all} className="bo-text-title">
+              {PAYMENTS_COPY.allHeading}
+            </h2>
+            <Key
+              ref={newKey}
+              variant="signal"
+              icon={Plus}
+              aria-haspopup="dialog"
+              onClick={(event) => openNew(event.currentTarget)}
+            >
+              {PAYMENTS_COPY.newPayment}
+            </Key>
+          </div>
+          {data.active.length === 0 ? (
+            <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary" data-all-empty="">
+              {PAYMENTS_COPY.allEmpty}
+            </p>
+          ) : (
+            <ul aria-labelledby={sectionIds.all} className="bo-list" data-all-list="">
+              {data.active.map(({ recurring, nextDue }) => (
+                <li key={recurring.id}>
+                  <Link
+                    href={recurringPaymentPath(recurring.id)}
+                    className="bo-row"
+                    // Spoken in words: "S/" and "jue 9 oct" read badly.
+                    aria-label={[
+                      recurring.name,
+                      cycleSummary(recurring),
+                      recurring.paymentMethod?.name,
+                      spokenExpected(recurring),
+                      nextDue
+                        ? PAYMENTS_COPY.nextDueSpoken(spokenDay(nextDue))
+                        : PAYMENTS_COPY.noMoreDues,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                    data-payment-link={recurring.id}
+                  >
+                    <span className="bo-row__body" aria-hidden>
+                      <span className="bo-row__title truncate">{recurring.name}</span>
+                      <span className="bo-row__subtitle">
+                        {[cycleSummary(recurring), recurring.paymentMethod?.name]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                    <span className="bo-row__trail flex-col items-end gap-0.5" aria-hidden>
+                      <span className="bo-amount bo-text-body text-text">
+                        {expectedAmount(recurring)}
+                      </span>
+                      <span className="bo-text-body-sm">
+                        {nextDue
+                          ? PAYMENTS_COPY.nextDue(shortDay(nextDue))
+                          : PAYMENTS_COPY.noMoreDues}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {archived.length > 0 ? (
+          <details className="group flex flex-col gap-3" data-archived-payments="">
+            <summary
+              ref={archivedSummary}
+              id={sectionIds.archived}
+              className="bo-text-body-sm flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 rounded-md font-semibold text-text-secondary hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              <Icon icon={ChevronDown} size="sm" className="group-open:rotate-180" />
+              {PAYMENTS_COPY.archivedHeading(archived.length)}
+            </summary>
+            <ul aria-labelledby={sectionIds.archived} className="bo-list mt-3">
+              {archived.map((item) => (
+                <li key={item.id} className="bo-row bo-row--static">
+                  <span className="bo-row__body">
+                    <Link
+                      href={recurringPaymentPath(item.id)}
+                      className="bo-task-title bo-row-link bo-row__title w-fit"
+                    >
+                      {item.name}
+                    </Link>
+                    <span className="bo-row__subtitle">
+                      {item.archived
+                        ? cycleSummary(item)
+                        : `${cycleSummary(item)} · ${PAYMENTS_COPY.endedLabel}`}
+                    </span>
+                  </span>
+                  {/* A plan that ended unsettled isn't archived: there is nothing to reactivate. */}
+                  {item.archived ? (
+                    <Key
+                      ref={(element) => {
+                        if (element) reactivateKeys.current.set(item.id, element);
+                        else reactivateKeys.current.delete(item.id);
+                      }}
+                      variant="ghost"
+                      aria-label={`${PAYMENTS_COPY.reactivate} «${item.name}»`}
+                      onClick={() => reactivateItem(item)}
+                    >
+                      {PAYMENTS_COPY.reactivate}
+                    </Key>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+      </ViewPanel>
+
+      <ViewPanel section="pagos:pag" className="flex flex-col gap-8">
+        <section aria-labelledby={sectionIds.month} className="flex flex-col gap-3">
+          <h2 id={sectionIds.month} className="bo-text-title">
+            {PAYMENTS_COPY.monthHeading(monthTitle(monthOfDay(today)))}
+          </h2>
+          {data.thisMonth.length === 0 ? (
+            <p className="bo-card bo-text-body-sm max-w-160 text-text-secondary">
+              {PAYMENTS_COPY.monthEmpty}
+            </p>
+          ) : (
+            <ul aria-labelledby={sectionIds.month} className="bo-list" data-month-list="">
+              {data.thisMonth.map((entry) => (
+                <li key={`${entry.recurring.id}:${entry.dueOn ?? "none"}`}>
+                  <MonthRow
+                    entry={entry}
+                    settledNow={
+                      entry.status === "pending"
+                        ? settled.get(periodKey({ recurring: entry.recurring, dueOn: entry.dueOn }))
+                        : undefined
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </ViewPanel>
       {sheet?.kind === "pay" ? (
         <PaySheet
           key={sheet.key}

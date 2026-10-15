@@ -66,9 +66,11 @@ test("pay a monthly payment with one tap and undo it", async ({ page }) => {
     paymentMethodId: methodId,
     recurringDueOn: today(),
   });
+  await page.getByRole("tab", { name: "Pagados" }).click();
   await expect(
     page.getByRole("list", { name: /^Este mes/ }).getByText("Pagado · S/ 50.00"),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "Pendientes" }).click();
 
   await untilSaved(page, () =>
     financeNotices(page).getByRole("button", { name: "Deshacer" }).click(),
@@ -77,7 +79,7 @@ test("pay a monthly payment with one tap and undo it", async ({ page }) => {
   await expect.poll(async () => (await readSettlements(id)).length).toBe(0);
   expect((await readRecurringExpenses(id))[0].deletedAt).not.toBeNull();
   // The expense is out of the month too.
-  await page.getByRole("tab", { name: "Mes" }).click();
+  await page.getByRole("tab", { name: "Gastos" }).click();
   await expect(page.getByRole("button", { name: /^Editar Internet,/ })).toHaveCount(0);
 });
 
@@ -97,8 +99,8 @@ test("a variable amount through Pagado…, and the expense shows as Recurrente",
   await expect.poll(async () => (await readRecurringExpenses(id)).length).toBe(1);
   expect((await readRecurringExpenses(id))[0].amountCents).toBe(108_050);
 
-  // In "Mes" its row says "Recurrente" and its sheet links to the payment's page.
-  await page.getByRole("tab", { name: "Mes" }).click();
+  // In «Gastos» its row says "Recurrente" and its sheet links to the payment's page.
+  await page.getByRole("tab", { name: "Gastos" }).click();
   const row = page.getByRole("button", { name: /^Editar Luz,/ });
   await expect(row).toHaveAccessibleName(/Recurrente/);
   await row.click();
@@ -120,9 +122,11 @@ test("skip a period, and undo it", async ({ page }) => {
     .poll(async () => (await readSettlements(id)).map((row) => row.status))
     .toEqual(["skipped"]);
   expect(await readRecurringExpenses(id)).toHaveLength(0);
+  await page.getByRole("tab", { name: "Pagados" }).click();
   await expect(
     page.getByRole("list", { name: /^Este mes/ }).getByText("Omitido", { exact: true }),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "Pendientes" }).click();
   await untilSaved(page, () =>
     financeNotices(page).getByRole("button", { name: "Deshacer" }).click(),
   );
@@ -308,7 +312,7 @@ for (const theme of THEMES) {
     await insertRecurring({ name: "Antiguo", archived: true });
     await openReady(page, "/finance");
     await setTheme(page, theme);
-    await page.getByRole("tab", { name: "Pagos" }).click();
+    await page.getByRole("tab", { name: "Pendientes" }).click();
     await page.getByText("Archivados (1)").click();
     expect(await axeViolations(page)).toEqual([]);
     await expectScreenshot(pendingList(page), `finance-payments-pending-${theme}.png`);

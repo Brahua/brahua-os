@@ -17,6 +17,27 @@ export const SUMMARY_COPY = {
   /** Said after the arrows bring another month. */
   monthShown: (month: string, total: string) => `${month}: ${total} en total.`,
 
+  // Context line under the total (finance-motion M2): neutral, never red or green.
+  spent: "Gastado",
+  dayOf: (day: number, total: number) => `Día ${day} de ${total}`,
+  /** `samePoint`: the month is still going, so it is compared up to today's day number. */
+  deltaVs: (percent: number, direction: "up" | "down" | "same", samePoint: boolean) => {
+    const base = samePoint ? "mes anterior al mismo punto del mes" : "mes anterior";
+    if (direction === "same") return `Igual que el ${base}`;
+    return `${direction === "up" ? "+" : "−"}${percent} % vs. ${base}`;
+  },
+  deltaSpoken: (percent: number, direction: "up" | "down" | "same", samePoint: boolean) => {
+    const base = samePoint ? "el mes anterior al mismo punto del mes" : "el mes anterior";
+    if (direction === "same") return `Igual que ${base}`;
+    return `${percent} por ciento ${direction === "up" ? "más" : "menos"} que ${base}`;
+  },
+  /** USD without a rate is left out of the comparison: said when there is any. */
+  deltaExcludesUsd: "La comparación no incluye dólares sin convertir.",
+  /** A segment of the stacked bar: the same toggle as its row in the list, named as the bar. */
+  segmentLabel: (name: string, amount: string) => `Barra, ${name}: ${amount}`,
+  dayTotalSpoken: (amount: string) => `Total del día: ${amount}`,
+  nextPayment: (day: string) => `próximo ${day}`,
+
   // USD without a rate
   unconverted: (usd: string) => `+ ${usd} sin convertir`,
   unconvertedSpoken: (usd: string) => `y ${usd} sin convertir`,
@@ -26,7 +47,7 @@ export const SUMMARY_COPY = {
   pendingTitle: "Pendiente de pagar",
   pendingCount: (count: number) => plural(count, "pago", "pagos"),
   pendingLabel: (amount: string, count: number) =>
-    `Pendiente de pagar: ${amount}, ${plural(count, "pago", "pagos")}. Ver en Pagos`,
+    `Pendiente de pagar: ${amount}, ${plural(count, "pago", "pagos")}. Ver pendientes`,
   /** Payments without an amount: counted, never summed ("+ 1 de monto variable"). */
   pendingVariable: (count: number, afterAmount: boolean) =>
     `${afterAmount ? "+ " : ""}${count} de monto variable`,
@@ -37,6 +58,8 @@ export const SUMMARY_COPY = {
   byCategory: "Por categoría",
   byMethod: "Por medio de pago",
   split: "Recurrente y suelto",
+  /** The one card with the methods and the recurring / one-off split. */
+  mixHeading: "Cómo se pagó",
   recurring: "Recurrente",
   oneOff: "Suelto",
   uncategorized: "Sin categoría",

@@ -205,6 +205,8 @@ export type PendingForMonth = {
   unconvertedUsdCents: number;
   /** How many of them have no amount ("Monto variable"): not in the total. */
   variableCount: number;
+  /** The earliest due date among them (YYYY-MM-DD), or null when none. */
+  nextDueOn: string | null;
 };
 
 /** The days of `month` a pending period can be due on (from the 60-day window on). */
@@ -228,6 +230,7 @@ export function pendingForMonth(
     totalPenCents: 0,
     unconvertedUsdCents: 0,
     variableCount: 0,
+    nextDueOn: null,
   };
   if (from > to) return result;
   for (const recurring of items) {
@@ -236,6 +239,7 @@ export function pendingForMonth(
     for (const dueOn of dueDatesBetween(recurring, from, to)) {
       if (settled.has(dueOn)) continue;
       result.count += 1;
+      if (result.nextDueOn === null || dueOn < result.nextDueOn) result.nextDueOn = dueOn;
       if (recurring.amountCents === null) {
         result.variableCount += 1;
         continue;
