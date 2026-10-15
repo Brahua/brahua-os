@@ -381,3 +381,17 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 [data-paid-pulse="a"] { animation: bo-paid-pulse-a 1000ms var(--ease-out); }
 [data-paid-pulse="b"] { animation: bo-paid-pulse-b 1000ms var(--ease-out); }
 @media (prefers-reduced-motion: reduce) { [data-paid-pulse] { animation: none; } }
+
+/* finance-gastos: the filters panel, its chips and checkboxes. */
+.bo-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 32px; padding: 0 4px 0 12px; border-radius: var(--radius-full); background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.bo-chip__remove { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.bo-chip__remove:hover { color: var(--color-text); }
+.bo-chip__remove:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.bo-filters { display: flex; flex-direction: column; gap: 16px; }
+.bo-filters fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.bo-filters legend { padding: 0; margin-bottom: 8px; font: 500 11px/14px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); }
+.bo-check-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.bo-check { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-md); background: var(--color-key); box-shadow: inset 0 0 0 1px var(--color-border); cursor: pointer; }
+.bo-check input { width: 18px; height: 18px; accent-color: var(--color-text); }
+.bo-check:has(input:checked) { box-shadow: inset 0 0 0 1.5px var(--color-text); }
+.bo-check:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }

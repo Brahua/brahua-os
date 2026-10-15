@@ -36,6 +36,36 @@ export const SUMMARY_COPY = {
   /** A segment of the stacked bar: the same toggle as its row in the list, named as the bar. */
   segmentLabel: (name: string, amount: string) => `Barra, ${name}: ${amount}`,
   dayTotalSpoken: (amount: string) => `Total del día: ${amount}`,
+  // Filters, order and pages of «Gastos» (finance-gastos)
+  filtersButton: (active: number) => (active > 0 ? `Filtros (${active})` : "Filtros"),
+  filtersLegend: "Filtrar los gastos",
+  categoryLegend: "Categoría",
+  methodLegend: "Medio de pago",
+  textLabel: "Buscar en descripción, categoría o medio",
+  sortLabel: "Orden",
+  sortOptions: {
+    recent: "Más recientes",
+    oldest: "Más antiguos",
+    highest: "Mayor monto",
+    lowest: "Menor monto",
+  },
+  removeChip: (label: string) => `Quitar filtro: ${label}`,
+  clearAll: "Quitar todos",
+  chipText: (text: string) => `“${text}”`,
+  /** «12 gastos · S/ 1,240.00»: the filtered list, never the month's total. */
+  resultLine: (count: number, amount: string) =>
+    `${count === 1 ? "1 gasto" : `${count} gastos`} · ${amount}`,
+  resultSpoken: (count: number, amount: string) =>
+    `${count === 1 ? "1 gasto" : `${count} gastos`}, ${amount}.`,
+  noResults: "Ningún gasto cumple los filtros.",
+  showMoreDays: (days: number) => `Mostrar ${days} días más`,
+  showMoreExpenses: (count: number) => `Mostrar ${count} gastos más`,
+  shownDays: (shown: number, total: number) => `Mostrando ${shown} de ${total} días`,
+  shownExpenses: (shown: number, total: number) => `Mostrando ${shown} de ${total} gastos`,
+  /** Said when the filters go away to show a new expense they would hide. */
+  filtersClearedByNew: (count: number) =>
+    `Se quitaron los filtros para mostrar el gasto nuevo: ${count === 1 ? "1 gasto" : `${count} gastos`} del mes.`,
+
   // The pace chart (finance-motion M4)
   chartHeading: "Ritmo del mes",
   chartEmpty: "Aún no hay gastos este mes: el gráfico aparece con el primero.",
