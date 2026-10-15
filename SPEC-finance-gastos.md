@@ -1,6 +1,6 @@
 # Spec: finance-gastos (filtros y paginación en «Gastos»)
 
-> Extensión del módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `finance`, `finance-email` y `finance-motion` (en producción) · Estado: **BORRADOR v0.1** (2026-10-15; pendiente de aprobación del owner)
+> Extensión del módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `finance`, `finance-email` y `finance-motion` (en producción) · Estado: **APROBADO v1.0** (2026-10-15; las tres preguntas abiertas se resuelven con las propuestas por defecto)
 > Insumos: decisiones del owner del 2026-10-15 (abajo) y la sección «Gastos» actual (`src/modules/finance/components/month-view.tsx`).
 
 ## Objetivo
