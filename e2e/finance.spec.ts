@@ -316,6 +316,7 @@ test("at 320 px nothing scrolls sideways (the month, the sheets) @responsive", a
     .locator(".bo-sheet__body");
   expect(await settingsBody.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Gastos" }).click();
   await expenseRow(page, "Una descripción larga de un gasto de prueba").click();
   const edit = expenseSheet(page, "Editar gasto");
   await expect(edit).toBeVisible();
