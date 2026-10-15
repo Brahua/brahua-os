@@ -373,3 +373,11 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
   .bo-chart__today { border-color: Highlight; }
   .bo-chart__dot { forced-color-adjust: none; background: CanvasText; }
 }
+
+/* finance-motion M5: «Pagado» saved → the «Pagados» tab pulses with a signal ring (1000 ms). Two
+   animation names so a second celebration restarts it. Off with reduced motion. */
+@keyframes bo-paid-pulse-a { 0% { box-shadow: 0 0 0 0 var(--color-signal); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes bo-paid-pulse-b { 0% { box-shadow: 0 0 0 0 var(--color-signal); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.bo-segmented__item[data-paid-pulse="a"] { animation: bo-paid-pulse-a 1000ms var(--ease-out); }
+.bo-segmented__item[data-paid-pulse="b"] { animation: bo-paid-pulse-b 1000ms var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .bo-segmented__item[data-paid-pulse] { animation: none; } }

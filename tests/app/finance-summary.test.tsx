@@ -271,21 +271,28 @@ describe("Por categoría", () => {
     await backToSummary();
     await user.click(screen.getByRole("button", { name: /^Sin categoría/ }));
     expect(comida).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(1);
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(1),
+    );
     await backToSummary();
     await user.click(screen.getByRole("button", { name: /^Sin categoría/ }));
     // Taking a filter off leaves you where you are; «Gastos» shows the whole month again.
     await user.click(screen.getByRole("tab", { name: "Gastos" }));
-    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4);
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4),
+    );
     await waitFor(() => expect(announcer()).toHaveTextContent("Sin filtro: 4 gastos del mes."));
 
     // "Quitar filtro" goes away: focus goes to the list's heading, in Gastos.
     await backToSummary();
     await user.click(screen.getByRole("button", { name: /^Casa/ }));
     await user.click(screen.getByRole("button", { name: "Quitar filtro" }));
-    expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull();
+    // The chip leaves with its exit animation (150 ms): gone a moment later.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
     expect(screen.getByRole("heading", { name: "Gastos del mes" })).toHaveFocus();
-    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4);
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4),
+    );
     await backToSummary();
     expect(screen.getByRole("button", { name: /^Casa/ })).toHaveAttribute("aria-pressed", "false");
   });
@@ -301,8 +308,11 @@ describe("Por categoría", () => {
       ],
       "2026-09",
     );
-    expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2);
+    // The chip leaves with its exit animation (150 ms): gone a moment later.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2),
+    );
   });
 });
 
@@ -537,7 +547,7 @@ describe("the summary follows deletes, undo and the filter", () => {
     vi.mocked(deleteExpense).mockImplementation(hang);
     renderMonth([cafe, pan]);
     await user.click(screen.getByRole("button", { name: /^Comida,/ }));
-    expect(screen.queryByRole("button", { name: /^Editar Pan/ })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Editar Pan/ })).toBeNull());
     await user.click(screen.getByRole("button", { name: /^Editar Café/ }));
     await user.click(screen.getByRole("button", { name: "Eliminar gasto" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
@@ -559,12 +569,17 @@ describe("the summary follows deletes, undo and the filter", () => {
     const mercado = expense({ description: "Mercado", category: COMIDA });
     rerenderWith([mercado, cafe, pan], "2026-10");
     expect(screen.getByRole("button", { name: "Quitar filtro" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2);
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2),
+    );
     // A new one elsewhere (the sheet or the quick capture): the whole month shows, said once.
     const agua = expense({ description: "Agua", category: CASA });
     rerenderWith([agua, mercado, cafe, pan], "2026-10");
-    expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4);
+    // The chip leaves with its exit animation (150 ms): gone a moment later.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Quitar filtro" })).toBeNull());
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(4),
+    );
     await waitFor(() =>
       expect(announcer()).toHaveTextContent(
         "Se quitó el filtro de Comida para mostrar el gasto nuevo: 4 gastos del mes.",
