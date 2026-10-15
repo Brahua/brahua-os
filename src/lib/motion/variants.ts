@@ -1,22 +1,12 @@
 import type { Transition, Variants } from "motion/react";
 import { DURATION, EASE, SCREEN, STAGGER, TRAVEL } from "./tokens";
 
-// Shared variants of the contract. Each moves only `opacity` and `transform` (plus a stroke's
+// Shared variants of the contract (the entry cascade is CSS: `Cascade`). Each moves only `opacity` and `transform` (plus a stroke's
 // `pathLength` and a collapsing row's height). The reduced version is not here: `MotionProvider`
 // sets `reducedMotion="user"`, so Motion keeps the opacity and skips the transforms by itself.
 
 const out = { ease: EASE.out } as const;
 const standard = { ease: EASE.standard } as const;
-
-/** Blocks of a screen appear one after the other: `custom` is the block's position (0, 1, 2…). */
-export const cascade = {
-  hidden: { opacity: 0, y: TRAVEL },
-  shown: (index: number = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: DURATION.panel, delay: index * SCREEN.cascadeStep, ...out },
-  }),
-} satisfies Variants;
 
 /** Content that follows an arrow: `custom` is the direction (1 comes from the right, -1 from the left). */
 export const slideSwap = {

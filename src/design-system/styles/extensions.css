@@ -296,3 +296,25 @@ html { scroll-padding-top: env(safe-area-inset-top); }
   gap: 8px;
   padding: 12px;
 }
+
+/* Entry cascade (finance-motion M1, `Cascade` in src/lib/motion): a block rises 8 px and fades in,
+   each one 3 staggers after the previous. Pure CSS on purpose: it runs from the first paint of
+   the server HTML, with no wait for hydration (a Motion `initial` shipped the blocks hidden and
+   left the screen empty until JS ran). `backwards` applies the hidden start only during the
+   delay, so nothing lingers once it ends. Reduced motion keeps the fade (the state token is not
+   zeroed) and drops the travel. Not a synced component: no PENDING UPSTREAM. */
+@keyframes bo-cascade-in {
+  from { opacity: 0; transform: translateY(var(--cascade-travel)); }
+  to { opacity: 1; transform: none; }
+}
+.bo-cascade {
+  --cascade-travel: 8px;
+  animation: bo-cascade-in var(--duration-panel) var(--ease-out) backwards;
+  animation-delay: calc(var(--cascade-index, 0) * 3 * var(--stagger));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bo-cascade {
+    --cascade-travel: 0px;
+    animation-duration: var(--duration-state);
+  }
+}

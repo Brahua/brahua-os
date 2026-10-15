@@ -1,15 +1,14 @@
+import { readFileSync } from "node:fs";
 import { act, render, renderHook, screen } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Cascade,
-  cascade,
   collapse,
   crossFade,
   drawPath,
   flash,
-  MotionProvider,
   markEntered,
   pop,
   resetEntryForTests,
@@ -49,19 +48,13 @@ describe("variants", () => {
   it("only move opacity, transforms, strokes and heights", () => {
     const ALLOWED = new Set(["opacity", "x", "y", "scale", "pathLength", "height", "transition"]);
     const keys: string[] = [];
-    for (const group of [cascade, slideSwap, crossFade, collapse, pop, drawPath, flash]) {
+    for (const group of [slideSwap, crossFade, collapse, pop, drawPath, flash]) {
       for (const value of Object.values(group)) {
         const resolved = typeof value === "function" ? (value as (c?: number) => object)(1) : value;
         for (const key of Object.keys(resolved)) if (!ALLOWED.has(key)) keys.push(key);
       }
     }
     expect(keys).toEqual([]);
-  });
-
-  it("a cascade block waits for its turn", () => {
-    const at = (index: number) => (cascade.shown(index).transition as { delay: number }).delay;
-    expect(at(0)).toBe(0);
-    expect(at(3)).toBeCloseTo(3 * SCREEN.cascadeStep);
   });
 
   it("the swap leaves towards the arrow and arrives from the other side", () => {
@@ -72,37 +65,87 @@ describe("variants", () => {
 });
 
 describe("Cascade", () => {
-  it("is a plain block without a MotionProvider (tests, error pages)", () => {
+  it("animates the first screen of the tab with the CSS class and its turn", () => {
+    resetEntryForTests();
     render(
       <Cascade index={2} className="block-a" attrs={{ "data-x": "1" }}>
         <p>hola</p>
       </Cascade>,
     );
     const block = screen.getByText("hola").parentElement!;
-    expect(block).toHaveClass("block-a");
+    expect(block).toHaveClass("bo-cascade", "block-a");
     expect(block).toHaveAttribute("data-x", "1");
-    expect(block.style.opacity).toBe("");
+    expect(block.style.getPropertyValue("--cascade-index")).toBe("2");
   });
 
-  it("starts hidden under the provider, once per tab: later blocks appear plain", () => {
-    const { unmount } = render(
-      <MotionProvider>
-        <Cascade index={0}>
-          <p>primero</p>
-        </Cascade>
-      </MotionProvider>,
+  it("plays once per tab: a block mounted after the first one appears plain", () => {
+    resetEntryForTests();
+    const first = render(
+      <Cascade index={0}>
+        <p>primero</p>
+      </Cascade>,
     );
-    expect(screen.getByText("primero").parentElement!.style.opacity).toBe("0");
-    unmount();
+    expect(screen.getByText("primero").parentElement).toHaveClass("bo-cascade");
+    first.unmount();
+    // The first block closed the entry in its effect.
     render(
-      <MotionProvider>
-        <Cascade index={0}>
-          <p>segundo</p>
-        </Cascade>
-      </MotionProvider>,
+      <Cascade index={0}>
+        <p>segundo</p>
+      </Cascade>,
     );
-    // The entry already played in this tab (the first block closed it): no hidden start.
-    expect(screen.getByText("segundo").parentElement!.style.opacity).toBe("");
+    expect(screen.getByText("segundo").parentElement).not.toHaveClass("bo-cascade");
+  });
+
+  it("keeps its element and class when it closes the entry (no remount mid-animation)", () => {
+    resetEntryForTests();
+    const tree = (
+      <Cascade index={0}>
+        <p>bloque</p>
+      </Cascade>
+    );
+    const { rerender } = render(tree);
+    const before = screen.getByText("bloque").parentElement;
+    rerender(tree);
+    expect(screen.getByText("bloque").parentElement).toBe(before);
+    expect(before).toHaveClass("bo-cascade");
+  });
+
+  it("is in the server HTML and hydrates without a mismatch (it needs no JS to appear)", () => {
+    resetEntryForTests();
+    const tree = (
+      <Cascade index={1} attrs={{ "data-x": "1" }}>
+        <p>servidor</p>
+      </Cascade>
+    );
+    const html = renderToString(tree);
+    expect(html).toContain("bo-cascade");
+    expect(html).toContain("--cascade-index:1");
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    document.body.append(host);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    act(() => {
+      hydrateRoot(host, tree);
+    });
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+    expect(host.querySelector("[data-x]")).toHaveClass("bo-cascade");
+    host.remove();
+  });
+});
+
+describe("the cascade styles", () => {
+  const CSS = readFileSync("src/design-system/styles/extensions.css", "utf8");
+  const block = CSS.slice(CSS.indexOf("@keyframes bo-cascade-in"));
+
+  it("use the design tokens, and reduced motion keeps a fade without travel", () => {
+    expect(block).toContain("var(--duration-panel)");
+    expect(block).toContain("var(--ease-out)");
+    expect(block).toContain("var(--stagger)");
+    const reduced = block.slice(block.indexOf("prefers-reduced-motion"));
+    expect(reduced).toContain("--cascade-travel: 0px");
+    // --duration-panel is zeroed under reduced motion; the fade needs one that is not.
+    expect(reduced).toContain("var(--duration-state)");
   });
 });
 
@@ -251,57 +294,6 @@ describe("useCrossFade", () => {
     const { rerender } = render(<Panels shown="a" />);
     rerender(<Panels shown="b" />);
     expect(animate).not.toHaveBeenCalled();
-  });
-});
-
-describe("Cascade: stability and hydration", () => {
-  it("keeps its element when the first block closes the entry (positive control: it did close)", () => {
-    const tree = (
-      <MotionProvider>
-        <Cascade index={0}>
-          <p>bloque</p>
-        </Cascade>
-      </MotionProvider>
-    );
-    const { rerender } = render(tree);
-    const before = screen.getByText("bloque").parentElement;
-    expect(before).toHaveAttribute("data-motion-cascade");
-    // Its own effect called markEntered: a block mounted now is plain…
-    const { container } = render(
-      <MotionProvider>
-        <Cascade index={1}>
-          <p>tarde</p>
-        </Cascade>
-      </MotionProvider>,
-    );
-    expect(container.querySelector("[data-motion-cascade]")).toBeNull();
-    // …but the first one is still the same node, not remounted as a plain div.
-    rerender(tree);
-    expect(screen.getByText("bloque").parentElement).toBe(before);
-  });
-
-  it("hydrates what the server rendered without a mismatch", () => {
-    resetEntryForTests();
-    const tree = (
-      <MotionProvider>
-        <Cascade index={0} attrs={{ "data-x": "1" }}>
-          <p>servidor</p>
-        </Cascade>
-      </MotionProvider>
-    );
-    const html = renderToString(tree);
-    expect(html).toContain("opacity:0");
-    const host = document.createElement("div");
-    host.innerHTML = html;
-    document.body.append(host);
-    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    act(() => {
-      hydrateRoot(host, tree);
-    });
-    expect(errors).not.toHaveBeenCalled();
-    errors.mockRestore();
-    expect(host.querySelector("[data-x]")).toHaveAttribute("data-motion-cascade");
-    host.remove();
   });
 });
 

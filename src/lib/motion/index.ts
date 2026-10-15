@@ -7,7 +7,6 @@ export { useCrossFade } from "./use-cross";
 export { useValueTransition } from "./use-settle";
 export { useDirectionalSwap } from "./use-swap";
 export {
-  cascade,
   collapse,
   crossFade,
   drawPath,
