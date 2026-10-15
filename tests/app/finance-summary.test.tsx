@@ -25,7 +25,8 @@ const numberFlow = vi.hoisted(() => ({ props: [] as Record<string, unknown>[] })
 vi.mock("@number-flow/react", () => ({
   default: (props: { value: number } & Record<string, unknown>) => {
     numberFlow.props.push(props);
-    return <span data-number-flow="">{props.value}</span>;
+    const { prefix = "", suffix = "" } = props as { prefix?: string; suffix?: string };
+    return <span data-number-flow="">{`${prefix}${props.value}${suffix}`}</span>;
   },
 }));
 vi.mock("@/modules/finance/actions", () => ({
@@ -357,7 +358,8 @@ describe("Pendiente de pagar", () => {
       name: "Pendiente de pagar: 1,250 soles, y 95 dólares sin convertir, 2 pagos. Ver en Pagos",
     });
     expect(strip).toHaveTextContent("2 pagos");
-    expect(strip).toHaveTextContent("S/ 1,250.00 + USD 95.00 sin convertir");
+    // The PEN figure rolls (mocked here as its raw value); the rest of the line is plain text.
+    expect(strip).toHaveTextContent("1250 + USD 95.00 sin convertir");
     await user.click(strip);
     const tab = screen.getByRole("tab", { name: "Pagos" });
     expect(tab).toHaveAttribute("aria-selected", "true");
@@ -387,7 +389,7 @@ describe("Pendiente de pagar", () => {
     const mixed = screen.getByRole("button", {
       name: "Pendiente de pagar: 50 soles, y 2 de monto variable, 3 pagos. Ver en Pagos",
     });
-    expect(mixed).toHaveTextContent("S/ 50.00 + 2 de monto variable");
+    expect(mixed).toHaveTextContent("50 + 2 de monto variable");
     rerender(
       <FinanceScreen today={TODAY} catalog={CATALOG}>
         <MonthView

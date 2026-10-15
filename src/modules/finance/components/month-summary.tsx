@@ -9,9 +9,11 @@ import { useId } from "react";
 import { Icon, IconKey, Key } from "@/design-system";
 import { cn } from "@/lib/cn";
 import { formatMoney, spokenMoney } from "../money";
+import { GrowFill } from "./grow-fill";
+import { MoneyFlow, PercentFlow } from "./money-flow";
 import type { MonthPending, MonthSummary, MoneyTotal, SummaryGroup } from "../summary";
 import { groupKey } from "../summary";
-import { moneyTotalText, percentText, spokenTotal, SUMMARY_COPY } from "../summary-copy";
+import { percentText, spokenTotal, SUMMARY_COPY } from "../summary-copy";
 import { useFinanceViews } from "./finance-views";
 
 // ── Header ──────────────────────────────────────────────────────────────────────────────────────
@@ -126,12 +128,11 @@ export function PendingStrip({ pending }: { pending: MonthPending | null }) {
   // no "S/ 0.00".
   const known = pending.count > pending.variableCount;
   const variable = pending.variableCount;
-  const amount = [
-    known ? moneyTotalText(pending.totalPenCents, pending.unconvertedUsdCents) : null,
-    variable > 0 ? SUMMARY_COPY.pendingVariable(variable, known) : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const variableText = variable > 0 ? SUMMARY_COPY.pendingVariable(variable, known) : null;
+  const unconvertedText =
+    known && pending.unconvertedUsdCents > 0
+      ? SUMMARY_COPY.unconverted(formatMoney(pending.unconvertedUsdCents, "USD"))
+      : null;
   const spoken = [
     known ? spokenTotal(pending.totalPenCents, pending.unconvertedUsdCents) : null,
     variable > 0 ? SUMMARY_COPY.pendingVariableSpoken(variable, known) : null,
@@ -152,7 +153,11 @@ export function PendingStrip({ pending }: { pending: MonthPending | null }) {
             <span className="bo-row__subtitle">{SUMMARY_COPY.pendingCount(pending.count)}</span>
           </span>
           <span className="bo-row__trail" aria-hidden>
-            <span className="bo-amount bo-text-body text-text">{amount}</span>
+            <span className="bo-amount bo-text-body text-text">
+              {known ? <MoneyFlow cents={pending.totalPenCents} /> : null}
+              {unconvertedText ? ` ${unconvertedText}` : null}
+              {variableText ? `${known ? " " : ""}${variableText}` : null}
+            </span>
             <Icon icon={ChevronRight} size="sm" />
           </span>
         </button>
@@ -211,7 +216,7 @@ export function CategoryBars({
         </p>
       </div>
       <ul className="bo-list" aria-labelledby={`${ids}-heading`}>
-        {categories.map((group) => {
+        {categories.map((group, index) => {
           const key = groupKey(group);
           const pressed = activeKey === key;
           const percent = percentText(group.percent);
@@ -234,11 +239,11 @@ export function CategoryBars({
                   </span>
                   <span className="bo-summary-row__figures">
                     <span className="bo-amount bo-text-body text-text">
-                      {formatMoney(group.penCents, "PEN")}
+                      <MoneyFlow cents={group.penCents} />
                     </span>
-                    {percent ? (
+                    {percent && group.percent !== null ? (
                       <span className="bo-amount bo-text-body-sm bo-summary-row__percent">
-                        {percent}
+                        <PercentFlow percent={group.percent} fallback={percent} />
                       </span>
                     ) : null}
                   </span>
@@ -250,12 +255,7 @@ export function CategoryBars({
                 ) : null}
                 <span className="bo-summary-bar" aria-hidden>
                   {/* Nothing in PEN (only USD without a rate): an empty track, no sliver. */}
-                  {group.share > 0 ? (
-                    <span
-                      className="bo-summary-bar__fill"
-                      style={{ width: `${(group.share * 100).toFixed(2)}%` }}
-                    />
-                  ) : null}
+                  {group.share > 0 ? <GrowFill share={group.share} index={index} /> : null}
                 </span>
               </button>
             </li>
@@ -289,7 +289,7 @@ export function MethodRows({ methods }: { methods: SummaryGroup[] }) {
               aria-hidden
             >
               <span className="bo-amount bo-text-body-sm text-text">
-                {formatMoney(group.penCents, "PEN")}
+                <MoneyFlow cents={group.penCents} />
               </span>
               {group.unconvertedUsdCents > 0 ? (
                 <span className="bo-amount bo-text-body-sm text-text-secondary">
@@ -327,7 +327,7 @@ export function RecurringSplit({ summary }: { summary: MonthSummary }) {
               </dt>
               <dd className="m-0 [overflow-wrap:anywhere]">
                 <span className="bo-amount bo-text-body text-text" aria-hidden>
-                  {formatMoney(part.value.penCents, "PEN")}
+                  <MoneyFlow cents={part.value.penCents} />
                 </span>
                 {part.value.unconvertedUsdCents > 0 ? (
                   <span className="bo-amount bo-text-body-sm block text-text-secondary" aria-hidden>
@@ -344,10 +344,7 @@ export function RecurringSplit({ summary }: { summary: MonthSummary }) {
         {total > 0 ? (
           <span className="bo-summary-bar bo-summary-bar--split" aria-hidden>
             {summary.recurring.penCents > 0 ? (
-              <span
-                className="bo-summary-bar__fill"
-                style={{ width: `${((summary.recurring.penCents / total) * 100).toFixed(2)}%` }}
-              />
+              <GrowFill share={summary.recurring.penCents / total} />
             ) : null}
           </span>
         ) : null}

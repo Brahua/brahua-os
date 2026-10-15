@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { createElement, Fragment } from "react";
 import { afterEach, vi } from "vitest";
+import { markEntered } from "@/lib/motion/entry";
 
 // jsdom has no matchMedia. Components read queries (desktop width, reduced motion); by default
 // none matches (a phone, motion allowed). That default can hide a test that forgot to say what
@@ -40,3 +41,8 @@ vi.mock("@number-flow/react", () => ({
 afterEach(() => {
   cleanup();
 });
+
+// The entry cascade starts every block at opacity 0 (it plays once per tab, and jsdom has no
+// frames to finish it): tests see the screens as they are after it. The contract's own tests
+// reset it with `resetEntryForTests()`.
+markEntered();

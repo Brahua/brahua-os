@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { requireOwner } from "@/lib/auth";
 import { ownerDateKey } from "@/lib/time";
 import { getEmailSettings, listSuggestions } from "@/modules/finance/email/queries";
+import { Cascade } from "@/lib/motion/cascade";
 import { FinanceScreen } from "@/modules/finance/components/finance-screen";
 import { SuggestionsSection } from "@/modules/finance/components/suggestions-section";
 import { FinanceViews } from "@/modules/finance/components/finance-views";
@@ -66,12 +67,12 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
       {/* Bottom padding grows with the notice (--toast-offset): a delete leaves a "Deshacer"
           notice, and the last row must stay reachable under it at full scroll. */}
       <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <Cascade index={0} className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="bo-text-display outline-none" tabIndex={-1} data-finance-title="">
             {FINANCE_COPY.title}
           </h1>
           <FinanceSettings />
-        </div>
+        </Cascade>
         {/* SPEC-finance-email: the expenses found in the bank emails, above the month. */}
         <SuggestionsSection items={suggestions} />
         <FinanceViews

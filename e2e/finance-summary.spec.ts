@@ -136,7 +136,9 @@ test("Pendiente de pagar: the month's pending payments, variable ones apart; it 
     name: "Pendiente de pagar: 50 soles, y 1 de monto variable, 2 pagos. Ver en Pagos",
   });
   await expect(strip).toBeVisible();
-  await expect(strip).toContainText("S/ 50.00 + 1 de monto variable");
+  // The PEN figure rolls (its digits are separate elements): the button's name carries it ("50
+  // soles"); the visible line keeps the variable payments in plain text.
+  await expect(strip).toContainText("+ 1 de monto variable");
   await strip.click();
   const tab = page.getByRole("tab", { name: "Pagos" });
   await expect(tab).toHaveAttribute("aria-selected", "true");

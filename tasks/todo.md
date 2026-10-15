@@ -6,7 +6,7 @@
 
 Spec: [`SPEC-finance-motion.md`](../SPEC-finance-motion.md) (aprobada el 2026-10-14) · Plan: [`plan.md`](plan.md) · Diseño: Claude Design, proyecto `3787b11d-b9b0-4ea2-bd5d-26d0f072f863`. Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(finance): …`). Un implementador a la vez; push una sola vez.
 
-- [ ] **M1: Contrato y movimiento base** (M)
+- [ ] **M1: Contrato y movimiento base** (M; `feat/finance-motion-m1`, en PR)
   - `src/lib/motion/`: `tokens.ts` (espejo de `tokens/motion.css` + test que falla si divergen), `provider.tsx` (`LazyMotion` con carga dinámica + `MotionConfig reducedMotion="user"`), `variants.ts` (`cascade`, `slideSwap`, `crossFade`, `collapse`, `pop`, `drawPath`, `flash`, cada una con su versión reducida), `test-utils.ts` (mock de Motion en jsdom y forzar movimiento reducido), y la sección del contrato en `docs/` (cómo usarlo desde otro módulo).
   - Sobre lo existente en `/finance`: cascada de entrada (solo primera carga de la sesión), `NumberFlow` en categorías, medios, pendiente y %, barras que crecen y se interpolan, cambio de mes direccional (conservando la regla de `pendingMonth`), crossfade Mes/Pagos.
   - **Aceptación:** misma funcionalidad y copy que hoy; con `prefers-reduced-motion` todo aparece en su estado final; ningún `setTimeout` sin limpieza; foco intacto al cambiar de mes y de vista.

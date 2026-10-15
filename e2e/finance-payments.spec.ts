@@ -264,6 +264,9 @@ test("with reduced motion the Pagado… sheet opens without moving (positive con
   await insertRecurring({ name: "Luz", amountCents: null });
   // Positive control: without the preference some frame is mid-slide.
   await openPayments(page);
+  // The Pagos panel fades in when it appears (`useCrossFade`, 240 ms): the click waits for it to
+  // stop moving, which would eat the sampling window below. Start from a settled page.
+  await animationsSettled(page);
   const sliding = await sheetTransforms(page, () => payKey(page, "Luz").click());
   expect(sliding.length).toBeGreaterThan(0);
   expect(sliding.some((transform) => !IDENTITY.test(transform))).toBe(true);

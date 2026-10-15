@@ -1,5 +1,6 @@
 "use client";
 
+import { MotionProvider } from "@/lib/motion";
 import { createContext, use, useCallback, useMemo, useRef } from "react";
 import {
   ScreenServicesProvider,
@@ -97,7 +98,9 @@ export function FinanceScreen({
       actionHint={FINANCE_COPY.undoHint}
       day={{ today, changedMessage: FINANCE_COPY.newDay }}
     >
-      <FinanceScreenContext value={value}>{children}</FinanceScreenContext>
+      <MotionProvider>
+        <FinanceScreenContext value={value}>{children}</FinanceScreenContext>
+      </MotionProvider>
     </ScreenServicesProvider>
   );
 }
