@@ -82,7 +82,8 @@ test("pages by day, filters by text, category and amount, sorts by amount and cl
   await expect(page.getByRole("button", { name: "Quitar filtro: “CAFE”" })).toBeVisible();
   await expect(monthTotal).toHaveAttribute("data-month-total", String(total));
   await page.getByRole("button", { name: "Quitar filtro: “CAFE”" }).click();
-  await expect(rows(page)).toHaveCount(9);
+  // Changing the filters starts the pages over: the first 7 days again.
+  await expect(rows(page)).toHaveCount(7);
 
   // A category (a set) and a range of amount.
   await page.getByRole("group", { name: "Categoría" }).getByLabel("Casa").check();

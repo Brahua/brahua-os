@@ -207,6 +207,8 @@ test("edit an expense from the month; delete it and undo", async ({ page }) => {
     );
     await expect(expenseSheet(page, "Editar gasto")).toBeHidden();
     await expect(page.getByRole("list", { name: "Ayer" }).getByRole("button")).toHaveCount(1);
+    // The old row folds away (280 ms) while the moved one is already there: wait for one.
+    await expect(expenseRow(page, "Mercado central")).toHaveCount(1);
     await expect(expenseRow(page, "Mercado central")).toBeFocused();
   } else {
     await page.keyboard.press("Escape");
