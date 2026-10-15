@@ -17,6 +17,7 @@ import { deleteExpense, restoreExpense } from "../actions";
 import type { ExpenseItem } from "../expense-input";
 import { Cascade, useDirectionalSwap } from "@/lib/motion";
 import { dayTitle, FINANCE_COPY, monthTitle } from "../finance-copy";
+import { categoryStyle } from "../category-color";
 import { formatMoney } from "../money";
 import { expenseRowText, groupByDay } from "../month-list";
 import { FIRST_MONTH, monthHref, monthOrder, sectionGroup, shiftMonth } from "../routes";
@@ -429,6 +430,8 @@ export function MonthView({ month, expenses, pending = null, trend = [] }: Month
                                 else rows.current.delete(expense.id);
                               }}
                               onOpen={(element) => openSheet(expense, element)}
+                              accent={active ? expense.category?.colorSlot : undefined}
+                              filtered={active !== null}
                             />
                           </li>
                         ))}
@@ -486,12 +489,15 @@ export function MonthView({ month, expenses, pending = null, trend = [] }: Month
 
 type ExpenseRowProps = {
   expense: ExpenseItem;
+  /** The category's accent slot, drawn as a 2 px line only while the list is filtered. */
+  accent?: number | null;
+  filtered?: boolean;
   onOpen: (element: HTMLButtonElement) => void;
   ref: React.Ref<HTMLButtonElement>;
 };
 
 /** One expense: what, amount (and "≈ S/" for USD), method; the whole row opens its edit sheet. */
-function ExpenseRow({ expense, onOpen, ref }: ExpenseRowProps) {
+function ExpenseRow({ expense, onOpen, accent, filtered = false, ref }: ExpenseRowProps) {
   const text = expenseRowText(expense);
   const spoken = [text.spoken, ...text.meta].join(", ");
   return (
@@ -503,6 +509,8 @@ function ExpenseRow({ expense, onOpen, ref }: ExpenseRowProps) {
       onClick={(event) => onOpen(event.currentTarget)}
       className="bo-row"
       data-expense-row={expense.id}
+      data-accent={filtered ? "" : undefined}
+      style={filtered ? categoryStyle(accent) : undefined}
     >
       <span className="bo-row__body" aria-hidden>
         <span className="bo-row__title truncate">{text.label}</span>

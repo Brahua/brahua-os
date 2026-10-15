@@ -16,20 +16,18 @@ type StackedBarProps = {
  * shortcut), so a screen reader gets the same name and state.
  */
 export function StackedBar({ categories, activeKey, onToggle }: StackedBarProps) {
-  const shown = categories
-    .map((group, index) => ({ group, index }))
-    .filter(({ group }) => group.share > 0);
+  const shown = categories.filter((group) => group.share > 0);
   if (shown.length === 0) return null;
   return (
     <ul className="bo-stacked-bar" data-stacked-bar="">
-      {shown.map(({ group, index }) => {
+      {shown.map((group) => {
         const key = groupKey(group);
         return (
           <li key={key} style={{ flex: `${group.share} 1 0` }}>
             <button
               type="button"
               className="bo-stacked-bar__segment"
-              style={categoryStyle(index)}
+              style={categoryStyle(group.colorSlot)}
               aria-pressed={activeKey === key}
               aria-label={SUMMARY_COPY.segmentLabel(
                 group.name ?? SUMMARY_COPY.uncategorized,

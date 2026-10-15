@@ -9,6 +9,7 @@ import {
   numeric,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -64,9 +65,15 @@ export const financeCategories = pgTable(
     sortOrder: integer("sort_order").notNull(),
     // Archive, never delete: the expenses that use it keep it.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    // finance-motion M3: the accent (--cat-1…8). Null shows as slot 8 ("Otros").
+    colorSlot: smallint("color_slot"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check(
+      "finance_categories_color_slot_check",
+      sql`${table.colorSlot} is null or ${table.colorSlot} between 1 and 8`,
+    ),
     check(
       "finance_categories_name_length_check",
       sql`char_length(${table.name}) between 1 and ${n(CATALOG_NAME_MAX_LENGTH)}`,

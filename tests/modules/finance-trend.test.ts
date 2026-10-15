@@ -1,7 +1,6 @@
 // finance-motion M2: the comparison with the previous month ("same point of the month"), over
 // thin rows, converted with the same rule as the summary (so the two always agree).
 import { describe, expect, test } from "vitest";
-import { categorySlot } from "@/modules/finance/category-color";
 import { summarizeMonth } from "@/modules/finance/summary";
 import {
   compareToPrevious,
@@ -103,11 +102,5 @@ describe("compareToPrevious", () => {
   test("nothing to compare against: no month before 2000-01, or nothing spent by then", () => {
     expect(compareToPrevious("2000-01", "2000-01", 100, 100)).toBeNull();
     expect(compareToPrevious("2026-10", "2000-01", 100, 0)).toBeNull();
-  });
-});
-
-describe("categorySlot", () => {
-  test("eight slots that repeat in order", () => {
-    expect([0, 7, 8, 9].map(categorySlot)).toEqual([1, 8, 1, 2]);
   });
 });

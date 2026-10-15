@@ -155,6 +155,13 @@
       "when": 1792001927549,
       "tag": "0021_finance_email_aliases",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792032831030,
+      "tag": "0022_finance_category_colors",
+      "breakpoints": true
     }
   ]
 }
