@@ -16,6 +16,9 @@ import { parseAmount } from "./money";
 /** A category or payment method as an expense shows it (it may be archived since). */
 export type ExpenseRef = { id: string; name: string };
 
+/** A category as an expense shows it: with its accent slot (1…8; null/absent shows as 8). */
+export type CategoryRef = ExpenseRef & { colorSlot?: number | null };
+
 /** What the screens get of an expense (never the whole row). */
 export type ExpenseItem = {
   id: string;
@@ -27,7 +30,7 @@ export type ExpenseItem = {
   exchangeRateE4: number | null;
   /** The Lima day it counts on (YYYY-MM-DD). */
   spentOn: string;
-  category: ExpenseRef | null;
+  category: CategoryRef | null;
   paymentMethod: ExpenseRef | null;
   /** F2: the recurring payment it paid ("Recurrente" in the list); null for a loose expense. */
   recurringPaymentId: string | null;

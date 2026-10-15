@@ -38,6 +38,8 @@ export type SummaryGroup = MoneyTotal & {
   id: string | null;
   /** Its name; null for none (the screen names it). */
   name: string | null;
+  /** The category's accent slot (1…8); null for none, methods and "Sin categoría". */
+  colorSlot: number | null;
   /** Its exact share of the converted PEN total (0–1): the bar's width. */
   share: number;
   /** Whole percentage (largest remainder, they add up to 100); null without PEN. */
@@ -78,7 +80,7 @@ function add(total: MoneyTotal, expense: SummaryExpense): void {
   total.count += 1;
 }
 
-type Bucket = MoneyTotal & { id: string | null; name: string | null };
+type Bucket = MoneyTotal & { id: string | null; name: string | null; colorSlot: number | null };
 
 const NAME_ORDER = new Intl.Collator("es", { sensitivity: "base", numeric: true });
 
@@ -116,7 +118,7 @@ export function largestRemainderPercents(amounts: readonly number[], total: numb
 
 function groupsOf(
   expenses: readonly SummaryExpense[],
-  refOf: (expense: SummaryExpense) => ExpenseRef | null,
+  refOf: (expense: SummaryExpense) => (ExpenseRef & { colorSlot?: number | null }) | null,
   totalPen: number,
 ): SummaryGroup[] {
   const buckets = new Map<string, Bucket>();
@@ -125,7 +127,12 @@ function groupsOf(
     const key = ref?.id ?? NO_GROUP_KEY;
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { ...emptyTotal(), id: ref?.id ?? null, name: ref?.name ?? null };
+      bucket = {
+        ...emptyTotal(),
+        id: ref?.id ?? null,
+        name: ref?.name ?? null,
+        colorSlot: ref?.colorSlot ?? null,
+      };
       buckets.set(key, bucket);
     }
     add(bucket, expense);

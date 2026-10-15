@@ -25,6 +25,7 @@ import type {
   RenameCategoryInput,
   UpdatePaymentMethodInput,
 } from "./catalog-input";
+import { nextFreeSlot } from "./category-color";
 import { financeCategories, financePaymentMethods, financeSettings } from "./db/schema";
 import { FINANCE_ADVISORY_SPACE, FINANCE_CATEGORIES_KEY, FINANCE_METHODS_KEY } from "./lock-keys";
 import { rateFromDb, rateToDb } from "./money";
@@ -151,9 +152,18 @@ export async function insertCategory(
   return db.transaction(async (tx) => {
     await lockCatalog(tx, "categories");
     if (await nameTaken(tx, "categories", input.name)) return "nameTaken";
+    // The first accent no visible category uses (the catalog lock above serializes this read).
+    const taken = await tx
+      .select({ colorSlot: financeCategories.colorSlot })
+      .from(financeCategories)
+      .where(isNull(financeCategories.archivedAt));
     const [created] = await tx
       .insert(financeCategories)
-      .values({ name: input.name, sortOrder: nextSortOrder("categories") })
+      .values({
+        name: input.name,
+        sortOrder: nextSortOrder("categories"),
+        colorSlot: nextFreeSlot(taken.map((row) => row.colorSlot)),
+      })
       .returning(CATEGORY);
     return created;
   });

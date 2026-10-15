@@ -93,6 +93,7 @@ describe("summarizeMonth: by category", () => {
       {
         id: COMIDA.id,
         name: "Comida",
+        colorSlot: null,
         penCents: 8000,
         unconvertedUsdCents: 0,
         count: 2,
@@ -102,6 +103,7 @@ describe("summarizeMonth: by category", () => {
       {
         id: CASA.id,
         name: "Casa",
+        colorSlot: null,
         penCents: 2000,
         unconvertedUsdCents: 0,
         count: 1,
@@ -111,6 +113,7 @@ describe("summarizeMonth: by category", () => {
       {
         id: null,
         name: null,
+        colorSlot: null,
         penCents: 5000,
         unconvertedUsdCents: 0,
         count: 1,
@@ -168,6 +171,7 @@ describe("summarizeMonth: by category", () => {
       {
         id: null,
         name: null,
+        colorSlot: null,
         penCents: 0,
         unconvertedUsdCents: 100,
         count: 1,

@@ -267,7 +267,7 @@ export function CategoryBars({ categories, activeKey, onToggle }: CategoryBarsPr
         </p>
       </div>
       <ul className="bo-list" aria-labelledby={`${ids}-heading`}>
-        {categories.map((group, index) => {
+        {categories.map((group) => {
           const key = groupKey(group);
           const pressed = activeKey === key;
           const percent = percentText(group.percent);
@@ -284,7 +284,11 @@ export function CategoryBars({ categories, activeKey, onToggle }: CategoryBarsPr
               >
                 <span className="bo-summary-row__line" aria-hidden>
                   <span className="bo-row__title flex min-w-0 items-center gap-1.5">
-                    <span className="bo-cat-dot" style={categoryStyle(index)} aria-hidden />
+                    <span
+                      className="bo-cat-dot"
+                      style={categoryStyle(group.colorSlot)}
+                      aria-hidden
+                    />
                     {pressed ? <Icon icon={Check} size="sm" /> : null}
                     <span className="truncate">{groupName(group, SUMMARY_COPY.uncategorized)}</span>
                   </span>

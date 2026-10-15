@@ -19,7 +19,7 @@ Spec: [`SPEC-finance-motion.md`](../SPEC-finance-motion.md) (aprobada el 2026-10
   - **Aceptación:** los números coinciden con `summarizeMonth` (prueba que compara); sin comparativo cuando no hay mes anterior o está vacío; el USD sin convertir sigue visible; foco restaurado en todo cambio de sección; contraste AA de los textos mono.
   - **Verificación:** unitarias (`trend.ts`, casos que no coinciden), componente (secciones, cookie, filtro, `StackedBar` por teclado), integración de `getMonthlyTotals` de a un archivo; revisar `e2e/finance*.spec.ts`, `home.spec.ts` y `e2e/support/*`; gate liviano.
   - **Archivos:** ~10 (agrupar en dos PR si pasa de ~5 por área: estructura y datos).
-- [ ] **M3: Color de categorías** (M; depende de M2)
+- [x] **M3: Color de categorías** (M; rama `feat/finance-motion-m3`, apilada sobre M2: el push espera al merge de #142; el backfill numera también las archivadas, por `sort_order`; el punto de 8 px va en la lista de categorías y la línea de 2 px en las filas solo con filtro)
   - Migración aditiva `finance_categories.color_slot smallint NULL` (1…8) con backfill por orden y asignación del primer slot libre al crear; `category-color.ts`; `--cat-1…8` oscuro y claro en `overrides.css` con `PENDING UPSTREAM` y línea en HANDOFF; punto de 8 px, segmento de la barra apilada y línea de 2 px en la fila filtrada. Sin selector en Ajustes (decisión del owner).
   - **Aceptación:** nunca se rellena una fila, tarjeta o barra completa; nombre y monto siempre presentes; más de 8 categorías repiten colores en orden; `NULL` es «Otros».
   - **Verificación:** unitarias (asignación, repetición, `NULL`), integración de la migración y el backfill (un archivo), gate liviano; `pnpm db:generate` seguido de Prettier sobre el snapshot.

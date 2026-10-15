@@ -40,6 +40,7 @@ const ITEM = {
   recurringPaymentId: financeExpenses.recurringPaymentId,
   categoryId: financeCategories.id,
   categoryName: financeCategories.name,
+  categorySlot: financeCategories.colorSlot,
   methodId: financePaymentMethods.id,
   methodName: financePaymentMethods.name,
 };
@@ -54,6 +55,7 @@ type ItemRow = {
   recurringPaymentId: string | null;
   categoryId: string | null;
   categoryName: string | null;
+  categorySlot: number | null;
   methodId: string | null;
   methodName: string | null;
 };
@@ -67,7 +69,9 @@ function toItem(row: ItemRow): ExpenseItem {
     exchangeRateE4: rateFromDb(row.exchangeRate),
     spentOn: row.spentOn,
     category:
-      row.categoryId && row.categoryName ? { id: row.categoryId, name: row.categoryName } : null,
+      row.categoryId && row.categoryName
+        ? { id: row.categoryId, name: row.categoryName, colorSlot: row.categorySlot }
+        : null,
     paymentMethod:
       row.methodId && row.methodName ? { id: row.methodId, name: row.methodName } : null,
     recurringPaymentId: row.recurringPaymentId,

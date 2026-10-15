@@ -754,4 +754,40 @@ describe("the four sections (finance-motion M2)", () => {
     expect(within(card).getByRole("list", { name: "Por medio de pago" })).toBeInTheDocument();
     expect(within(card).getByText("Recurrente y suelto")).toBeInTheDocument();
   });
+
+  test("the accent is the category's slot: a dot and a segment; none is «Otros» (8)", () => {
+    renderMonth([
+      expense({ amountCents: 6000, category: { ...COMIDA, colorSlot: 2 } }),
+      expense({ amountCents: 2000, category: CASA }),
+      expense({ amountCents: 1000 }),
+    ]);
+    const accents = [...document.querySelectorAll<HTMLElement>("[data-stacked-segment]")].map(
+      (segment) => segment.style.getPropertyValue("--_cat"),
+    );
+    expect(accents).toEqual(["var(--cat-2)", "var(--cat-8)", "var(--cat-8)"]);
+    const dots = document.querySelectorAll<HTMLElement>(".bo-cat-dot");
+    expect(dots[0].style.getPropertyValue("--_cat")).toBe("var(--cat-2)");
+  });
+
+  test("only a filtered list draws the 2 px line on its rows", async () => {
+    const user = userEvent.setup();
+    renderMonth(
+      [
+        expense({
+          description: "Mercado",
+          amountCents: 500,
+          category: { ...COMIDA, colorSlot: 3 },
+        }),
+      ],
+      { section: "mes:gas" },
+    );
+    const row = screen.getByRole("button", { name: /^Editar Mercado/ });
+    expect(row).not.toHaveAttribute("data-accent");
+    await user.click(screen.getByRole("tab", { name: "Resumen" }));
+    await user.click(screen.getByRole("button", { name: /^Comida, 5 soles/ }));
+    expect(screen.getByRole("button", { name: /^Editar Mercado/ })).toHaveAttribute("data-accent");
+    expect(
+      screen.getByRole("button", { name: /^Editar Mercado/ }).style.getPropertyValue("--_cat"),
+    ).toBe("var(--cat-3)");
+  });
 });

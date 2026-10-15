@@ -339,3 +339,6 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
    inside its own box (never the page) if the labels still do not fit. */
 .bo-finance-sections { max-width: 100%; overflow-x: auto; }
 .bo-finance-sections .bo-segmented__item { padding: 0 10px; white-space: nowrap; }
+/* finance-motion M3: the filtered rows carry their category's accent as a 2 px line (never a fill). */
+.bo-row[data-accent] { box-shadow: inset 2px 0 0 var(--_cat); }
+@media (forced-colors: active) { .bo-row[data-accent] { box-shadow: inset 2px 0 0 CanvasText; } }
