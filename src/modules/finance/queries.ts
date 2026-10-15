@@ -6,8 +6,8 @@ import { selectCatalog } from "./catalog";
 import type { FinanceCatalog } from "./catalog-input";
 import type { ExpenseItem } from "./expense-input";
 import { selectMonthExpenses, selectTrendRows } from "./expenses";
-import { shiftMonth } from "./routes";
-import { monthlyTotals, type MonthlyTotal } from "./trend";
+import { FIRST_MONTH, shiftMonth } from "./routes";
+import { cumulativeByDay, daysInMonth, monthlyTotals, type MonthlyTotal } from "./trend";
 
 /** The catalog (categories, methods, the rate, the last method used): Ajustes and the form. */
 export async function getFinanceCatalog(): Promise<FinanceCatalog> {
@@ -34,4 +34,16 @@ export async function getMonthlyTotals(
   await requireOwner();
   const rows = await selectTrendRows(getDb(), shiftMonth(month, 1 - count), month);
   return monthlyTotals(rows, month, count, day);
+}
+
+/**
+ * The previous month's running total per day (PEN cents), for the chart's dotted line, bounded to
+ * the days of `month`. Null when there is no month before (2000-01).
+ */
+export async function getPreviousMonthCumulative(month: string): Promise<number[] | null> {
+  await requireOwner();
+  if (month <= FIRST_MONTH) return null;
+  const previous = shiftMonth(month, -1);
+  const rows = await selectTrendRows(getDb(), previous, previous);
+  return cumulativeByDay(rows, previous, daysInMonth(month));
 }

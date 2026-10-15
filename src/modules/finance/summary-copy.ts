@@ -36,6 +36,21 @@ export const SUMMARY_COPY = {
   /** A segment of the stacked bar: the same toggle as its row in the list, named as the bar. */
   segmentLabel: (name: string, amount: string) => `Barra, ${name}: ${amount}`,
   dayTotalSpoken: (amount: string) => `Total del día: ${amount}`,
+  // The pace chart (finance-motion M4)
+  chartHeading: "Ritmo del mes",
+  chartEmpty: "Aún no hay gastos este mes: el gráfico aparece con el primero.",
+  /** Spoken description of the whole chart (role="img"). */
+  chartSpoken: (day: number, total: string, previous: string | null) =>
+    `Gasto acumulado del mes: ${total} al día ${day}.${previous ? ` El mes anterior llevaba ${previous} a ese día.` : ""}`,
+  chartHint: "Con las flechas ← → recorres los días.",
+  chartDay: (day: number) => `Día ${day}`,
+  chartPrevious: "Mes anterior",
+  chartThisMonth: "Este mes",
+  chartToday: "hoy",
+  /** The tooltip, also said when the cursor moves by keyboard. */
+  chartTooltipSpoken: (day: number, total: string, previous: string | null) =>
+    `Día ${day}: ${total}${previous ? `; mes anterior ${previous}` : ""}`,
+  sparklineSpoken: "Últimos seis meses",
   nextPayment: (day: string) => `próximo ${day}`,
 
   // USD without a rate

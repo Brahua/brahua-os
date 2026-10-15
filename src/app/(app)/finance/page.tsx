@@ -19,7 +19,12 @@ import {
 } from "@/modules/finance/payment-queries";
 import { monthPoint } from "@/modules/finance/trend";
 import { DELETED_PAYMENT_PARAM } from "@/modules/finance/payment-routes";
-import { getFinanceCatalog, getMonthlyTotals, listMonthExpenses } from "@/modules/finance/queries";
+import {
+  getFinanceCatalog,
+  getMonthlyTotals,
+  getPreviousMonthCumulative,
+  listMonthExpenses,
+} from "@/modules/finance/queries";
 import {
   FINANCE_VIEW_COOKIE,
   MONTH_PARAM,
@@ -46,19 +51,29 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
   const today = ownerDateKey(new Date());
   const month = parseMonth(search[MONTH_PARAM], today.slice(0, 7));
   const deletedId = search[DELETED_PAYMENT_PARAM];
-  const [catalog, expenses, trend, payments, pending, deletedName, suggestions, emailSettings] =
-    await Promise.all([
-      getFinanceCatalog(),
-      listMonthExpenses(month),
-      // Six months for the comparison, each also up to today's day number ("same point").
-      getMonthlyTotals(month, 6, monthPoint(month, today).day),
-      getPaymentsView(today),
-      getPendingForMonth(month, today),
-      typeof deletedId === "string" ? getDeletedRecurringName(deletedId) : null,
-      // A secondary feature: if its tables fail, the month and the payments still load.
-      listSuggestions().catch(() => []),
-      getEmailSettings().catch(() => ({ ownNames: [], methods: [] })),
-    ]);
+  const [
+    catalog,
+    expenses,
+    trend,
+    previousCumulative,
+    payments,
+    pending,
+    deletedName,
+    suggestions,
+    emailSettings,
+  ] = await Promise.all([
+    getFinanceCatalog(),
+    listMonthExpenses(month),
+    // Six months for the comparison, each also up to today's day number ("same point").
+    getMonthlyTotals(month, 6, monthPoint(month, today).day),
+    getPreviousMonthCumulative(month),
+    getPaymentsView(today),
+    getPendingForMonth(month, today),
+    typeof deletedId === "string" ? getDeletedRecurringName(deletedId) : null,
+    // A secondary feature: if its tables fail, the month and the payments still load.
+    listSuggestions().catch(() => []),
+    getEmailSettings().catch(() => ({ ownNames: [], methods: [] })),
+  ]);
   // Back from deleting a payment on its page: "Pagos", with its "Deshacer" notice.
   const section =
     deletedName !== null
@@ -81,7 +96,15 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
         <FinanceViews
           initialSection={section}
           // The summary is computed from these rows on the client (summary.ts): no extra query.
-          month={<MonthView month={month} expenses={expenses} pending={pending} trend={trend} />}
+          month={
+            <MonthView
+              month={month}
+              expenses={expenses}
+              pending={pending}
+              trend={trend}
+              previousCumulative={previousCumulative}
+            />
+          }
           payments={<PaymentsView data={payments} />}
         />
       </div>
