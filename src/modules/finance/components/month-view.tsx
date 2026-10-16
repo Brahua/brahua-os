@@ -67,7 +67,7 @@ import { FilterChips, type ChipItem } from "./filter-chip";
 import { ExpenseFiltersPanel, type Option } from "./expense-filters-panel";
 import { PresenceItem } from "./presence-item";
 import { PendingPayments } from "./pending-payments";
-import { StackedBar } from "./stacked-bar";
+import { CategoryDonut } from "./category-donut";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
 
@@ -261,14 +261,20 @@ export function MonthView({
     [month],
   );
 
-  function toggleCategory(group: SummaryGroup) {
-    const key = groupKey(group);
-    const adding = !active.categories.includes(key);
+  /** Adds the categories to the filters, or takes them off when they are all there already. */
+  function toggleCategories(keys: string[]) {
+    const all = keys.every((key) => active.categories.includes(key));
     updateFilters({
-      categories: adding ? [...active.categories, key] : active.categories.filter((c) => c !== key),
+      categories: all
+        ? active.categories.filter((key) => !keys.includes(key))
+        : [...active.categories, ...keys.filter((key) => !active.categories.includes(key))],
     });
-    // The list lives in «Gastos»: a category added in «Resumen» takes you there.
-    if (adding) views?.showSection("mes:gas");
+    // The list lives in «Gastos»: categories added in «Resumen» take you there.
+    if (!all) views?.showSection("mes:gas");
+  }
+
+  function toggleCategory(group: SummaryGroup) {
+    toggleCategories([groupKey(group)]);
   }
 
   function clearAll() {
@@ -580,11 +586,22 @@ export function MonthView({
                 className="flex flex-col gap-4"
                 attrs={{ "data-month-summary": "" }}
               >
-                <StackedBar
-                  categories={summary.categories}
-                  activeKeys={active.categories}
-                  onToggle={toggleCategory}
-                />
+                <div className="bo-card flex flex-col items-center gap-4">
+                  <CategoryDonut
+                    categories={summary.categories}
+                    total={summary.total}
+                    monthLabel={monthTitle(month)}
+                    activeKeys={active.categories}
+                    onToggle={toggleCategories}
+                  />
+                  {summary.total.unconvertedUsdCents > 0 ? (
+                    <p className="bo-amount bo-text-body-sm text-text-secondary" data-donut-usd="">
+                      {SUMMARY_COPY.donutUnconverted(
+                        formatMoney(summary.total.unconvertedUsdCents, "USD"),
+                      )}
+                    </p>
+                  ) : null}
+                </div>
                 <CategoryBars
                   categories={summary.categories}
                   activeKeys={active.categories}

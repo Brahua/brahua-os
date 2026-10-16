@@ -2,6 +2,13 @@
 
 > Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
+## Módulo `finance-resumen-charts` (dona por categoría y barras por medio en «Resumen»): en curso
+
+Spec: [`SPEC-finance-resumen-charts.md`](../SPEC-finance-resumen-charts.md) (aprobada el 2026-10-16). Un implementador a la vez; gate local liviano; push una sola vez por corte; sin E2E nueva (se actualizan las existentes); meta de JS ≤ 5 kB gz, a medir con dos builds en R2.
+
+- [x] **R1: Dona por categoría** (`feat/finance-resumen-charts`): `donut-geometry.ts` (puro) y `CategoryDonut` (centro que sigue cursor, foco y selección; flechas circulares; Enter y espacio; «Otros · N» filtra el conjunto; barrido de entrada en CSS puro), reemplaza a `StackedBar`; nota «sin convertir» bajo la dona. Decisión autónoma: el centro es decorativo (`aria-hidden`): cada segmento ya dice nombre, monto y % en su `aria-label`.
+- [ ] **R2: Barras por medio y cierre** (`MethodBars` con «Sin convertir» rayado en `MixCard`, medición de JS, capturas, docs).
+
 ## Módulo `finance-motion` y extensión `finance-gastos`: cerrados el 2026-10-15
 
 Plan y tareas archivados en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md). M1–M5 (#140–#145), el ajuste de estructura «Recurrentes» (#149) y `finance-gastos` G1–G2 (#150, #151) están en producción. **Pendiente del owner** (detalle en `docs/HANDOFF.md`): confirmar en el iPhone la fluidez, el toque en el gráfico y el anillo de «Pagado»; decidir qué hacer con el JS añadido a `/finance` (+42 kB gz medidos contra la meta de 25); revisar las decisiones autónomas de ambos specs. **Siguiente:** gráficos por categoría y por medio en «Resumen» (diseño primero en Claude Design, después spec) y `health`.

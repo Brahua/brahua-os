@@ -319,20 +319,14 @@ html { scroll-padding-top: env(safe-area-inset-top); }
   }
 }
 
-/* finance-motion M2: metric cards, the stacked bar, the category dot, the day total. */
+/* finance-motion M2: metric cards, the category dot, the day total. */
 .bo-metric-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; text-align: left; }
 button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 100%; }
 .bo-metric-card__value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 24px; line-height: 1; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 @media (min-width: 640px) { .bo-metric-card__value { font-size: 28px; } }
-.bo-stacked-bar { display: flex; gap: 2px; height: 44px; margin: 0; padding: 0; list-style: none; }
-.bo-stacked-bar > li { display: flex; min-width: 6px; }
-.bo-stacked-bar__segment { flex: 1; min-width: 0; border: 0; border-radius: var(--radius-xs); background: var(--_cat, var(--color-text-secondary)); cursor: pointer; padding: 0; }
-.bo-stacked-bar__segment[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-text); }
-.bo-stacked-bar__segment:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .bo-cat-dot { display: inline-block; width: 8px; height: 8px; flex: none; border-radius: var(--radius-full); background: var(--_cat, var(--color-text-secondary)); }
 @media (forced-colors: active) {
-  .bo-stacked-bar__segment, .bo-cat-dot { forced-color-adjust: none; background: CanvasText; }
-  .bo-stacked-bar__segment[aria-pressed="true"] { box-shadow: 0 0 0 2px Canvas, 0 0 0 4px Highlight; }
+  .bo-cat-dot { forced-color-adjust: none; background: CanvasText; }
 }
 
 /* finance-motion M2: four sections must fit a 320 px screen: tighter items, and the control scrolls
@@ -395,3 +389,19 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 .bo-check input { width: 18px; height: 18px; accent-color: var(--color-text); }
 .bo-check:has(input:checked) { box-shadow: inset 0 0 0 1.5px var(--color-text); }
 .bo-check:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+/* finance-resumen-charts R1: the category donut. The sweep is a CSS dash on a masking circle (plays
+   on first paint, no JS). PENDING UPSTREAM: the 560 ms sweep has no token yet (SCREEN.settle). */
+.bo-donut { position: relative; flex: none; }
+.bo-donut__svg { display: block; overflow: visible; }
+.bo-donut__track { fill: none; stroke: var(--color-divider); }
+.bo-donut__sweep { fill: none; stroke: #fff; stroke-dasharray: 1; transform: rotate(-90deg); transform-origin: center; animation: bo-donut-sweep 560ms var(--ease-out) backwards; }
+@keyframes bo-donut-sweep { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.bo-donut__segment { fill: var(--_cat, var(--color-text-secondary)); fill-rule: evenodd; cursor: pointer; outline: none; transition: opacity 200ms var(--ease-out); }
+.bo-donut__focus { fill: none; stroke: var(--color-focus); stroke-width: 2; pointer-events: none; }
+.bo-donut__center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 28px; text-align: center; pointer-events: none; }
+.bo-donut__label { font: 500 11px/14px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bo-donut__value { font-size: 16px; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
+.bo-donut__sub { font: 500 11px/14px var(--font-mono); color: var(--color-text-secondary); }
+@media (prefers-reduced-motion: reduce) { .bo-donut__sweep { animation: none; } .bo-donut__segment { transition: none; } }
+@media (forced-colors: active) { .bo-donut__segment { forced-color-adjust: none; fill: CanvasText; stroke: Canvas; } .bo-donut__focus { stroke: Highlight; } }

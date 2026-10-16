@@ -82,7 +82,7 @@ test("the three sections, the month's arrows, the filter chip, a new expense and
   await expect(
     page.getByRole("img", { name: /^Gasto acumulado del mes: 120 soles/ }),
   ).toBeVisible();
-  await expect(page.locator("[data-stacked-bar]")).toBeVisible();
+  await expect(page.locator("[data-category-donut]")).toBeVisible();
   await expect(expenseRow(page, "Mercado")).toHaveCount(0);
 
   // The chart answers the keyboard: ← says the day before.

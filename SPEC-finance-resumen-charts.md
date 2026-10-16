@@ -1,6 +1,6 @@
 # Spec: finance-resumen-charts (dona por categoría y barras por medio de pago en «Resumen»)
 
-> Extensión del módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `finance`, `finance-motion` y `finance-gastos` (en producción) · Estado: **BORRADOR v0.1** (2026-10-16; pendiente de aprobación del owner)
+> Extensión del módulo `finance` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `finance`, `finance-motion` y `finance-gastos` (en producción) · Estado: **APROBADO v1.0** (2026-10-16)
 > Insumos: el diseño en Claude Design (proyecto `3787b11d-b9b0-4ea2-bd5d-26d0f072f863`, archivo `Finanzas.dc.html`: bloques «dona» y «medios») y las decisiones del owner del 2026-10-16 (abajo). Fuente de verdad visual: el diseño; este documento fija qué se construye y cómo se prueba.
 
 ## Objetivo
@@ -106,4 +106,4 @@ Orden: R1 → R2. Un PR por corte, un solo push por corte, gate local liviano, y
 
 ## Preguntas abiertas
 
-Ninguna. Decisiones autónomas a revisar con el owner: «Otros · N» filtra todas las categorías agrupadas; el máximo de segmentos es 8 (7 + «Otros»); los porcentajes del gráfico son los de `summary.ts`, sin recalcular; el presupuesto de JS de 5 kB es una meta a medir, no un bloqueo.
+Ninguna (aprobado por el owner el 2026-10-16). Decisiones autónomas a revisar con el owner: «Otros · N» filtra todas las categorías agrupadas; el máximo de segmentos es 8 (7 + «Otros»); los porcentajes del gráfico son los de `summary.ts`, sin recalcular; el presupuesto de JS de 5 kB es una meta a medir, no un bloqueo.
