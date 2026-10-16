@@ -56,6 +56,7 @@ vi.mock("@/modules/finance/catalog-actions", () => ({
 const TODAY = "2026-10-05";
 const COMIDA = { id: "11111111-1111-4111-8111-111111111111", name: "Comida" };
 const CASA = { id: "11111111-1111-4111-8111-222222222222", name: "Casa" };
+const VISA = { id: "22222222-2222-4222-8222-333333333333", name: "Visa" };
 const EFECTIVO = { id: "22222222-2222-4222-8222-222222222222", name: "Efectivo" };
 const CATALOG: FinanceCatalog = {
   categories: [
@@ -318,26 +319,54 @@ describe("Por categoría", () => {
 });
 
 describe("Por medio de pago, recurrente y suelto", () => {
-  test("compact rows with each method's amount, Sin medio de pago last; recurring vs one-off", () => {
+  test("bars by method: each with PEN, Sin medio de pago last; the dollars with no rate in a row of their own; recurring vs one-off", () => {
     renderMonth([
       expense({ amountCents: 1000, paymentMethod: EFECTIVO, recurringPaymentId: "r-1" }),
       expense({ amountCents: 300 }),
-      expense({ currency: "USD", amountCents: 100 }),
+      expense({ description: "Hosting", currency: "USD", amountCents: 100, paymentMethod: VISA }),
     ]);
     const methods = screen.getByRole("list", { name: "Por medio de pago" });
     expect(
       within(methods)
         .getAllByRole("listitem")
-        .map((item) => item.textContent),
+        .map((item) => item.querySelector(".sr-only")?.textContent),
     ).toEqual([
-      expect.stringContaining("Efectivo, 10 soles"),
-      expect.stringContaining("Sin medio de pago, 3 soles, y 1 dólar sin convertir"),
+      "Efectivo, 10 soles, 77 por ciento",
+      "Sin medio de pago, 3 soles, 23 por ciento",
+      "Sin convertir, 1 dólar, Hosting · Visa. No suma al total ni a los porcentajes.",
     ]);
+    // Visible: a bar per method, as wide as its share; the dollars' bar is hatched and has no share.
+    const bars = methods.querySelectorAll(".bo-summary-bar");
+    expect(bars).toHaveLength(3);
+    expect(bars[0].querySelector(".bo-summary-bar__fill")).toHaveStyle({ width: "76.92%" });
+    expect(bars[2]).toHaveClass("bo-summary-bar--hatch");
+    expect(bars[2].querySelector(".bo-summary-bar__fill")).toBeNull();
+    // Read-only: no buttons.
+    expect(within(methods).queryAllByRole("button")).toHaveLength(0);
     const split = screen.getByRole("region", { name: "Recurrente y suelto" });
     const recurring = split.querySelector('[data-split="recurring"]') as HTMLElement;
     const oneOff = split.querySelector('[data-split="one-off"]') as HTMLElement;
     expect(within(recurring).getByText("10 soles")).toHaveClass("sr-only");
     expect(within(oneOff).getByText("3 soles, y 1 dólar sin convertir")).toHaveClass("sr-only");
+  });
+
+  test("a method with only dollars with no rate has no bar of its own; two such expenses say how many", () => {
+    renderMonth([
+      expense({ amountCents: 500, paymentMethod: EFECTIVO }),
+      expense({ currency: "USD", amountCents: 100, paymentMethod: VISA }),
+      expense({ currency: "USD", amountCents: 200, paymentMethod: VISA }),
+    ]);
+    const methods = screen.getByRole("list", { name: "Por medio de pago" });
+    expect(within(methods).getAllByRole("listitem")).toHaveLength(2); // Efectivo + Sin convertir
+    expect(methods.querySelector("[data-method-unconverted]")).toHaveTextContent(
+      "2 gastos en dólares",
+    );
+    expect(methods.textContent).not.toContain("Visa");
+  });
+
+  test("no dollars with no rate: no extra row", () => {
+    renderMonth([expense({ amountCents: 500, paymentMethod: EFECTIVO })]);
+    expect(document.querySelector("[data-method-unconverted]")).toBeNull();
   });
 });
 

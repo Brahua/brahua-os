@@ -405,3 +405,9 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 .bo-donut__sub { font: 500 11px/14px var(--font-mono); color: var(--color-text-secondary); }
 @media (prefers-reduced-motion: reduce) { .bo-donut__sweep { animation: none; } .bo-donut__segment { transition: none; } }
 @media (forced-colors: active) { .bo-donut__segment { forced-color-adjust: none; fill: CanvasText; stroke: Canvas; } .bo-donut__focus { stroke: Highlight; } }
+
+/* finance-resumen-charts R2: the bars by payment method (8 px) and the hatched bar of the dollars
+   with no rate (they are not part of the total the bars add up to). */
+.bo-summary-bar--tall { height: 8px; }
+.bo-summary-bar--hatch { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--color-divider) 4px 8px); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+@media (forced-colors: active) { .bo-summary-bar--hatch { background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; } }

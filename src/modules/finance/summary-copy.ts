@@ -48,6 +48,13 @@ export const SUMMARY_COPY = {
   }),
   donutUnconverted: (usd: string) => `+ ${usd} sin convertir · no suma al total ni a los %`,
 
+  // Bars by payment method (finance-resumen-charts R2)
+  /** The row of the dollars with no rate: apart, never part of the bars' total. */
+  methodUnconverted: "Sin convertir",
+  methodUnconvertedMany: (count: number) => `${count} gastos en dólares`,
+  methodUnconvertedSpoken: (amount: string, detail: string) =>
+    `Sin convertir, ${amount}, ${detail}. No suma al total ni a los porcentajes.`,
+
   // Filters, order and pages of «Gastos» (finance-gastos)
   filtersButton: (active: number) => (active > 0 ? `Filtros (${active})` : "Filtros"),
   filtersLegend: "Filtrar los gastos",

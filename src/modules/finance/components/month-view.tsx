@@ -488,6 +488,17 @@ export function MonthView({
     shown.map((e) => e.paymentMethod),
   );
 
+  // What the dollars with no rate are, for the payment-method bars' last row.
+  const unconvertedDetail = useMemo(() => {
+    const rows = shown.filter(
+      (expense) => expense.currency === "USD" && expense.exchangeRateE4 === null,
+    );
+    if (rows.length === 0) return null;
+    if (rows.length > 1) return SUMMARY_COPY.methodUnconvertedMany(rows.length);
+    const [only] = rows;
+    return [expenseRowText(only).label, only.paymentMethod?.name].filter(Boolean).join(" · ");
+  }, [shown]);
+
   const monthHidden = views ? sectionGroup(views.section) !== "month" : false;
   const dayTotals = new Map(
     groups.map((group) => [group.day, summarizeMonth(month, group.expenses).total]),
@@ -609,7 +620,7 @@ export function MonthView({
                 />
               </Cascade>
               <Cascade index={6}>
-                <MixCard summary={summary} />
+                <MixCard summary={summary} unconvertedDetail={unconvertedDetail} />
               </Cascade>
             </>
           ) : (
