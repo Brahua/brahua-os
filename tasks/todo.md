@@ -1,13 +1,13 @@
 # Tareas
 
-> Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Sin módulo en curso. Últimos cerrados: **`finance-resumen-charts`** (2026-10-16), **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `finance-resumen-charts` (dona por categoría y barras por medio en «Resumen»): en curso
+## Módulo `finance-resumen-charts` (dona por categoría y barras por medio en «Resumen»): cerrado en código el 2026-10-16
 
 Spec: [`SPEC-finance-resumen-charts.md`](../SPEC-finance-resumen-charts.md) (aprobada el 2026-10-16). Un implementador a la vez; gate local liviano; push una sola vez por corte; sin E2E nueva (se actualizan las existentes); meta de JS ≤ 5 kB gz, a medir con dos builds en R2.
 
 - [x] **R1: Dona por categoría** (`feat/finance-resumen-charts`): `donut-geometry.ts` (puro) y `CategoryDonut` (centro que sigue cursor, foco y selección; flechas circulares; Enter y espacio; «Otros · N» filtra el conjunto; barrido de entrada en CSS puro), reemplaza a `StackedBar`; nota «sin convertir» bajo la dona. Decisión autónoma: el centro es decorativo (`aria-hidden`): cada segmento ya dice nombre, monto y % en su `aria-label`.
-- [ ] **R2: Barras por medio y cierre** (`MethodBars` con «Sin convertir» rayado en `MixCard`, medición de JS, capturas, docs).
+- [x] **R2: Barras por medio y cierre** (`feat/finance-resumen-charts-r2`): `MethodBars` (una barra por medio con PEN, nombre, monto y %; los dólares sin tasa en una fila aparte con barra rayada, sin %), solo lectura; un medio con solo dólares sin tasa no tiene barra propia (vive en «Sin convertir»). **JS medido con dos builds:** 236.27 kB gz antes de R1 → 237.92 kB tras R2 (**+1.65 kB**, meta ≤ 5 kB cumplida).
 
 ## Módulo `finance-motion` y extensión `finance-gastos`: cerrados el 2026-10-15
 
