@@ -758,10 +758,11 @@ describe("the three sections (finance-motion M2)", () => {
     expect(document.querySelector("[data-month-day]")).toBeNull();
   });
 
-  test("«Gastado» repeats the total and counts the expenses", () => {
+  test("the month's total is said once: the header carries it, with how many expenses there are", () => {
     renderMonth([expense({ amountCents: 1250 }), expense({ amountCents: 500 })]);
-    const card = document.querySelector("[data-spent-card]");
-    expect(card).toHaveAccessibleName("Gastado: 17.50 soles, 2 gastos");
+    expect(document.querySelectorAll("[data-month-total]")).toHaveLength(1);
+    expect(document.querySelector("[data-spent-card]")).toBeNull();
+    expect(document.querySelector("[data-month-context]")).toHaveTextContent("2 gastos");
   });
 
   test("the donut: one toggle per category with PEN, by keyboard, same state as its row; the middle follows", async () => {
@@ -917,18 +918,6 @@ describe("the three sections (finance-motion M2)", () => {
     unmount();
     renderMonth([]);
     expect(document.querySelector("[data-chart-empty]")).toBeNull(); // no expenses: the month's own empty card
-  });
-
-  test("the sparkline of «Gastado» comes from the six months", () => {
-    renderMonth([expense()], {
-      trend: [100, 200, 300].map((penCents, i) => ({
-        month: `2026-0${i + 7}`,
-        penCents,
-        uptoDayPenCents: penCents,
-        unconvertedUsdCents: 0,
-      })),
-    });
-    expect(document.querySelector("[data-spent-card] [data-sparkline]")).not.toBeNull();
   });
 
   test("«Por pagar» sits in «Gastos» above the list, only in the current month", () => {

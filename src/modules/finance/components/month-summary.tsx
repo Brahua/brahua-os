@@ -136,11 +136,13 @@ type MonthContextProps = {
   point: { day: number; total: number } | null;
   /** Unconverted USD is left out of the comparison: say so. */
   excludesUsd: boolean;
+  /** How many expenses the month has («26 gastos»). */
+  count: number;
 };
 
 /** Under the total: the neutral comparison with the previous month and where the month stands. */
-export function MonthContext({ delta, samePoint, point, excludesUsd }: MonthContextProps) {
-  if (!delta && !point) return null;
+export function MonthContext({ delta, samePoint, point, excludesUsd, count }: MonthContextProps) {
+  if (!delta && !point && count === 0) return null;
   const icon =
     delta?.direction === "up" ? ArrowUp : delta?.direction === "down" ? ArrowDown : Equal;
   return (
@@ -164,33 +166,17 @@ export function MonthContext({ delta, samePoint, point, excludesUsd }: MonthCont
           {SUMMARY_COPY.dayOf(point.day, point.total)}
         </span>
       ) : null}
+      {count > 0 ? (
+        <span className="bo-amount" data-month-count="">
+          {SUMMARY_COPY.expenses(count)}
+        </span>
+      ) : null}
       {delta && excludesUsd ? <span>{SUMMARY_COPY.deltaExcludesUsd}</span> : null}
     </p>
   );
 }
 
-// ── "Gastado" and "Pendiente de pagar" ─────────────────────────────────────────────────────────
-
-/** «Gastado»: the month's total again as a card, with a slot for the six-month sparkline (M4). */
-export function SpentCard({
-  total,
-  sparkline,
-}: {
-  total: MoneyTotal;
-  sparkline?: React.ReactNode;
-}) {
-  return (
-    <MetricCard
-      attr="data-spent-card"
-      label={SUMMARY_COPY.spent}
-      value={<MoneyFlow cents={total.penCents} />}
-      spoken={`${SUMMARY_COPY.spent}: ${spokenMoney(total.penCents, "PEN")}, ${SUMMARY_COPY.expenses(total.count)}`}
-      hint={SUMMARY_COPY.expenses(total.count)}
-    >
-      {sparkline}
-    </MetricCard>
-  );
-}
+// ── "Pendiente de pagar" ─────────────────────────────────────────────────────────
 
 /**
  * "Pendiente de pagar: S/ 1,250.00 · 2 pagos · próximo 18 oct" (F2's recurring payments still due

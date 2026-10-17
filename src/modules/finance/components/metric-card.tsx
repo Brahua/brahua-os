@@ -11,23 +11,13 @@ type MetricCardProps = {
   spoken: string;
   /** A line under the figure. */
   hint?: React.ReactNode;
-  /** A slot under the hint (the sparkline of «Gastado», M4). */
-  children?: React.ReactNode;
   /** With it the card is a button (it shows another section); without, a plain block. */
   onClick?: (element: HTMLButtonElement) => void;
   attr?: string;
 };
 
 /** A summary card: a mono label, a big figure, a hint. The element never changes during its life. */
-export function MetricCard({
-  label,
-  value,
-  spoken,
-  hint,
-  children,
-  onClick,
-  attr,
-}: MetricCardProps) {
+export function MetricCard({ label, value, spoken, hint, onClick, attr }: MetricCardProps) {
   const body = (
     <>
       <span className="bo-stat__label flex items-center justify-between" aria-hidden>
@@ -42,7 +32,6 @@ export function MetricCard({
           {hint}
         </span>
       ) : null}
-      {children}
     </>
   );
   const data = attr ? { [attr]: "" } : undefined;
