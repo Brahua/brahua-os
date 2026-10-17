@@ -1,9 +1,8 @@
-// finance-motion M4: the pace chart (spoken description, cursor, touch, keyboard) and the sparkline.
+// finance-motion M4: the pace chart (spoken description, cursor, touch, keyboard).
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test } from "vitest";
 import { AreaChart } from "@/modules/finance/components/area-chart";
-import { Sparkline } from "@/modules/finance/components/sparkline";
 
 // Days 1…5 of a 30-day month: 10.00 on day 1, then 25.00 on day 3 and 5; the previous month ran
 // 5.00, 5.00, 40.00, 40.00, 40.00 over the same days.
@@ -81,17 +80,5 @@ describe("AreaChart", () => {
     fireEvent.pointerMove(element, { clientX: 100 });
     // 100 / 400 of 29 steps ≈ index 7, but only 5 days have data: it stops at day 5.
     expect(document.querySelector("[data-chart-tooltip]")).toHaveTextContent("Día 5");
-  });
-});
-
-describe("Sparkline", () => {
-  test("six months as a decorative line; nothing for an empty history", () => {
-    const { container, rerender } = render(<Sparkline totals={[100, 200, 150, 400, 300, 500]} />);
-    expect(container.querySelector("[data-sparkline]")).toHaveAttribute("aria-hidden", "true");
-    expect(container.querySelector("path")?.getAttribute("d")).toMatch(/^M0 /);
-    rerender(<Sparkline totals={[0, 0, 0, 0, 0, 0]} />);
-    expect(container.querySelector("[data-sparkline]")).toBeNull();
-    rerender(<Sparkline totals={[300]} />);
-    expect(container.querySelector("[data-sparkline]")).toBeNull();
   });
 });

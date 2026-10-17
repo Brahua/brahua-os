@@ -18,7 +18,6 @@ export const SUMMARY_COPY = {
   monthShown: (month: string, total: string) => `${month}: ${total} en total.`,
 
   // Context line under the total (finance-motion M2): neutral, never red or green.
-  spent: "Gastado",
   dayOf: (day: number, total: number) => `Día ${day} de ${total}`,
   /** `samePoint`: the month is still going, so it is compared up to today's day number. */
   deltaVs: (percent: number, direction: "up" | "down" | "same", samePoint: boolean) => {
@@ -114,7 +113,6 @@ export const SUMMARY_COPY = {
   /** The tooltip, also said when the cursor moves by keyboard. */
   chartTooltipSpoken: (day: number, total: string, previous: string | null) =>
     `Día ${day}: ${total}${previous ? `; mes anterior ${previous}` : ""}`,
-  sparklineSpoken: "Últimos seis meses",
   nextPayment: (day: string) => `próximo ${day}`,
 
   // USD without a rate

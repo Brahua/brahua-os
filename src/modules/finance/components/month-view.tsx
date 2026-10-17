@@ -59,10 +59,8 @@ import {
   MonthContext,
   MonthTotal,
   PendingCard,
-  SpentCard,
 } from "./month-summary";
 import { AreaChart } from "./area-chart";
-import { Sparkline } from "./sparkline";
 import { FilterChips, type ChipItem } from "./filter-chip";
 import { ExpenseFiltersPanel, type Option } from "./expense-filters-panel";
 import { PresenceItem } from "./presence-item";
@@ -546,6 +544,7 @@ export function MonthView({
             excludesUsd={
               summary.total.unconvertedUsdCents > 0 || (previousTotal?.unconvertedUsdCents ?? 0) > 0
             }
+            count={summary.total.count}
           />
         </div>
         <Key
@@ -563,13 +562,11 @@ export function MonthView({
           and arrives from the other side (`useDirectionalSwap`); focus stays on the arrow above. */}
       <div ref={swap} className="flex flex-col gap-6">
         <ViewPanel section="mes:res">
-          <Cascade index={3} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SpentCard
-              total={summary.total}
-              sparkline={<Sparkline totals={trend.map((entry) => entry.penCents)} />}
-            />
-            {pending && pending.count > 0 ? <PendingCard pending={pending} /> : null}
-          </Cascade>
+          {pending && pending.count > 0 ? (
+            <Cascade index={3}>
+              <PendingCard pending={pending} />
+            </Cascade>
+          ) : null}
 
           {shown.length > 0 ? (
             <>
