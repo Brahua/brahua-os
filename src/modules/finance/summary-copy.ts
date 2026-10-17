@@ -36,6 +36,18 @@ export const SUMMARY_COPY = {
   /** A segment of the stacked bar: the same toggle as its row in the list, named as the bar. */
   segmentLabel: (name: string, amount: string) => `Barra, ${name}: ${amount}`,
   dayTotalSpoken: (amount: string) => `Total del día: ${amount}`,
+  // The category donut (finance-resumen-charts R1)
+  donutLabel: "Distribución por categoría",
+  donutEmpty: "Sin monto en soles",
+  donutSegment: (name: string, amount: string, percent: number | null) =>
+    percent === null ? `${name}: ${amount}` : `${name}: ${amount}, ${percent} por ciento del mes`,
+  donutPercent: (percent: number) => `${percent} % del mes`,
+  donutOthers: (count: number) => ({
+    name: `Otros · ${count} categorías`,
+    short: `Otros · ${count}`,
+  }),
+  donutUnconverted: (usd: string) => `+ ${usd} sin convertir · no suma al total ni a los %`,
+
   // Filters, order and pages of «Gastos» (finance-gastos)
   filtersButton: (active: number) => (active > 0 ? `Filtros (${active})` : "Filtros"),
   filtersLegend: "Filtrar los gastos",
