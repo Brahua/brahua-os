@@ -18,6 +18,7 @@ import {
   eq,
   gte,
   inArray,
+  max,
   isNotNull,
   isNull,
   ne,
@@ -30,7 +31,7 @@ import { OWNER_TIME_ZONE } from "@/lib/time";
 import { projects } from "@/modules/projects/db/schema";
 import { CLOSED_STATUSES } from "@/modules/projects/project-close";
 import type { NextAction } from "@/modules/projects/project-extensions";
-import type { ProgressCounts } from "@/modules/projects/progress-source";
+import type { MilestoneCounts, ProgressCounts } from "@/modules/projects/progress-source";
 import { tasks } from "./db/schema";
 import { removeUntouchedSpawn, type SpawnUndo } from "./recurrence-db";
 import type { TaskItem } from "./task-input";
@@ -271,6 +272,39 @@ export async function countProjectTasks(
     .groupBy(tasks.projectId);
   for (const row of rows) {
     if (row.projectId) result.set(row.projectId, { done: row.done, total: row.total });
+  }
+  return result;
+}
+
+/**
+ * Done and total visible tasks of each milestone in `milestoneIds` (done = with `done_at`) and
+ * when the last one was done, in ONE grouped query (hitos-agrupan-tareas). A deleted task, or the
+ * tasks of a deleted project, never count; milestones with no tasks are missing from the map.
+ */
+export async function countMilestoneTasks(
+  db: Database,
+  milestoneIds: readonly string[],
+): Promise<Map<string, MilestoneCounts>> {
+  const result = new Map<string, MilestoneCounts>();
+  if (milestoneIds.length === 0) return result;
+  const rows = await db
+    .select({
+      milestoneId: tasks.milestoneId,
+      total: count(),
+      done: count(tasks.doneAt),
+      lastDoneAt: max(tasks.doneAt),
+    })
+    .from(tasks)
+    .where(and(inArray(tasks.milestoneId, [...milestoneIds]), visibleTask))
+    .groupBy(tasks.milestoneId);
+  for (const row of rows) {
+    if (row.milestoneId) {
+      result.set(row.milestoneId, {
+        done: row.done,
+        total: row.total,
+        lastDoneAt: row.lastDoneAt ?? null,
+      });
+    }
   }
   return result;
 }

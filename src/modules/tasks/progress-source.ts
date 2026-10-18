@@ -6,10 +6,12 @@
 import "server-only";
 import { getDb } from "@/lib/db";
 import type { ProgressSource } from "@/modules/projects/contracts";
-import { countProjectTasks } from "./project-tasks";
+import { countMilestoneTasks, countProjectTasks } from "./project-tasks";
 
 export const tasksProgressSource: ProgressSource = {
   id: "tasks",
   // One grouped query for every id the list or the detail asks for. The page checked the owner.
   countsFor: (projectIds) => countProjectTasks(getDb(), projectIds),
+  // By milestone (hitos-agrupan-tareas): a milestone is complete when all its tasks are done.
+  milestoneCountsFor: (milestoneIds) => countMilestoneTasks(getDb(), milestoneIds),
 };

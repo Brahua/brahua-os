@@ -8,6 +8,14 @@ La dona por categoría (R1, #153) y las barras por medio de pago (R2, #154) se u
 
 **Ajuste posterior (`feat/finance-header-dedup`, 2026-10-16, decisión del owner):** el total del mes se decía dos veces (la cabecera y la tarjeta «Gastado»). Se queda el de la cabecera (se ve en «Resumen» y «Gastos» y lleva el delta, «Día n de m» y el aviso de USD); «N gastos» pasa a su línea de contexto, la tarjeta «Gastado» y la miniatura de 6 meses desaparecen y «Pendiente de pagar» ocupa la fila.
 
+## Módulo `hitos-agrupan-tareas` (un hito es una fase que se completa con sus tareas): en curso
+
+Spec: [`SPEC-hitos-agrupan-tareas.md`](../SPEC-hitos-agrupan-tareas.md) (aprobado el 2026-10-17). Un implementador a la vez; gate local liviano; push una sola vez por corte; a lo sumo **una** E2E nueva (en H2); la migración de datos solo con respaldo verificado.
+
+- [x] **H1: Estado derivado y conteo por hito** (`feat/hitos-agrupan-tareas`): `milestone-state.ts` (puro: `empty`/`inProgress`/`complete`, `completedWithin`, `phaseChange`), conteo de tareas por hito (`countMilestoneTasks`) y su respuesta por el contrato (`milestoneCountsFor` en la fuente de avance y `contributedMilestones` en `projects`). Aditivo: nada cambia aún para el usuario.
+- [ ] **H2: Plan y cierre de fase** (el avance del proyecto solo de tareas, sin checkbox de hito, «Hito completo», `weekly-review`, migración de datos con respaldo, recurrentes fuera de los hitos, E2E).
+- [ ] **H3: Limpieza** (quitar `done_at` de hitos; destructiva: solo con el visto bueno del owner y un respaldo).
+
 ## Módulo `finance-motion` y extensión `finance-gastos`: cerrados el 2026-10-15
 
 Plan y tareas archivados en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md). M1–M5 (#140–#145), el ajuste de estructura «Recurrentes» (#149) y `finance-gastos` G1–G2 (#150, #151) están en producción. **Pendiente del owner** (detalle en `docs/HANDOFF.md`): confirmar en el iPhone la fluidez, el toque en el gráfico y el anillo de «Pagado»; decidir qué hacer con el JS añadido a `/finance` (+42 kB gz medidos contra la meta de 25); revisar las decisiones autónomas de ambos specs. **Siguiente:** gráficos por categoría y por medio en «Resumen» (diseño primero en Claude Design, después spec) y `health`.
