@@ -124,7 +124,7 @@ test("Marcar como terminado warns about open milestones, then the card is in His
   await page.getByRole("button", { name: "Marcar como terminado" }).click();
   const confirm = page.getByRole("group", { name: `¿Marcar «${name}» como terminado?` });
   await expect(confirm.getByRole("button", { name: "Volver" })).toBeFocused();
-  await expect(confirm).toContainText("Quedan 2 hitos abiertos. ¿Terminar igual?");
+  await expect(confirm).toContainText("Quedan 3 hitos abiertos. ¿Terminar igual?");
   await untilSaved(page, () => confirm.getByRole("button", { name: "Sí, terminar" }).click());
 
   const finished = `Terminado el ${formatOwnerDay(new Date())}`;
@@ -347,7 +347,7 @@ for (const theme of THEMES) {
     // "Cerrar proyecto": the done step with its warning (3 of 5 milestones open), not confirmed.
     await page.getByRole("button", { name: "Marcar como terminado" }).click();
     await expect(page.locator("[data-open-work-warning]")).toHaveText(
-      "Quedan 3 hitos abiertos. ¿Terminar igual?",
+      "Quedan 3 hitos abiertos y 3 tareas abiertas. ¿Terminar igual?",
     );
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");

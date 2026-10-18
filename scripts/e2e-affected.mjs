@@ -57,7 +57,7 @@ export const SPEC_MODULES = {
   "passkey.spec.ts": ["core"],
   "project-dependencies.spec.ts": ["projects"],
   "project-detail.spec.ts": ["projects"],
-  "project-milestones.spec.ts": ["projects"],
+  "project-milestones.spec.ts": ["projects", "tasks"],
   "project-notes-links.spec.ts": ["projects"],
   "project-tasks.spec.ts": ["projects", "tasks"],
   "projects.spec.ts": ["projects"],
