@@ -50,6 +50,7 @@ import { NON_BLOCKING_STATUSES, type ActiveBlocker } from "./dependency-input";
 import {
   combineProgressCounts,
   createProgressRegistry,
+  type MilestoneCounts,
   type ProgressCounts,
   type ProgressSource,
 } from "./progress-source";
@@ -69,7 +70,7 @@ import {
   type ProjectTodayItem,
 } from "./today-summary";
 
-export type { ProgressCounts, ProgressSource } from "./progress-source";
+export type { MilestoneCounts, ProgressCounts, ProgressSource } from "./progress-source";
 export type { ProjectStatus } from "./project-constants";
 export type { ProjectTodayItem } from "./today-summary";
 export type {
@@ -95,6 +96,17 @@ const registry = createProgressRegistry();
  */
 export function registerProgressSource(source: ProgressSource): () => void {
   return registry.register(source);
+}
+
+/**
+ * The work counts of milestones, by milestone id, from the registered sources (a milestone is
+ * complete when its work is all done: it has no checkbox of its own). Empty without a source that
+ * answers by milestone. Callers check the owner first.
+ */
+export function contributedMilestones(
+  milestoneIds: readonly string[],
+): Promise<Map<string, MilestoneCounts>> {
+  return registry.milestoneCountsFor(milestoneIds);
 }
 
 /**
