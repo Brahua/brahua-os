@@ -65,7 +65,7 @@ import { FilterChips, type ChipItem } from "./filter-chip";
 import { ExpenseFiltersPanel, type Option } from "./expense-filters-panel";
 import { PresenceItem } from "./presence-item";
 import { PendingPayments } from "./pending-payments";
-import { CategoryDonut } from "./category-donut";
+import { StackedBar } from "./stacked-bar";
 
 type SheetState = { key: number; open: boolean; expense: ExpenseItem | null };
 
@@ -259,20 +259,14 @@ export function MonthView({
     [month],
   );
 
-  /** Adds the categories to the filters, or takes them off when they are all there already. */
-  function toggleCategories(keys: string[]) {
-    const all = keys.every((key) => active.categories.includes(key));
-    updateFilters({
-      categories: all
-        ? active.categories.filter((key) => !keys.includes(key))
-        : [...active.categories, ...keys.filter((key) => !active.categories.includes(key))],
-    });
-    // The list lives in «Gastos»: categories added in «Resumen» take you there.
-    if (!all) views?.showSection("mes:gas");
-  }
-
   function toggleCategory(group: SummaryGroup) {
-    toggleCategories([groupKey(group)]);
+    const key = groupKey(group);
+    const adding = !active.categories.includes(key);
+    updateFilters({
+      categories: adding ? [...active.categories, key] : active.categories.filter((c) => c !== key),
+    });
+    // The list lives in «Gastos»: a category added in «Resumen» takes you there.
+    if (adding) views?.showSection("mes:gas");
   }
 
   function clearAll() {
@@ -486,17 +480,6 @@ export function MonthView({
     shown.map((e) => e.paymentMethod),
   );
 
-  // What the dollars with no rate are, for the payment-method bars' last row.
-  const unconvertedDetail = useMemo(() => {
-    const rows = shown.filter(
-      (expense) => expense.currency === "USD" && expense.exchangeRateE4 === null,
-    );
-    if (rows.length === 0) return null;
-    if (rows.length > 1) return SUMMARY_COPY.methodUnconvertedMany(rows.length);
-    const [only] = rows;
-    return [expenseRowText(only).label, only.paymentMethod?.name].filter(Boolean).join(" · ");
-  }, [shown]);
-
   const monthHidden = views ? sectionGroup(views.section) !== "month" : false;
   const dayTotals = new Map(
     groups.map((group) => [group.day, summarizeMonth(month, group.expenses).total]),
@@ -594,22 +577,11 @@ export function MonthView({
                 className="flex flex-col gap-4"
                 attrs={{ "data-month-summary": "" }}
               >
-                <div className="bo-card flex flex-col items-center gap-4">
-                  <CategoryDonut
-                    categories={summary.categories}
-                    total={summary.total}
-                    monthLabel={monthTitle(month)}
-                    activeKeys={active.categories}
-                    onToggle={toggleCategories}
-                  />
-                  {summary.total.unconvertedUsdCents > 0 ? (
-                    <p className="bo-amount bo-text-body-sm text-text-secondary" data-donut-usd="">
-                      {SUMMARY_COPY.donutUnconverted(
-                        formatMoney(summary.total.unconvertedUsdCents, "USD"),
-                      )}
-                    </p>
-                  ) : null}
-                </div>
+                <StackedBar
+                  categories={summary.categories}
+                  activeKeys={active.categories}
+                  onToggle={toggleCategory}
+                />
                 <CategoryBars
                   categories={summary.categories}
                   activeKeys={active.categories}
@@ -617,7 +589,7 @@ export function MonthView({
                 />
               </Cascade>
               <Cascade index={6}>
-                <MixCard summary={summary} unconvertedDetail={unconvertedDetail} />
+                <MixCard summary={summary} />
               </Cascade>
             </>
           ) : (

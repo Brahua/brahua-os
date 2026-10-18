@@ -98,11 +98,9 @@ test("the summary: total in PEN with a USD expense, USD without a rate apart, Aj
     "Sin categoría, 0 soles, y 10 dólares sin convertir",
   ]);
   const methods = page.getByRole("list", { name: "Por medio de pago" });
-  // Bars for the methods with PEN, and the dollars with no rate in a row of their own.
-  await expect(methods.getByRole("listitem")).toHaveCount(3);
-  await expect(methods.getByRole("listitem").first()).toContainText("Débito dólares, 75 soles");
-  await expect(methods.getByRole("listitem").last()).toContainText(
-    "Sin convertir, 10 dólares, Hosting · Débito dólares",
+  await expect(methods.getByRole("listitem")).toHaveCount(2);
+  await expect(methods.getByRole("listitem").first()).toContainText(
+    "Débito dólares, 75 soles, y 10 dólares sin convertir",
   );
 
   // No rate in Ajustes: "Fijar tipo de cambio" opens it; Esc brings focus back to it.
