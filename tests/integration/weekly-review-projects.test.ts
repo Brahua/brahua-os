@@ -43,7 +43,7 @@ let sortOrder = 0;
 async function milestone(
   projectId: string,
   title: string,
-  values: Partial<typeof projectMilestones.$inferInsert> = {},
+  values: Partial<typeof projectMilestones.$inferInsert> & { doneAt?: Date | null } = {},
 ) {
   const { doneAt, ...rest } = values;
   const [row] = await testDb

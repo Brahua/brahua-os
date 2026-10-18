@@ -99,7 +99,6 @@ export const projectMilestones = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     title: text("title").notNull(), // 1–120
     dueDate: date("due_date"),
-    doneAt: timestamp("done_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull(),
     // Soft delete (P3), like projects: out of every view and of the progress, kept in
     // `pnpm db:export`, and restored by "Deshacer". Live rows keep a contiguous sort_order.

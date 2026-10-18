@@ -108,18 +108,6 @@ describe("the state of a milestone is derived from its tasks", () => {
     await reopenTaskWithSpawn({ id: a });
     expect((await view(project)).Planos).toEqual({ done: 1, total: 2, complete: false });
   });
-
-  test("nothing is written on the milestone: done_at stays null", async () => {
-    const project = await newProject();
-    const milestone = await newMilestone(project, "Planos");
-    const id = await addTask(project, milestone, "medir");
-    await completeTaskWithNext({ id });
-    const [row] = await testDb
-      .select()
-      .from(projectMilestones)
-      .where(eq(projectMilestones.id, milestone));
-    expect(row.doneAt).toBeNull();
-  });
 });
 
 describe("«Hito completo»: completing the last open task of a phase", () => {

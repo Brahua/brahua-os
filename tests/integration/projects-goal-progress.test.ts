@@ -75,13 +75,12 @@ describe("getProjectProgress", () => {
   test("milestones are phases, not units: they never change the percentage (3 of 4 tasks = 75 %)", async () => {
     const id = await insertProject("Con hitos");
     await milestones(id, 3, 4);
-    // Four milestones, one of them even with `done_at` set: nothing to do with the progress.
+    // Four milestones (phases): nothing to do with the progress.
     for (let index = 0; index < 4; index += 1) {
       await testDb.insert(projectMilestones).values({
         projectId: id,
         title: `Hito ${index}`,
         sortOrder: index,
-        doneAt: index === 0 ? new Date() : null,
       });
     }
     expect(await getProjectProgress(id)).toEqual({ percent: 75, status: "active" });

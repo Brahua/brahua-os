@@ -71,7 +71,6 @@ async function rows(projectId: string) {
     id: row.id,
     title: row.title,
     sortOrder: row.sortOrder,
-    done: row.doneAt !== null,
     dueDate: row.dueDate,
     deleted: row.deletedAt !== null,
   }));
@@ -238,7 +237,7 @@ describe("edit and check", () => {
       ok: false,
       error: MILESTONE_ERRORS.notFound,
     });
-    expect((await rows(projectId))[0]).toMatchObject({ title: "Planos", done: false });
+    expect((await rows(projectId))[0]).toMatchObject({ title: "Planos" });
   });
 
   test("a milestone that doesn't exist is not found", async () => {
@@ -271,9 +270,7 @@ describe("delete and undo", () => {
       .from(projectMilestones)
       .where(eq(projectMilestones.id, b));
     expect(deleted.deletedAt).toBeInstanceOf(Date);
-    expect(deleted).toMatchObject({ title: "B", doneAt: before.doneAt, dueDate: "2026-12-01" });
-    // `done_at` is no longer written (hitos-agrupan-tareas): a milestone's state is derived.
-    expect(deleted.doneAt).toBeNull();
+    expect(deleted).toMatchObject({ title: "B", dueDate: "2026-12-01" });
     expect((await getProjectMilestones(projectId)).map((item) => item.id)).toEqual([a, c]);
 
     const restored = await restoreMilestone({ projectId, id: b, position: 1, afterId: a });
