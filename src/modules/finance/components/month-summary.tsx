@@ -11,7 +11,6 @@ import { cn } from "@/lib/cn";
 import { formatMoney, spokenMoney } from "../money";
 import { categoryStyle } from "../category-color";
 import { GrowFill } from "./grow-fill";
-import { MethodBars } from "./method-bars";
 import { MetricCard } from "./metric-card";
 import { shortDay, spokenDay } from "../payments-copy";
 import type { Delta } from "../trend";
@@ -310,6 +309,44 @@ export function CategoryBars({ categories, activeKeys, onToggle }: CategoryBarsP
   );
 }
 
+/** "Por medio de pago": compact rows with each method's amount (read-only). */
+export function MethodRows({ methods }: { methods: SummaryGroup[] }) {
+  const ids = useId();
+  return (
+    <section aria-labelledby={`${ids}-heading`} className="flex flex-col gap-3">
+      <h3 id={`${ids}-heading`} className="bo-text-subheading">
+        {SUMMARY_COPY.byMethod}
+      </h3>
+      <ul className="bo-list" aria-labelledby={`${ids}-heading`}>
+        {methods.map((group) => (
+          <li key={groupKey(group)} className="bo-row bo-row--compact bo-row--static py-2">
+            <span className="sr-only">
+              {spokenGroup({ ...group, percent: null }, SUMMARY_COPY.noMethod)}
+            </span>
+            <span className="bo-row__title min-w-0 flex-1 truncate" aria-hidden>
+              {groupName(group, SUMMARY_COPY.noMethod)}
+            </span>
+            {/* The USD without a rate goes on a line of its own: the name keeps its room. */}
+            <span
+              className="flex max-w-[65%] min-w-0 flex-col items-end text-right [overflow-wrap:anywhere]"
+              aria-hidden
+            >
+              <span className="bo-amount bo-text-body-sm text-text">
+                <MoneyFlow cents={group.penCents} />
+              </span>
+              {group.unconvertedUsdCents > 0 ? (
+                <span className="bo-amount bo-text-body-sm text-text-secondary">
+                  {SUMMARY_COPY.unconverted(formatMoney(group.unconvertedUsdCents, "USD"))}
+                </span>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** "Recurrente y suelto": what paid recurring payments and what didn't, side by side. */
 export function RecurringSplit({ summary }: { summary: MonthSummary }) {
   const ids = useId();
@@ -360,21 +397,10 @@ export function RecurringSplit({ summary }: { summary: MonthSummary }) {
 }
 
 /** One card for «Por medio de pago» and «Recurrente y suelto» (the design's single card). */
-export function MixCard({
-  summary,
-  unconvertedDetail,
-}: {
-  summary: MonthSummary;
-  /** What the dollars with no rate are («Netflix · Crédito BCP», «3 gastos en dólares»). */
-  unconvertedDetail: string | null;
-}) {
+export function MixCard({ summary }: { summary: MonthSummary }) {
   return (
     <div className="bo-card flex flex-col gap-6" data-month-mix="">
-      <MethodBars
-        methods={summary.methods}
-        unconvertedUsdCents={summary.total.unconvertedUsdCents}
-        unconvertedDetail={unconvertedDetail}
-      />
+      <MethodRows methods={summary.methods} />
       <RecurringSplit summary={summary} />
     </div>
   );

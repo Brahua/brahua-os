@@ -1,13 +1,10 @@
 # Tareas
 
-> Sin módulo en curso. Últimos cerrados: **`finance-resumen-charts`** (2026-10-16), **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `finance-resumen-charts` (dona por categoría y barras por medio en «Resumen»): cerrado en código el 2026-10-16
+## Módulo `finance-resumen-charts`: revertido el 2026-10-17 (decisión del owner)
 
-Spec: [`SPEC-finance-resumen-charts.md`](../SPEC-finance-resumen-charts.md) (aprobada el 2026-10-16). Un implementador a la vez; gate local liviano; push una sola vez por corte; sin E2E nueva (se actualizan las existentes); meta de JS ≤ 5 kB gz, a medir con dos builds en R2.
-
-- [x] **R1: Dona por categoría** (`feat/finance-resumen-charts`): `donut-geometry.ts` (puro) y `CategoryDonut` (centro que sigue cursor, foco y selección; flechas circulares; Enter y espacio; «Otros · N» filtra el conjunto; barrido de entrada en CSS puro), reemplaza a `StackedBar`; nota «sin convertir» bajo la dona. Decisión autónoma: el centro es decorativo (`aria-hidden`): cada segmento ya dice nombre, monto y % en su `aria-label`.
-- [x] **R2: Barras por medio y cierre** (`feat/finance-resumen-charts-r2`): `MethodBars` (una barra por medio con PEN, nombre, monto y %; los dólares sin tasa en una fila aparte con barra rayada, sin %), solo lectura; un medio con solo dólares sin tasa no tiene barra propia (vive en «Sin convertir»). **JS medido con dos builds:** 236.27 kB gz antes de R1 → 237.92 kB tras R2 (**+1.65 kB**, meta ≤ 5 kB cumplida).
+La dona por categoría (R1, #153) y las barras por medio de pago (R2, #154) se usaron unos días y **no gustaron**: se volvió a la barra apilada y a la lista compacta de medios de pago (`feat`→`revert/finance-resumen-charts`). El spec [`SPEC-finance-resumen-charts.md`](../SPEC-finance-resumen-charts.md) se conserva en el historial de git (commit `0e612ac`) por si se retoma con otro diseño. Se mantiene el ajuste del total único (#155).
 
 **Ajuste posterior (`feat/finance-header-dedup`, 2026-10-16, decisión del owner):** el total del mes se decía dos veces (la cabecera y la tarjeta «Gastado»). Se queda el de la cabecera (se ve en «Resumen» y «Gastos» y lleva el delta, «Día n de m» y el aviso de USD); «N gastos» pasa a su línea de contexto, la tarjeta «Gastado» y la miniatura de 6 meses desaparecen y «Pendiente de pagar» ocupa la fila.
 

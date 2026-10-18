@@ -56,7 +56,6 @@ vi.mock("@/modules/finance/catalog-actions", () => ({
 const TODAY = "2026-10-05";
 const COMIDA = { id: "11111111-1111-4111-8111-111111111111", name: "Comida" };
 const CASA = { id: "11111111-1111-4111-8111-222222222222", name: "Casa" };
-const VISA = { id: "22222222-2222-4222-8222-333333333333", name: "Visa" };
 const EFECTIVO = { id: "22222222-2222-4222-8222-222222222222", name: "Efectivo" };
 const CATALOG: FinanceCatalog = {
   categories: [
@@ -273,13 +272,13 @@ describe("Por categoría", () => {
 
     // Another bar adds to the filters (a set); the same bar again takes it off.
     await backToSummary();
-    await user.click(screen.getByRole("button", { name: /^Casa,/ }));
+    await user.click(screen.getByRole("button", { name: /^Casa/ }));
     expect(comida).toHaveAttribute("aria-pressed", "true");
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(3),
     );
     await backToSummary();
-    await user.click(screen.getByRole("button", { name: /^Casa,/ }));
+    await user.click(screen.getByRole("button", { name: /^Casa/ }));
     await user.click(screen.getByRole("tab", { name: "Gastos" }));
     await waitFor(() =>
       expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(2),
@@ -296,13 +295,13 @@ describe("Por categoría", () => {
     );
     await waitFor(() => expect(announcer()).toHaveTextContent("Sin filtro: 4 gastos del mes."));
     await backToSummary();
-    expect(screen.getByRole("button", { name: /^Casa,/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /^Casa/ })).toHaveAttribute("aria-pressed", "false");
   });
 
   test("the filter stays with its month: another month shows the whole list", async () => {
     const user = userEvent.setup();
     const { rerenderWith } = renderMonth(rows());
-    await user.click(screen.getByRole("button", { name: /^Casa,/ }));
+    await user.click(screen.getByRole("button", { name: /^Casa/ }));
     rerenderWith(
       [
         expense({ description: "Pan", category: COMIDA, spentOn: "2026-09-10" }),
@@ -319,54 +318,26 @@ describe("Por categoría", () => {
 });
 
 describe("Por medio de pago, recurrente y suelto", () => {
-  test("bars by method: each with PEN, Sin medio de pago last; the dollars with no rate in a row of their own; recurring vs one-off", () => {
+  test("compact rows with each method's amount, Sin medio de pago last; recurring vs one-off", () => {
     renderMonth([
       expense({ amountCents: 1000, paymentMethod: EFECTIVO, recurringPaymentId: "r-1" }),
       expense({ amountCents: 300 }),
-      expense({ description: "Hosting", currency: "USD", amountCents: 100, paymentMethod: VISA }),
+      expense({ currency: "USD", amountCents: 100 }),
     ]);
     const methods = screen.getByRole("list", { name: "Por medio de pago" });
     expect(
       within(methods)
         .getAllByRole("listitem")
-        .map((item) => item.querySelector(".sr-only")?.textContent),
+        .map((item) => item.textContent),
     ).toEqual([
-      "Efectivo, 10 soles, 77 por ciento",
-      "Sin medio de pago, 3 soles, 23 por ciento",
-      "Sin convertir, 1 dólar, Hosting · Visa. No suma al total ni a los porcentajes.",
+      expect.stringContaining("Efectivo, 10 soles"),
+      expect.stringContaining("Sin medio de pago, 3 soles, y 1 dólar sin convertir"),
     ]);
-    // Visible: a bar per method, as wide as its share; the dollars' bar is hatched and has no share.
-    const bars = methods.querySelectorAll(".bo-summary-bar");
-    expect(bars).toHaveLength(3);
-    expect(bars[0].querySelector(".bo-summary-bar__fill")).toHaveStyle({ width: "76.92%" });
-    expect(bars[2]).toHaveClass("bo-summary-bar--hatch");
-    expect(bars[2].querySelector(".bo-summary-bar__fill")).toBeNull();
-    // Read-only: no buttons.
-    expect(within(methods).queryAllByRole("button")).toHaveLength(0);
     const split = screen.getByRole("region", { name: "Recurrente y suelto" });
     const recurring = split.querySelector('[data-split="recurring"]') as HTMLElement;
     const oneOff = split.querySelector('[data-split="one-off"]') as HTMLElement;
     expect(within(recurring).getByText("10 soles")).toHaveClass("sr-only");
     expect(within(oneOff).getByText("3 soles, y 1 dólar sin convertir")).toHaveClass("sr-only");
-  });
-
-  test("a method with only dollars with no rate has no bar of its own; two such expenses say how many", () => {
-    renderMonth([
-      expense({ amountCents: 500, paymentMethod: EFECTIVO }),
-      expense({ currency: "USD", amountCents: 100, paymentMethod: VISA }),
-      expense({ currency: "USD", amountCents: 200, paymentMethod: VISA }),
-    ]);
-    const methods = screen.getByRole("list", { name: "Por medio de pago" });
-    expect(within(methods).getAllByRole("listitem")).toHaveLength(2); // Efectivo + Sin convertir
-    expect(methods.querySelector("[data-method-unconverted]")).toHaveTextContent(
-      "2 gastos en dólares",
-    );
-    expect(methods.textContent).not.toContain("Visa");
-  });
-
-  test("no dollars with no rate: no extra row", () => {
-    renderMonth([expense({ amountCents: 500, paymentMethod: EFECTIVO })]);
-    expect(document.querySelector("[data-method-unconverted]")).toBeNull();
   });
 });
 
@@ -765,37 +736,21 @@ describe("the three sections (finance-motion M2)", () => {
     expect(document.querySelector("[data-month-context]")).toHaveTextContent("2 gastos");
   });
 
-  test("the donut: one toggle per category with PEN, by keyboard, same state as its row; the middle follows", async () => {
+  test("the stacked bar: one toggle per category with PEN, reachable by keyboard, same state as its row", async () => {
     const user = userEvent.setup();
     renderMonth([
       expense({ amountCents: 6000, category: COMIDA }),
       expense({ amountCents: 2000, category: CASA }),
       expense({ currency: "USD", amountCents: 900, exchangeRateE4: null, category: null }),
     ]);
-    const donut = screen.getByRole("group", { name: "Distribución por categoría" });
-    const segments = within(donut).getAllByRole("button");
-    // The USD without a rate has no PEN: no slice, only its row (and the note under the donut).
+    const bar = document.querySelector("[data-stacked-bar]") as HTMLElement;
+    const segments = within(bar).getAllByRole("button");
+    // The USD without a rate has no PEN: no segment, only its row.
     expect(segments.map((segment) => segment.getAttribute("aria-label"))).toEqual([
-      "Comida: 60 soles, 75 por ciento del mes",
-      "Casa: 20 soles, 25 por ciento del mes",
+      "Barra, Comida: 60 soles",
+      "Barra, Casa: 20 soles",
     ]);
-    expect(document.querySelector("[data-donut-usd]")).toHaveTextContent(
-      "no suma al total ni a los %",
-    );
-    // The middle says the month until a slice is pointed at, then the slice, then the month again.
-    const center = () => document.querySelector(".bo-donut__center") as HTMLElement;
-    expect(center()).toHaveTextContent("Total del mes");
-    await user.hover(segments[1]);
-    expect(center()).toHaveTextContent("Casa");
-    expect(center()).toHaveTextContent("25 % del mes");
-    await user.unhover(segments[1]);
-    expect(center()).toHaveTextContent("Total del mes");
-    // Keyboard: arrows walk the slices in a circle; Enter toggles the filter and goes to «Gastos».
     segments[0].focus();
-    await user.keyboard("{ArrowLeft}");
-    expect(segments[1]).toHaveFocus();
-    await user.keyboard("{ArrowRight}");
-    expect(segments[0]).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(screen.getByRole("tab", { name: "Gastos" })).toHaveAttribute("aria-selected", "true");
     expect(segments[0]).toHaveAttribute("aria-pressed", "true");
@@ -804,47 +759,6 @@ describe("the three sections (finance-motion M2)", () => {
       "aria-pressed",
       "true",
     );
-  });
-
-  test("«Otros · N» stands for the smallest categories: it filters by all of them, and again takes them off", async () => {
-    const user = userEvent.setup();
-    const names = [
-      "Uno",
-      "Dos",
-      "Tres",
-      "Cuatro",
-      "Cinco",
-      "Seis",
-      "Siete",
-      "Ocho",
-      "Nueve",
-      "Diez",
-    ];
-    renderMonth(
-      names.map((name, index) =>
-        expense({
-          description: name,
-          amountCents: 10_000 - index * 500,
-          category: {
-            id: `44444444-4444-4444-8444-${String(index).padStart(12, "0")}`,
-            name: `Cat ${name}`,
-          },
-        }),
-      ),
-    );
-    const donut = screen.getByRole("group", { name: "Distribución por categoría" });
-    const slices = within(donut).getAllByRole("button");
-    expect(slices).toHaveLength(8);
-    const others = slices.at(-1)!;
-    expect(others.getAttribute("aria-label")).toMatch(/^Otros · 3 categorías: /);
-    await user.click(others);
-    expect(others).toHaveAttribute("aria-pressed", "true");
-    // Three categories are in the filters: three chips (the 3 smallest) and three rows.
-    await waitFor(() => expect(document.querySelectorAll("[data-chip]")).toHaveLength(3));
-    await user.click(screen.getByRole("tab", { name: "Resumen" }));
-    await user.click(others);
-    expect(others).toHaveAttribute("aria-pressed", "false");
-    await waitFor(() => expect(document.querySelectorAll("[data-chip]")).toHaveLength(0));
   });
 
   test("each day of «Gastos» shows its total (and says it), the list keeps its name", () => {
@@ -870,13 +784,13 @@ describe("the three sections (finance-motion M2)", () => {
     expect(within(card).getByText("Recurrente y suelto")).toBeInTheDocument();
   });
 
-  test("the accent is the category's slot: a dot and a slice; none is «Otros» (8)", () => {
+  test("the accent is the category's slot: a dot and a segment; none is «Otros» (8)", () => {
     renderMonth([
       expense({ amountCents: 6000, category: { ...COMIDA, colorSlot: 2 } }),
       expense({ amountCents: 2000, category: CASA }),
       expense({ amountCents: 1000 }),
     ]);
-    const accents = [...document.querySelectorAll<SVGElement>("[data-donut-segment]")].map(
+    const accents = [...document.querySelectorAll<HTMLElement>("[data-stacked-segment]")].map(
       (segment) => segment.style.getPropertyValue("--_cat"),
     );
     expect(accents).toEqual(["var(--cat-2)", "var(--cat-8)", "var(--cat-8)"]);
