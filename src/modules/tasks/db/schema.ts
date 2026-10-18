@@ -98,6 +98,12 @@ export const tasks = pgTable(
       "tasks_milestone_project_check",
       sql`${table.milestoneId} is null or ${table.projectId} is not null`,
     ),
+    // hitos-agrupan-tareas: a milestone is complete when all its tasks are, so a task that repeats
+    // (its next occurrence would reopen the phase) can't be in one.
+    check(
+      "tasks_milestone_not_recurring_check",
+      sql`${table.milestoneId} is null or ${table.recurrenceKind} is null`,
+    ),
     // Only a pending task of a project can be its next action.
     check(
       "tasks_next_action_check",

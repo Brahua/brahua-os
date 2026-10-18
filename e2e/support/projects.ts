@@ -5,6 +5,7 @@ import { createDb, type Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
+import { tasks } from "@/modules/tasks/db/schema";
 import type { ProjectPriority, ProjectStatus } from "@/modules/projects/project-constants";
 import { testDatabaseUrl } from "../../tests/integration/helpers";
 
@@ -110,20 +111,33 @@ async function areaIdOf(db: Database, slug: string): Promise<string> {
   return area.id;
 }
 
-/** Inserts a fixture project's milestones, in order (done ones with a fixed instant). */
+/**
+ * Inserts a fixture project's milestones, in order. A milestone is a phase (hitos-agrupan-tareas):
+ * `done` means its single task is done (at a fixed instant), so the fixtures keep their progress.
+ */
 async function seedMilestones(
   db: Database,
   projectId: string,
   milestones: readonly FixtureMilestone[] = [],
 ) {
   if (milestones.length === 0) return;
-  await db.insert(projectMilestones).values(
-    milestones.map((milestone, sortOrder) => ({
+  const rows = await db
+    .insert(projectMilestones)
+    .values(
+      milestones.map((milestone, sortOrder) => ({
+        projectId,
+        title: milestone.title,
+        dueDate: milestone.dueDate ?? null,
+        sortOrder,
+      })),
+    )
+    .returning({ id: projectMilestones.id, sortOrder: projectMilestones.sortOrder });
+  await db.insert(tasks).values(
+    rows.map((row) => ({
+      title: `Tarea de ${milestones[row.sortOrder].title}`,
       projectId,
-      title: milestone.title,
-      dueDate: milestone.dueDate ?? null,
-      doneAt: milestone.done ? new Date("2026-01-20T15:00:00.000Z") : null,
-      sortOrder,
+      milestoneId: row.id,
+      doneAt: milestones[row.sortOrder].done ? new Date("2026-01-20T15:00:00.000Z") : null,
     })),
   );
 }
@@ -196,11 +210,16 @@ export async function insertProject(project: NewProject): Promise<string> {
         completedAt: status === "done" ? new Date() : null,
       })
       .returning({ id: projects.id });
-    await seedMilestones(
-      db,
-      row.id,
-      project.milestones?.map((done, i) => ({ title: `Hito ${i + 1}`, done })),
-    );
+    // Empty milestones (no tasks): the tests add the tasks they need.
+    if (project.milestones?.length) {
+      await db.insert(projectMilestones).values(
+        project.milestones.map((_, i) => ({
+          projectId: row.id,
+          title: `Hito ${i + 1}`,
+          sortOrder: i,
+        })),
+      );
+    }
     return row.id;
   } finally {
     await db.$client.end();

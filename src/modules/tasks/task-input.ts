@@ -30,6 +30,8 @@ export const TASK_ERRORS = {
   projectUnavailable:
     "Ese proyecto ya no está disponible (se terminó, se canceló o se eliminó). Elige otro.",
   milestoneUnavailable: "Ese hito no es de este proyecto o ya no existe.",
+  milestoneRecurring:
+    "Una tarea que se repite no puede ir en un hito: cada vez reabriría la fase. Quítale la repetición o el hito.",
   priority: "Elige una prioridad.",
   dateInvalid: "Escribe una fecha válida.",
   timeInvalid: "Escribe una hora válida (por ejemplo, 10:00).",
@@ -179,6 +181,20 @@ function checkPlacement(value: PlacementFields, context: z.RefinementCtx) {
   }
 }
 
+/** A task that repeats can't be in a milestone (hitos-agrupan-tareas): it would reopen the phase. */
+function checkNotRecurringInMilestone(
+  value: { milestoneId: string | null; recurrence?: unknown },
+  context: z.RefinementCtx,
+) {
+  if (value.milestoneId !== null && value.recurrence != null) {
+    context.addIssue({
+      code: "custom",
+      message: TASK_ERRORS.milestoneRecurring,
+      path: ["milestoneId"],
+    });
+  }
+}
+
 export const taskPlacementSchema = z.object(placementShape).superRefine(checkPlacement);
 export type TaskPlacement = z.output<typeof taskPlacementSchema>;
 
@@ -200,6 +216,7 @@ export const createTaskInputSchema = z
     tags: taskTagsSchema.optional(),
   })
   .superRefine(checkPlacement)
+  .superRefine(checkNotRecurringInMilestone)
   .superRefine(checkTime);
 
 export type CreateTaskInput = z.output<typeof createTaskInputSchema>;

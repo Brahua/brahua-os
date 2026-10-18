@@ -31,8 +31,8 @@ vi.mock("@/lib/progress-sources", () => ({ ensureProgressSources: vi.fn() }));
 vi.mock("@/modules/projects/contracts", () => ({
   contributedProgress: vi.fn(async () => new Map()),
 }));
-vi.mock("@/modules/projects/milestones", () => ({
-  selectProjectMilestoneCounts: vi.fn(async () => ({ done: 0, total: 0 })),
+vi.mock("@/modules/projects/milestone-views", () => ({
+  selectPhaseCounts: vi.fn(async () => ({ done: 0, total: 0 })),
 }));
 
 const PROJECT = vi.hoisted(() => ({ id: "00000000-0000-4000-8000-000000000001" }));

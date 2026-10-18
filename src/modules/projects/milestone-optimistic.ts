@@ -7,7 +7,6 @@ import type { ProjectMilestoneItem } from "./milestone-input";
 export type MilestoneChange =
   | { type: "add"; milestone: ProjectMilestoneItem }
   | { type: "update"; id: string; title: string; dueDate: string | null }
-  | { type: "done"; id: string; doneAt: Date | null }
   | { type: "remove"; id: string }
   | {
       type: "restore";
@@ -36,13 +35,6 @@ export function applyMilestoneChange(
     case "update":
       return milestones.map((item) =>
         item.id === change.id ? { ...item, title: change.title, dueDate: change.dueDate } : item,
-      );
-    case "done":
-      return milestones.map((item) =>
-        item.id === change.id
-          ? // Checking one already done keeps its date (like the server's coalesce).
-            { ...item, doneAt: change.doneAt === null ? null : (item.doneAt ?? change.doneAt) }
-          : item,
       );
     case "remove":
       return renumber(milestones.filter((item) => item.id !== change.id));

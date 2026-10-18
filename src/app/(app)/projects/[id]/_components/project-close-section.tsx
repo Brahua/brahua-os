@@ -7,7 +7,6 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import { cn } from "@/lib/cn";
 import { formatOwnerDay } from "@/lib/time";
 import { closeProject, reopenProject } from "@/modules/projects/close-actions";
-import type { MilestoneCounts } from "@/modules/projects/milestone-input";
 import { isClosed, openWork, type ClosedStatus } from "@/modules/projects/project-close";
 import type { ProgressCounts } from "@/modules/projects/progress-source";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
@@ -21,7 +20,7 @@ type FocusTarget = "back" | "done" | "canceled" | "reopen";
 
 type ProjectCloseSectionProps = {
   /** The milestones as the server sent them (the section's live counts win once published). */
-  counts: MilestoneCounts;
+  counts: ProgressCounts;
   /** What the progress sources (tasks, P6) count for the project. */
   contributed?: ProgressCounts;
 };

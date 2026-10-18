@@ -13,7 +13,6 @@ import {
   milestoneRefInputSchema,
   reorderMilestonesInputSchema,
   restoreMilestoneInputSchema,
-  setMilestoneDoneInputSchema,
   updateMilestoneInputSchema,
   type ProjectMilestoneItem,
 } from "./milestone-input";
@@ -23,7 +22,6 @@ import {
   reorderMilestonesByIds,
   restoreMilestone as putBackMilestone,
   setMilestoneDetails,
-  setMilestoneDone,
 } from "./milestones";
 import { PROJECT_ERRORS } from "./project-input";
 import { PROJECTS_PATH, projectPath } from "./routes";
@@ -72,17 +70,6 @@ const update = ownerAction(
 /** Sets a milestone's title (1–120) and optional due date. */
 export async function updateMilestone(input: unknown): Promise<ActionResult<ProjectMilestoneItem>> {
   return update(input);
-}
-
-const check = ownerAction(
-  setMilestoneDoneInputSchema,
-  async (data) => result(data.projectId, await setMilestoneDone(getDb(), data)),
-  { name: "setMilestoneDone" },
-);
-
-/** The checkbox: done stamps `done_at` (kept if it already was), pending clears it. */
-export async function checkMilestone(input: unknown): Promise<ActionResult<ProjectMilestoneItem>> {
-  return check(input);
 }
 
 const remove = ownerAction(

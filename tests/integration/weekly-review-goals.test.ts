@@ -20,7 +20,8 @@ import { GOALS_ADVISORY_SPACE } from "@/modules/goals/lock-keys";
 import { goalsWeekKey } from "@/modules/goals/lock-keys";
 import { getWeeklyObjective } from "@/modules/goals/queries";
 import { habitLogs, habits } from "@/modules/habits/db/schema";
-import { projectMilestones, projects } from "@/modules/projects/db/schema";
+import { projects } from "@/modules/projects/db/schema";
+import { tasks } from "@/modules/tasks/db/schema";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
 
@@ -181,11 +182,11 @@ describe("the goals in the works", () => {
       .insert(projects)
       .values({ name: "Lanzar v1", lifeAreaId: area.id, status: "active" })
       .returning({ id: projects.id });
+    // The progress counts tasks (hitos-agrupan-tareas): 1 of 4 done.
     for (let index = 0; index < 4; index += 1) {
-      await testDb.insert(projectMilestones).values({
+      await testDb.insert(tasks).values({
+        title: `Tarea ${index}`,
         projectId: project.id,
-        title: `Hito ${index}`,
-        sortOrder: index,
         doneAt: index < 1 ? new Date() : null,
       });
     }

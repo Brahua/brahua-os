@@ -55,10 +55,10 @@ test("add with Enter (to a milestone too), grouped by milestone; the progress co
   page,
 }, testInfo) => {
   const name = uniqueName("Taller", testInfo);
-  // Two milestones, the first done: "1 de 2" before any task.
-  const id = await insertProject({ name, milestones: [true, false] });
+  // Two milestones (phases): no tasks, no progress yet.
+  const id = await insertProject({ name, milestones: [false, false] });
   await openProject(page, id);
-  await expect(meter(page)).toHaveAccessibleName("Avance: 50%, 1 de 2 hitos y tareas");
+  await expect(meter(page)).toHaveCount(0);
   await expect(tasksSection(page)).toContainText("Sin tareas pendientes.");
 
   await addTaskField(page).focus();
@@ -76,16 +76,16 @@ test("add with Enter (to a milestone too), grouped by milestone; the progress co
   await addTask(page, "Lijar");
   expect(await groupHeadings(page)).toEqual(["Hito 2", "Sin hito"]);
   expect(await sectionTitles(page)).toEqual(["Pintar", "Lijar", "Comprar madera"]);
-  // 1 of 2 milestones plus 0 of 3 tasks.
-  await expect(meter(page)).toHaveAccessibleName("Avance: 20%, 1 de 5 hitos y tareas");
-  await expect(page.locator("[data-project-progress]")).toContainText("1 de 5 · hitos y tareas");
+  // 0 of 3 tasks: the milestones add nothing.
+  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 3 tareas");
+  await expect(page.locator("[data-project-progress]")).toContainText("0 de 3 · tareas");
 
   // Completing a task moves the progress (after the server: the section's revalidation).
   await untilSaved(page, () =>
     tasksSection(page).getByRole("checkbox", { name: "Hecha: Comprar madera" }).click(),
   );
   await expect(notices(page)).toContainText("«Comprar madera» está hecha.");
-  await expect(meter(page)).toHaveAccessibleName("Avance: 40%, 2 de 5 hitos y tareas");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 tareas");
   // The done one, folded under "Hechas".
   const doneToggle = tasksSection(page).getByRole("button", {
     name: "Hechas en los últimos 30 días, 1",
@@ -95,13 +95,13 @@ test("add with Enter (to a milestone too), grouped by milestone; the progress co
   await page.reload();
   expect(await groupHeadings(page)).toEqual(["Hito 2"]);
   expect(await sectionTitles(page)).toEqual(["Pintar", "Lijar"]);
-  await expect(meter(page)).toHaveAccessibleName("Avance: 40%, 2 de 5 hitos y tareas");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 tareas");
 
   // The card shows the same progress: "N de M".
   const { link, card } = await cardOf(page, name);
-  await expect(link).toHaveAccessibleDescription(/Avance: 40%, 2 de 5 hitos y tareas/);
-  await expect(card.locator("[data-progress]")).toHaveAttribute("data-progress", "2/5");
-  await expect(card).toContainText("2 de 5");
+  await expect(link).toHaveAccessibleDescription(/Avance: 33%, 1 de 3 tareas/);
+  await expect(card.locator("[data-progress]")).toHaveAttribute("data-progress", "1/3");
+  await expect(card).toContainText("1 de 3");
 });
 
 test("the next action: one per project, on the card; complete it from the card and undo @today-tasks", async ({
@@ -200,6 +200,30 @@ test("Marcar como terminado counts the open tasks too @today-tasks", async ({ pa
   await expect(addTaskField(page)).toHaveCount(0);
   await expect(tasksSection(page)).toContainText("El proyecto está cerrado");
   await expect(nextFlag(page, "Cortar")).toHaveCount(0);
+});
+
+test("a milestone completes with its last task: «Hito completo», and Deshacer reopens it @today-tasks", async ({
+  page,
+}, testInfo) => {
+  const id = await insertProject({ name: uniqueName("Fase", testInfo), milestones: [false] });
+  await insertProjectTasks(id, [
+    { title: "Medir", milestone: 0 },
+    { title: "Cortar", milestone: 0 },
+  ]);
+  await openProject(page, id);
+  const phase = page.locator("[data-milestone-state]");
+  await expect(phase).toHaveAttribute("data-milestone-state", "inProgress");
+  await untilSaved(page, () =>
+    tasksSection(page).getByRole("checkbox", { name: "Hecha: Medir" }).click(),
+  );
+  await expect(notices(page)).not.toContainText("completo");
+  await untilSaved(page, () =>
+    tasksSection(page).getByRole("checkbox", { name: "Hecha: Cortar" }).click(),
+  );
+  await expect(notices(page)).toContainText("Hito «Hito 1» completo.");
+  await expect(phase).toHaveAttribute("data-milestone-state", "complete");
+  await untilSaved(page, () => notices(page).getByRole("button", { name: "Deshacer" }).click());
+  await expect(phase).toHaveAttribute("data-milestone-state", "inProgress");
 });
 
 for (const theme of THEMES) {

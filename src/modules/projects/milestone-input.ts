@@ -28,14 +28,16 @@ export type ProjectMilestoneItem = {
   title: string;
   /** A day in Lima, YYYY-MM-DD. */
   dueDate: string | null;
-  /** When it was checked; null while it is pending. */
+  /**
+   * When the phase was completed: its tasks' last done instant while ALL of them are done, else
+   * null. Derived on every read (hitos-agrupan-tareas), never stored or checked by hand.
+   */
   doneAt: Date | null;
+  /** Its tasks: done of total (zeros while it has none: «Sin tareas»). */
+  tasks: { done: number; total: number };
   /** Contiguous per project (0…n-1). */
   sortOrder: number;
 };
-
-/** Done and total milestones of a project (what the progress is computed from). */
-export type MilestoneCounts = { done: number; total: number };
 
 /** The title as stored: like names (NFC, collapsed whitespace, trimmed), 1–120 characters. */
 const title = z
@@ -67,13 +69,6 @@ export const addMilestoneInputSchema = z.object({ projectId, id, title });
 
 /** Title and due date together (one small form). */
 export const updateMilestoneInputSchema = z.object({ projectId, id, title, dueDate });
-
-/** The checkbox: done stamps `done_at` (kept if it was already done), pending clears it. */
-export const setMilestoneDoneInputSchema = z.object({
-  projectId,
-  id,
-  done: z.boolean({ error: MILESTONE_ERRORS.notFound }),
-});
 
 /** Delete (a soft delete: see milestones.ts). */
 export const milestoneRefInputSchema = z.object({ projectId, id });
@@ -109,6 +104,5 @@ export const reorderMilestonesInputSchema = z.object({
 
 export type AddMilestoneInput = z.output<typeof addMilestoneInputSchema>;
 export type UpdateMilestoneInput = z.output<typeof updateMilestoneInputSchema>;
-export type SetMilestoneDoneInput = z.output<typeof setMilestoneDoneInputSchema>;
 export type MilestoneRefInput = z.output<typeof milestoneRefInputSchema>;
 export type RestoreMilestoneInput = z.output<typeof restoreMilestoneInputSchema>;

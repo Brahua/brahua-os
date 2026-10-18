@@ -8,7 +8,7 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
 import { contributedProgress } from "./contracts";
-import { selectProjectMilestoneCounts } from "./milestones";
+import { selectPhaseCounts } from "./milestone-views";
 import { openWork, type OpenWork } from "./project-close";
 import {
   closeProjectInputSchema,
@@ -32,7 +32,7 @@ const close = ownerAction(
     // abiertos."): open work never blocks closing, the owner already decided.
     ensureProgressSources();
     const [milestones, contributed] = await Promise.all([
-      selectProjectMilestoneCounts(db, id),
+      selectPhaseCounts(db, id),
       contributedProgress([id]),
     ]);
     return ok({ project, open: openWork(milestones, contributed.get(id)) });

@@ -2,7 +2,7 @@
 // answer by milestone.
 import { describe, expect, test } from "vitest";
 import { createProgressRegistry, type MilestoneCounts } from "@/modules/projects/progress-source";
-import { completedWithin, milestoneState, phaseChange } from "@/modules/tasks/milestone-state";
+import { completedWithin, milestoneState, phaseChange } from "@/modules/projects/milestone-state";
 
 const at = (iso: string) => new Date(iso);
 const counts = (done: number, total: number, lastDoneAt: Date | null = null): MilestoneCounts => ({

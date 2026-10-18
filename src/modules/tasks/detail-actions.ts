@@ -76,6 +76,7 @@ export async function listTaskMilestones(
 const MILESTONE_FAILURES = {
   withoutProject: TASK_ERRORS.milestoneWithoutProject,
   milestoneUnavailable: TASK_ERRORS.milestoneUnavailable,
+  milestoneRecurring: TASK_ERRORS.milestoneRecurring,
 } as const;
 
 const setMilestone = ownerAction(

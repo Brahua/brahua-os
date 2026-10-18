@@ -9,7 +9,7 @@ import { seed } from "@/modules/core/seed";
 import { contributedMilestones } from "@/modules/projects/contracts";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
 import { tasks } from "@/modules/tasks/db/schema";
-import { milestoneState } from "@/modules/tasks/milestone-state";
+import { milestoneState } from "@/modules/projects/milestone-state";
 import { countMilestoneTasks } from "@/modules/tasks/project-tasks";
 import { testDb } from "./test-db";
 

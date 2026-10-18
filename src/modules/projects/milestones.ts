@@ -19,23 +19,31 @@ import { MILESTONES_ADVISORY_SPACE } from "./lock-keys";
 import {
   MAX_MILESTONES_PER_PROJECT,
   type AddMilestoneInput,
-  type MilestoneCounts,
   type MilestoneRefInput,
   type ProjectMilestoneItem,
   type RestoreMilestoneInput,
-  type SetMilestoneDoneInput,
   type UpdateMilestoneInput,
 } from "./milestone-input";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
+// `done_at` is no longer read (hitos-agrupan-tareas): a milestone is complete when all its tasks
+// are, which is derived on every read from the tasks (milestone-views.ts), never stored.
 const MILESTONE = {
   id: projectMilestones.id,
   title: projectMilestones.title,
   dueDate: projectMilestones.dueDate,
-  doneAt: projectMilestones.doneAt,
   sortOrder: projectMilestones.sortOrder,
 };
+
+type MilestoneRow = { id: string; title: string; dueDate: string | null; sortOrder: number };
+
+/** A row as an item before its tasks are counted: not done, no tasks (milestone-views.ts fills it). */
+const asItem = (row: MilestoneRow): ProjectMilestoneItem => ({
+  ...row,
+  doneAt: null,
+  tasks: { done: 0, total: 0 },
+});
 
 /** Milestones that aren't deleted. */
 const live = isNull(projectMilestones.deletedAt);
@@ -105,46 +113,12 @@ export async function selectMilestones(
   db: Database | Tx,
   projectId: string,
 ): Promise<ProjectMilestoneItem[]> {
-  return db
+  const rows = await db
     .select(MILESTONE)
     .from(projectMilestones)
     .where(and(eq(projectMilestones.projectId, projectId), live))
     .orderBy(asc(projectMilestones.sortOrder), asc(projectMilestones.id));
-}
-
-/**
- * Done and total live milestones of every project that isn't deleted and has any, in one
- * aggregate query (the list shows them on every card: no query per card).
- */
-export async function selectMilestoneCounts(
-  db: Database | Tx,
-): Promise<Record<string, MilestoneCounts>> {
-  const rows = await db
-    .select({
-      projectId: projectMilestones.projectId,
-      total: count(),
-      done: count(projectMilestones.doneAt),
-    })
-    .from(projectMilestones)
-    .innerJoin(projects, eq(projectMilestones.projectId, projects.id))
-    .where(and(isNull(projects.deletedAt), live))
-    .groupBy(projectMilestones.projectId);
-  return Object.fromEntries(rows.map(({ projectId, done, total }) => [projectId, { done, total }]));
-}
-
-/**
- * Done and total live milestones of one project (zeros without any). "Cerrar proyecto" counts
- * the open ones for its text; it never blocks closing.
- */
-export async function selectProjectMilestoneCounts(
-  db: Database,
-  projectId: string,
-): Promise<MilestoneCounts> {
-  const [row] = await db
-    .select({ total: count(), done: count(projectMilestones.doneAt) })
-    .from(projectMilestones)
-    .where(and(eq(projectMilestones.projectId, projectId), live));
-  return { done: row?.done ?? 0, total: row?.total ?? 0 };
+  return rows.map(asItem);
 }
 
 /**
@@ -164,7 +138,7 @@ export async function insertMilestone(
       .values({ id, projectId, title, sortOrder: total })
       .onConflictDoNothing({ target: projectMilestones.id })
       .returning(MILESTONE);
-    return milestone ?? "idTaken";
+    return milestone ? asItem(milestone) : "idTaken";
   });
 }
 
@@ -173,7 +147,7 @@ async function updateMilestone(
   db: Database,
   projectId: string,
   id: string,
-  values: Pick<PgUpdateSetSource<typeof projectMilestones>, "title" | "dueDate" | "doneAt">,
+  values: Pick<PgUpdateSetSource<typeof projectMilestones>, "title" | "dueDate">,
 ): Promise<ProjectMilestoneItem | MilestoneFailure> {
   return db.transaction(async (tx) => {
     if (!(await openProject(tx, projectId))) return "projectNotFound";
@@ -182,7 +156,7 @@ async function updateMilestone(
       .set(values)
       .where(ofProject(projectId, id))
       .returning(MILESTONE);
-    return milestone ?? "milestoneNotFound";
+    return milestone ? asItem(milestone) : "milestoneNotFound";
   });
 }
 
@@ -192,16 +166,6 @@ export function setMilestoneDetails(
   { projectId, id, title, dueDate }: UpdateMilestoneInput,
 ) {
   return updateMilestone(db, projectId, id, { title, dueDate });
-}
-
-/**
- * Checks or unchecks a milestone. Done keeps the first `done_at` (checking twice changes
- * nothing); pending clears it. Decided by the database, so two tabs can't disagree.
- */
-export function setMilestoneDone(db: Database, { projectId, id, done }: SetMilestoneDoneInput) {
-  return updateMilestone(db, projectId, id, {
-    doneAt: done ? sql`coalesce(${projectMilestones.doneAt}, now())` : null,
-  });
 }
 
 /**
@@ -221,7 +185,7 @@ export async function deleteMilestone(
       .returning(MILESTONE);
     if (!milestone) return "milestoneNotFound";
     await renumber(tx, projectId);
-    return { milestone, position: milestone.sortOrder };
+    return { milestone: asItem(milestone), position: milestone.sortOrder };
   });
 }
 

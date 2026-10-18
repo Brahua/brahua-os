@@ -2,7 +2,7 @@
 // phase of the project that groups tasks and is complete when all of them are done. Pure and
 // client-safe: the state is derived on every read from the counts of the milestone's live tasks
 // (never stored), so completing, undoing, deleting or restoring a task is all it takes.
-import type { MilestoneCounts } from "@/modules/projects/contracts";
+import type { MilestoneCounts } from "./progress-source";
 
 /** Where a milestone stands. */
 export type MilestoneStatus =
@@ -53,7 +53,10 @@ export function completedWithin(state: MilestoneState, from: Date, to: Date): bo
  * the milestone's states around the change): the notice «Hito completo» says it once, and undoing
  * reopens it. Null when nothing changed.
  */
-export function phaseChange(before: MilestoneState, after: MilestoneState): "closed" | "reopened" | null {
+export function phaseChange(
+  before: MilestoneState,
+  after: MilestoneState,
+): "closed" | "reopened" | null {
   if (before.status !== "complete" && after.status === "complete") return "closed";
   if (before.status === "complete" && after.status !== "complete") return "reopened";
   return null;

@@ -9,7 +9,7 @@ export const MILESTONES_COPY = {
   sectionName: (n: number) => (n === 0 ? "Hitos" : `Hitos, ${milestones(n)}`),
   listLabel: "Hitos del proyecto",
   empty:
-    "Sin hitos. Si el proyecto es grande, divídelo en hitos: el avance sale de los que marques.",
+    "Sin hitos. Si el proyecto es grande, divídelo en fases: un hito agrupa tareas y se completa solo cuando terminas todas las suyas.",
 
   // Add
   addLabel: "Nuevo hito",
@@ -18,7 +18,14 @@ export const MILESTONES_COPY = {
   added: (title: string) => `Hito «${title}» agregado.`,
 
   // Row
-  checkbox: (title: string) => `Hecho: ${title}`,
+  /** The phase's state (derived from its tasks: there is no checkbox): said by its icon's name. */
+  stateComplete: (title: string) => `Hito completo: ${title}`,
+  stateInProgress: (title: string, done: number, total: number) =>
+    `Hito en curso: ${title}, ${done} de ${total} tareas hechas`,
+  stateEmpty: (title: string) => `Hito sin tareas: ${title}`,
+  /** Under the title: how far the phase is. */
+  tasksCount: (done: number, total: number) => `${done} de ${total} tareas`,
+  noTasks: "Sin tareas",
   edit: (title: string) => `Editar hito ${title}`,
   dueOn: (day: string) => `Para el ${day}`,
   done: "Hecho",
@@ -56,17 +63,15 @@ export const MILESTONES_COPY = {
   notSaved: {
     add: "No se pudo agregar el hito; se quitó de la lista.",
     update: "No se pudo guardar el hito; volvió a como estaba.",
-    done: "No se pudo marcar el hito; volvió a como estaba.",
     remove: "No se pudo eliminar el hito; volvió a la lista.",
     reorder: "No se pudo guardar el orden de los hitos; volvió a como estaba.",
   },
 
-  // Progress: milestones and tasks add up (T5 of `tasks`, SPEC-tasks "Contratos"), so the figure
-  // is "N de M" and what it counts is said once ("hitos y tareas").
+  // Progress counts tasks only (hitos-agrupan-tareas): a milestone is a phase that groups them.
   progressLabel: "Avance",
   progressCount: (done: number, total: number) => `${done} de ${total}`,
-  progressUnits: "hitos y tareas",
+  progressUnits: "tareas",
   /** Accessible name of the meter (and of the card's progress). */
   progressName: (percent: string, done: number, total: number) =>
-    `Avance: ${percent}, ${done} de ${total} hitos y tareas`,
+    `Avance: ${percent}, ${done} de ${total} tareas`,
 } as const;

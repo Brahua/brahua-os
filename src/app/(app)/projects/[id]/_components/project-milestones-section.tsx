@@ -18,7 +18,6 @@ import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { applyOrder, moveId } from "@/modules/core/life-area-order";
 import {
   addMilestone,
-  checkMilestone,
   deleteMilestone,
   reorderMilestones,
   restoreMilestone,
@@ -75,12 +74,12 @@ function failureReason(result: ActionResult<unknown>): string {
 const editButton = (id: string) => document.querySelector<HTMLElement>(focusSelector(id, "edit"));
 
 /**
- * "Hitos" (SPEC-projects): the project's milestones with a checkbox each, added inline (Enter
+ * "Hitos" (SPEC-projects, hitos-agrupan-tareas): the project's phases, each with the state derived
+ * from its tasks (no checkbox: it is complete when its tasks are), added inline (Enter
  * adds another), edited in their row (title and date, plus "Eliminar hito"), reordered by
  * dragging or with Subir/Bajar. Every change shows at once (its own useOptimistic) and is saved
  * through the page's queue; a refusal or a network failure rolls it back with a notice. Delete
- * and reorder offer "Deshacer". The counts it shows drive the progress meter (P3 slot of
- * "Objetivo y fechas").
+ * and reorder offer "Deshacer". The counts it shows (phases complete of all) feed "Cerrar proyecto".
  */
 export function ProjectMilestonesSection({ milestones }: { milestones: ProjectMilestoneItem[] }) {
   const { project, enqueue, toaster, announce } = useProjectDetail();
@@ -163,7 +162,14 @@ export function ProjectMilestonesSection({ milestones }: { milestones: ProjectMi
     save({
       change: {
         type: "add",
-        milestone: { id, title, dueDate: null, doneAt: null, sortOrder: view.length },
+        milestone: {
+          id,
+          title,
+          dueDate: null,
+          doneAt: null,
+          tasks: { done: 0, total: 0 },
+          sortOrder: view.length,
+        },
       },
       key: null,
       call: () => addMilestone(parsed.data),
@@ -171,19 +177,6 @@ export function ProjectMilestonesSection({ milestones }: { milestones: ProjectMi
       onSuccess: () => announce(MILESTONES_COPY.added(title)),
       // The text comes back to the field, unless something new was typed meanwhile.
       onFailure: () => setDraft((current) => (current === "" ? title : current)),
-    });
-  }
-
-  // ── Check ─────────────────────────────────────────────────────────────────────────────────
-
-  function toggle(milestone: ProjectMilestoneItem, done: boolean) {
-    const { id } = milestone;
-    save({
-      change: { type: "done", id, doneAt: done ? new Date() : null },
-      // Quick toggles collapse: the one in flight, then only the last.
-      key: `milestone-done:${id}`,
-      call: () => checkMilestone({ projectId, id, done }),
-      failure: MILESTONES_COPY.notSaved.done,
     });
   }
 
@@ -318,7 +311,6 @@ export function ProjectMilestonesSection({ milestones }: { milestones: ProjectMi
     reducedMotion,
     editingId,
     onMove: move,
-    onToggle: toggle,
     onEdit: (milestone) => setEditingId(milestone.id),
     onCancelEdit: closeEditor,
     onSave: saveEdit,

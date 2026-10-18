@@ -24,31 +24,18 @@
 //    registered by the composition root `src/lib/project-extensions.ts`
 //    (`ensureProjectExtensions()`, imported by name), never imported by `projects`.
 import "server-only";
-import {
-  and,
-  asc,
-  eq,
-  exists,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  notInArray,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, eq, exists, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
-import { OWNER_TIME_ZONE } from "@/lib/time";
+import { ownerDateKey } from "@/lib/time";
 import { lifeAreas } from "@/modules/core/db/schema";
 import { projectDependencies, projectMilestones, projects } from "./db/schema";
-import { selectMilestoneCounts } from "./milestones";
 import type { ProjectStatus } from "./project-constants";
+import { milestoneState } from "./milestone-state";
 import { milestoneProgress } from "./progress";
 import { NON_BLOCKING_STATUSES, type ActiveBlocker } from "./dependency-input";
 import {
-  combineProgressCounts,
   createProgressRegistry,
   type MilestoneCounts,
   type ProgressCounts,
@@ -272,15 +259,10 @@ export async function selectProjectsProgress(
   const { ensureProgressSources } = await import("@/lib/progress-sources");
   ensureProgressSources();
   const found = rows.map((row) => row.id);
-  const [milestones, contributed] = await Promise.all([
-    selectMilestoneCounts(db),
-    contributedProgress(found),
-  ]);
+  // The progress counts tasks only (hitos-agrupan-tareas): a milestone is a phase, not a unit.
+  const contributed = await contributedProgress(found);
   for (const row of rows) {
-    const progress = milestoneProgress(
-      combineProgressCounts(milestones[row.id], contributed.get(row.id)),
-      row.status,
-    );
+    const progress = milestoneProgress(contributed.get(row.id), row.status);
     result.set(row.id, {
       name: row.name,
       status: row.status,
@@ -377,9 +359,9 @@ export type ProjectsWeekReview = {
    */
   projects: ProjectWeekReviewItem[];
   /**
-   * Milestones met within the week: live milestones whose `done_at` falls on one of its Lima days
-   * (`project_milestones.done_at` is the instant it was checked; unchecking clears it), of any
-   * project that isn't deleted, the latest first.
+   * Milestones met within the week: live milestones that are complete (all their tasks done) and
+   * whose last task was done on one of its Lima days, of any project that isn't deleted, the
+   * latest first (derived from the tasks: a milestone has no checkbox of its own).
    */
   milestonesDone: MilestoneDoneInWeek[];
 };
@@ -406,7 +388,7 @@ export async function selectProjectsWeekReview(
   }
   weekStart = addDays(weekStart, -((new Date(`${weekStart}T00:00:00Z`).getUTCDay() + 6) % 7));
   const sunday = addDays(weekStart, 6);
-  const [rows, milestones] = await Promise.all([
+  const [rows, liveMilestones] = await Promise.all([
     db
       .select({ id: projects.id, name: projects.name, status: projects.status })
       .from(projects)
@@ -420,23 +402,25 @@ export async function selectProjectsWeekReview(
         title: projectMilestones.title,
         projectId: projects.id,
         projectName: projects.name,
-        doneAt: projectMilestones.doneAt,
       })
       .from(projectMilestones)
       .innerJoin(projects, eq(projects.id, projectMilestones.projectId))
-      .where(
-        and(
-          isNull(projects.deletedAt),
-          isNull(projectMilestones.deletedAt),
-          isNotNull(projectMilestones.doneAt),
-          sql`(${projectMilestones.doneAt} at time zone ${OWNER_TIME_ZONE})::date between ${weekStart}::date and ${sunday}::date`,
-        ),
-      )
-      .orderBy(sql`${projectMilestones.doneAt} desc`, projectMilestones.id),
+      .where(and(isNull(projects.deletedAt), isNull(projectMilestones.deletedAt))),
   ]);
-  const milestonesDone = milestones.flatMap((row) =>
-    row.doneAt ? [{ ...row, doneAt: row.doneAt }] : [],
-  );
+  // A milestone is met when its last task was done within the week and all of them are (derived
+  // from the tasks, hitos-agrupan-tareas): the latest first.
+  const { ensureProgressSources } = await import("@/lib/progress-sources");
+  ensureProgressSources();
+  const phaseCounts = await contributedMilestones(liveMilestones.map((row) => row.id));
+  const milestonesDone: MilestoneDoneInWeek[] = liveMilestones
+    .flatMap((row) => {
+      const state = milestoneState(phaseCounts.get(row.id));
+      const day = state.completedAt ? ownerDateKey(state.completedAt) : null;
+      return state.completedAt && day && day >= weekStart && day <= sunday
+        ? [{ ...row, doneAt: state.completedAt }]
+        : [];
+    })
+    .sort((a, b) => b.doneAt.getTime() - a.doneAt.getTime() || a.id.localeCompare(b.id));
   if (rows.length === 0) return { weekStart, projects: [], milestonesDone };
   const ids = rows.map((row) => row.id);
   // Dynamic: the composition roots import this file, so a static import would be a cycle.

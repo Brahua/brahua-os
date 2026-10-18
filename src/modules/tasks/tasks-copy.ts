@@ -28,6 +28,8 @@ export const TASK_FIELD_NAMES = {
 export type TaskField = keyof typeof TASK_FIELD_NAMES;
 
 export const TASKS_COPY = {
+  /** hitos-agrupan-tareas: the last open task of a milestone was done. */
+  phaseComplete: (title: string) => `Hito «${title}» completo.`,
   title: "Tareas",
   viewsLabel: "Vistas de tareas",
   noticesLabel: "Avisos",

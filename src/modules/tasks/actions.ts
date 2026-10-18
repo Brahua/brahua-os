@@ -42,6 +42,7 @@ const PLACEMENT_FIELDS: Record<
     areaUnavailable: ["lifeAreaId", TASK_ERRORS.areaUnavailable],
     projectUnavailable: ["projectId", TASK_ERRORS.projectUnavailable],
     milestoneUnavailable: ["milestoneId", TASK_ERRORS.milestoneUnavailable],
+    milestoneRecurring: ["milestoneId", TASK_ERRORS.milestoneRecurring],
   };
 
 function refused<T>(failure: PlacementFailure, prefix = ""): ActionResult<T> {

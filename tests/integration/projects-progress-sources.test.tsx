@@ -53,7 +53,10 @@ afterEach(() => {
   removeSource = undefined;
 });
 
-/** A project in "Hogar" with `done` of `total` milestones checked. */
+/**
+ * A project in "Hogar" with `total` milestones. They are phases (hitos-agrupan-tareas): they have no
+ * checkbox and never count in the progress; `done` only sets the old `done_at`, which is ignored.
+ */
 async function projectWithMilestones(name: string, done: number, total: number) {
   const [area] = await testDb
     .select({ id: lifeAreas.id })
@@ -110,15 +113,15 @@ function detailProgress() {
 }
 
 describe("list", () => {
-  test("with no source, a card's progress is its milestones' (and none without milestones)", async () => {
+  test("with no tasks, a card has no progress: milestones are phases, never units", async () => {
     await projectWithMilestones("Con hitos", 1, 2);
     await projectWithMilestones("Sin hitos", 0, 0);
     await listPage();
-    expect(cardProgress("Con hitos")).toBe("1/2");
+    expect(cardProgress("Con hitos")).toBeNull();
     expect(cardProgress("Sin hitos")).toBeNull();
   });
 
-  test("a registered source adds its counts to every card, in one call for the list", async () => {
+  test("a registered source's counts are the card's progress (milestones never add), in one call for the list", async () => {
     const withMilestones = await projectWithMilestones("Con hitos", 1, 2);
     const onlyTasks = await projectWithMilestones("Solo tareas", 0, 0);
     const untouched = await projectWithMilestones("Sin tareas", 1, 4);
@@ -128,10 +131,10 @@ describe("list", () => {
     });
     removeSource = registerProgressSource(tasks.source);
     await listPage();
-    // 1/2 milestones + 3/8 tasks = 4/10.
-    expect(cardProgress("Con hitos")).toBe("4/10");
+    // The tasks only: 3/8 (the 1/2 milestones do not add), 1/4, and none without tasks.
+    expect(cardProgress("Con hitos")).toBe("3/8");
     expect(cardProgress("Solo tareas")).toBe("1/4");
-    expect(cardProgress("Sin tareas")).toBe("1/4");
+    expect(cardProgress("Sin tareas")).toBeNull();
     expect(tasks.asked).toHaveLength(1);
     expect([...tasks.asked[0]].sort()).toEqual(
       [withMilestones.id, onlyTasks.id, untouched.id].sort(),
@@ -140,18 +143,18 @@ describe("list", () => {
 });
 
 describe("detail", () => {
-  test("with no source, the meter is the milestones'", async () => {
+  test("with no tasks there is no meter, however many milestones", async () => {
     const project = await projectWithMilestones("Mudanza", 2, 5);
     await detailPage(project.id);
-    expect(detailProgress()).toBe("2/5");
+    expect(detailProgress()).toBeNull();
   });
 
-  test("a registered source adds its counts to the meter, asked for this project only", async () => {
+  test("a registered source's counts are the meter (milestones never add), asked for this project only", async () => {
     const project = await projectWithMilestones("Mudanza", 2, 5);
     const tasks = fakeTasks({ [project.id]: { done: 4, total: 5 } });
     removeSource = registerProgressSource(tasks.source);
     await detailPage(project.id);
-    expect(detailProgress()).toBe("6/10");
+    expect(detailProgress()).toBe("4/5");
     expect(tasks.asked).toEqual([[project.id]]);
   });
 

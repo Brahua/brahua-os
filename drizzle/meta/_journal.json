@@ -162,6 +162,13 @@
       "when": 1792032831030,
       "tag": "0022_finance_category_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792296780395,
+      "tag": "0023_milestones_group_tasks",
+      "breakpoints": true
     }
   ]
 }
