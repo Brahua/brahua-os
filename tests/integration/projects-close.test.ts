@@ -36,17 +36,30 @@ async function insertRaw(values: Partial<typeof projects.$inferInsert> = {}) {
   return row;
 }
 
-/** Milestones straight in the table: `done` of them checked, one more deleted (never counted). */
+/**
+ * Milestones straight in the table, one more deleted (never counted), and a source that says the
+ * first `done` of them are complete (all their tasks done): a milestone's state is derived from the
+ * tasks (hitos-agrupan-tareas), never stored. Returns the removal of the source.
+ */
 async function insertMilestones(projectId: string, total: number, done: number) {
+  const complete = new Map<string, { done: number; total: number; lastDoneAt: Date }>();
   for (let i = 0; i < total + 1; i++) {
-    await testDb.insert(projectMilestones).values({
-      projectId,
-      title: `Hito ${i + 1}`,
-      sortOrder: i,
-      doneAt: i < done ? new Date() : null,
-      deletedAt: i === total ? new Date() : null,
-    });
+    const [milestone] = await testDb
+      .insert(projectMilestones)
+      .values({
+        projectId,
+        title: `Hito ${i + 1}`,
+        sortOrder: i,
+        deletedAt: i === total ? new Date() : null,
+      })
+      .returning({ id: projectMilestones.id });
+    if (i < done) complete.set(milestone.id, { done: 1, total: 1, lastDoneAt: new Date() });
   }
+  return registerProgressSource({
+    id: "fake-phases",
+    countsFor: async () => new Map(),
+    milestoneCountsFor: async () => complete,
+  });
 }
 
 async function row(id: string) {
@@ -83,7 +96,7 @@ afterEach(() => {
 describe("closeProject", () => {
   test("Terminado stamps completed_at and reports the open milestones, without blocking", async () => {
     const project = await insertRaw({ status: "active" });
-    await insertMilestones(project.id, 3, 1);
+    removeSource = await insertMilestones(project.id, 3, 1);
 
     const result = await closeProject({ id: project.id, status: "done" });
     expect(result).toMatchObject({
@@ -106,9 +119,9 @@ describe("closeProject", () => {
   test("the open count includes what the progress sources count as not done", async () => {
     const project = await insertRaw({ status: "active" });
     const other = await insertRaw({ status: "active", name: "Otro" });
-    await insertMilestones(project.id, 2, 1);
+    const removePhases = await insertMilestones(project.id, 2, 1);
     const asked: string[][] = [];
-    removeSource = registerProgressSource({
+    const removeTasks = registerProgressSource({
       id: "fake-tasks",
       async countsFor(ids) {
         asked.push([...ids]);
@@ -118,6 +131,10 @@ describe("closeProject", () => {
         ]);
       },
     });
+    removeSource = () => {
+      removePhases();
+      removeTasks();
+    };
 
     const result = await closeProject({ id: project.id, status: "done" });
     expect(result).toMatchObject({ ok: true, data: { open: { milestones: 1, tasks: 3 } } });
@@ -127,7 +144,7 @@ describe("closeProject", () => {
 
   test("nothing open: zeros", async () => {
     const project = await insertRaw({ status: "paused" });
-    await insertMilestones(project.id, 2, 2);
+    removeSource = await insertMilestones(project.id, 2, 2);
     expect(await closeProject({ id: project.id, status: "done" })).toMatchObject({
       ok: true,
       data: { open: { milestones: 0, tasks: 0 } },

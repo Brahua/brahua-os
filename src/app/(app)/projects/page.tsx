@@ -16,10 +16,8 @@ import {
   type ProjectNextAction,
 } from "@/modules/projects/contracts";
 import { NextActionKey } from "@/modules/projects/components/next-action-key";
-import type { MilestoneCounts } from "@/modules/projects/milestone-input";
-import { listMilestoneCounts } from "@/modules/projects/milestone-queries";
 import { dueState, milestoneProgress } from "@/modules/projects/progress";
-import { combineProgressCounts, type ProgressCounts } from "@/modules/projects/progress-source";
+import { type ProgressCounts } from "@/modules/projects/progress-source";
 import type { ProjectStatus } from "@/modules/projects/project-constants";
 import type { ActiveBlocker } from "@/modules/projects/dependency-input";
 import type { ProjectSummary } from "@/modules/projects/project-input";
@@ -51,7 +49,7 @@ type ProjectsPageProps = {
  */
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   await requireOwner();
-  const [{ area: areaParam }, projects, areas, deleted, blockers, milestones] = await Promise.all([
+  const [{ area: areaParam }, projects, areas, deleted, blockers] = await Promise.all([
     searchParams,
     listProjects(),
     listLifeAreas(),
@@ -61,8 +59,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     ),
     // P4: who still blocks each project (one query), for the cards' "Bloqueado".
     listActiveBlockers(),
-    // P3: done and total milestones of every project, in one aggregate query.
-    listMilestoneCounts(),
   ]);
   const options = areaFilterOptions(areas, projects);
   const selected = selectedAreaFilter(options, areaParam);
@@ -70,7 +66,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     ? projects.filter((project) => project.area.id === selected.id)
     : projects;
   const { groups, history, historyCount } = groupProjects(visible);
-  // P6: what other modules (tasks) add to the milestones' progress; no source registered → no work.
+  // P6: the progress is what other modules count (tasks); no source registered → no work.
   ensureProgressSources();
   // T5: each project's next action (tasks), one read for every visible project.
   ensureProjectExtensions();
@@ -116,7 +112,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               projects={group.projects}
               now={now}
               blockers={blockers}
-              milestones={milestones}
               contributed={contributed}
               nextActions={nextActions}
             />
@@ -145,7 +140,6 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
               projects={group.projects}
               now={now}
               blockers={blockers}
-              milestones={milestones}
               contributed={contributed}
               nextActions={nextActions}
               level={3}
@@ -165,9 +159,7 @@ type StatusGroupProps = {
   now: Date;
   /** Who still blocks each project (P4), by project id. */
   blockers: Record<string, ActiveBlocker[]>;
-  /** Done and total milestones by project id (the cards' progress). */
-  milestones: Record<string, MilestoneCounts>;
-  /** Done and total contributed by other modules (P6 progress sources), by project id. */
+  /** Done and total of the tasks (P6 progress sources), by project id: the cards' progress. */
   contributed: ReadonlyMap<string, ProgressCounts>;
   /** Each project's next action (T5, from the next-action source), by project id. */
   nextActions: ReadonlyMap<string, ProjectNextAction>;
@@ -181,7 +173,6 @@ function StatusGroup({
   projects,
   now,
   blockers,
-  milestones,
   contributed,
   nextActions,
   level = 2,
@@ -209,10 +200,7 @@ function StatusGroup({
             <ProjectCard
               project={project}
               due={dueState(project.dueDate, project.status, now)}
-              progress={milestoneProgress(
-                combineProgressCounts(milestones[project.id], contributed.get(project.id)),
-                project.status,
-              )}
+              progress={milestoneProgress(contributed.get(project.id), project.status)}
               headingLevel={level === 2 ? 3 : 4}
               blockedBy={blockers[project.id]?.map((blocker) => blocker.name)}
               nextAction={nextActionOf(project, nextActions.get(project.id))}

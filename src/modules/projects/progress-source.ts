@@ -10,7 +10,7 @@ export type ProgressCounts = { done: number; total: number };
 /**
  * What a source knows of one milestone's work (hitos-agrupan-tareas): how many units are done of
  * how many, and when the last one was done. A milestone has no checkbox of its own: it is complete
- * when everything that belongs to it is done (see `milestone-state.ts` in `tasks`).
+ * when everything that belongs to it is done (see `milestone-state.ts`).
  */
 export type MilestoneCounts = ProgressCounts & { lastDoneAt: Date | null };
 

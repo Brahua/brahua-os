@@ -124,14 +124,14 @@ test("Marcar como terminado warns about open milestones, then the card is in His
   await page.getByRole("button", { name: "Marcar como terminado" }).click();
   const confirm = page.getByRole("group", { name: `¿Marcar «${name}» como terminado?` });
   await expect(confirm.getByRole("button", { name: "Volver" })).toBeFocused();
-  await expect(confirm).toContainText("Quedan 2 hitos abiertos. ¿Terminar igual?");
+  await expect(confirm).toContainText("Quedan 3 hitos abiertos. ¿Terminar igual?");
   await untilSaved(page, () => confirm.getByRole("button", { name: "Sí, terminar" }).click());
 
   const finished = `Terminado el ${formatOwnerDay(new Date())}`;
   await expect(page.getByRole("button", { name: "Reabrir" })).toBeFocused();
   await expect(page.getByText(finished)).toBeVisible();
   await expect(page.locator("[data-detail-announcer]")).toHaveText(
-    `«${name}» se marcó como terminado. Quedaron 2 hitos abiertos.`,
+    `«${name}» se marcó como terminado. Quedaron 3 hitos abiertos.`,
   );
   await expect(page.getByText("Vence en 2 días")).toBeHidden();
   await expect(statusGroup(page)).toHaveCount(0);
@@ -143,7 +143,6 @@ test("Marcar como terminado warns about open milestones, then the card is in His
     has: page.getByRole("link", { name }),
   });
   await expect(card).toContainText(`Terminado el ${formatOwnerDay(new Date(), "short")}`);
-  await expect(card).toContainText("1 de 3");
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await expectNoOverflow(page, card);
@@ -347,7 +346,7 @@ for (const theme of THEMES) {
     // "Cerrar proyecto": the done step with its warning (3 of 5 milestones open), not confirmed.
     await page.getByRole("button", { name: "Marcar como terminado" }).click();
     await expect(page.locator("[data-open-work-warning]")).toHaveText(
-      "Quedan 3 hitos abiertos. ¿Terminar igual?",
+      "Quedan 3 hitos abiertos y 3 tareas abiertas. ¿Terminar igual?",
     );
     expect(await axeViolations(page)).toEqual([]);
     await page.keyboard.press("Escape");

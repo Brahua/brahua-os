@@ -7,7 +7,6 @@ import {
   MILESTONE_ERRORS,
   reorderMilestonesInputSchema,
   restoreMilestoneInputSchema,
-  setMilestoneDoneInputSchema,
   updateMilestoneInputSchema,
   type ProjectMilestoneItem,
 } from "@/modules/projects/milestone-input";
@@ -66,15 +65,6 @@ describe("schemas", () => {
     expect(
       errorsOf(updateMilestoneInputSchema.safeParse({ ...base, dueDate: "2026-02-30" })),
     ).toEqual([["dueDate", MILESTONE_ERRORS.dateInvalid]]);
-  });
-
-  test("done is a boolean", () => {
-    expect(
-      setMilestoneDoneInputSchema.safeParse({ projectId: PROJECT, id: ID, done: "true" }).success,
-    ).toBe(false);
-    expect(
-      setMilestoneDoneInputSchema.safeParse({ projectId: PROJECT, id: ID, done: false }).success,
-    ).toBe(true);
   });
 
   test("restore: the reference, a position within bounds and an optional anchor", () => {
@@ -177,6 +167,7 @@ const item = (
   title: id.toUpperCase(),
   dueDate: null,
   doneAt: null,
+  tasks: { done: 0, total: 0 },
   sortOrder,
   ...extra,
 });
@@ -191,22 +182,24 @@ describe("applyMilestoneChange", () => {
     expect(applyMilestoneChange(added, { type: "add", milestone: item("d", 3) })).toBe(added);
   });
 
-  test("update and done change one item; checking a done one keeps its date", () => {
-    const at = new Date("2026-10-01T10:00:00Z");
-    const updated = applyMilestoneChange(list, {
+  test("update changes one item's title and date; its derived state is left as it is", () => {
+    const withState = [
+      item("a", 0, { doneAt: new Date("2026-10-01T10:00:00Z"), tasks: { done: 2, total: 2 } }),
+      item("b", 1),
+    ];
+    const updated = applyMilestoneChange(withState, {
       type: "update",
-      id: "b",
+      id: "a",
       title: "Nuevo",
       dueDate: "2026-11-01",
     });
-    expect(updated[1]).toMatchObject({ title: "Nuevo", dueDate: "2026-11-01" });
-    const done = applyMilestoneChange(list, { type: "done", id: "a", doneAt: at });
-    expect(done[0].doneAt).toBe(at);
-    const again = applyMilestoneChange(done, { type: "done", id: "a", doneAt: new Date() });
-    expect(again[0].doneAt).toBe(at);
-    expect(
-      applyMilestoneChange(done, { type: "done", id: "a", doneAt: null })[0].doneAt,
-    ).toBeNull();
+    expect(updated[0]).toMatchObject({
+      title: "Nuevo",
+      dueDate: "2026-11-01",
+      tasks: { done: 2, total: 2 },
+    });
+    expect(updated[0].doneAt).toEqual(new Date("2026-10-01T10:00:00Z"));
+    expect(updated[1]).toBe(withState[1]);
   });
 
   test("remove closes the gap; restore puts it back at its position (clamped), once", () => {

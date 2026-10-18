@@ -228,7 +228,7 @@ describe("completing a recurring task", () => {
     expect(await testDb.$count(tasks)).toBe(3);
   });
 
-  test("in a project and a milestone: the occurrence stays there", async () => {
+  test("in a project: the occurrence stays there (a repeating task is never in a milestone)", async () => {
     const [project] = await testDb
       .insert(projects)
       .values({ name: "Jardín", lifeAreaId: await areaId("home"), status: "active" })
@@ -237,12 +237,14 @@ describe("completing a recurring task", () => {
       .insert(projectMilestones)
       .values({ projectId: project.id, title: "Riego", sortOrder: 0 })
       .returning();
-    const task = await recurring({ projectId: project.id, milestoneId: milestone.id });
+    // hitos-agrupan-tareas: the table refuses a repeating task in a milestone (it would reopen it).
+    await expect(recurring({ projectId: project.id, milestoneId: milestone.id })).rejects.toThrow();
+    const task = await recurring({ projectId: project.id });
     await testDb.update(tasks).set({ isNextAction: true }).where(eq(tasks.id, task.id));
     const { next } = await complete(task.id);
     expect(next).toMatchObject({
       projectId: project.id,
-      milestoneId: milestone.id,
+      milestoneId: null,
       lifeAreaId: null,
       area: { id: project.lifeAreaId },
       project: { id: project.id },
@@ -389,15 +391,7 @@ describe("where the next one goes", () => {
   test("a project closed meanwhile (done or canceled): the inbox, and it says why", async () => {
     for (const status of ["done", "canceled"] as const) {
       const project = await newProject();
-      const [milestone] = await testDb
-        .insert(projectMilestones)
-        .values({ projectId: project.id, title: "Riego", sortOrder: 0 })
-        .returning();
-      const task = await recurring({
-        projectId: project.id,
-        milestoneId: milestone.id,
-        priority: "high",
-      });
+      const task = await recurring({ projectId: project.id, priority: "high" });
       await testDb
         .update(projects)
         .set({ status, completedAt: status === "done" ? new Date() : null })
@@ -431,23 +425,6 @@ describe("where the next one goes", () => {
       .where(eq(lifeAreas.id, health));
     const result = await complete(task.id);
     expect(result).toMatchObject({ nextInbox: "area", next: { lifeAreaId: null, area: null } });
-  });
-
-  test("a soft-deleted milestone is not copied (the project stays)", async () => {
-    const project = await newProject();
-    const [milestone] = await testDb
-      .insert(projectMilestones)
-      .values({ projectId: project.id, title: "Riego", sortOrder: 0 })
-      .returning();
-    const task = await recurring({ projectId: project.id, milestoneId: milestone.id });
-    await testDb
-      .update(projectMilestones)
-      .set({ deletedAt: new Date() })
-      .where(eq(projectMilestones.id, milestone.id));
-    const result = await complete(task.id);
-    expect(result.nextInbox).toBeNull();
-    expect(result.next).toMatchObject({ projectId: project.id, milestoneId: null });
-    expect((await row(result.next!.id)).milestoneId).toBeNull();
   });
 });
 

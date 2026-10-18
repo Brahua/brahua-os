@@ -1,5 +1,6 @@
 // G2 of `goals`, the projects side, against the throwaway database: `getProjectProgress` (the
-// same figure as the list and the detail: milestones plus the tasks the registered sources add),
+// same figure as the list and the detail: the tasks the registered sources count; a milestone is a
+// phase, not a unit of progress),
 // the states, deleted and missing projects, a fixed number of queries, the option lists a goal's
 // form uses, and authorization.
 import { eq } from "drizzle-orm";
@@ -40,12 +41,12 @@ async function insertProject(name: string, values: Partial<typeof projects.$infe
   return row.id;
 }
 
+/** `total` tasks of the project, the first `done` of them done. */
 async function milestones(projectId: string, done: number, total: number) {
   for (let index = 0; index < total; index += 1) {
-    await testDb.insert(projectMilestones).values({
+    await testDb.insert(tasks).values({
+      title: `Tarea ${index}`,
       projectId,
-      title: `Hito ${index}`,
-      sortOrder: index,
       doneAt: index < done ? new Date() : null,
     });
   }
@@ -65,26 +66,28 @@ beforeEach(async () => {
 });
 
 describe("getProjectProgress", () => {
-  test("the milestones' percentage and the project's state", async () => {
+  test("the tasks' percentage and the project's state", async () => {
     const id = await insertProject("Lanzar brahua-os");
     await milestones(id, 1, 4);
     expect(await getProjectProgress(id)).toEqual({ percent: 25, status: "active" });
   });
 
-  test("the tasks the registered sources add count like in the list (1 of 4 milestones + 3 of 4 tasks = 4 of 8)", async () => {
-    const id = await insertProject("Con tareas");
-    await milestones(id, 1, 4);
+  test("milestones are phases, not units: they never change the percentage (3 of 4 tasks = 75 %)", async () => {
+    const id = await insertProject("Con hitos");
+    await milestones(id, 3, 4);
+    // Four milestones, one of them even with `done_at` set: nothing to do with the progress.
     for (let index = 0; index < 4; index += 1) {
-      await testDb.insert(tasks).values({
-        title: `Tarea ${index}`,
+      await testDb.insert(projectMilestones).values({
         projectId: id,
-        doneAt: index < 3 ? new Date() : null,
+        title: `Hito ${index}`,
+        sortOrder: index,
+        doneAt: index === 0 ? new Date() : null,
       });
     }
-    expect(await getProjectProgress(id)).toEqual({ percent: 50, status: "active" });
+    expect(await getProjectProgress(id)).toEqual({ percent: 75, status: "active" });
   });
 
-  test("nothing to show reads 0 %: no milestones, or Mantenimiento", async () => {
+  test("nothing to show reads 0 %: no tasks, or Mantenimiento", async () => {
     const empty = await insertProject("Vacío");
     expect(await getProjectProgress(empty)).toEqual({ percent: 0, status: "active" });
     const maintenance = await insertProject("Casa", { status: "maintenance" });

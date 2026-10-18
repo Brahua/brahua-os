@@ -36,15 +36,25 @@ async function insertProject(name: string, values: Partial<typeof projects.$infe
 }
 
 let sortOrder = 0;
+/**
+ * A milestone. A milestone has no checkbox (hitos-agrupan-tareas): with `doneAt` it gets ONE task
+ * done at that instant, which completes it (and is its closing instant); without it, it has none.
+ */
 async function milestone(
   projectId: string,
   title: string,
   values: Partial<typeof projectMilestones.$inferInsert> = {},
 ) {
+  const { doneAt, ...rest } = values;
   const [row] = await testDb
     .insert(projectMilestones)
-    .values({ projectId, title, sortOrder: sortOrder++, ...values })
+    .values({ projectId, title, sortOrder: sortOrder++, ...rest })
     .returning({ id: projectMilestones.id });
+  if (doneAt) {
+    await testDb
+      .insert(tasks)
+      .values({ title: `Tarea de ${title}`, projectId, milestoneId: row.id, doneAt });
+  }
   return row.id;
 }
 
@@ -90,11 +100,10 @@ describe("the projects in the works", () => {
     ]);
   });
 
-  test("progress is the list's: milestones plus the tasks the registered sources add", async () => {
+  test("progress is the list's: the tasks the registered sources count (milestones are phases)", async () => {
     const id = await insertProject("Lanzar v1");
-    for (let index = 0; index < 4; index += 1) {
-      await milestone(id, `Hito ${index}`, { doneAt: index < 1 ? new Date() : null });
-    }
+    // Milestones without tasks add nothing to the progress.
+    for (let index = 0; index < 4; index += 1) await milestone(id, `Hito ${index}`);
     for (let index = 0; index < 4; index += 1) {
       await testDb.insert(tasks).values({
         title: `Tarea ${index}`,
@@ -102,15 +111,15 @@ describe("the projects in the works", () => {
         doneAt: index < 3 ? new Date() : null,
       });
     }
-    // 1 of 4 milestones + 3 of 4 tasks = 4 of 8.
+    // 3 of 4 tasks.
     const [project] = (await getProjectsWeekReview(WEEK, NOW)).projects;
-    expect(project).toMatchObject({ id, name: "Lanzar v1", progressPercent: 50 });
+    expect(project).toMatchObject({ id, name: "Lanzar v1", progressPercent: 75 });
   });
 
-  test("nothing to show reads 0 %: no milestones, or Mantenimiento", async () => {
+  test("nothing to show reads 0 %: no tasks, or Mantenimiento", async () => {
     await insertProject("Vacío");
     const maintenance = await insertProject("Casa", { status: "maintenance" });
-    await milestone(maintenance, "Hito", { doneAt: new Date() });
+    await milestone(maintenance, "Hito", { doneAt: new Date() }); // a done task: still no end
     const review = await getProjectsWeekReview(WEEK, NOW);
     expect(review.projects.map((project) => project.progressPercent)).toEqual([0, 0]);
   });
@@ -178,7 +187,7 @@ describe("the projects in the works", () => {
 });
 
 describe("milestones met within the week", () => {
-  test("those checked on the week's Lima days, bounds included; the latest first", async () => {
+  test("those completed on the week's Lima days (their last task), bounds included; the latest first", async () => {
     const id = await insertProject("Lanzar v1");
     const mondayStart = await milestone(id, "Lunes 00:00", {
       doneAt: new Date("2026-10-12T05:00:00Z"),

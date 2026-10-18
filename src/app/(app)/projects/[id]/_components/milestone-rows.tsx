@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowDown, ArrowUp, GripVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Circle,
+  CircleCheck,
+  GripVertical,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import {
   createContext,
   useContext,
@@ -32,7 +40,6 @@ export type MilestoneListProps = {
   editingId: string | null;
   /** Move the milestone to position `to` (0-based). */
   onMove: (id: string, to: number) => void;
-  onToggle: (milestone: ProjectMilestoneItem, done: boolean) => void;
   onEdit: (milestone: ProjectMilestoneItem) => void;
   onCancelEdit: (milestone: ProjectMilestoneItem) => void;
   onSave: (milestone: ProjectMilestoneItem, title: string, dueDate: string | null) => void;
@@ -50,7 +57,7 @@ export const MilestoneListContext = createContext<MilestoneListProps | null>(nul
  * be found again after React re-inserts the row (a move) or swaps the whole list (dnd-kit
  * arriving).
  */
-export type FocusControl = "handle" | "check" | "edit" | "up" | "down";
+export type FocusControl = "handle" | "edit" | "up" | "down";
 export const focusSelector = (id: string, control: FocusControl) =>
   `[data-milestone-focus="${control}:${CSS.escape(id)}"]`;
 
@@ -175,7 +182,6 @@ export function MilestoneRowContent(props: RowContentProps) {
     handleDisabled = false,
     handleProps,
     editingId,
-    onToggle,
     onEdit,
     onMoveBy,
   } = props;
@@ -200,16 +206,26 @@ export function MilestoneRowContent(props: RowContentProps) {
       >
         <Icon icon={GripVertical} size="md" />
       </button>
-      <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center">
-        <input
-          type="checkbox"
-          checked={done}
-          aria-label={MILESTONES_COPY.checkbox(title)}
-          data-milestone-focus={`check:${id}`}
-          className="bo-milestone-check"
-          onChange={(event) => onToggle(milestone, event.currentTarget.checked)}
-        />
-      </label>
+      {/* The phase's state, derived from its tasks: there is nothing to check by hand. */}
+      <span
+        role="img"
+        aria-label={
+          done
+            ? MILESTONES_COPY.stateComplete(title)
+            : milestone.tasks.total === 0
+              ? MILESTONES_COPY.stateEmpty(title)
+              : MILESTONES_COPY.stateInProgress(title, milestone.tasks.done, milestone.tasks.total)
+        }
+        data-milestone-state={
+          done ? "complete" : milestone.tasks.total === 0 ? "empty" : "inProgress"
+        }
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center",
+          done ? "text-text" : "text-text-secondary",
+        )}
+      >
+        <Icon icon={done ? CircleCheck : Circle} size="md" />
+      </span>
       <button
         type="button"
         aria-label={MILESTONES_COPY.edit(title)}
@@ -225,6 +241,11 @@ export function MilestoneRowContent(props: RowContentProps) {
           )}
         >
           {title}
+        </span>
+        <span className="bo-text-label text-text-secondary" data-milestone-tasks>
+          {milestone.tasks.total === 0
+            ? MILESTONES_COPY.noTasks
+            : MILESTONES_COPY.tasksCount(milestone.tasks.done, milestone.tasks.total)}
         </span>
         {milestone.dueDate ? (
           <span id={dueId} className="bo-text-label text-text-secondary">

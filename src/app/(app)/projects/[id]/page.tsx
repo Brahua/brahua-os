@@ -107,9 +107,7 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <ProjectStateSection />
           <ProjectPlanSection
             // P3 slot: progress={<ProjectProgress … />}
-            progress={
-              <ProjectProgress counts={countMilestones(milestones)} contributed={contributed} />
-            }
+            progress={<ProjectProgress contributed={contributed} />}
           />
           {/* ── P3 slot (Hitos): <ProjectMilestonesSection … /> ── */}
           <ProjectMilestonesSection milestones={milestones} />

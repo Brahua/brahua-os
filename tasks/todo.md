@@ -13,7 +13,7 @@ La dona por categoría (R1, #153) y las barras por medio de pago (R2, #154) se u
 Spec: [`SPEC-hitos-agrupan-tareas.md`](../SPEC-hitos-agrupan-tareas.md) (aprobado el 2026-10-17). Un implementador a la vez; gate local liviano; push una sola vez por corte; a lo sumo **una** E2E nueva (en H2); la migración de datos solo con respaldo verificado.
 
 - [x] **H1: Estado derivado y conteo por hito** (`feat/hitos-agrupan-tareas`): `milestone-state.ts` (puro: `empty`/`inProgress`/`complete`, `completedWithin`, `phaseChange`), conteo de tareas por hito (`countMilestoneTasks`) y su respuesta por el contrato (`milestoneCountsFor` en la fuente de avance y `contributedMilestones` en `projects`). Aditivo: nada cambia aún para el usuario.
-- [ ] **H2: Plan y cierre de fase** (el avance del proyecto solo de tareas, sin checkbox de hito, «Hito completo», `weekly-review`, migración de datos con respaldo, recurrentes fuera de los hitos, E2E).
+- [x] **H2: Plan y cierre de fase** (`feat/hitos-h2`): el avance del proyecto sale solo de las tareas; el hito pierde su casilla (ícono de estado derivado y «N de M tareas»); «Hito «X» completo.» al cerrar la última tarea; `weekly-review` cuenta el hito por su última tarea; recurrentes fuera de los hitos (validación + CHECK `tasks_milestone_not_recurring_check`); migración `0023` (hito vacío → una tarea; recurrentes sin hito). **Decisión autónoma para revisar con el owner:** Hitos y Tareas siguen como dos secciones contiguas, sin la sección «Plan» unificada del spec. Falta al cerrar: respaldo verificado de producción antes del deploy.
 - [ ] **H3: Limpieza** (quitar `done_at` de hitos; destructiva: solo con el visto bueno del owner y un respaldo).
 
 ## Módulo `finance-motion` y extensión `finance-gastos`: cerrados el 2026-10-15

@@ -63,7 +63,13 @@ export function taskCompletion({
       }
       toaster.push({
         title: TASKS_COPY.completedTitle,
-        text: completedNotice(task, result.data.next, result.data.nextInbox),
+        text: [
+          completedNotice(task, result.data.next, result.data.nextInbox),
+          // The last open task of a phase: said once, in one line (the milestone is complete).
+          result.data.phase ? TASKS_COPY.phaseComplete(result.data.phase.title) : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
         action: { label: TASKS_COPY.undo, run: onUndo },
       });
       return "saved";

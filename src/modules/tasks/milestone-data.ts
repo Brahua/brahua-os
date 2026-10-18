@@ -35,7 +35,11 @@ export async function selectMilestoneOptions(
   return rows.map(({ id, title, doneAt }) => ({ id, title, done: doneAt !== null }));
 }
 
-export type MilestoneFailure = "notFound" | "withoutProject" | "milestoneUnavailable";
+export type MilestoneFailure =
+  | "notFound"
+  | "withoutProject"
+  | "milestoneUnavailable"
+  | "milestoneRecurring";
 
 /**
  * Sets (or clears, with null) a task's milestone. The project is the task's own as stored, read
@@ -51,13 +55,15 @@ export async function setTaskMilestoneById(
 ): Promise<TaskItem | MilestoneFailure> {
   return db.transaction(async (tx) => {
     const [task] = await tx
-      .select({ projectId: tasks.projectId })
+      .select({ projectId: tasks.projectId, recurrenceKind: tasks.recurrenceKind })
       .from(tasks)
       .where(and(eq(tasks.id, id), visibleTask))
       .for("update");
     if (!task) return "notFound";
     if (milestoneId !== null) {
       if (task.projectId === null) return "withoutProject";
+      // A task that repeats would reopen its phase every time: it stays out of milestones.
+      if (task.recurrenceKind !== null) return "milestoneRecurring";
       const [milestone] = await tx
         .select({ id: projectMilestones.id })
         .from(projectMilestones)

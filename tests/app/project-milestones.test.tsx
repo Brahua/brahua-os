@@ -1,5 +1,6 @@
-// P3 on a project's page: milestones (add, check, edit, delete and undo, Subir/Bajar) with an
-// optimistic view and the server as the source of truth, and the progress meter it drives.
+// P3 on a project's page: milestones (add, edit, delete and undo, Subir/Bajar) with an optimistic
+// view and the server as the source of truth. A milestone has no checkbox (hitos-agrupan-tareas):
+// its state is derived from its tasks, and the progress meter counts the tasks.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -13,7 +14,6 @@ import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { ProjectCard } from "@/modules/projects/components/project-card";
 import {
   addMilestone,
-  checkMilestone,
   deleteMilestone,
   reorderMilestones,
   restoreMilestone,
@@ -24,7 +24,7 @@ import {
   MILESTONE_ERRORS,
   type ProjectMilestoneItem,
 } from "@/modules/projects/milestone-input";
-import { countMilestones, milestoneProgress } from "@/modules/projects/progress";
+import { milestoneProgress } from "@/modules/projects/progress";
 import type { ProjectDetail } from "@/modules/projects/project-input";
 
 // jsdom has no custom elements upgrade for NumberFlow's digits; the figure itself is enough here.
@@ -36,7 +36,6 @@ vi.mock("@/modules/projects/actions", () => ({
 vi.mock("@/modules/projects/milestone-actions", () => ({
   addMilestone: vi.fn(),
   updateMilestone: vi.fn(),
-  checkMilestone: vi.fn(),
   deleteMilestone: vi.fn(),
   restoreMilestone: vi.fn(),
   reorderMilestones: vi.fn(),
@@ -68,6 +67,7 @@ const milestone = (
   title,
   dueDate: null,
   doneAt: null,
+  tasks: { done: 0, total: 0 },
   sortOrder,
   ...extra,
 });
@@ -76,8 +76,12 @@ const milestone = (
 const M1 = "00000000-0000-4000-8000-0000000000a1";
 const M2 = "00000000-0000-4000-8000-0000000000a2";
 const M3 = "00000000-0000-4000-8000-0000000000a3";
-const PLANOS = milestone(M1, "Planos", 0, { doneAt: DONE_AT });
-const MUEBLES = milestone(M2, "Muebles", 1, { dueDate: "2026-11-30" });
+// Complete (2 of 2 tasks), in progress (1 of 3) and with no tasks yet.
+const PLANOS = milestone(M1, "Planos", 0, { doneAt: DONE_AT, tasks: { done: 2, total: 2 } });
+const MUEBLES = milestone(M2, "Muebles", 1, {
+  dueDate: "2026-11-30",
+  tasks: { done: 1, total: 3 },
+});
 const LUCES = milestone(M3, "Luces", 2);
 const MILESTONES = [PLANOS, MUEBLES, LUCES];
 
@@ -135,7 +139,14 @@ function Page({ initial }: { initial: State }) {
   return (
     <ProjectDetailProvider project={state.project} now={NOW}>
       <ProjectPlanSection
-        progress={<ProjectProgress counts={countMilestones(state.milestones)} />}
+        progress={
+          <ProjectProgress
+            contributed={{
+              done: state.milestones.reduce((sum, item) => sum + item.tasks.done, 0),
+              total: state.milestones.reduce((sum, item) => sum + item.tasks.total, 0),
+            }}
+          />
+        }
       />
       <ProjectMilestonesSection milestones={state.milestones} />
     </ProjectDetailProvider>
@@ -187,14 +198,6 @@ beforeEach(() => {
         milestone(id, title as string, items.length),
       ]) as never;
     });
-  vi.mocked(checkMilestone)
-    .mockReset()
-    .mockImplementation((input) => {
-      const { id, done } = input as Input;
-      return serverCall((items) =>
-        items.map((item) => (item.id === id ? { ...item, doneAt: done ? NOW : null } : item)),
-      ) as never;
-    });
   vi.mocked(updateMilestone)
     .mockReset()
     .mockImplementation((input) => {
@@ -244,18 +247,34 @@ afterEach(async () => {
 });
 
 describe("list and progress", () => {
-  test("rows with a checkbox, the date, and the meter under the dates", async () => {
+  test("rows with their derived state, the tasks count, the date, and the meter under the dates", async () => {
     await renderPage();
     expect(screen.getByRole("heading", { level: 2, name: "Hitos, 3 hitos" })).toBeInTheDocument();
     expect(titles()).toEqual(["Planos", "Muebles", "Luces"]);
-    expect(screen.getByRole("checkbox", { name: "Hecho: Planos" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Hecho: Muebles" })).not.toBeChecked();
+    // No checkbox: the state comes from the tasks (complete, in progress, no tasks yet).
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("img", { name: "Hito completo: Planos" })).toHaveAttribute(
+      "data-milestone-state",
+      "complete",
+    );
+    expect(
+      screen.getByRole("img", { name: "Hito en curso: Muebles, 1 de 3 tareas hechas" }),
+    ).toHaveAttribute("data-milestone-state", "inProgress");
+    expect(screen.getByRole("img", { name: "Hito sin tareas: Luces" })).toHaveAttribute(
+      "data-milestone-state",
+      "empty",
+    );
+    const counts = [...document.querySelectorAll("[data-milestone-tasks]")].map(
+      (node) => node.textContent,
+    );
+    expect(counts).toEqual(["2 de 2 tareas", "1 de 3 tareas", "Sin tareas"]);
     expect(screen.getByRole("button", { name: "Editar hito Muebles" })).toHaveAccessibleDescription(
       "Para el 30 nov. 2026",
     );
-    expect(meter()).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
-    expect(meter()).toHaveAttribute("aria-valuenow", "1");
-    expect(meter()).toHaveAttribute("aria-valuemax", "3");
+    // The meter counts tasks: 3 done of 5 (2 + 1, and 3 + 0 open).
+    expect(meter()).toHaveAccessibleName("Avance: 60%, 3 de 5 tareas");
+    expect(meter()).toHaveAttribute("aria-valuenow", "3");
+    expect(meter()).toHaveAttribute("aria-valuemax", "5");
     // The meter is inside "Objetivo y fechas".
     const plan = screen.getByRole("region", { name: "Objetivo y fechas" });
     expect(within(plan).getByRole("meter")).toBe(meter());
@@ -284,7 +303,8 @@ describe("add", () => {
     expect(titles()).toEqual(["Planos", "Muebles", "Luces", "Encimera"]);
     expect(addField()).toHaveValue("");
     expect(addField()).toHaveFocus();
-    expect(meter()).toHaveAccessibleName("Avance: 25%, 1 de 4 hitos y tareas");
+    // A new milestone has no tasks: the meter (tasks only) does not move.
+    expect(meter()).toHaveAccessibleName("Avance: 60%, 3 de 5 tareas");
     await user.type(addField(), "Pintura{Enter}");
     expect(titles()).toEqual(["Planos", "Muebles", "Luces", "Encimera", "Pintura"]);
 
@@ -319,32 +339,6 @@ describe("add", () => {
     expect(screen.queryByRole("button", { name: "Editar hito Planos" })).toBeNull();
     expect(notices()).toHaveTextContent(
       `No se pudo agregar el hito; se quitó de la lista. ${MILESTONE_ERRORS.tooMany}`,
-    );
-  });
-});
-
-describe("check", () => {
-  test("the checkbox and the meter change at once; the server confirms", async () => {
-    const user = await renderPage();
-    const box = screen.getByRole("checkbox", { name: "Hecho: Luces" });
-    await user.click(box);
-    expect(box).toBeChecked();
-    expect(meter()).toHaveAccessibleName("Avance: 67%, 2 de 3 hitos y tareas");
-    expect(checkMilestone).toHaveBeenCalledWith({ projectId: PROJECT.id, id: M3, done: true });
-    expect(box).toHaveFocus();
-    await server.answer();
-    expect(box).toBeChecked();
-  });
-
-  test("a network failure rolls the box and the meter back, with a notice", async () => {
-    const user = await renderPage();
-    vi.mocked(checkMilestone).mockRejectedValueOnce(new Error("offline"));
-    const box = screen.getByRole("checkbox", { name: "Hecho: Planos" });
-    await user.click(box);
-    await waitFor(() => expect(box).toBeChecked());
-    expect(meter()).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
-    expect(notices()).toHaveTextContent(
-      "No se pudo marcar el hito; volvió a como estaba. Revisa tu conexión",
     );
   });
 });
@@ -402,7 +396,6 @@ describe("delete and undo", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Editar hito Muebles" })).toHaveFocus(),
     );
-    expect(meter()).toHaveAccessibleName("Avance: 0%, 0 de 2 hitos y tareas");
     expect(notices()).toHaveTextContent("«Planos» se eliminó.");
     await server.answer();
 
@@ -416,7 +409,7 @@ describe("delete and undo", () => {
     });
     await server.answer();
     expect(titles()).toEqual(["Planos", "Muebles", "Luces"]);
-    expect(screen.getByRole("checkbox", { name: "Hecho: Planos" })).toBeChecked();
+    expect(screen.getByRole("img", { name: "Hito completo: Planos" })).toBeInTheDocument();
     expect(notices()).toHaveTextContent("«Planos» volvió a su lugar.");
   });
 
@@ -566,7 +559,7 @@ describe("card", () => {
     );
     document.body.innerHTML = html;
     const link = screen.getByRole("link", { name: "Cocina" });
-    expect(link).toHaveAccessibleDescription("Avance: 60%, 3 de 5 hitos y tareas");
+    expect(link).toHaveAccessibleDescription("Avance: 60%, 3 de 5 tareas");
     // Read once (the link's description): the drawn meter is hidden from assistive tech.
     expect(screen.queryByRole("meter")).toBeNull();
     expect(document.querySelector("[data-progress]")).toHaveAttribute("aria-hidden", "true");

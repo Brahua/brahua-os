@@ -229,6 +229,8 @@ export type PlacementFailure =
   | "areaUnavailable"
   | "projectUnavailable"
   | "milestoneUnavailable"
+  /** hitos-agrupan-tareas: a task that repeats can't be in a milestone (it would reopen the phase). */
+  | "milestoneRecurring"
   /** polish -> task-time: a time was sent for a task without a day (an edit, not a placement). */
   | "timeWithoutDate";
 
@@ -359,6 +361,7 @@ export async function updateTask(
         projectId: tasks.projectId,
         milestoneId: tasks.milestoneId,
         dueDate: tasks.dueDate,
+        recurrenceKind: tasks.recurrenceKind,
       })
       .from(tasks)
       .where(and(eq(tasks.id, input.id), visibleTask))
@@ -376,6 +379,9 @@ export async function updateTask(
     if (input.dueDate === null) values.dueTime = null;
     else if (input.dueTime !== undefined) values.dueTime = input.dueTime;
     if (placement) {
+      if (placement.milestoneId !== null && current.recurrenceKind !== null) {
+        return "milestoneRecurring";
+      }
       const failure = await checkPlacement(tx, placement, current);
       if (failure) return failure;
       values.lifeAreaId = placement.lifeAreaId;

@@ -241,7 +241,7 @@ describe("the sheet", () => {
       id: AVENA.id,
       name: "Avena con frutas",
       mealTypes: ["breakfast"],
-      weekdays: [WD, OTHER_WD].sort((a, b) => a - b),
+      weekdays: [WD, OTHER_WD],
       url: "",
     });
   });

@@ -33,7 +33,6 @@ import {
   type ProjectDetail,
 } from "@/modules/projects/project-input";
 import { closeProject, reopenProject } from "@/modules/projects/close-actions";
-import type { MilestoneCounts } from "@/modules/projects/milestone-input";
 import type { OpenWork } from "@/modules/projects/project-close";
 import { completedAtAfter } from "@/modules/projects/project-status";
 import type { ProgressCounts } from "@/modules/projects/progress-source";
@@ -62,7 +61,6 @@ vi.mock("@/modules/projects/queries", () => ({
 // P3: milestones (none here; their own tests are in project-milestones.test.tsx).
 vi.mock("@/modules/projects/milestone-queries", () => ({
   getProjectMilestones: vi.fn(async () => []),
-  listMilestoneCounts: vi.fn(async () => ({})),
 }));
 // P5: links and notes (their own tests: tests/app/project-notes-links.test.tsx).
 vi.mock("@/modules/projects/link-queries", () => ({ listProjectLinks: vi.fn(async () => []) }));
@@ -164,7 +162,7 @@ function serverCall<T = ProjectDetail>(
 
 /** The page's milestones and what the progress sources count, for "Cerrar proyecto". */
 const work = {
-  counts: { done: 0, total: 0 } as MilestoneCounts,
+  counts: { done: 0, total: 0 } as ProgressCounts,
   contributed: undefined as ProgressCounts | undefined,
 };
 

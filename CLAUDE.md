@@ -351,3 +351,9 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **A Chrome tab driven by the agent can be hidden:** `document.visibilityState` was `hidden`, so
   `requestAnimationFrame` and CSS animations stood still (rows stuck mid-fold, sheets that never finished
   closing). Check it first; motion needs the owner's eyes (iPhone), the data checks do not.
+
+## Lessons from `hitos-agrupan-tareas` H2 (2026-10-17)
+
+- **Un estado derivado no se guarda:** el hito completo sale de contar sus tareas (`milestoneState`); `done_at` del hito quedó sin leer (se borra en H3, con OK del owner y respaldo).
+- **Migración de datos y CHECK en un mismo archivo:** primero mover los datos (idempotente, ids derivados con `md5`), luego el CHECK; la prueba de integración corre las sentencias del `.sql` sobre filas viejas.
+- **Los fixtures E2E siguen el modelo:** un hito «hecho» ahora es una tarea hecha; los helpers `insertProject` crean hitos vacíos.

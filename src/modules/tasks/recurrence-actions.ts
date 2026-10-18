@@ -2,11 +2,14 @@
 
 // Server Actions of recurrence (T3). Their own file so T2 and T4 never touch the same lines
 // (HANDOFF "Revisión 1"). Each one goes through ownerAction(): owner first, Zod, ActionResult.
-import { and, eq } from "drizzle-orm";
-import { fail, ok, type ActionResult } from "@/lib/action-result";
-import { getDb } from "@/lib/db";
+import { and, eq, isNull } from "drizzle-orm";
+import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
+import { getDb, type Database } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
+import { projectMilestones } from "@/modules/projects/db/schema";
+import { milestoneState, phaseChange } from "@/modules/projects/milestone-state";
 import { tasks } from "./db/schema";
+import { countMilestoneTasks } from "./project-tasks";
 import { recurrenceColumns, type SpawnInbox, type SpawnUndo } from "./recurrence-db";
 import { setTaskRecurrenceInputSchema } from "./recurrence-input";
 import { revalidateTaskScreens } from "./revalidate";
@@ -28,6 +31,21 @@ const setRecurrence = ownerAction(
   setTaskRecurrenceInputSchema,
   async ({ id, recurrence }) => {
     const db = getDb();
+    // A task in a milestone can't repeat (hitos-agrupan-tareas): the next occurrence would reopen
+    // its phase. A rule is only refused when it would be set, never when it is removed.
+    if (recurrence) {
+      const [placed] = await db
+        .select({ milestoneId: tasks.milestoneId })
+        .from(tasks)
+        .where(and(eq(tasks.id, id), visibleTask));
+      if (placed?.milestoneId) {
+        return {
+          ok: false,
+          error: INVALID_FIELDS_MESSAGE,
+          fieldErrors: { recurrence: [TASK_ERRORS.milestoneRecurring] },
+        };
+      }
+    }
     const updated = await db
       .update(tasks)
       .set(recurrenceColumns(recurrence))
@@ -52,20 +70,46 @@ export async function setTaskRecurrence(input: unknown): Promise<ActionResult<Ta
  * A completion, with the occurrence it created (a recurring task) or null, and why that one went
  * to the inbox (its place was closed), or null.
  */
-export type CompletedTask = { task: TaskItem; next: TaskItem | null; nextInbox: SpawnInbox | null };
+export type CompletedTask = {
+  task: TaskItem;
+  next: TaskItem | null;
+  nextInbox: SpawnInbox | null;
+  /** The milestone this completion closed (its last open task): the notice says «Hito completo». */
+  phase?: { id: string; title: string } | null;
+};
+
+/**
+ * The live milestone a pending task is in and its state now, or null (no milestone, done already,
+ * or a deleted milestone). Read before completing, to tell whether the completion closes it.
+ */
+async function phaseBefore(db: Database, id: string) {
+  const [row] = await db
+    .select({ milestoneId: tasks.milestoneId, title: projectMilestones.title })
+    .from(tasks)
+    .innerJoin(projectMilestones, eq(projectMilestones.id, tasks.milestoneId))
+    .where(and(eq(tasks.id, id), visibleTask, isNull(tasks.doneAt), isNull(projectMilestones.deletedAt)));
+  if (!row?.milestoneId) return null;
+  const counts = await countMilestoneTasks(db, [row.milestoneId]);
+  return { id: row.milestoneId, title: row.title, before: milestoneState(counts.get(row.milestoneId)) };
+}
 
 const complete = ownerAction(
   taskIdInputSchema,
   async ({ id }) => {
-    const result = await completeTaskById(getDb(), id);
+    const db = getDb();
+    const placed = await phaseBefore(db, id);
+    const result = await completeTaskById(db, id);
     revalidateTask(id);
     if (!result) return fail(TASK_ERRORS.notFound);
     // A double tap (`changed: false`) creates nothing and reports nothing new.
-    return ok(
-      result.changed
-        ? { task: result.task, next: result.next, nextInbox: result.nextInbox }
-        : { task: result.task, next: null, nextInbox: null },
-    );
+    if (!result.changed) return ok({ task: result.task, next: null, nextInbox: null, phase: null });
+    // The milestone's state is derived: if this was its last open task it is complete now.
+    let phase: CompletedTask["phase"] = null;
+    if (placed) {
+      const after = milestoneState((await countMilestoneTasks(db, [placed.id])).get(placed.id));
+      if (phaseChange(placed.before, after) === "closed") phase = { id: placed.id, title: placed.title };
+    }
+    return ok({ task: result.task, next: result.next, nextInbox: result.nextInbox, phase });
   },
   { name: "completeTaskWithNext" },
 );

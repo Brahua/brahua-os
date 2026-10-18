@@ -15,14 +15,13 @@ import { deleteProject } from "@/modules/projects/actions";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
 import {
   addMilestone,
-  checkMilestone,
   deleteMilestone,
   reorderMilestones,
   restoreMilestone,
   updateMilestone,
 } from "@/modules/projects/milestone-actions";
 import { MAX_MILESTONES_PER_PROJECT, MILESTONE_ERRORS } from "@/modules/projects/milestone-input";
-import { getProjectMilestones, listMilestoneCounts } from "@/modules/projects/milestone-queries";
+import { getProjectMilestones } from "@/modules/projects/milestone-queries";
 import { MILESTONES_ADVISORY_SPACE } from "@/modules/projects/milestones";
 import { PROJECT_ERRORS } from "@/modules/projects/project-input";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
@@ -123,7 +122,14 @@ describe("add", () => {
     const result = await addMilestone({ projectId, id, title: "  Encimera   de cuarzo " });
     expect(result).toEqual({
       ok: true,
-      data: { id, title: "Encimera de cuarzo", dueDate: null, doneAt: null, sortOrder: 2 },
+      data: {
+        id,
+        title: "Encimera de cuarzo",
+        dueDate: null,
+        doneAt: null,
+        tasks: { done: 0, total: 0 },
+        sortOrder: 2,
+      },
     });
     expect(await titles(projectId)).toEqual(["Planos", "Muebles", "Encimera de cuarzo"]);
     await expectContiguous(projectId);
@@ -224,26 +230,10 @@ describe("edit and check", () => {
     expect((await rows(projectId))[0]).toMatchObject({ title: "Planos finales", dueDate: null });
   });
 
-  test("checking stamps done_at once (checking again keeps it); unchecking clears it", async () => {
-    const projectId = await newProject();
-    const [id] = await addAll(projectId, ["Planos"]);
-    const first = await checkMilestone({ projectId, id, done: true });
-    expect(first.ok && first.data.doneAt).toBeInstanceOf(Date);
-    const again = await checkMilestone({ projectId, id, done: true });
-    expect(again.ok && again.data.doneAt?.getTime()).toBe(first.ok && first.data.doneAt?.getTime());
-    const undone = await checkMilestone({ projectId, id, done: false });
-    expect(undone).toMatchObject({ ok: true, data: { doneAt: null } });
-    expectRevalidated(projectId);
-  });
-
-  test("a deleted milestone can't be edited or checked", async () => {
+  test("a deleted milestone can't be edited", async () => {
     const projectId = await newProject();
     const [id] = await addAll(projectId, ["Planos"]);
     await deleteMilestone({ projectId, id });
-    expect(await checkMilestone({ projectId, id, done: true })).toEqual({
-      ok: false,
-      error: MILESTONE_ERRORS.notFound,
-    });
     expect(await updateMilestone({ projectId, id, title: "X", dueDate: null })).toEqual({
       ok: false,
       error: MILESTONE_ERRORS.notFound,
@@ -253,10 +243,6 @@ describe("edit and check", () => {
 
   test("a milestone that doesn't exist is not found", async () => {
     const projectId = await newProject();
-    expect(await checkMilestone({ projectId, id: MISSING, done: true })).toEqual({
-      ok: false,
-      error: MILESTONE_ERRORS.notFound,
-    });
     expect(await updateMilestone({ projectId, id: MISSING, title: "X", dueDate: null })).toEqual({
       ok: false,
       error: MILESTONE_ERRORS.notFound,
@@ -268,7 +254,6 @@ describe("delete and undo", () => {
   test("a soft delete: out of the list, kept in the table; Deshacer brings the same row back", async () => {
     const projectId = await newProject();
     const [a, b, c] = await addAll(projectId, ["A", "B", "C"]);
-    await checkMilestone({ projectId, id: b, done: true });
     await updateMilestone({ projectId, id: b, title: "B", dueDate: "2026-12-01" });
     const [before] = await testDb
       .select()
@@ -287,6 +272,8 @@ describe("delete and undo", () => {
       .where(eq(projectMilestones.id, b));
     expect(deleted.deletedAt).toBeInstanceOf(Date);
     expect(deleted).toMatchObject({ title: "B", doneAt: before.doneAt, dueDate: "2026-12-01" });
+    // `done_at` is no longer written (hitos-agrupan-tareas): a milestone's state is derived.
+    expect(deleted.doneAt).toBeNull();
     expect((await getProjectMilestones(projectId)).map((item) => item.id)).toEqual([a, c]);
 
     const restored = await restoreMilestone({ projectId, id: b, position: 1, afterId: a });
@@ -485,7 +472,6 @@ describe("no milestone crosses projects (IDOR)", () => {
 
     const attempts = await Promise.all([
       updateMilestone({ projectId: mine, id: theirs, title: "Cambiado", dueDate: null }),
-      checkMilestone({ projectId: mine, id: theirs, done: true }),
       deleteMilestone({ projectId: mine, id: theirs }),
     ]);
     for (const result of attempts) {
@@ -513,7 +499,6 @@ describe("authorization", () => {
   const calls = (projectId: string, id: string) => [
     () => addMilestone({ projectId, id: crypto.randomUUID(), title: "X" }),
     () => updateMilestone({ projectId, id, title: "X", dueDate: null }),
-    () => checkMilestone({ projectId, id, done: true }),
     () => deleteMilestone({ projectId, id }),
     () => restoreMilestone({ projectId, id, position: 0, afterId: null }),
     () => reorderMilestones({ projectId, ids: [id] }),
@@ -544,20 +529,6 @@ describe("reads", () => {
     await addAll(projectId, ["A", "B"]);
     expect((await getProjectMilestones(projectId)).map((item) => item.title)).toEqual(["A", "B"]);
     expect(await getProjectMilestones("not-a-uuid")).toEqual([]);
-  });
-
-  test("the list's counts come in one aggregate, without deleted projects or milestones", async () => {
-    const withSome = await newProject("Con hitos");
-    const deleted = await newProject("Eliminado");
-    await newProject("Sin hitos");
-    const ids = await addAll(withSome, ["A", "B", "C", "D"]);
-    await checkMilestone({ projectId: withSome, id: ids[0], done: true });
-    // A deleted milestone counts for nothing, done or not.
-    await checkMilestone({ projectId: withSome, id: ids[3], done: true });
-    await deleteMilestone({ projectId: withSome, id: ids[3] });
-    await addAll(deleted, ["X"]);
-    await deleteProject({ id: deleted });
-    expect(await listMilestoneCounts()).toEqual({ [withSome]: { done: 1, total: 3 } });
   });
 
   test("the export keeps every milestone as history: deleted ones and deleted projects' too", async () => {

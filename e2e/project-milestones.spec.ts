@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { animationsSettled } from "./support/animations";
+import { insertProjectTasks } from "./support/project-tasks";
 import { afterSaveSettled } from "./support/saves";
 import {
   CREATE_AREA,
@@ -57,7 +58,7 @@ async function axeViolations(page: Page) {
   return (await new AxeBuilder({ page }).analyze()).violations;
 }
 
-test("add with Enter, check, edit: progress follows, and it all survives a reload", async ({
+test("add with Enter and edit: a milestone has no checkbox and no progress of its own, and it survives a reload", async ({
   page,
 }, testInfo) => {
   const name = uniqueName("Taller", testInfo);
@@ -72,13 +73,10 @@ test("add with Enter, check, edit: progress follows, and it all survives a reloa
   // Enter adds another: the field is still under the cursor.
   await expect(addField(page)).toBeFocused();
   expect(await titles(page)).toEqual(["Comprar madera", "Armar la mesa", "Barnizar"]);
-  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 3 hitos y tareas");
-
-  // The checkbox and the meter change at once.
-  await untilSaved(page, () =>
-    page.getByRole("checkbox", { name: "Hecho: Comprar madera" }).check(),
-  );
-  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
+  // hitos-agrupan-tareas: a phase with no tasks says so, has no checkbox and adds no progress.
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  await expect(milestoneList(page).getByText("Sin tareas")).toHaveCount(3);
+  await expect(meter(page)).toHaveCount(0);
 
   // Edit in the row: title and date; Enter saves and focus returns to the title.
   await page.getByRole("button", { name: "Editar hito Barnizar" }).click();
@@ -93,16 +91,14 @@ test("add with Enter, check, edit: progress follows, and it all survives a reloa
 
   await page.reload();
   expect(await titles(page)).toEqual(["Comprar madera", "Armar la mesa", "Barnizar dos manos"]);
-  await expect(page.getByRole("checkbox", { name: "Hecho: Comprar madera" })).toBeChecked();
-  await expect(meter(page)).toHaveAccessibleName("Avance: 33%, 1 de 3 hitos y tareas");
+  await expect(meter(page)).toHaveCount(0);
 
-  // The card in the list shows the same progress (and the link is described by it).
+  // The card in the list has no progress either: milestones are never units.
   await page.goto(`/projects?area=${CREATE_AREA.slug}`);
   const link = page.getByRole("link", { name, exact: true });
-  await expect(link).toHaveAccessibleDescription(/Avance: 33%, 1 de 3 hitos y tareas/);
   const card = page.locator("article", { has: link });
-  // Drawn, and read once (as the link's description: the meter itself is hidden from AT).
-  await expect(card.locator("[data-progress]")).toHaveAttribute("data-progress", "1/3");
+  await expect(card).toBeVisible();
+  await expect(card.locator("[data-progress]")).toHaveCount(0);
 });
 
 test("delete from the editor and Deshacer puts it back in its place", async ({
@@ -112,7 +108,6 @@ test("delete from the editor and Deshacer puts it back in its place", async ({
   await openProject(page, id);
   await addField(page).focus();
   await addMilestones(page, ["Medir", "Cortar", "Pintar"]);
-  await untilSaved(page, () => page.getByRole("checkbox", { name: "Hecho: Cortar" }).check());
 
   await page.getByRole("button", { name: "Editar hito Cortar" }).click();
   await untilSaved(page, () => page.getByRole("button", { name: "Eliminar hito" }).click());
@@ -120,7 +115,6 @@ test("delete from the editor and Deshacer puts it back in its place", async ({
   // Focus moves to the next row; the notice offers Deshacer without taking focus.
   await expect(page.getByRole("button", { name: "Editar hito Pintar" })).toBeFocused();
   await expect(notices(page)).toContainText("«Cortar» se eliminó.");
-  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 2 hitos y tareas");
 
   await untilSaved(page, () => undo(page).click());
   expect(await titles(page)).toEqual(["Medir", "Cortar", "Pintar"]);
@@ -128,8 +122,6 @@ test("delete from the editor and Deshacer puts it back in its place", async ({
 
   await page.reload();
   expect(await titles(page)).toEqual(["Medir", "Cortar", "Pintar"]);
-  // The same row: still done.
-  await expect(page.getByRole("checkbox", { name: "Hecho: Cortar" })).toBeChecked();
 });
 
 test("Esc on “Eliminar hito” cancels the editor and leaves the notice alone", async ({
@@ -233,11 +225,10 @@ test("Mantenimiento keeps the milestones but shows no progress, here or on the c
   page,
 }, testInfo) => {
   const name = uniqueName("Jardín", testInfo);
-  const id = await insertProject({ name });
+  const id = await insertProject({ name, milestones: [false] });
+  await insertProjectTasks(id, [{ title: "Podar", milestone: 0 }]);
   await openProject(page, id);
-  await addField(page).focus();
-  await addMilestones(page, ["Podar"]);
-  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 1 hitos y tareas");
+  await expect(meter(page)).toHaveAccessibleName("Avance: 0%, 0 de 1 tareas");
 
   // Control: the meter is there; switching to Mantenimiento hides it at once.
   await untilSaved(page, () =>
@@ -247,7 +238,7 @@ test("Mantenimiento keeps the milestones but shows no progress, here or on the c
       .click(),
   );
   await expect(meter(page)).toHaveCount(0);
-  expect(await titles(page)).toEqual(["Podar"]);
+  expect(await titles(page)).toEqual(["Hito 1"]);
 
   await page.goto(`/projects?area=${CREATE_AREA.slug}`);
   const card = page.locator("article", { has: page.getByRole("link", { name, exact: true }) });
@@ -273,7 +264,6 @@ for (const theme of THEMES) {
 
     await addField(page).focus();
     await addMilestones(page, ["Primero", "Segundo"]);
-    await untilSaved(page, () => page.getByRole("checkbox", { name: "Hecho: Primero" }).check());
     await sortableReady(page);
     expect(await axeViolations(page)).toEqual([]);
 
