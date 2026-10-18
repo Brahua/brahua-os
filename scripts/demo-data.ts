@@ -853,7 +853,6 @@ async function insertDemoRows(tx: Tx, now: Date): Promise<DemoCounts> {
       projectId: projectId(p.key),
       title: m.title,
       dueDate: m.due === undefined ? null : day(m.due),
-      doneAt: m.done === undefined ? null : at(day(m.done), 20),
       sortOrder: index, // a new project: 0…n-1
     })),
   );

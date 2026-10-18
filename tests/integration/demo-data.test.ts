@@ -287,18 +287,14 @@ describe("insert", () => {
     expect(next.spawnedFromId).toBe(previous.id);
     expect(next.createdAt).toEqual(previous.doneAt);
     expect(next.updatedAt).toEqual(previous.doneAt);
-    // The finished project closes at or after its last milestone and its last task.
+    // The finished project closes at or after its last task.
     const done = demoId("project:ingles");
     const [project] = await testDb.select().from(projects).where(eq(projects.id, done));
-    const milestones = await testDb
-      .select({ doneAt: projectMilestones.doneAt })
-      .from(projectMilestones)
-      .where(eq(projectMilestones.projectId, done));
     const projectTasks = await testDb
       .select({ doneAt: tasks.doneAt })
       .from(tasks)
       .where(eq(tasks.projectId, done));
-    const last = Math.max(...[...milestones, ...projectTasks].map((row) => row.doneAt!.getTime()));
+    const last = Math.max(...projectTasks.map((row) => row.doneAt!.getTime()));
     expect(project.completedAt!.getTime()).toBeGreaterThanOrEqual(last);
     expect(project.updatedAt.getTime()).toBeGreaterThanOrEqual(project.completedAt!.getTime());
   });

@@ -4,7 +4,9 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { projectMilestones, projects } from "@/modules/projects/db/schema";
+import { milestoneState } from "@/modules/projects/milestone-state";
 import { tasks } from "./db/schema";
+import { countMilestoneTasks } from "./project-tasks";
 import type { TaskItem } from "./task-input";
 import { selectTaskById, visibleTask } from "./tasks";
 
@@ -20,7 +22,6 @@ export async function selectMilestoneOptions(
     .select({
       id: projectMilestones.id,
       title: projectMilestones.title,
-      doneAt: projectMilestones.doneAt,
     })
     .from(projectMilestones)
     .innerJoin(projects, eq(projects.id, projectMilestones.projectId))
@@ -32,7 +33,16 @@ export async function selectMilestoneOptions(
       ),
     )
     .orderBy(projectMilestones.sortOrder, projectMilestones.id);
-  return rows.map(({ id, title, doneAt }) => ({ id, title, done: doneAt !== null }));
+  // Derived (hitos-agrupan-tareas): a milestone is done when all its tasks are.
+  const counts = await countMilestoneTasks(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.map(({ id, title }) => ({
+    id,
+    title,
+    done: milestoneState(counts.get(id)).status === "complete",
+  }));
 }
 
 export type MilestoneFailure =

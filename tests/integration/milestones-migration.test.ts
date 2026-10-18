@@ -22,9 +22,14 @@ beforeEach(async () => {
   await seed(testDb);
   // Old rows exist while the CHECK is not there yet.
   await testDb.execute(sql.raw(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS ${CONSTRAINT}`));
+  // The column was dropped later (0024); the old rows this file moves still have it.
+  await testDb.execute(
+    sql.raw("ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS done_at timestamptz"),
+  );
 });
 
 afterEach(async () => {
+  await testDb.execute(sql.raw("ALTER TABLE project_milestones DROP COLUMN IF EXISTS done_at"));
   // Leave the constraint where the schema has it for the other files (idempotent).
   await testDb.execute(sql.raw(`ALTER TABLE tasks DROP CONSTRAINT IF EXISTS ${CONSTRAINT}`));
   await testDb.execute(
@@ -50,16 +55,23 @@ async function project() {
   return row.id;
 }
 
-const milestone = (
+async function milestone(
   projectId: string,
   title: string,
-  values: Partial<typeof projectMilestones.$inferInsert> = {},
-) =>
-  testDb
+  values: Partial<typeof projectMilestones.$inferInsert> & { doneAt?: Date } = {},
+) {
+  const { doneAt, ...rest } = values;
+  const [row] = await testDb
     .insert(projectMilestones)
-    .values({ projectId, title, sortOrder: 0, ...values })
-    .returning()
-    .then(([row]) => row);
+    .values({ projectId, title, sortOrder: 0, ...rest })
+    .returning();
+  if (doneAt) {
+    await testDb.execute(
+      sql`update project_milestones set done_at = ${doneAt.toISOString()} where id = ${row.id}`,
+    );
+  }
+  return row;
+}
 
 describe("migration 0023", () => {
   test("the file has the three statements in order: recurring out, milestones into tasks, the CHECK", () => {

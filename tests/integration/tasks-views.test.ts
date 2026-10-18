@@ -285,7 +285,14 @@ describe("milestone", () => {
   test("its project's live milestones are offered, in order (not deleted ones)", async () => {
     const project = await newProject();
     await newMilestone(project.id, { title: "Pintura", sortOrder: 1 });
-    await newMilestone(project.id, { title: "Planos", sortOrder: 0, doneAt: NOW });
+    const planos = await newMilestone(project.id, { title: "Planos", sortOrder: 0 });
+    // Done is derived: a milestone whose only task is done.
+    await insert({
+      title: "hecha del hito",
+      projectId: project.id,
+      milestoneId: planos.id,
+      doneAt: NOW,
+    });
     await newMilestone(project.id, { title: "Borrado", sortOrder: 2, deletedAt: NOW });
     const result = await listTaskMilestones({ projectId: project.id });
     expect(result.ok && result.data.map((item) => [item.title, item.done])).toEqual([

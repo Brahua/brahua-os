@@ -8,13 +8,13 @@ La dona por categoría (R1, #153) y las barras por medio de pago (R2, #154) se u
 
 **Ajuste posterior (`feat/finance-header-dedup`, 2026-10-16, decisión del owner):** el total del mes se decía dos veces (la cabecera y la tarjeta «Gastado»). Se queda el de la cabecera (se ve en «Resumen» y «Gastos» y lleva el delta, «Día n de m» y el aviso de USD); «N gastos» pasa a su línea de contexto, la tarjeta «Gastado» y la miniatura de 6 meses desaparecen y «Pendiente de pagar» ocupa la fila.
 
-## Módulo `hitos-agrupan-tareas` (un hito es una fase que se completa con sus tareas): en curso
+## Módulo `hitos-agrupan-tareas` (un hito es una fase que se completa con sus tareas): cerrado el 2026-10-18
 
 Spec: [`SPEC-hitos-agrupan-tareas.md`](../SPEC-hitos-agrupan-tareas.md) (aprobado el 2026-10-17). Un implementador a la vez; gate local liviano; push una sola vez por corte; a lo sumo **una** E2E nueva (en H2); la migración de datos solo con respaldo verificado.
 
 - [x] **H1: Estado derivado y conteo por hito** (`feat/hitos-agrupan-tareas`): `milestone-state.ts` (puro: `empty`/`inProgress`/`complete`, `completedWithin`, `phaseChange`), conteo de tareas por hito (`countMilestoneTasks`) y su respuesta por el contrato (`milestoneCountsFor` en la fuente de avance y `contributedMilestones` en `projects`). Aditivo: nada cambia aún para el usuario.
 - [x] **H2: Plan y cierre de fase** (`feat/hitos-h2`): el avance del proyecto sale solo de las tareas; el hito pierde su casilla (ícono de estado derivado y «N de M tareas»); «Hito «X» completo.» al cerrar la última tarea; `weekly-review` cuenta el hito por su última tarea; recurrentes fuera de los hitos (validación + CHECK `tasks_milestone_not_recurring_check`); migración `0023` (hito vacío → una tarea; recurrentes sin hito). **Decisión autónoma para revisar con el owner:** Hitos y Tareas siguen como dos secciones contiguas, sin la sección «Plan» unificada del spec. Falta al cerrar: respaldo verificado de producción antes del deploy.
-- [ ] **H3: Limpieza** (quitar `done_at` de hitos; destructiva: solo con el visto bueno del owner y un respaldo).
+- [x] **H3: Limpieza** (`feat/hitos-h3`): migración `0024` quita `project_milestones.done_at` (con el OK del owner, que además dispensó el respaldo, 2026-10-18). El «hecho» de un hito en las opciones del detalle de tarea se deriva de sus tareas.
 
 ## Módulo `finance-motion` y extensión `finance-gastos`: cerrados el 2026-10-15
 
