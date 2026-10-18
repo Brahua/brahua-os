@@ -131,7 +131,7 @@ test("Marcar como terminado warns about open milestones, then the card is in His
   await expect(page.getByRole("button", { name: "Reabrir" })).toBeFocused();
   await expect(page.getByText(finished)).toBeVisible();
   await expect(page.locator("[data-detail-announcer]")).toHaveText(
-    `«${name}» se marcó como terminado. Quedaron 2 hitos abiertos.`,
+    `«${name}» se marcó como terminado. Quedaron 3 hitos abiertos.`,
   );
   await expect(page.getByText("Vence en 2 días")).toBeHidden();
   await expect(statusGroup(page)).toHaveCount(0);
