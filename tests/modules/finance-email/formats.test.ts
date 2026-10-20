@@ -14,6 +14,7 @@ import {
   LAYOUTS,
   SUBJECTS,
   YAPE_PAYMENT,
+  YAPE_YAPEO,
   mail,
 } from "./fixtures";
 
@@ -169,6 +170,38 @@ describe("Yape payment", () => {
   test("without the amount it is unreadable", () => {
     const text = YAPE_PAYMENT().replace(/Monto total[^\n]*/, "");
     expect(parseEmail(mail("yape", SUBJECTS.yape, text)).type).toBe("unreadable");
+  });
+});
+
+describe("Yape yapeo", () => {
+  test("a yapeo to a person is a transfer to the beneficiary as Yape shows it", () => {
+    expect(reading(parseEmail(mail("yape", SUBJECTS.yapeYapeo, YAPE_YAPEO())))).toEqual({
+      kind: "transfer",
+      amountCents: 3300,
+      currency: "PEN",
+      merchant: "Luis Tor",
+      occurredOn: "2026-10-19",
+      cardLast4: null,
+    });
+  });
+
+  test("the pipe layout reads the same", () => {
+    const text = YAPE_YAPEO().replace(
+      /Yapero.*Nº de operación 17600000/,
+      "| Nombre del Beneficiario | Luis Tor* |\n| Fecha y Hora de la operación | 19 octubre 2026 - 01:56 p. m. |\n| Nº de operación | 17600000 |",
+    );
+    expect(reading(parseEmail(mail("yape", SUBJECTS.yapeYapeo, text)))).toMatchObject({
+      merchant: "Luis Tor",
+      occurredOn: "2026-10-19",
+    });
+  });
+
+  test("without the beneficiary it is unreadable", () => {
+    const text = YAPE_YAPEO().replace(/Nombre del Beneficiario .*? Nº/, "Nº");
+    expect(parseEmail(mail("yape", SUBJECTS.yapeYapeo, text))).toEqual({
+      type: "unreadable",
+      source: "yape",
+    });
   });
 });
 

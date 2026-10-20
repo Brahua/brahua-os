@@ -9,6 +9,7 @@ import { parseBbvaPlin } from "./bbva-plin";
 import { parseBcpConsumption } from "./bcp-consumption";
 import { parseBcpTransfer } from "./bcp-transfer";
 import { parseYapePayment } from "./yape-payment";
+import { parseYapeYapeo } from "./yape-yapeo";
 
 type Format = {
   source: EmailSource;
@@ -42,6 +43,12 @@ const FORMATS: readonly Format[] = [
     parse: parseBcpTransfer,
   },
   { source: "yape", from: YAPE, subject: /^Pago exitoso$/i, parse: parseYapePayment },
+  {
+    source: "yape",
+    from: YAPE,
+    subject: /^Por tu seguridad, te notificaremos por cada yapeo que realices$/i,
+    parse: parseYapeYapeo,
+  },
   {
     source: "bbva",
     from: BBVA,

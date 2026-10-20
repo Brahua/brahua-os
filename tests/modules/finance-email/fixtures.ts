@@ -75,6 +75,21 @@ Celular: *** *** 111
 ID de operación: 1700000000000
 `;
 
+export const YAPE_YAPEO = (opts: { amount?: string; to?: string; when?: string } = {}) =>
+  `*¡Hola, Ana Dem*!*
+
+*¡Acabas de yapear exitosamente!*
+
+*Monto de yapeo**
+
+S/ ${opts.amount ?? "33.00"}
+
+Yapero Ana Dem* Tu número de celular XXXXXXXXX111 Fecha y Hora de la operación ${opts.when ?? "19 octubre 2026 - 01:56 p. m."} Celular del Beneficiario XXXXXXXXX550 Nombre del Beneficiario ${opts.to ?? "Luis Tor*"} Nº de operación 17600000
+
+*Por tu seguridad, te notificaremos por cada
+yapeo que realices.
+`;
+
 export const BBVA_PLIN = (opts: { amount?: string; to?: string; when?: string } = {}) =>
   `| |
 | Hola, ANA |
@@ -164,6 +179,7 @@ export const SUBJECTS = {
   bcpDebit: "Realizaste un consumo con tu Tarjeta de Débito BCP - Servicio de Notificaciones BCP",
   bcpTransfer: "Constancia de Transferencia a Terceros BCP - Servicio de Notificaciones BCP",
   yape: "Pago exitoso",
+  yapeYapeo: "Por tu seguridad, te notificaremos por cada yapeo que realices",
   bbvaPlin: "Constancia de operación transferencia PLIN",
   bbvaPlinQr: "Constancia de operación transferencia PLIN con QR",
   bbvaInterbank: "BBVA - Constancia Transf. Interbancaria",
