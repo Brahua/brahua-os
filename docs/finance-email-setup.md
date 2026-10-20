@@ -25,6 +25,7 @@ Sin la variable `FINANCE_EMAIL_SECRET` la app no se rompe: el endpoint responde 
 | BBVA · Plin enviado (también con QR) | Sugerencia; si el nombre es el tuyo («Mis nombres») se ignora. |
 | BBVA · transferencia interbancaria | Sugerencia; se ignora si es a una cuenta tuya. |
 | Yape · pago exitoso | Sugerencia. |
+| Yape · yapeo a una persona («Por tu seguridad, te notificaremos por cada yapeo que realices») | Sugerencia como transferencia al beneficiario (Yape enmascara el apellido: «Ricardo Cer*»). |
 | Pago de tu propia tarjeta (BCP y BBVA), transferencia entre cuentas propias, puntos BBVA | Se ignoran: ese dinero ya salió en cada consumo. |
 | Estados de cuenta, comprobantes, promociones, lo recibido | No salen de tu Gmail: el script solo mira a los tres remitentes y la app solo reconoce los asuntos de arriba. |
 
