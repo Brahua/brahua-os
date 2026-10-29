@@ -1,6 +1,6 @@
 # Tareas
 
-> Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `learning`** (sin spec todavía: se arranca con `spec-driven-development`), luego `notes` y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Módulo `finance-resumen-charts`: revertido el 2026-10-17 (decisión del owner)
 
@@ -41,7 +41,7 @@ Plan y tareas archivados en [`archive/weekly-review-plan.md`](archive/weekly-rev
 
 ## Módulo `household` (Hogar): cerrado el 2026-10-14
 
-Plan y tareas archivados en [`archive/household-plan.md`](archive/household-plan.md) y [`archive/household-todo.md`](archive/household-todo.md). H1 limpieza (#124), H2 compras (#125) y H3 recetas con el E2E (#126) están en producción; H4 (cierre) trae el script de importación y este cierre. **Siguiente: `health`** (sin spec todavía: se arranca con `spec-driven-development`).
+Plan y tareas archivados en [`archive/household-plan.md`](archive/household-plan.md) y [`archive/household-todo.md`](archive/household-todo.md). H1 limpieza (#124), H2 compras (#125) y H3 recetas con el E2E (#126) están en producción; H4 (cierre) trae el script de importación y este cierre. **Siguiente: `learning`** (sin spec todavía: se arranca con `spec-driven-development`), luego `notes` y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app).
 
 ### `household` → backlog consolidado
 
