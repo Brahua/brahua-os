@@ -1,6 +1,6 @@
 # Tareas
 
-> Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `learning`** (sin spec todavía: se arranca con `spec-driven-development`), luego `notes` y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Sin módulo en curso. Últimos cerrados: **`finance-motion`** y **`finance-gastos`** (extensiones de `finance`, 2026-10-15; plan y tareas en [`archive/finance-motion-plan.md`](archive/finance-motion-plan.md) y [`archive/finance-motion-todo.md`](archive/finance-motion-todo.md)). **Siguiente: `learning`** (spec v1.0 aprobada el 2026-10-29: [`SPEC-learning.md`](../SPEC-learning.md); falta el plan), luego `notes` y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
 ## Módulo `finance-resumen-charts`: revertido el 2026-10-17 (decisión del owner)
 

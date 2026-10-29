@@ -1,7 +1,7 @@
 # Traspaso entre sesiones
 
 > Punto de entrada para retomar el trabajo en una sesión nueva. Se actualiza al cerrar cada tarea o sesión.
-> Última actualización: 2026-10-29 (nuevo orden del owner: **siguiente `learning`**, luego `notes` y al final `health`, que desarrolla en otra app; antes: `household` y `weekly-review` cerrados el 2026-10-14).
+> Última actualización: 2026-10-29 (`SPEC-learning.md` v1.0 aprobada por el owner; falta el plan L1–L4. Nuevo orden del owner: **siguiente `learning`**, luego `notes` y al final `health`, que desarrolla en otra app; antes: `household` y `weekly-review` cerrados el 2026-10-14).
 
 ## Cómo retomar
 
