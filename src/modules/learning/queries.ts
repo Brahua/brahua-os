@@ -6,6 +6,10 @@ import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 // `learning` reads `projects` only through its contract (eslint.config.mjs).
 import { getProjectOptions, selectProjectsProgress } from "@/modules/projects/contracts";
+import { SESSION_WEEKS_SHOWN } from "./learning-constants";
+import { sessionsSince, weekBounds } from "./pace";
+import { selectRunningSession, selectTrackMinutes, selectTrackSessions } from "./sessions";
+import type { RunningSession, SessionItem, TrackMinutes } from "./sessions-input";
 import { selectSteps } from "./steps";
 import type { StepItem } from "./steps-input";
 import {
@@ -65,4 +69,30 @@ export async function listProjectChoices(linkedId: string | null = null): Promis
   if (linkedId === null || options.some((option) => option.id === linkedId)) return options;
   const linked = (await selectProjectsProgress(getDb(), [linkedId])).get(linkedId);
   return linked ? [...options, { id: linkedId, name: linked.name }] : options;
+}
+
+/** The timer that runs now (one in the whole app), or null. */
+export async function getRunningSession(): Promise<RunningSession | null> {
+  await requireOwner();
+  return selectRunningSession(getDb());
+}
+
+/**
+ * Each track's minutes at `now`: this Lima week's and all of them, by track id (a track without
+ * sessions isn't there: 0). `id` narrows it to one track (its page).
+ */
+export async function getTrackMinutes(
+  now: Date,
+  id?: string,
+): Promise<Record<string, TrackMinutes>> {
+  await requireOwner();
+  if (id !== undefined && !trackId.safeParse(id).success) return {};
+  return selectTrackMinutes(getDb(), weekBounds(now), id);
+}
+
+/** A track's sessions of the last weeks (SESSION_WEEKS_SHOWN, this one included), newest first. */
+export async function listTrackSessions(id: string, now: Date): Promise<SessionItem[]> {
+  await requireOwner();
+  if (!trackId.safeParse(id).success) return [];
+  return selectTrackSessions(getDb(), id, sessionsSince(now, SESSION_WEEKS_SHOWN));
 }

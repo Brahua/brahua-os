@@ -14,10 +14,13 @@ import { ScreenServicesProvider } from "@/modules/core/components/screen-service
 import { TrackDetail } from "@/modules/learning/components/track-detail";
 import { LEARNING_COPY as COPY } from "@/modules/learning/learning-copy";
 import {
+  getRunningSession,
   getTrack,
+  getTrackMinutes,
   listActiveTracks,
   listProjectChoices,
   listSteps,
+  listTrackSessions,
 } from "@/modules/learning/queries";
 import {
   addStep,
@@ -35,6 +38,15 @@ import { changeStatus, deleteTrack, undoStatus } from "@/modules/learning/tracks
 import type { StatusChange, TrackItem, TrackRef } from "@/modules/learning/tracks-input";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }));
+vi.mock("@/modules/learning/sessions-actions", () => ({
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+  undoStartSession: vi.fn(),
+  undoStopSession: vi.fn(),
+  logSession: vi.fn(),
+  removeSession: vi.fn(),
+  restoreSession: vi.fn(),
+}));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   useRouter: () => router,
@@ -49,6 +61,9 @@ vi.mock("@/modules/learning/queries", () => ({
   listSteps: vi.fn(),
   listActiveTracks: vi.fn(),
   listProjectChoices: vi.fn(),
+  getRunningSession: vi.fn(),
+  getTrackMinutes: vi.fn(),
+  listTrackSessions: vi.fn(),
 }));
 vi.mock("@/modules/learning/tracks-actions", () => ({
   createTrack: vi.fn(),
@@ -140,6 +155,9 @@ beforeEach(() => {
   vi.mocked(listSteps).mockResolvedValue(STEPS);
   vi.mocked(listActiveTracks).mockResolvedValue([]);
   vi.mocked(listProjectChoices).mockResolvedValue([{ id: id(900), name: "Ruta AWS + IA" }]);
+  vi.mocked(getRunningSession).mockResolvedValue(null);
+  vi.mocked(getTrackMinutes).mockResolvedValue({});
+  vi.mocked(listTrackSessions).mockResolvedValue([]);
 });
 
 describe("the page", () => {
@@ -151,6 +169,10 @@ describe("the page", () => {
     expect(getTrack).toHaveBeenCalledWith(TRACK.id);
     expect(listSteps).toHaveBeenCalledWith(TRACK.id);
     expect(listProjectChoices).toHaveBeenCalledWith(id(900));
+    expect(getRunningSession).toHaveBeenCalled();
+    expect(listTrackSessions).toHaveBeenCalledWith(TRACK.id, expect.any(Date));
+    expect(getTrackMinutes).toHaveBeenCalledWith(expect.any(Date), TRACK.id);
+    expect(screen.getByRole("region", { name: "Sesiones" })).toBeVisible();
     expect(screen.getByRole("heading", { level: 1, name: "AWS SAA" })).toBeVisible();
     expect(screen.getByText("Certificación · En espera")).toBeVisible();
     expect(screen.getByRole("link", { name: "Proyecto: Ruta AWS + IA" })).toHaveAttribute(

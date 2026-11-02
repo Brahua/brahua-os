@@ -10,8 +10,9 @@
 //   counted after taking it, so two requests at once can never make a third.
 // - `(8000, hashtext(<track id>))` (`lockTrack`, steps.ts): a track's syllabus; a settings edit
 //   takes it too (a kind change to `practice` checks the track has no steps).
+// - `(8000, hashtext('learning:timer'))` (`lockTimer`, sessions.ts, L2): every write of a session.
 // Rule: advisory locks are always the first locks of the transaction, never taken after a row
-// lock; no transaction takes both. Only then the rows (the project FOR SHARE).
+// lock; no transaction takes two of them. Only then the rows (the project FOR SHARE).
 //
 // Deleting is a soft delete (`deleted_at`), like everywhere (CLAUDE.md): the track and its steps
 // leave every view; «Deshacer» clears it. `pnpm db:export` keeps deleted rows.
@@ -22,7 +23,12 @@ import type { Database } from "@/lib/db";
 import { selectProjectAvailability } from "@/modules/projects/contracts";
 import { learningSteps, learningTracks } from "./db/schema";
 import { MAX_ACTIVE_TRACKS, type TrackStatus } from "./learning-constants";
-import { LEARNING_ACTIVE_KEY, LEARNING_ADVISORY_SPACE, trackLockKey } from "./lock-keys";
+import {
+  LEARNING_ACTIVE_KEY,
+  LEARNING_ADVISORY_SPACE,
+  LEARNING_TIMER_KEY,
+  trackLockKey,
+} from "./lock-keys";
 import type {
   ChangeStatusInput,
   CreateResult,
@@ -54,6 +60,11 @@ export function lockStatuses(tx: Tx) {
 /** One track's syllabus lock. Must be the first lock of the transaction (see the header). */
 export function lockTrack(tx: Tx, trackId: string) {
   return advisoryLock(tx, trackLockKey(trackId));
+}
+
+/** The timer lock (sessions.ts). Must be the first lock of the transaction (see the header). */
+export function lockTimer(tx: Tx) {
+  return advisoryLock(tx, LEARNING_TIMER_KEY);
 }
 
 /** Tracks that aren't deleted. EVERY read and write of tracks filters with it. */

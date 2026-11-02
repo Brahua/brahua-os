@@ -1,8 +1,9 @@
-// L1 of `learning`: the copy has no guilt (SPEC-learning "Tono", "Estrategia de pruebas"). Scans
+// L1 and L2 of `learning`: the copy has no guilt (SPEC-learning "Tono", "Estrategia de pruebas"). Scans
 // EVERY string exported by every `*-copy.ts` file of the module (L2 and L3 add theirs: the glob
 // picks them up) and what their functions return. A positive control proves the scan can fail.
 import { describe, expect, test } from "vitest";
 import { LEARNING_COPY } from "@/modules/learning/learning-copy";
+import { SESSIONS_COPY } from "@/modules/learning/sessions-copy";
 
 const FORBIDDEN = [
   "atrasad",
@@ -53,9 +54,17 @@ describe("learning copy has no guilt", () => {
     const files = Object.keys(copyModules);
     expect(files.some((file) => file.endsWith("learning-copy.ts"))).toBe(true);
     expect(files.some((file) => file.endsWith("steps-copy.ts"))).toBe(true);
+    expect(files.some((file) => file.endsWith("sessions-copy.ts"))).toBe(true);
     const scanned = allStrings().map(([, text]) => text);
     expect(scanned.length).toBeGreaterThan(100);
-    for (const expected of ["¿Qué quieres aprender?", "Nuevo frente", "Hecho", "Pegar temario"]) {
+    for (const expected of [
+      "¿Qué quieres aprender?",
+      "Nuevo frente",
+      "Hecho",
+      "Pegar temario",
+      "Estudiar",
+      "Anotar tiempo",
+    ]) {
       expect(scanned).toContain(expected);
     }
   });
@@ -65,6 +74,11 @@ describe("learning copy has no guilt", () => {
     const sentences: [string, string][] = [
       ["perWeek", LEARNING_COPY.pace({ kind: "perWeek", perWeek: 4, targetDate: "2026-12-15" })],
       ["passed", LEARNING_COPY.pace({ kind: "passed", targetDate: "2026-10-01" })],
+      // L2: the week below, at and over the target.
+      ["week", SESSIONS_COPY.weekProgress(80, 180)],
+      ["left", SESSIONS_COPY.weekLeft(100)],
+      ["met", SESSIONS_COPY.weekMet(200, 180)],
+      ["confirm", SESSIONS_COPY.confirmText("AWS SAA", 312)],
     ];
     expect(offenders(sentences)).toEqual([]);
   });

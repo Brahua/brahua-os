@@ -27,10 +27,15 @@ import { stepCounts } from "../syllabus";
 import { trackDomain } from "../track-url";
 import { changeStatus, deleteTrack, undoStatus } from "../tracks-actions";
 import type { ProjectChoice, StatusChange, TrackItem, TrackRef } from "../tracks-input";
+import { SESSIONS_COPY } from "../sessions-copy";
+import type { RunningSession } from "../sessions-input";
 import { StepsSection } from "./steps-section";
+import { StudyKey } from "./study-key";
 import { TrackFormSheet } from "./track-form-sheet";
 import { TrackProgress } from "./track-progress";
 import { failureReason, useLearningSave } from "./use-learning-save";
+import { useStudyTimer } from "./use-study-timer";
+import { WeekLine } from "./week-line";
 
 type TrackDetailProps = {
   track: TrackItem;
@@ -45,14 +50,18 @@ type TrackDetailProps = {
   today: string;
   /** Id of the `<h1>`. */
   headingId: string;
-  /** The «Sesiones» slot (L2 fills it); nothing in L1. */
+  /** The «Sesiones» slot: the page renders the track's sessions there (L2). */
   sessions?: React.ReactNode;
+  /** The timer that runs now (any track's), or null. */
+  running?: RunningSession | null;
+  /** The minutes studied this Lima week. */
+  weekMinutes?: number;
 };
 
 /**
  * A track's page (SPEC-learning "Detalle"): its kind and status with their actions («Poner en
  * curso», «Pasar a espera», «Terminar», «Reabrir», «Ajustes», «Eliminar»), the bar, the pace to the
- * date, the syllabus and, from L2, the sessions. Putting a third one in progress offers to move
+ * date, the week's time with «Estudiar»/«Detener», the syllabus and the sessions. Putting a third one in progress offers to move
  * one to «En espera» instead of failing.
  */
 export function TrackDetail({
@@ -64,9 +73,14 @@ export function TrackDetail({
   today,
   headingId,
   sessions = null,
+  running: serverRunning = null,
+  weekMinutes = 0,
 }: TrackDetailProps) {
   const router = useRouter();
   const { send, toaster } = useLearningSave();
+  const timer = useStudyTimer(serverRunning);
+  const elsewhere =
+    timer.running && timer.running.trackId !== track.id ? timer.running.trackTitle : null;
   const [steps, applyChange] = useOptimistic(serverSteps, applyStepChange);
   const counts = stepCounts(steps);
   const pace = paceToDate({ targetDate: track.targetDate, today, ...counts });
@@ -227,11 +241,7 @@ export function TrackDetail({
           <TrackProgress title={track.title} done={counts.done} total={counts.total} size="lg" />
         ) : null}
         <div className="flex flex-col gap-1">
-          {track.weeklyTargetMinutes !== null ? (
-            <p className="bo-text-body-sm text-text-secondary">
-              {COPY.weeklyTarget(track.weeklyTargetMinutes)}
-            </p>
-          ) : null}
+          <WeekLine minutes={weekMinutes} target={track.weeklyTargetMinutes} />
           {track.targetDate ? (
             <p className="bo-text-body-sm text-text-secondary">
               {COPY.targetDate(track.targetDate)}
@@ -251,6 +261,24 @@ export function TrackDetail({
           <p className="bo-text-body" data-track-finish-offer="">
             {COPY.finishOffer}
           </p>
+        ) : null}
+
+        {/* A finished track starts no timer, but one that still runs on it can be stopped. */}
+        {track.status !== "done" || timer.running?.trackId === track.id ? (
+          <div className="flex flex-col gap-2">
+            <StudyKey
+              track={track}
+              running={timer.running}
+              busy={timer.busy}
+              onStart={(from) => timer.start(track, from)}
+              onStop={(from) => timer.stop(from)}
+            />
+            {elsewhere ? (
+              <p className="bo-text-body-sm text-text-secondary" data-study-elsewhere="">
+                {SESSIONS_COPY.runningElsewhere(elsewhere)}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         <div role="group" aria-label={COPY.actionsLabel} className="flex flex-wrap gap-2">
@@ -330,6 +358,7 @@ export function TrackDetail({
       )}
 
       {sessions}
+      {timer.sheet}
 
       <TrackFormSheet
         key={settingsKey}
