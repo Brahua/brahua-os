@@ -19,7 +19,7 @@
 // Removing is a soft delete (`deleted_at`): out of the lists and the week's minutes; «Deshacer»
 // clears it.
 import "server-only";
-import { and, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
 import { learningSessions, learningTracks } from "./db/schema";
@@ -213,6 +213,31 @@ export async function selectTrackMinutes(
     .where(and(liveSession, isNotNull(s.endedAt), trackId ? eq(s.trackId, trackId) : undefined))
     .groupBy(s.trackId);
   return Object.fromEntries(rows.map(({ trackId: id, ...minutes }) => [id, minutes]));
+}
+
+/**
+ * The weekly review's «Estudio» (L3): minutes of the ended, live sessions of live tracks that
+ * started in [from, to) — a Lima week. A deleted track's sessions leave it, as they leave every
+ * view (decisión autónoma para revisar con el owner).
+ */
+export async function selectStudyMinutes(
+  db: Database | Tx,
+  { from, to }: { from: Date; to: Date },
+): Promise<number> {
+  const [row] = await db
+    .select({ minutes: sql<number>`coalesce(sum(${s.minutes}), 0)`.mapWith(Number) })
+    .from(s)
+    .innerJoin(learningTracks, eq(learningTracks.id, s.trackId))
+    .where(
+      and(
+        liveSession,
+        liveTrack,
+        isNotNull(s.endedAt),
+        gte(s.startedAt, from),
+        lt(s.startedAt, to),
+      ),
+    );
+  return row?.minutes ?? 0;
 }
 
 // ── The timer ────────────────────────────────────────────────────────────────────────────────

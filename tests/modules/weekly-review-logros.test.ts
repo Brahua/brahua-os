@@ -32,6 +32,7 @@ function sources(overrides: Partial<LogrosSources> = {}): LogrosSources {
     },
     projects: { weekStart: "2026-10-12", projects: [], milestonesDone: [] },
     goals: { weekStart: "2026-10-12", active: [], achieved: [], entries: [] },
+    learning: { minutes: 0 },
     ...overrides,
   } as LogrosSources;
 }
@@ -66,6 +67,7 @@ describe("buildLogros", () => {
       tasksDone: 0,
       milestonesDone: 0,
       goalsAchieved: 0,
+      studyMinutes: 0,
       topHabits: [],
       recentTasks: [],
       milestones: [],
@@ -138,6 +140,28 @@ describe("buildLogros", () => {
       }),
     );
     expect(model.quiet).toBe(false);
+  });
+});
+
+describe("Estudio (L3 of learning)", () => {
+  test("the week's study minutes are a figure, and alone they are not a quiet week", () => {
+    const model = buildLogros("2026-10-12", sources({ learning: { minutes: 200 } }));
+    expect(model.studyMinutes).toBe(200);
+    expect(model.quiet).toBe(false);
+  });
+
+  test("no study (0) keeps a week with nothing else quiet", () => {
+    const model = buildLogros("2026-10-12", sources({ learning: { minutes: 0 } }));
+    expect(model).toMatchObject({ studyMinutes: 0, quiet: true });
+  });
+
+  test.each([
+    [200, "3 h 20"],
+    [45, "45 min"],
+    [120, "2 h"],
+    [61, "1 h 1"],
+  ])("%i min reads «%s»", (minutes, text) => {
+    expect(LOGROS_COPY.studyFigure(minutes)).toBe(text);
   });
 });
 

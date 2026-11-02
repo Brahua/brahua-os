@@ -78,6 +78,11 @@ export type TodayBoardProps = {
   /** Slot D2, "Tareas": after "Hábitos". */
   tasks?: TodaySlot;
   /**
+   * Slot L3 (`learning`), "Estudio": after "Tareas". `count` is the tracks in progress; they never
+   * keep "Día completo" away.
+   */
+  study?: TodaySlot;
+  /**
    * Slot F4 (`finance`), "Pagos": after "Tareas", before "Proyectos". Its overdue and due-today
    * rows keep "Día completo" away (the upcoming ones don't).
    */
@@ -88,7 +93,7 @@ export type TodayBoardProps = {
 
 /**
  * The daily board (SPEC-today "Pantalla"): "Día completo" (D4) → "Hábitos" → "Tareas" (D2) →
- * "Pagos" (F4 of `finance`) → "Proyectos" (D3); a section without items is left out, and with
+ * "Estudio" (L3 of `learning`) → "Pagos" (F4 of `finance`) → "Proyectos" (D3); a section without items is left out, and with
  * nothing at all a calm empty day. One `ScreenServicesProvider` for everything on it: one save
  * queue, one notice viewport, one announcer, and one watch of Lima's day (the page is read again
  * once when it changes, the empty day included). A Server Component: only the provider and the
@@ -101,6 +106,7 @@ export function TodayBoard({
   habits,
   dayComplete,
   tasks,
+  study,
   payments,
   projects,
 }: TodayBoardProps) {
@@ -113,6 +119,7 @@ export function TodayBoard({
   const sections = todaySections({
     habits: habits.length,
     tasks: tasks?.count,
+    study: study?.count,
     payments: payments?.count,
     projects: projects?.count,
     dayComplete: dayComplete !== undefined && isDayComplete(tally),
@@ -136,6 +143,7 @@ export function TodayBoard({
           <TodayHabits today={today} habits={habits} />
           {/* Mounted whenever the slot is given, even at 0: see `TodaySlot`. */}
           {tasks ? tasks.content : null}
+          {study ? study.content : null}
           {payments ? payments.content : null}
           {projects ? projects.content : null}
         </div>

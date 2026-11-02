@@ -473,7 +473,8 @@ test.each([
 
 // SPEC-learning "Contratos": `learning` reads `projects` only through its contract and routes and
 // imports no other module but `core` (its schema file may import the projects table, for the
-// foreign key). Only `today` and `weekly-review` may read it, and only `@/modules/learning/contracts`.
+// foreign key). Only `today` and `weekly-review` may read it: `weekly-review` only
+// `@/modules/learning/contracts`, `today` also its routes and the study cards (L3).
 const IMPORT_LEARNING = `import { LEARNING_PATH } from "@/modules/learning/routes";
 export const path = LEARNING_PATH;
 `;
@@ -502,22 +503,45 @@ test.each([
   }
 });
 
-test.each(["src/modules/today/today-board.ts", "src/modules/weekly-review/queries.ts"])(
-  "%s may read the contract of learning and nothing else of it",
-  async (file) => {
-    expect(await restricted(IMPORT_LEARNING_CONTRACT, file)).toEqual([]);
-    for (const code of [
-      IMPORT_LEARNING,
-      IMPORT_LEARNING_BARREL,
-      `import { selectTrackItems } from "@/modules/learning/tracks";\nexport const x = selectTrackItems;\n`,
-      `import { learningTracks } from "@/modules/learning/db/schema";\nexport const x = learningTracks;\n`,
-    ]) {
-      const messages = await restricted(code, file);
-      expect(messages).toHaveLength(1);
-      expect(messages[0]).toContain("leen `learning` solo por su contrato");
-    }
-  },
-);
+test("weekly-review may read the contract of learning and nothing else of it", async () => {
+  const file = "src/modules/weekly-review/queries.ts";
+  expect(await restricted(IMPORT_LEARNING_CONTRACT, file)).toEqual([]);
+  for (const code of [
+    IMPORT_LEARNING,
+    IMPORT_LEARNING_BARREL,
+    `import { StudyTodayCards } from "@/modules/learning/components/study-today";\nexport const x = StudyTodayCards;\n`,
+    `import { selectTrackItems } from "@/modules/learning/tracks";\nexport const x = selectTrackItems;\n`,
+    `import { learningTracks } from "@/modules/learning/db/schema";\nexport const x = learningTracks;\n`,
+  ]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("leen `learning` solo por su contrato");
+  }
+});
+
+// L3: `today` draws «Estudio» with learning's «Sigue con» cards, so it may also import the routes
+// and that one component; nothing else (other components, the data layer, the actions).
+test("today may read the contract, the routes and the study cards of learning, nothing else", async () => {
+  const file = "src/modules/today/components/today-study.tsx";
+  for (const code of [
+    IMPORT_LEARNING_CONTRACT,
+    IMPORT_LEARNING,
+    `import { StudyTodayCards } from "@/modules/learning/components/study-today";\nexport const x = StudyTodayCards;\n`,
+  ]) {
+    expect(await restricted(code, file)).toEqual([]);
+  }
+  for (const code of [
+    IMPORT_LEARNING_BARREL,
+    `import { StudyKey } from "@/modules/learning/components/study-key";\nexport const x = StudyKey;\n`,
+    `import { startSession } from "@/modules/learning/sessions-actions";\nexport const x = startSession;\n`,
+    `import { selectTrackItems } from "@/modules/learning/tracks";\nexport const x = selectTrackItems;\n`,
+    `import { learningTracks } from "@/modules/learning/db/schema";\nexport const x = learningTracks;\n`,
+  ]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("solo por su contrato (`contracts`), sus rutas");
+  }
+});
 
 test("learning itself, its pages and the registry may import it", async () => {
   expect(await restricted(IMPORT_LEARNING, "src/modules/learning/tracks.ts")).toEqual([]);

@@ -40,7 +40,8 @@ export function openWork(
 ): OpenWork {
   const open = (counts?: ProgressCounts | null) => {
     const clean = combineProgressCounts(counts);
-    return clean ? clean.total - clean.done : 0;
+    // A unit partly done (a learning track at 50 %) is still open: round what is left up.
+    return clean ? Math.max(0, Math.ceil(clean.total - clean.done - 1e-9)) : 0;
   };
   return { milestones: open(milestones), tasks: open(contributed) };
 }

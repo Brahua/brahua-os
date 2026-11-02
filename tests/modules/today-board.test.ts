@@ -59,52 +59,62 @@ describe("todaySections", () => {
     [
       "nothing at all: an empty day",
       { habits: 0 },
-      { habits: false, tasks: false, payments: false, projects: false, empty: true },
+      { habits: false, tasks: false, study: false, payments: false, projects: false, empty: true },
     ],
     [
       "slots given with nothing in them: still an empty day",
       { habits: 0, tasks: 0, projects: 0 },
-      { habits: false, tasks: false, payments: false, projects: false, empty: true },
+      { habits: false, tasks: false, study: false, payments: false, projects: false, empty: true },
     ],
     [
       "only habits",
       { habits: 3 },
-      { habits: true, tasks: false, payments: false, projects: false, empty: false },
+      { habits: true, tasks: false, study: false, payments: false, projects: false, empty: false },
     ],
     [
       "only tasks (D2): habits hidden, not empty",
       { habits: 0, tasks: 2 },
-      { habits: false, tasks: true, payments: false, projects: false, empty: false },
+      { habits: false, tasks: true, study: false, payments: false, projects: false, empty: false },
     ],
     [
       "only projects (D3): not empty",
       { habits: 0, tasks: 0, projects: 1 },
-      { habits: false, tasks: false, payments: false, projects: true, empty: false },
+      { habits: false, tasks: false, study: false, payments: false, projects: true, empty: false },
     ],
     [
       "only Día completo (D4, e.g. every task done and gone): not the empty day too",
       { habits: 0, tasks: 0, projects: 0, dayComplete: true },
-      { habits: false, tasks: false, payments: false, projects: false, empty: false },
+      { habits: false, tasks: false, study: false, payments: false, projects: false, empty: false },
     ],
     [
       "everything",
-      { habits: 1, tasks: 9, payments: 2, projects: 2 },
-      { habits: true, tasks: true, payments: true, projects: true, empty: false },
+      { habits: 1, tasks: 9, study: 2, payments: 2, projects: 2 },
+      { habits: true, tasks: true, study: true, payments: true, projects: true, empty: false },
     ],
     [
       "only payments (F4): not empty",
       { habits: 0, tasks: 0, payments: 1, projects: 0 },
-      { habits: false, tasks: false, payments: true, projects: false, empty: false },
+      { habits: false, tasks: false, study: false, payments: true, projects: false, empty: false },
     ],
     [
       "payments slot with no rows: still an empty day",
       { habits: 0, tasks: 0, payments: 0, projects: 0 },
-      { habits: false, tasks: false, payments: false, projects: false, empty: true },
+      { habits: false, tasks: false, study: false, payments: false, projects: false, empty: true },
     ],
     [
       "only upcoming payments (none due yet): the section shows, so the day isn't empty",
       { habits: 0, payments: 2, dayComplete: false },
-      { habits: false, tasks: false, payments: true, projects: false, empty: false },
+      { habits: false, tasks: false, study: false, payments: true, projects: false, empty: false },
+    ],
+    [
+      "only study (L3 of learning, a track in progress): not empty",
+      { habits: 0, tasks: 0, study: 1, payments: 0, projects: 0 },
+      { habits: false, tasks: false, study: true, payments: false, projects: false, empty: false },
+    ],
+    [
+      "study slot with no track in progress: still an empty day",
+      { habits: 0, tasks: 0, study: 0, payments: 0, projects: 0 },
+      { habits: false, tasks: false, study: false, payments: false, projects: false, empty: true },
     ],
   ])("%s", (_, counts, expected) => {
     expect(todaySections(counts)).toEqual(expected);

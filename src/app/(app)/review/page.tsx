@@ -4,6 +4,7 @@ import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
 import { getGoalsWeekReview, getWeeklyObjectiveForWeek } from "@/modules/goals/contracts";
 import { getHabitsWeekCompleteDays, getHabitsWeekSummary } from "@/modules/habits/contracts";
+import { getLearningWeekReview } from "@/modules/learning/contracts";
 import { getProjectsWeekReview } from "@/modules/projects/contracts";
 import { getTasksWeekReview } from "@/modules/tasks/contracts";
 import { ReviewShell } from "@/modules/weekly-review/components/review-shell";
@@ -47,16 +48,18 @@ export async function generateMetadata({ searchParams }: ReviewPageProps): Promi
   return { title: `${REVIEW_COPY.steps[step - 1]} · ${REVIEW_COPY.pageTitle} · brahua-os` };
 }
 
-/** The five readings of step 1 and of the closing screen, as the figures of the week. */
+/** The six readings of step 1 and of the closing screen, as the figures of the week. */
 async function readLogros(weekStart: string, now: Date) {
-  const [habits, completeDays, tasks, projects, goals] = await Promise.all([
+  const [habits, completeDays, tasks, projects, goals, learning] = await Promise.all([
     getHabitsWeekSummary(weekStart, now),
     getHabitsWeekCompleteDays(weekStart, now),
     getTasksWeekReview(weekStart),
     getProjectsWeekReview(weekStart, now),
     getGoalsWeekReview(weekStart, now),
+    // L3 of `learning`: «Estudio» (minutes of the week's sessions).
+    getLearningWeekReview(weekStart),
   ]);
-  return buildLogros(weekStart, { habits, completeDays, tasks, projects, goals });
+  return buildLogros(weekStart, { habits, completeDays, tasks, projects, goals, learning });
 }
 
 /**

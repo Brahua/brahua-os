@@ -271,7 +271,8 @@ const HOUSEHOLD_ONLY_CORE_AND_CONTRACTS = {
 };
 // `learning` (SPEC-learning "Contratos") sits above `projects`: it reads it only through its
 // contract (`contracts`) and its client-safe routes, and imports no other module but `core`. Only
-// `today` and `weekly-review` read it (L3), and only through `@/modules/learning/contracts`.
+// `today` and `weekly-review` read it (L3): `weekly-review` only through `@/modules/learning/contracts`,
+// `today` also through its routes and the «Sigue con» cards (LEARNING_FOR_TODAY).
 const LEARNING_IMPORT = {
   group: ["@/modules/learning", "@/modules/learning/*"],
   message: "`learning` depende de este módulo: no puede importarlo.",
@@ -285,6 +286,28 @@ const LEARNING_FOR_CONSUMERS = {
   message: LEARNING_FOR_CONSUMERS_MESSAGE,
 };
 const LEARNING_BARREL = { name: "@/modules/learning", message: LEARNING_FOR_CONSUMERS_MESSAGE };
+// `today` draws «Estudio» (L3) with `learning`'s own «Sigue con» cards, like it draws «Pagos» with
+// `finance`'s row: besides the contract it may import the client-safe routes and the one component
+// `components/study-today` (the cards bring the timer, «Hecho» and their notices). Never the data
+// layer, the actions or the screens. Same gotcha as FINANCE_FOR_TODAY: `components` is let in before
+// its files, and only the one file is let back.
+const LEARNING_FOR_TODAY_MESSAGE =
+  "`today` lee `learning` solo por su contrato (`contracts`), sus rutas (`routes`) y las tarjetas `components/study-today`.";
+const LEARNING_FOR_TODAY = {
+  group: [
+    "@/modules/learning/*",
+    "!@/modules/learning/contracts",
+    "!@/modules/learning/routes",
+    "!@/modules/learning/components",
+    "@/modules/learning/components/*",
+    "!@/modules/learning/components/study-today",
+  ],
+  message: LEARNING_FOR_TODAY_MESSAGE,
+};
+const LEARNING_BARREL_FOR_TODAY = {
+  name: "@/modules/learning",
+  message: LEARNING_FOR_TODAY_MESSAGE,
+};
 const LEARNING_MESSAGE =
   "`learning` lee `projects` solo por su contrato (`contracts`) y sus rutas (`routes`).";
 const LEARNING_ONLY_CONTRACTS = {
@@ -411,13 +434,13 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL, LEARNING_BARREL],
+          paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL, LEARNING_BARREL_FOR_TODAY],
           patterns: [
             FINANCE_FOR_TODAY,
             REMINDERS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
-            LEARNING_FOR_CONSUMERS,
+            LEARNING_FOR_TODAY,
           ],
         },
       ],

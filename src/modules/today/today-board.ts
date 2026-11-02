@@ -20,6 +20,8 @@ export const TODAY_HEADING_ID = "today-title";
 export type TodayCounts = {
   habits: number;
   tasks?: number;
+  /** L3 of `learning` (`getLearningTodaySummary`): the tracks in progress («Estudio»). */
+  study?: number;
   /** F4 of `finance` (`getFinanceTodaySummary`): every pending period shown, upcoming included. */
   payments?: number;
   projects?: number;
@@ -31,6 +33,7 @@ export type TodayCounts = {
 export type TodaySections = {
   habits: boolean;
   tasks: boolean;
+  study: boolean;
   payments: boolean;
   projects: boolean;
   /** Nothing at all today: the calm "Nada programado para hoy" instead of the sections. */
@@ -44,6 +47,9 @@ export type TodaySections = {
  * themselves when they have no rows (`TodaySlot`), so `tasks`, `payments` and `projects` here only
  * say whether they have items according to the server's read.
  *
+ * Study (L3 of `learning`): a track in progress shows its «Sigue con» card, so the day is not
+ * empty either; it never keeps «Día completo» away (studying is not due on a day).
+ *
  * Payments (F4): a day whose only rows are upcoming payments (due within 7 days, nothing overdue
  * or due today) is not empty, because "Pagos" shows them: the empty day never sits next to a
  * section with rows (decision to review with the owner: the conservative reading).
@@ -51,15 +57,17 @@ export type TodaySections = {
 export function todaySections(counts: TodayCounts): TodaySections {
   const habits = counts.habits > 0;
   const tasks = (counts.tasks ?? 0) > 0;
+  const study = (counts.study ?? 0) > 0;
   const payments = (counts.payments ?? 0) > 0;
   const projects = (counts.projects ?? 0) > 0;
   const dayComplete = counts.dayComplete ?? false;
   return {
     habits,
     tasks,
+    study,
     payments,
     projects,
-    empty: !habits && !tasks && !payments && !projects && !dayComplete,
+    empty: !habits && !tasks && !study && !payments && !projects && !dayComplete,
   };
 }
 

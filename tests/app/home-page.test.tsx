@@ -8,6 +8,7 @@ import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { getFinanceTodaySummary, type FinanceTodayItem } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
+import { getLearningTodaySummary } from "@/modules/learning/contracts";
 import { setHabitDone } from "@/modules/habits/log-actions";
 import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import {
@@ -30,6 +31,18 @@ vi.mock("@/modules/tasks/recurrence-actions", () => ({
 }));
 vi.mock("@/modules/projects/contracts", () => ({ getProjectsTodaySummary: vi.fn() }));
 vi.mock("@/modules/finance/contracts", () => ({ getFinanceTodaySummary: vi.fn() }));
+// L3 of `learning`: «Estudio» reads its contract; the cards' actions are never called here.
+vi.mock("@/modules/learning/contracts", () => ({ getLearningTodaySummary: vi.fn() }));
+vi.mock("@/modules/learning/sessions-actions", () => ({
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+  undoStartSession: vi.fn(),
+  undoStopSession: vi.fn(),
+}));
+vi.mock("@/modules/learning/steps-actions", () => ({
+  markStepDone: vi.fn(),
+  undoMarkStepDone: vi.fn(),
+}));
 vi.mock("@/modules/finance/payment-actions", () => ({ markPaid: vi.fn(), undoPaid: vi.fn() }));
 vi.mock("@/modules/finance/catalog-actions", () => ({ readFinanceCatalog: vi.fn() }));
 vi.mock("@/modules/habits/log-actions", () => ({
@@ -59,6 +72,8 @@ beforeEach(() => {
   vi.mocked(getTasksDoneTodayCount).mockResolvedValue(0);
   vi.mocked(getFinanceTodaySummary).mockReset();
   vi.mocked(getFinanceTodaySummary).mockResolvedValue([]);
+  vi.mocked(getLearningTodaySummary).mockReset();
+  vi.mocked(getLearningTodaySummary).mockResolvedValue({ tracks: [], running: null });
 });
 
 afterEach(() => {
@@ -94,6 +109,7 @@ test("home page does not render without the owner (requireOwner redirects)", asy
   expect(getProjectsTodaySummary).not.toHaveBeenCalled();
   expect(getTasksDoneTodayCount).not.toHaveBeenCalled();
   expect(getFinanceTodaySummary).not.toHaveBeenCalled();
+  expect(getLearningTodaySummary).not.toHaveBeenCalled();
 });
 
 test("home page reads the projects summary at the same instant and shows Proyectos (D3)", async () => {
@@ -119,6 +135,64 @@ test("home page reads the projects summary at the same instant and shows Proyect
   );
   // Something is due: no empty day.
   expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
+});
+
+test("home page reads the study summary at the same instant and shows Estudio after Tareas (L3)", async () => {
+  vi.mocked(getTasksTodaySummary).mockResolvedValue([
+    {
+      id: "00000000-0000-4000-8000-0000000000t1",
+      title: "Pagar la luz",
+      dueDate: "2026-09-30",
+      dueTime: null,
+      due: { kind: "today", days: 0, label: "Vence hoy" },
+      priority: "medium",
+      area: null,
+      project: null,
+      isNextAction: false,
+    } as TaskTodayItem,
+  ]);
+  vi.mocked(getLearningTodaySummary).mockResolvedValue({
+    tracks: [
+      {
+        id: "00000000-0000-4000-8000-0000000000c1",
+        title: "AWS SAA",
+        kind: "certification",
+        steps: { done: 12, total: 40 },
+        upcoming: [
+          { id: "00000000-0000-4000-8000-0000000000d1", title: "Clase 13: IAM policies" },
+          { id: "00000000-0000-4000-8000-0000000000d2", title: "Clase 14: S3" },
+        ],
+        weekMinutes: 80,
+        weeklyTargetMinutes: 180,
+      },
+    ],
+    running: null,
+  });
+  render(await Home());
+  expect(getLearningTodaySummary).toHaveBeenCalledTimes(1);
+  expect(getLearningTodaySummary).toHaveBeenCalledWith(new Date("2026-09-30T13:15:00Z"));
+  const section = screen.getByRole("region", { name: "Estudio" });
+  expect(within(section).getByRole("link", { name: "AWS SAA" })).toHaveAttribute(
+    "href",
+    "/learning/00000000-0000-4000-8000-0000000000c1",
+  );
+  expect(within(section).getByText("Clase 13: IAM policies")).toBeInTheDocument();
+  expect(
+    within(section).getByText("1 h 20 de 3 h esta semana · Te faltan 1 h 40"),
+  ).toBeInTheDocument();
+  expect(
+    within(section).getByRole("button", { name: "Estudiar AWS SAA: iniciar el cronómetro" }),
+  ).toBeInTheDocument();
+  // After «Tareas» in the board.
+  const tasks = screen.getByRole("region", { name: /^Tareas/ });
+  expect(tasks.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
+});
+
+test("a track in progress alone keeps the day from being empty; none hides «Estudio»", async () => {
+  render(await Home());
+  expect(screen.queryByRole("region", { name: "Estudio" })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Nada programado para hoy" })).toBeInTheDocument();
 });
 
 test("greeting and date follow Lima, not UTC, around midnight", async () => {

@@ -16,6 +16,7 @@ function model(values: Partial<LogrosModel> = {}): LogrosModel {
     tasksDone: 11,
     milestonesDone: 2,
     goalsAchieved: 1,
+    studyMinutes: 0,
     topHabits: [{ id: "h1", name: "Correr", done: 6, expected: 7 }],
     recentTasks: [{ id: "t1", title: "Pagar la luz" }],
     milestones: [{ id: "m1", title: "Primer prototipo", projectName: "Lanzar brahua-os" }],
@@ -116,6 +117,17 @@ describe("StepLogros", () => {
       "/goals/g1",
     );
     expect(screen.queryByText("Una semana tranquila")).not.toBeInTheDocument();
+  });
+
+  test("«Estudio» (L3 of learning): a fifth figure with the week's time, none at 0", () => {
+    const { unmount } = render(<StepLogros model={model({ studyMinutes: 200 })} />);
+    const figure = document.querySelector("[data-figure=study]") as HTMLElement;
+    expect(within(figure).getByText("3 h 20")).toBeVisible();
+    expect(within(figure).getByText("de estudio")).toBeVisible();
+    unmount();
+    render(<StepLogros model={model({ studyMinutes: 0 })} />);
+    expect(document.querySelector("[data-figure=study]")).toBeNull();
+    expect(document.querySelector("[data-figure=goals]")).not.toBeNull();
   });
 
   test("a week with nothing says «Una semana tranquila», without highlights or scolding", () => {

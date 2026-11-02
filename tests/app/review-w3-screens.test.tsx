@@ -158,6 +158,7 @@ const MODEL: LogrosModel = {
   tasksDone: 11,
   milestonesDone: 2,
   goalsAchieved: 1,
+  studyMinutes: 0,
   topHabits: [],
   recentTasks: [],
   milestones: [],
