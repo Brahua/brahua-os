@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { StatNumber } from "@/design-system";
+import { cn } from "@/lib/cn";
 import { LOGROS_COPY } from "../review-copy";
 import type { LogrosModel } from "../logros";
 
@@ -7,7 +8,7 @@ type StepLogrosProps = { model: LogrosModel };
 
 /**
  * Step 1 · Logros (SPEC-weekly-review "Pantallas"): «Días completos esta semana: N», the four big
- * figures and, under them, what is worth naming. A Server Component: nothing here changes on the
+ * figures (a fifth, «3 h 20 de estudio», when the week had study sessions: SPEC-learning L3) and, under them, what is worth naming. A Server Component: nothing here changes on the
  * client. No comparisons with other weeks; a week with nothing to count says so gently.
  */
 export function StepLogros({ model }: StepLogrosProps) {
@@ -24,6 +25,16 @@ export function StepLogros({ model }: StepLogrosProps) {
     { key: "tasks", value: model.tasksDone, label: LOGROS_COPY.tasksDone },
     { key: "milestones", value: model.milestonesDone, label: LOGROS_COPY.milestones },
     { key: "goals", value: model.goalsAchieved, label: LOGROS_COPY.goals },
+    // L3 of `learning`: «3 h 20 de estudio», only when something was studied.
+    ...(model.studyMinutes > 0
+      ? [
+          {
+            key: "study",
+            value: LOGROS_COPY.studyFigure(model.studyMinutes),
+            label: LOGROS_COPY.study,
+          },
+        ]
+      : []),
   ];
   return (
     <div className="flex flex-col gap-6" data-review-step="logros">
@@ -31,7 +42,13 @@ export function StepLogros({ model }: StepLogrosProps) {
         {LOGROS_COPY.completeDays(model.completeDays)}
       </p>
 
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-review-figures="">
+      <dl
+        className={cn(
+          "grid grid-cols-2 gap-3",
+          figures.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4",
+        )}
+        data-review-figures=""
+      >
         {figures.map(({ key, value, label }) => (
           <div key={key} className="bo-card gap-1" data-figure={key}>
             <dt className="bo-text-label order-2 text-text-secondary">{label}</dt>

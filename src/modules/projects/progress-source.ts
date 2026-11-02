@@ -4,7 +4,11 @@
 // to the milestones'. Pure and client-safe (types, the sum and a registry factory); the app's
 // registry and the reads live in contracts.ts (server-only).
 
-/** Done and total units of work of one project (milestones, tasks, …). */
+/**
+ * Done and total units of work of one project (tasks, learning tracks, …). `total` is a whole
+ * number of units; `done` may be fractional (SPEC-learning L3: a track is one unit and contributes
+ * its share of steps done), 0 ≤ done ≤ total. A milestone's counts stay whole (tasks only).
+ */
 export type ProgressCounts = { done: number; total: number };
 
 /**
@@ -32,17 +36,29 @@ export type ProgressSource = {
   ): Promise<ReadonlyMap<string, MilestoneCounts>>;
 };
 
-/** Whole, non-negative counts with done ≤ total, so one bad pair can't distort the sum. */
+/**
+ * A whole, non-negative total and a non-negative `done` ≤ total (fractional allowed: a learning
+ * track at 50 % is 0.5), so one bad pair can't distort the sum.
+ */
 function clean(counts: ProgressCounts): ProgressCounts {
   const total = Number.isFinite(counts.total) ? Math.max(0, Math.floor(counts.total)) : 0;
-  const done = Number.isFinite(counts.done) ? Math.max(0, Math.floor(counts.done)) : 0;
+  const done = Number.isFinite(counts.done) ? Math.max(0, counts.done) : 0;
   return { done: Math.min(done, total), total };
+}
+
+/**
+ * The whole units done of a (possibly fractional) `done`, rounded down: every «N de M» says it
+ * (1.5 of 3 is «1 de 3»). A hair under a whole number from adding fractions still counts as it.
+ */
+export function wholeDone(done: number): number {
+  return Math.floor(done + 1e-9);
 }
 
 /**
  * Combines counts of the same project by adding them: the milestones' and every source's
  * (SPEC-projects: "con tareas, el avance combina hitos y tareas"). Each unit weighs the same, so
- * 1 of 2 milestones plus 3 of 8 tasks is 4 of 10. Undefined parts are skipped; nothing at all
+ * 1 of 2 milestones plus 3 of 8 tasks is 4 of 10, and 1 of 2 tasks plus a track at 50 % is 1.5 of
+ * 3 (`done` stays exact; the texts round it down). Undefined parts are skipped; nothing at all
  * (or only zeros) gives `undefined`, so a project with nothing to count still shows no progress.
  */
 export function combineProgressCounts(

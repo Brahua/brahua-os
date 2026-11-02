@@ -29,6 +29,11 @@ export const TODAY_COPY = {
   tasksLess: "Ver menos",
   seeTasks: "Ver tareas",
 
+  // ── Estudio (L3 of `learning`) ──
+  studyTitle: "Estudio",
+  studyList: "Frentes en curso",
+  seeLearning: "Ver aprendizaje",
+
   // ── Día completo (D4) ──
   dayCompleteTitle: "Día completo",
   /**

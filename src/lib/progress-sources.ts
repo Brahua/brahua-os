@@ -10,10 +10,14 @@
 // to the quick capture in T1 of `tasks`: the registration never reached the production build).
 import "server-only";
 import { registerProgressSource, type ProgressSource } from "@/modules/projects/contracts";
+import { learningProgressSource } from "@/modules/learning/progress-source";
 import { tasksProgressSource } from "@/modules/tasks/progress-source";
 
-/** Every module's progress source: `tasks` (T5) counts each project's tasks. */
-export const SOURCES: readonly ProgressSource[] = [tasksProgressSource];
+/**
+ * Every module's progress source: `tasks` (T5) counts each project's tasks; `learning` (L3) counts
+ * each linked track as one unit with its share of steps done.
+ */
+export const SOURCES: readonly ProgressSource[] = [tasksProgressSource, learningProgressSource];
 
 let registered = false;
 

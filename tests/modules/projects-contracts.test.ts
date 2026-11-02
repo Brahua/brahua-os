@@ -4,9 +4,14 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { contributedProgress, registerProgressSource } from "@/modules/projects/contracts";
+import { formatStat } from "@/design-system/stat-format";
+import { MILESTONES_COPY } from "@/modules/projects/milestones-copy";
+import { openWork } from "@/modules/projects/project-close";
+import { milestoneProgress } from "@/modules/projects/progress";
 import {
   combineProgressCounts,
   createProgressRegistry,
+  wholeDone,
   type ProgressCounts,
   type ProgressSource,
 } from "@/modules/projects/progress-source";
@@ -64,6 +69,39 @@ describe("combineProgressCounts", () => {
         },
       ),
     ).toEqual({ done: 2, total: 5 });
+  });
+});
+
+describe("fractional done (SPEC-learning L3)", () => {
+  test("1 of 2 tasks plus a track at 50 % is 1.5 of 3: 50 % and «1 de 3»", () => {
+    const counts = combineProgressCounts({ done: 1, total: 2 }, { done: 0.5, total: 1 });
+    expect(counts).toEqual({ done: 1.5, total: 3 });
+    const progress = milestoneProgress(counts, "active");
+    expect(progress).toEqual({ done: 1, total: 3, ratio: 0.5 });
+    expect(MILESTONES_COPY.progressCount(progress!.done, progress!.total)).toBe("1 de 3");
+    expect(formatStat(progress!.ratio, "percent")).toBe(formatStat(0.5, "percent"));
+  });
+
+  test("done stays between 0 and the whole total; fractions add up to whole units", () => {
+    expect(combineProgressCounts({ done: 2.5, total: 2 })).toEqual({ done: 2, total: 2 });
+    expect(combineProgressCounts({ done: -0.5, total: 1 })).toEqual({ done: 0, total: 1 });
+    expect(wholeDone(1 / 3 + 2 / 3)).toBe(1);
+    expect(wholeDone(0.1 + 0.2 + 0.7)).toBe(1);
+    expect(wholeDone(0.99)).toBe(0);
+  });
+
+  test("never 100 % until every unit is whole", () => {
+    expect(milestoneProgress({ done: 0.996, total: 1 }, "active")).toEqual({
+      done: 0,
+      total: 1,
+      ratio: 0.99,
+    });
+    expect(milestoneProgress({ done: 3, total: 3 }, "active")?.ratio).toBe(1);
+  });
+
+  test("a partly done unit is still open work for «Cerrar proyecto»", () => {
+    expect(openWork(undefined, { done: 1.5, total: 3 })).toEqual({ milestones: 0, tasks: 2 });
+    expect(openWork(undefined, { done: 3, total: 3 })).toEqual({ milestones: 0, tasks: 0 });
   });
 });
 

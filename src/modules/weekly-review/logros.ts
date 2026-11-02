@@ -3,6 +3,7 @@
 // (types only come from the contracts, erased at build time): the page reads, this decides.
 import type { HabitsWeekCompleteDays, HabitsWeekSummary } from "@/modules/habits/contracts";
 import type { GoalsWeekReview } from "@/modules/goals/contracts";
+import type { LearningWeekReview } from "@/modules/learning/contracts";
 import type { ProjectsWeekReview } from "@/modules/projects/contracts";
 import type { TasksWeekReview } from "@/modules/tasks/contracts";
 
@@ -23,6 +24,8 @@ export type LogrosModel = {
   tasksDone: number;
   milestonesDone: number;
   goalsAchieved: number;
+  /** «Estudio: 3 h 20» (L3 of `learning`): minutes of the week's study sessions; hidden at 0. */
+  studyMinutes: number;
   /** The most consistent habits (done over expected, at least one done), best first. */
   topHabits: HabitHighlight[];
   recentTasks: { id: string; title: string }[];
@@ -64,12 +67,14 @@ export type LogrosSources = {
   tasks: TasksWeekReview;
   projects: ProjectsWeekReview;
   goals: GoalsWeekReview;
+  /** L3 of `learning`: the minutes studied that week. */
+  learning: LearningWeekReview;
 };
 
-/** The step's model from the five readings of the week. */
+/** The step's model from the six readings of the week. */
 export function buildLogros(
   weekStart: string,
-  { habits, completeDays, tasks, projects, goals }: LogrosSources,
+  { habits, completeDays, tasks, projects, goals, learning }: LogrosSources,
 ): LogrosModel {
   const model: Omit<LogrosModel, "quiet"> = {
     weekStart,
@@ -78,6 +83,7 @@ export function buildLogros(
     tasksDone: tasks.doneCount,
     milestonesDone: projects.milestonesDone.length,
     goalsAchieved: goals.achieved.length,
+    studyMinutes: Math.max(0, Math.round(learning.minutes)),
     topHabits: topHabits(habits.habits),
     recentTasks: tasks.recentDone.map(({ id, title }) => ({ id, title })),
     milestones: projects.milestonesDone
@@ -92,6 +98,7 @@ export function buildLogros(
     model.habits.done === 0 &&
     model.tasksDone === 0 &&
     model.milestonesDone === 0 &&
-    model.goalsAchieved === 0;
+    model.goalsAchieved === 0 &&
+    model.studyMinutes === 0;
   return { ...model, quiet };
 }

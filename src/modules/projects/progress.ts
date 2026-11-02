@@ -3,6 +3,7 @@
 // tests can pass fixed dates. The owner's day is America/Lima (src/lib/time.ts).
 import { ownerDateKey } from "@/lib/time";
 import type { ProjectStatus } from "./project-constants";
+import { wholeDone } from "./progress-source";
 
 /** States that show a due-date notice. Maintenance has no end; done and canceled are over. */
 const STATUSES_WITH_DUE: ReadonlySet<ProjectStatus> = new Set(["idea", "active", "paused"]);
@@ -56,14 +57,18 @@ export const isUrgentDue = (due: DueState | null) =>
 
 // ── Progress (P3) ────────────────────────────────────────────────────────────────────────────
 
-/** A project's progress: done of total milestones, and that as a fraction (0–1). */
+/**
+ * A project's progress: whole units done of total («N de M», rounded down), and the exact share
+ * (0–1) the percentage and the bar's proportion use (SPEC-learning L3: `done` may be fractional).
+ */
 export type Progress = { done: number; total: number; ratio: number };
 
 /**
  * Progress from the milestones (SPEC-projects "Avance"): done / total. Null when there is
  * nothing to show: no milestones (never a "0 %" that means nothing) or a project in
  * Mantenimiento (continuous work has no end). Counts are clamped, so a bad pair never yields
- * more than 100 %.
+ * more than 100 %. A fractional `done` (a learning track's share) keeps the exact ratio and shows
+ * its whole units: 1.5 of 3 is 50 % and «1 de 3».
  */
 export function milestoneProgress(
   counts: { done: number; total: number } | null | undefined,
@@ -72,8 +77,10 @@ export function milestoneProgress(
   if (!counts || status === "maintenance") return null;
   const total = Math.max(0, Math.floor(counts.total));
   if (total === 0) return null;
-  const done = Math.min(total, Math.max(0, Math.floor(counts.done)));
-  return { done, total, ratio: done / total };
+  const exact = Math.min(total, Math.max(0, Number.isFinite(counts.done) ? counts.done : 0));
+  // Never «100 %» until every unit is whole (a track at 99.6 % would round up to it).
+  const ratio = wholeDone(exact) >= total ? 1 : Math.min(exact / total, 0.99);
+  return { done: wholeDone(exact), total, ratio };
 }
 
 /** Done and total of a list of milestones (`doneAt` set means done). */

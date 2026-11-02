@@ -279,6 +279,7 @@ describe("SPEC_MODULES against the real repository", () => {
       today: "today",
       reminders: "reminders",
       "weekly-review": "weekly-review",
+      learning: "learning",
     };
     const wrong = repo.specs.flatMap((spec: string) => {
       const prefix = Object.keys(own).find((p) => spec.startsWith(p));

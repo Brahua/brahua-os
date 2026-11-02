@@ -7,6 +7,7 @@ import ReviewPage, { generateMetadata } from "@/app/(app)/review/page";
 import { requireOwner } from "@/lib/auth";
 import { getGoalsWeekReview, getWeeklyObjectiveForWeek } from "@/modules/goals/contracts";
 import { getHabitsWeekCompleteDays, getHabitsWeekSummary } from "@/modules/habits/contracts";
+import { getLearningWeekReview } from "@/modules/learning/contracts";
 import { getProjectsWeekReview } from "@/modules/projects/contracts";
 import { getTasksWeekReview } from "@/modules/tasks/contracts";
 import { getPreviousWeeks, getReviewRow, hasReview } from "@/modules/weekly-review/queries";
@@ -17,6 +18,7 @@ vi.mock("@/modules/habits/contracts", () => ({
   getHabitsWeekCompleteDays: vi.fn(),
 }));
 vi.mock("@/modules/tasks/contracts", () => ({ getTasksWeekReview: vi.fn() }));
+vi.mock("@/modules/learning/contracts", () => ({ getLearningWeekReview: vi.fn() }));
 vi.mock("@/modules/projects/contracts", () => ({ getProjectsWeekReview: vi.fn() }));
 vi.mock("@/modules/goals/contracts", () => ({
   getGoalsWeekReview: vi.fn(),
@@ -58,6 +60,7 @@ beforeEach(() => {
     getProjectsWeekReview,
     getGoalsWeekReview,
     getWeeklyObjectiveForWeek,
+    getLearningWeekReview,
     hasReview,
     getReviewRow,
     getPreviousWeeks,
@@ -69,6 +72,7 @@ beforeEach(() => {
   vi.mocked(getReviewRow).mockResolvedValue(null);
   vi.mocked(getPreviousWeeks).mockResolvedValue([]);
   vi.mocked(getWeeklyObjectiveForWeek).mockResolvedValue(null);
+  vi.mocked(getLearningWeekReview).mockResolvedValue({ minutes: 0 });
   vi.mocked(getHabitsWeekSummary).mockResolvedValue({
     weekStart: "2026-10-05",
     habits: [{ id: "h", name: "Correr", area: null, compliance: { done: 5, expected: 7 } }],
@@ -172,7 +176,19 @@ describe("which step", () => {
     expect(getTasksWeekReview).toHaveBeenCalledTimes(1);
     expect(getProjectsWeekReview).toHaveBeenCalledWith("2026-10-05", NOW);
     expect(getGoalsWeekReview).toHaveBeenCalledWith("2026-10-05", NOW);
+    expect(getLearningWeekReview).toHaveBeenCalledTimes(1);
+    expect(getLearningWeekReview).toHaveBeenCalledWith("2026-10-05");
+    // No study that week: no «Estudio» figure.
+    expect(screen.queryByText("de estudio")).toBeNull();
     expect(screen.getByRole("link", { name: /Logros/ }).getAttribute("aria-current")).toBe("step");
+  });
+
+  test("step 1 shows the week's study time as a figure (L3 of learning)", async () => {
+    vi.mocked(getLearningWeekReview).mockResolvedValue({ minutes: 200 });
+    await open();
+    const figure = screen.getByText("de estudio").closest("[data-figure]");
+    expect(figure).toHaveAttribute("data-figure", "study");
+    expect(figure).toHaveTextContent("3 h 20");
   });
 
   test("an unknown ?paso= is step 1", async () => {
@@ -191,6 +207,7 @@ describe("which step", () => {
     expect(getHabitsWeekSummary).not.toHaveBeenCalled();
     expect(getProjectsWeekReview).not.toHaveBeenCalled();
     expect(getGoalsWeekReview).not.toHaveBeenCalled();
+    expect(getLearningWeekReview).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: /Pendientes/ }).getAttribute("aria-current")).toBe(
       "step",
     );

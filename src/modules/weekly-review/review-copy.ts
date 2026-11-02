@@ -50,6 +50,15 @@ export const LOGROS_COPY = {
   /** "18 de 24" (the figure of the habits). */
   habitsFigure: (done: number | string, expected: number | string) => `${done} de ${expected}`,
   noHabitsFigure: "—",
+  /** L3 of `learning`: the week's study time as a figure, «3 h 20» («45 min», «2 h»). */
+  studyFigure: (minutes: number) => {
+    const whole = Math.max(0, Math.round(minutes));
+    const hours = Math.floor(whole / 60);
+    const rest = whole % 60;
+    if (hours === 0) return `${rest} min`;
+    return rest === 0 ? `${hours} h` : `${hours} h ${rest}`;
+  },
+  study: "de estudio",
   quietTitle: "Una semana tranquila",
   quietText: "No hay nada que contar esta vez, y está bien. Descansar también es parte del ritmo.",
   habitsHighlights: "Los hábitos más constantes",
