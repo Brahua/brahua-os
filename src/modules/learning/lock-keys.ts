@@ -19,3 +19,12 @@ export const LEARNING_ACTIVE_KEY = "learning:active";
  * the set it is about to write.
  */
 export const trackLockKey = (trackId: string) => trackId;
+
+/**
+ * Second key of the timer lock: `(8000, hashtext('learning:timer'))`. The FIRST lock of every
+ * write of `learning_sessions` (start, stop, «Anotar tiempo», remove, restore and their «Deshacer»):
+ * two «Estudiar» at once wait for each other, so the second sees the first one's running session
+ * (and stops it, or returns it) instead of failing on the partial unique index, which stays the
+ * hard guarantee of a single running timer. Session writes never take the status or a track's lock.
+ */
+export const LEARNING_TIMER_KEY = "learning:timer";

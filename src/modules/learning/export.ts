@@ -1,7 +1,7 @@
-// Tables `learning` offers to `pnpm db:export` (src/lib/data-export.ts). Deleted tracks and steps
-// are included on purpose: the export is the owner's history, not a view.
+// Tables `learning` offers to `pnpm db:export` (src/lib/data-export.ts). Deleted tracks, steps and
+// sessions are included on purpose: the export is the owner's history, not a view.
 import type { ExportableTable } from "@/lib/data-export";
-import { learningSteps, learningTracks } from "./db/schema";
+import { learningSessions, learningSteps, learningTracks } from "./db/schema";
 
 export const learningExportTables: ExportableTable[] = [
   { table: learningTracks, orderBy: [learningTracks.createdAt, learningTracks.id] },
@@ -13,5 +13,9 @@ export const learningExportTables: ExportableTable[] = [
       learningSteps.createdAt,
       learningSteps.id,
     ],
+  },
+  {
+    table: learningSessions,
+    orderBy: [learningSessions.startedAt, learningSessions.createdAt, learningSessions.id],
   },
 ];

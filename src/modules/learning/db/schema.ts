@@ -1,9 +1,22 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  date,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 // `learning` depends on `core` and `projects` (SPEC-learning): a track may belong to a project
 // through a foreign key, the one import of another module's table (eslint.config.mjs).
 import { projects } from "@/modules/projects/db/schema";
 import {
+  SESSION_MAX_MINUTES,
+  SESSION_MIN_MINUTES,
+  SESSION_SOURCES,
   STEP_TITLE_MAX_LENGTH,
   TARGET_DATE_MAX,
   TARGET_DATE_MIN,
@@ -120,7 +133,65 @@ export const learningSteps = pgTable(
   ],
 );
 
+/**
+ * L2: the time studied. A timer session is a row with `ended_at` null while it runs (its minutes
+ * are written when it stops); a manual one («Anotar tiempo») is born ended. A session counts in the
+ * Lima week its `started_at` falls in (pace.ts). Soft delete (`deleted_at`, with «Deshacer»).
+ * Only one timer runs in the whole app: the partial unique index below, behind the timer lock
+ * (sessions.ts).
+ */
+export const learningSessions = pgTable(
+  "learning_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trackId: uuid("track_id")
+      .notNull()
+      .references(() => learningTracks.id, { onDelete: "restrict" }),
+    source: text("source", { enum: SESSION_SOURCES }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }), // null = the timer is running
+    minutes: integer("minutes"), // 1–600, present if and only if ended_at is
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => sql`now()`),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("learning_sessions_source_check", sql`${table.source} in (${words(SESSION_SOURCES)})`),
+    // Minutes if and only if the session ended, and always within 1–600.
+    check(
+      "learning_sessions_minutes_check",
+      sql`(${table.endedAt} is null) = (${table.minutes} is null) and (${table.minutes} is null or ${table.minutes} between ${n(SESSION_MIN_MINUTES)} and ${n(SESSION_MAX_MINUTES)})`,
+    ),
+    check(
+      "learning_sessions_ended_check",
+      sql`${table.endedAt} is null or ${table.endedAt} >= ${table.startedAt}`,
+    ),
+    // Only a timer runs: a session written by hand is born ended.
+    check(
+      "learning_sessions_manual_check",
+      sql`${table.source} = 'timer' or ${table.endedAt} is not null`,
+    ),
+    // One running timer in the whole app (SPEC-learning "Cronómetro").
+    uniqueIndex("learning_sessions_running_unique")
+      .on(sql`(true)`)
+      .where(sql`${table.endedAt} is null and ${table.deletedAt} is null`),
+    // A track's sessions by time (its page, the week's minutes).
+    index("learning_sessions_track_idx")
+      .on(table.trackId, table.startedAt)
+      .where(sql`${table.deletedAt} is null`),
+    // Every track's minutes of a week (the list, and the weekly review in L3).
+    index("learning_sessions_started_idx")
+      .on(table.startedAt)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);
+
 export type LearningTrack = typeof learningTracks.$inferSelect;
 export type NewLearningTrack = typeof learningTracks.$inferInsert;
 export type LearningStep = typeof learningSteps.$inferSelect;
 export type NewLearningStep = typeof learningSteps.$inferInsert;
+export type LearningSession = typeof learningSessions.$inferSelect;
+export type NewLearningSession = typeof learningSessions.$inferInsert;

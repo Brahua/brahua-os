@@ -13,10 +13,15 @@ import { trackPath } from "../routes";
 import { markStepDone, undoMarkStepDone } from "../steps-actions";
 import { STEPS_COPY } from "../steps-copy";
 import type { StepDoneResult } from "../steps-input";
+import { SESSIONS_COPY } from "../sessions-copy";
+import type { RunningSession, TrackMinutes } from "../sessions-input";
 import type { ProjectChoice, TrackItem } from "../tracks-input";
+import { StudyKey } from "./study-key";
 import { TrackFormSheet, type TrackFormSaved } from "./track-form-sheet";
 import { TrackProgress } from "./track-progress";
 import { useLearningSave } from "./use-learning-save";
+import { useStudyTimer } from "./use-study-timer";
+import { WeekLine } from "./week-line";
 
 type TracksScreenProps = {
   tracks: TrackItem[];
@@ -25,6 +30,10 @@ type TracksScreenProps = {
   today: string;
   /** Id of the page's `<h1>` (focus lands there after a delete). */
   headingId: string;
+  /** Each track's minutes (this Lima week's and all); a track without sessions isn't there. */
+  minutes?: Record<string, TrackMinutes>;
+  /** The timer that runs now (any track's), or null. */
+  running?: RunningSession | null;
 };
 
 /** A step checked from a card: the track's counts and «Sigue con» move at once. */
@@ -47,11 +56,21 @@ const doneKeySelector = (id: string) => `[data-track-done="${CSS.escape(id)}"]`;
 
 /**
  * /learning (SPEC-learning "Pantallas"): «En curso» on top (up to 2 cards: «Sigue con» and its
- * «Hecho», the bar, the weekly target and the pace to the date), then «En espera» and «Terminados»
- * folded. «Nuevo frente» opens the sheet. Empty: «¿Qué quieres aprender?».
+ * «Hecho», the bar, the week's time against the target, «Estudiar»/«Detener» and the pace to the
+ * date), then «En espera» and «Terminados» folded (with their total time). A timer running on a
+ * track that isn't in progress shows above, so it is never lost. «Nuevo frente» opens the sheet.
+ * Empty: «¿Qué quieres aprender?».
  */
-export function TracksScreen({ tracks, projects, today, headingId }: TracksScreenProps) {
+export function TracksScreen({
+  tracks,
+  projects,
+  today,
+  headingId,
+  minutes = {},
+  running: serverRunning = null,
+}: TracksScreenProps) {
   const { save, toaster, announce, saving } = useLearningSave();
+  const timer = useStudyTimer(serverRunning);
   const [view, applyChange] = useOptimistic(tracks, applyCardChange);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetKey, setSheetKey] = useState(0);
@@ -70,6 +89,10 @@ export function TracksScreen({ tracks, projects, today, headingId }: TracksScree
   const active = view.filter((track) => track.status === "active");
   const waiting = view.filter((track) => track.status === "waiting");
   const done = view.filter((track) => track.status === "done");
+  const runningElsewhere =
+    timer.running && !active.some((track) => track.id === timer.running?.trackId)
+      ? timer.running
+      : null;
 
   function openSheet(from: HTMLButtonElement) {
     opener.current = from;
@@ -148,6 +171,37 @@ export function TracksScreen({ tracks, projects, today, headingId }: TracksScree
         ) : null}
       </header>
 
+      {runningElsewhere ? (
+        <section
+          aria-label={SESSIONS_COPY.runningBanner}
+          className="bo-card flex max-w-160 flex-col gap-3"
+          data-study-banner=""
+        >
+          <p className="bo-text-body min-w-0 break-words">
+            <span className="bo-text-label block text-text-secondary">
+              {SESSIONS_COPY.runningBanner}
+            </span>
+            <Link
+              href={trackPath(runningElsewhere.trackId)}
+              className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              {runningElsewhere.trackTitle}
+            </Link>
+          </p>
+          <StudyKey
+            track={{ id: runningElsewhere.trackId, title: runningElsewhere.trackTitle }}
+            running={timer.running}
+            busy={timer.busy}
+            onStart={() => undefined}
+            onStop={(from) => {
+              // The banner goes away with the timer: focus to the page's title.
+              pendingFocus.current = () => document.getElementById(headingId);
+              timer.stop(from);
+            }}
+          />
+        </section>
+      ) : null}
+
       {view.length === 0 ? (
         <section className="flex max-w-160 flex-col items-start gap-4" data-tracks-empty="">
           <h2 className="bo-text-title">{COPY.emptyTitle}</h2>
@@ -179,7 +233,14 @@ export function TracksScreen({ tracks, projects, today, headingId }: TracksScree
                 className="grid max-w-240 gap-4 md:grid-cols-2"
               >
                 {active.map((track) => (
-                  <TrackCard key={track.id} track={track} today={today} onDone={checkNext} />
+                  <TrackCard
+                    key={track.id}
+                    track={track}
+                    today={today}
+                    onDone={checkNext}
+                    weekMinutes={minutes[track.id]?.week ?? 0}
+                    timer={timer}
+                  />
                 ))}
               </ul>
             ) : null}
@@ -189,8 +250,15 @@ export function TracksScreen({ tracks, projects, today, headingId }: TracksScree
             title={COPY.waitingTitle}
             help={COPY.waitingHelp}
             tracks={waiting}
+            minutes={minutes}
           />
-          <FoldedTracks id="done" title={COPY.doneTitle} help={COPY.doneHelp} tracks={done} />
+          <FoldedTracks
+            id="done"
+            title={COPY.doneTitle}
+            help={COPY.doneHelp}
+            tracks={done}
+            minutes={minutes}
+          />
         </>
       )}
 
@@ -209,6 +277,7 @@ export function TracksScreen({ tracks, projects, today, headingId }: TracksScree
         }}
         onClosed={sheetClosed}
       />
+      {timer.sheet}
     </div>
   );
 }
@@ -218,10 +287,14 @@ function TrackCard({
   track,
   today,
   onDone,
+  weekMinutes,
+  timer,
 }: {
   track: TrackItem;
   today: string;
   onDone: (track: TrackItem) => void;
+  weekMinutes: number;
+  timer: ReturnType<typeof useStudyTimer>;
 }) {
   const next = track.upcoming[0] ?? null;
   const pace = paceToDate({ targetDate: track.targetDate, today, ...track.steps });
@@ -262,20 +335,21 @@ function TrackCard({
       {track.steps.total > 0 ? (
         <TrackProgress title={track.title} done={track.steps.done} total={track.steps.total} />
       ) : null}
-      {track.weeklyTargetMinutes !== null || pace ? (
-        <div className="flex flex-col gap-1">
-          {track.weeklyTargetMinutes !== null ? (
-            <p className="bo-text-body-sm text-text-secondary">
-              {COPY.weeklyTarget(track.weeklyTargetMinutes)}
-            </p>
-          ) : null}
-          {pace ? (
-            <p className="bo-text-body-sm text-text-secondary" data-track-pace="">
-              {COPY.pace(pace, today)}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="flex flex-col gap-1">
+        <WeekLine minutes={weekMinutes} target={track.weeklyTargetMinutes} />
+        {pace ? (
+          <p className="bo-text-body-sm text-text-secondary" data-track-pace="">
+            {COPY.pace(pace, today)}
+          </p>
+        ) : null}
+      </div>
+      <StudyKey
+        track={track}
+        running={timer.running}
+        busy={timer.busy}
+        onStart={(from) => timer.start(track, from)}
+        onStop={(from) => timer.stop(from)}
+      />
     </li>
   );
 }
@@ -286,11 +360,13 @@ function FoldedTracks({
   title,
   help,
   tracks,
+  minutes,
 }: {
   id: "waiting" | "done";
   title: string;
   help: string;
   tracks: TrackItem[];
+  minutes: Record<string, TrackMinutes>;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (tracks.length === 0) return null;
@@ -348,6 +424,11 @@ function FoldedTracks({
               {track.finishedAt ? (
                 <p className="bo-text-body-sm text-text-secondary">
                   {COPY.finishedOn(ownerDateKey(new Date(track.finishedAt)))}
+                </p>
+              ) : null}
+              {minutes[track.id]?.total ? (
+                <p className="bo-text-body-sm text-text-secondary" data-track-total="">
+                  {SESSIONS_COPY.total(minutes[track.id].total)}
                 </p>
               ) : null}
             </li>

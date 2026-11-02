@@ -183,6 +183,13 @@
       "when": 1793640807395,
       "tag": "0025_learning_tracks_steps",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793645571425,
+      "tag": "0026_learning_sessions",
+      "breakpoints": true
     }
   ]
 }

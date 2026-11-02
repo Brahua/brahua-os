@@ -6,13 +6,17 @@ import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
+import { SessionsSection } from "@/modules/learning/components/sessions-section";
 import { TrackDetail } from "@/modules/learning/components/track-detail";
 import { LEARNING_COPY as COPY } from "@/modules/learning/learning-copy";
 import {
+  getRunningSession,
   getTrack,
+  getTrackMinutes,
   listActiveTracks,
   listProjectChoices,
   listSteps,
+  listTrackSessions,
 } from "@/modules/learning/queries";
 import { LEARNING_PATH } from "@/modules/learning/routes";
 
@@ -29,17 +33,22 @@ export async function generateMetadata({ params }: TrackPageProps): Promise<Meta
 }
 
 /**
- * A track's page (SPEC-learning "Detalle"): status and its actions, the syllabus, settings and,
- * from L2, the sessions (the `sessions` slot). Missing, deleted or malformed ids are a 404.
+ * A track's page (SPEC-learning "Detalle"): status and its actions, the week's time and the timer,
+ * the syllabus, settings and the sessions (the `sessions` slot). One instant for the page (Lima's
+ * day and week). Missing, deleted or malformed ids are a 404.
  */
 export default async function TrackPage({ params }: TrackPageProps) {
   await requireOwner();
   const { id } = await params;
-  const today = ownerDateKey(new Date());
-  const [track, steps, active] = await Promise.all([
+  const now = new Date();
+  const today = ownerDateKey(now);
+  const [track, steps, active, running, sessions, minutes] = await Promise.all([
     getTrack(id),
     listSteps(id),
     listActiveTracks(),
+    getRunningSession(),
+    listTrackSessions(id, now),
+    getTrackMinutes(now, id),
   ]);
   if (!track) notFound();
   const projects = await listProjectChoices(track.projectId);
@@ -67,7 +76,15 @@ export default async function TrackPage({ params }: TrackPageProps) {
           active={active}
           today={today}
           headingId={HEADING_ID}
-          sessions={null}
+          running={running}
+          weekMinutes={minutes[track.id]?.week ?? 0}
+          sessions={
+            <SessionsSection
+              track={{ id: track.id, title: track.title }}
+              sessions={sessions}
+              today={today}
+            />
+          }
         />
       </div>
     </ScreenServicesProvider>

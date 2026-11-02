@@ -12,7 +12,13 @@ import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
 import { TracksScreen } from "@/modules/learning/components/tracks-screen";
 import { LEARNING_COPY as COPY } from "@/modules/learning/learning-copy";
-import { getDeletedTrack, listProjectChoices, listTracks } from "@/modules/learning/queries";
+import {
+  getDeletedTrack,
+  getRunningSession,
+  getTrackMinutes,
+  listProjectChoices,
+  listTracks,
+} from "@/modules/learning/queries";
 import { markStepDone, undoMarkStepDone } from "@/modules/learning/steps-actions";
 import { STEPS_COPY } from "@/modules/learning/steps-copy";
 import { createTrack, restoreTrack } from "@/modules/learning/tracks-actions";
@@ -23,6 +29,8 @@ vi.mock("@/modules/learning/queries", () => ({
   listTracks: vi.fn(),
   listProjectChoices: vi.fn(),
   getDeletedTrack: vi.fn(),
+  getRunningSession: vi.fn(),
+  getTrackMinutes: vi.fn(),
 }));
 vi.mock("@/modules/learning/tracks-actions", () => ({
   createTrack: vi.fn(),
@@ -35,6 +43,15 @@ vi.mock("@/modules/learning/tracks-actions", () => ({
 vi.mock("@/modules/learning/steps-actions", () => ({
   markStepDone: vi.fn(),
   undoMarkStepDone: vi.fn(),
+}));
+vi.mock("@/modules/learning/sessions-actions", () => ({
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+  undoStartSession: vi.fn(),
+  undoStopSession: vi.fn(),
+  logSession: vi.fn(),
+  removeSession: vi.fn(),
+  restoreSession: vi.fn(),
 }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -107,6 +124,8 @@ beforeEach(() => {
   vi.mocked(listTracks).mockReset().mockResolvedValue([]);
   vi.mocked(listProjectChoices).mockReset().mockResolvedValue([]);
   vi.mocked(getDeletedTrack).mockReset().mockResolvedValue(null);
+  vi.mocked(getRunningSession).mockReset().mockResolvedValue(null);
+  vi.mocked(getTrackMinutes).mockReset().mockResolvedValue({});
 });
 
 describe("the page", () => {
@@ -119,6 +138,8 @@ describe("the page", () => {
     expect(listTracks).toHaveBeenCalledTimes(1);
     expect(listProjectChoices).toHaveBeenCalledTimes(1);
     expect(getDeletedTrack).not.toHaveBeenCalled();
+    expect(getRunningSession).toHaveBeenCalledTimes(1);
+    expect(getTrackMinutes).toHaveBeenCalledTimes(1);
     expect(metadata.title).toBe("Aprendizaje · brahua-os");
     expect(screen.getByRole("heading", { level: 1, name: "Aprendizaje" })).toBeVisible();
   });
@@ -145,6 +166,8 @@ describe("the page", () => {
     vi.mocked(requireOwner).mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(LearningPage(search())).rejects.toThrow("NEXT_REDIRECT");
     expect(listTracks).not.toHaveBeenCalled();
+    expect(getRunningSession).not.toHaveBeenCalled();
+    expect(getTrackMinutes).not.toHaveBeenCalled();
   });
 });
 
@@ -161,7 +184,8 @@ describe("the sections", () => {
     expect(aws.getByText("Clase 13: IAM policies")).toBeVisible();
     expect(aws.getByText("12 de 40")).toBeVisible();
     expect(aws.getByRole("meter", { name: "Temario de AWS SAA: 12 de 40 pasos" })).toBeVisible();
-    expect(aws.getByText("Meta: 3 h por semana")).toBeVisible();
+    // L2: the week against the target (no session yet: what is left, never a debt).
+    expect(aws.getByText("0 min de 3 h esta semana · Te faltan 3 h")).toBeVisible();
 
     const waiting = screen.getByRole("button", { name: "En espera, 1 frente" });
     expect(waiting).toHaveAttribute("aria-expanded", "false");
