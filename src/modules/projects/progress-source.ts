@@ -12,6 +12,14 @@
 export type ProgressCounts = { done: number; total: number };
 
 /**
+ * A project's counts summed across the sources (`contributedProgress`), with `units`: what the
+ * units are, as the progress label names them («tareas», «tareas y frentes»). Present only when
+ * every source that counted something for the project declares its `unit` (registration order,
+ * once each); missing means the label can't tell, so it names none.
+ */
+export type ContributedCounts = ProgressCounts & { units?: readonly string[] };
+
+/**
  * What a source knows of one milestone's work (hitos-agrupan-tareas): how many units are done of
  * how many, and when the last one was done. A milestone has no checkbox of its own: it is complete
  * when everything that belongs to it is done (see `milestone-state.ts`).
@@ -26,6 +34,11 @@ export type MilestoneCounts = ProgressCounts & { lastDoneAt: Date | null };
 export type ProgressSource = {
   /** Stable id of the provider (e.g. "tasks"). Registering the same id again replaces it. */
   id: string;
+  /**
+   * What one unit of this source is, in the plural, as the progress label says it (UI copy, e.g.
+   * «tareas», «frentes»). A source without it makes the label name no units for that project.
+   */
+  unit?: string;
   countsFor(projectIds: readonly string[]): Promise<ReadonlyMap<string, ProgressCounts>>;
   /**
    * The same by milestone: only for the milestone ids given; ids it has nothing for are missing.
@@ -91,7 +104,7 @@ export type ProgressRegistry = {
    * The sum of every source's counts for `projectIds`, by project id (only ids some source
    * counted). Sources run in parallel; none registered (or no ids) means no work at all.
    */
-  countsFor(projectIds: readonly string[]): Promise<Map<string, ProgressCounts>>;
+  countsFor(projectIds: readonly string[]): Promise<Map<string, ContributedCounts>>;
 };
 
 export function createProgressRegistry(): ProgressRegistry {
@@ -132,17 +145,32 @@ export function createProgressRegistry(): ProgressRegistry {
       return result;
     },
     async countsFor(projectIds) {
-      const result = new Map<string, ProgressCounts>();
+      const result = new Map<string, ContributedCounts>();
       if (sources.size === 0 || projectIds.length === 0) return result;
       const ids = [...new Set(projectIds)];
       const wanted = new Set(ids);
-      const answers = await Promise.all([...sources.values()].map((s) => s.countsFor(ids)));
-      for (const answer of answers) {
+      const registered = [...sources.values()];
+      const answers = await Promise.all(registered.map((s) => s.countsFor(ids)));
+      // Per project: the units of the sources that counted something, or null once one of them
+      // doesn't say what its units are (the label then names none).
+      const units = new Map<string, string[] | null>();
+      answers.forEach((answer, index) => {
+        const unit = registered[index]!.unit;
         for (const [projectId, counts] of answer) {
           if (!wanted.has(projectId)) continue;
           const sum = combineProgressCounts(result.get(projectId), counts);
-          if (sum) result.set(projectId, sum);
+          if (!sum) continue;
+          result.set(projectId, sum);
+          if (!combineProgressCounts(counts)) continue; // counted nothing: says nothing either
+          const known = units.has(projectId) ? units.get(projectId)! : [];
+          if (known === null) continue;
+          if (unit === undefined) units.set(projectId, null);
+          else units.set(projectId, known.includes(unit) ? known : [...known, unit]);
         }
+      });
+      for (const [projectId, sum] of result) {
+        const named = units.get(projectId);
+        if (named && named.length > 0) result.set(projectId, { ...sum, units: named });
       }
       return result;
     },

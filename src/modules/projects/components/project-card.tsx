@@ -127,6 +127,7 @@ export function ProjectCard({
               formatStat(progress.ratio, "percent"),
               progress.done,
               progress.total,
+              progress.units,
             )}
           </span>
         </>

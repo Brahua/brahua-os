@@ -128,7 +128,8 @@ export function SessionsSection({ track, sessions: serverSessions, today }: Sess
   return (
     <section
       aria-labelledby={headingId}
-      className="flex max-w-160 flex-col gap-4"
+      // Full width, like «Temario» above it: «Anotar tiempo» sits at the right of the header.
+      className="flex flex-col gap-4"
       data-sessions=""
       data-saving={saving || undefined}
     >

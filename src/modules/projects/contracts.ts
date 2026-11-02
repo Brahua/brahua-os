@@ -37,8 +37,8 @@ import { milestoneProgress } from "./progress";
 import { NON_BLOCKING_STATUSES, type ActiveBlocker } from "./dependency-input";
 import {
   createProgressRegistry,
+  type ContributedCounts,
   type MilestoneCounts,
-  type ProgressCounts,
   type ProgressSource,
 } from "./progress-source";
 import {
@@ -57,7 +57,12 @@ import {
   type ProjectTodayItem,
 } from "./today-summary";
 
-export type { MilestoneCounts, ProgressCounts, ProgressSource } from "./progress-source";
+export type {
+  ContributedCounts,
+  MilestoneCounts,
+  ProgressCounts,
+  ProgressSource,
+} from "./progress-source";
 export type { ProjectStatus } from "./project-constants";
 export type { ProjectTodayItem } from "./today-summary";
 export type {
@@ -99,11 +104,12 @@ export function contributedMilestones(
 /**
  * The counts the registered sources contribute, by project id, to add to each project's
  * milestones with combineProgressCounts(). With no source registered it returns an empty map
- * without awaiting anything. Callers check the owner first (the pages do, with requireOwner()).
+ * without awaiting anything. Each entry carries the `units` the progress label names (see
+ * `ContributedCounts`). Callers check the owner first (the pages do, with requireOwner()).
  */
 export function contributedProgress(
   projectIds: readonly string[],
-): Promise<Map<string, ProgressCounts>> {
+): Promise<Map<string, ContributedCounts>> {
   return registry.countsFor(projectIds);
 }
 

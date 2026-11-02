@@ -118,7 +118,11 @@ test("a track with its syllabus and project: «Hecho», the timer from Hoy and t
   await openProject(page, projectId);
   const progress = page.locator("[data-project-progress] [data-progress]");
   await expect(progress).toHaveAttribute("data-progress", "1/3");
-  await expect(progress.getByRole("meter")).toHaveAccessibleName(/^Avance: 50\s?%, 1 de 3/);
+  // The label names both kinds of unit, never only «tareas» (L4).
+  await expect(progress.getByRole("meter")).toHaveAccessibleName(
+    /^Avance: 50\s?%, 1 de 3 tareas y frentes$/,
+  );
+  await expect(progress).toContainText("1 de 3 · tareas y frentes");
 });
 
 for (const theme of THEMES) {
