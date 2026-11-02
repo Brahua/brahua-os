@@ -176,6 +176,13 @@
       "when": 1792331848226,
       "tag": "0024_drop_milestone_done_at",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793640807395,
+      "tag": "0025_learning_tracks_steps",
+      "breakpoints": true
     }
   ]
 }

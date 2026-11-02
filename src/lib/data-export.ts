@@ -13,6 +13,7 @@ import { projectsExportTables } from "@/modules/projects/export";
 import { REMINDERS_EXCLUDED_TABLES, remindersExportTables } from "@/modules/reminders/export";
 import { tasksExportTables } from "@/modules/tasks/export";
 import { householdExportTables } from "@/modules/household/export";
+import { learningExportTables } from "@/modules/learning/export";
 import { weeklyReviewExportTables } from "@/modules/weekly-review/export";
 import type { Database } from "./db";
 
@@ -41,6 +42,7 @@ export const EXPORTABLE_TABLES: readonly ExportableTable[] = [
   ...goalsExportTables,
   ...weeklyReviewExportTables,
   ...householdExportTables,
+  ...learningExportTables,
 ];
 
 /**

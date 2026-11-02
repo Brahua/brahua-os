@@ -470,3 +470,96 @@ test.each([
   expect(messages).toHaveLength(1);
   expect(messages[0]).toContain("`household` depende de `core` y `tasks`");
 });
+
+// SPEC-learning "Contratos": `learning` reads `projects` only through its contract and routes and
+// imports no other module but `core` (its schema file may import the projects table, for the
+// foreign key). Only `today` and `weekly-review` may read it, and only `@/modules/learning/contracts`.
+const IMPORT_LEARNING = `import { LEARNING_PATH } from "@/modules/learning/routes";
+export const path = LEARNING_PATH;
+`;
+const IMPORT_LEARNING_CONTRACT = `import type { TrackKind } from "@/modules/learning/contracts";
+export type Kind = TrackKind;
+`;
+const IMPORT_LEARNING_BARREL = `import * as learning from "@/modules/learning";
+export const all = learning;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+  "src/modules/finance/expenses.ts",
+  "src/modules/reminders/engine.ts",
+  "src/modules/goals/goals.ts",
+  "src/modules/goals/db/schema.ts",
+  "src/modules/household/actions.ts",
+])("%s cannot import learning, not even its contract", async (file) => {
+  for (const code of [IMPORT_LEARNING, IMPORT_LEARNING_CONTRACT, IMPORT_LEARNING_BARREL]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`learning` depende de este módulo");
+  }
+});
+
+test.each(["src/modules/today/today-board.ts", "src/modules/weekly-review/queries.ts"])(
+  "%s may read the contract of learning and nothing else of it",
+  async (file) => {
+    expect(await restricted(IMPORT_LEARNING_CONTRACT, file)).toEqual([]);
+    for (const code of [
+      IMPORT_LEARNING,
+      IMPORT_LEARNING_BARREL,
+      `import { selectTrackItems } from "@/modules/learning/tracks";\nexport const x = selectTrackItems;\n`,
+      `import { learningTracks } from "@/modules/learning/db/schema";\nexport const x = learningTracks;\n`,
+    ]) {
+      const messages = await restricted(code, file);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain("leen `learning` solo por su contrato");
+    }
+  },
+);
+
+test("learning itself, its pages and the registry may import it", async () => {
+  expect(await restricted(IMPORT_LEARNING, "src/modules/learning/tracks.ts")).toEqual([]);
+  expect(await restricted(IMPORT_LEARNING, "src/app/(app)/learning/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_LEARNING, "src/lib/modules.ts")).toEqual([]);
+});
+
+test.each([
+  `import { getProjectOptions } from "@/modules/projects/contracts";\nexport const x = getProjectOptions;\n`,
+  `import { projectPath } from "@/modules/projects/routes";\nexport const x = projectPath;\n`,
+  `import { isSameIdSet } from "@/modules/core/life-area-order";\nexport const x = isSameIdSet;\n`,
+  `import { requireOwner } from "@/lib/auth";\nexport const x = requireOwner;\n`,
+])("learning may read the contract and routes of projects, and core %#", async (code) => {
+  expect(await restricted(code, "src/modules/learning/tracks.ts")).toEqual([]);
+});
+
+test.each([
+  `import { selectProjects } from "@/modules/projects/projects";\nexport const x = selectProjects;\n`,
+  `import { projects } from "@/modules/projects/db/schema";\nexport const x = projects;\n`,
+  `import * as projects from "@/modules/projects";\nexport const x = projects;\n`,
+])("learning cannot reach the internals of projects %#", async (code) => {
+  const messages = await restricted(code, "src/modules/learning/tracks.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`learning` lee `projects` solo por su contrato");
+});
+
+test("the schema file may import the projects table (the foreign key), and nothing else", async () => {
+  const table = `import { projects } from "@/modules/projects/db/schema";\nexport const x = projects;\n`;
+  expect(await restricted(table, "src/modules/learning/db/schema.ts")).toEqual([]);
+  const tasks = `import { tasks } from "@/modules/tasks/db/schema";\nexport const x = tasks;\n`;
+  expect(await restricted(tasks, "src/modules/learning/db/schema.ts")).toHaveLength(1);
+});
+
+test.each([
+  `import { getTasksByTag } from "@/modules/tasks/contracts";\nexport const x = getTasksByTag;\n`,
+  `import { getHabitsTodaySummary } from "@/modules/habits/contracts";\nexport const x = getHabitsTodaySummary;\n`,
+  `import { getGoalsWeekSummary } from "@/modules/goals/contracts";\nexport const x = getGoalsWeekSummary;\n`,
+  `import { buildBoard } from "@/modules/today/today-board";\nexport const x = buildBoard;\n`,
+  `import { getReviewInvite } from "@/modules/weekly-review/contracts";\nexport const x = getReviewInvite;\n`,
+  `import { HOUSEHOLD_PATH } from "@/modules/household/routes";\nexport const x = HOUSEHOLD_PATH;\n`,
+])("learning depends on core and projects only %#", async (code) => {
+  const messages = await restricted(code, "src/modules/learning/tracks.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`learning` depende de `core` y `projects`");
+});
