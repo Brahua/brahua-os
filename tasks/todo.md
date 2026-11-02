@@ -6,7 +6,7 @@
 
 Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(learning): …`). Máximo un E2E nuevo en todo el módulo (L3).
 
-- [ ] **L1: Frentes y temario** (M; `feat/learning-l1`)
+- [x] **L1: Frentes y temario** (M; `feat/learning-l1`, #165; ver `docs/HANDOFF.md` → «Cómo funciona learning → L1»)
   - Migración aditiva `learning_tracks` y `learning_steps` (`CHECK` de longitudes, `kind`, `status`, `finished_at` si y solo si `done`, `url ~ '^https?://'`; FK a `projects` con `ON DELETE RESTRICT` y la excepción de un archivo en ESLint), Prettier sobre el snapshot; `EXPORTABLE_TABLES` y respaldo.
   - `src/modules/learning/`: `module.ts` («Aprendizaje», `navOrder` 68, sin atajo, bajo «Más» en el celular), `routes.ts`, `lock-keys.ts` (`LEARNING_ADVISORY_SPACE = 8000`), `tracks-*.ts` y `steps-*.ts` (Zod, dominio puro, acciones con `ownerAction`, queries, copy), `pace.ts` (ritmo a la fecha), `revalidate.ts`, `export.ts`, `components/`; páginas `/learning` y `/learning/[id]` con `requireOwner()`.
   - Lista «En curso / En espera / Terminados»; hoja «Nuevo frente» (tipo, título, temario pegado, proyecto, meta semanal, fecha objetivo, enlace); detalle con temario (marcar con «Deshacer», añadir, renombrar, reordenar con teclado y arrastre, quitar) y acciones de estado; límite de 2 en curso con la oferta de pasar uno a espera; slot «Sesiones» vacío para L2; regla de ESLint (nadie importa `learning`; excepciones `today` y `weekly-review` solo a `contracts`); módulo en `MODULES`.

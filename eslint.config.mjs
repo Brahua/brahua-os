@@ -269,6 +269,50 @@ const HOUSEHOLD_ONLY_CORE_AND_CONTRACTS = {
   ],
   message: "`household` depende de `core` y `tasks`: no importa otros módulos.",
 };
+// `learning` (SPEC-learning "Contratos") sits above `projects`: it reads it only through its
+// contract (`contracts`) and its client-safe routes, and imports no other module but `core`. Only
+// `today` and `weekly-review` read it (L3), and only through `@/modules/learning/contracts`.
+const LEARNING_IMPORT = {
+  group: ["@/modules/learning", "@/modules/learning/*"],
+  message: "`learning` depende de este módulo: no puede importarlo.",
+};
+const LEARNING_FOR_CONSUMERS_MESSAGE =
+  "`today` y `weekly-review` leen `learning` solo por su contrato (`@/modules/learning/contracts`).";
+// Same gotcha as REMINDERS_IMPORT: the barrel is an exact path and the contract is let in after its
+// folder pattern.
+const LEARNING_FOR_CONSUMERS = {
+  group: ["@/modules/learning/*", "!@/modules/learning/contracts"],
+  message: LEARNING_FOR_CONSUMERS_MESSAGE,
+};
+const LEARNING_BARREL = { name: "@/modules/learning", message: LEARNING_FOR_CONSUMERS_MESSAGE };
+const LEARNING_MESSAGE =
+  "`learning` lee `projects` solo por su contrato (`contracts`) y sus rutas (`routes`).";
+const LEARNING_ONLY_CONTRACTS = {
+  group: ["@/modules/projects/*", "!@/modules/projects/contracts", "!@/modules/projects/routes"],
+  message: LEARNING_MESSAGE,
+};
+const LEARNING_NO_BARRELS = [{ name: "@/modules/projects", message: LEARNING_MESSAGE }];
+const LEARNING_ONLY_CORE_AND_CONTRACTS = {
+  group: [
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/goals",
+    "@/modules/goals/*",
+    "@/modules/habits",
+    "@/modules/habits/*",
+    "@/modules/household",
+    "@/modules/household/*",
+    "@/modules/reminders",
+    "@/modules/reminders/*",
+    "@/modules/tasks",
+    "@/modules/tasks/*",
+    "@/modules/today",
+    "@/modules/today/*",
+    "@/modules/weekly-review",
+    "@/modules/weekly-review/*",
+  ],
+  message: "`learning` depende de `core` y `projects`: no importa otros módulos.",
+};
 const moduleBoundaries = [
   {
     files: ["src/modules/goals/**/*.{ts,tsx}"],
@@ -282,6 +326,7 @@ const moduleBoundaries = [
             GOALS_ONLY_CORE_AND_CONTRACTS,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
           ],
         },
       ],
@@ -298,7 +343,12 @@ const moduleBoundaries = [
           paths: GOALS_NO_BARRELS,
           // Only the other modules' folders stay closed; the tables are let in by leaving the
           // habits/projects pattern out (a negation can't reopen a file inside a closed folder).
-          patterns: [GOALS_ONLY_CORE_AND_CONTRACTS, WEEKLY_REVIEW_IMPORT, HOUSEHOLD_IMPORT],
+          patterns: [
+            GOALS_ONLY_CORE_AND_CONTRACTS,
+            WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
+          ],
         },
       ],
     },
@@ -309,11 +359,12 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: WEEKLY_REVIEW_NO_BARRELS,
+          paths: [...WEEKLY_REVIEW_NO_BARRELS, LEARNING_BARREL],
           patterns: [
             WEEKLY_REVIEW_ONLY_CONTRACTS,
             WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS,
             HOUSEHOLD_IMPORT,
+            LEARNING_FOR_CONSUMERS,
           ],
         },
       ],
@@ -326,8 +377,31 @@ const moduleBoundaries = [
         "error",
         {
           paths: HOUSEHOLD_NO_BARRELS,
-          patterns: [HOUSEHOLD_ONLY_CONTRACTS, HOUSEHOLD_ONLY_CORE_AND_CONTRACTS],
+          patterns: [HOUSEHOLD_ONLY_CONTRACTS, HOUSEHOLD_ONLY_CORE_AND_CONTRACTS, LEARNING_IMPORT],
         },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/learning/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: LEARNING_NO_BARRELS,
+          patterns: [LEARNING_ONLY_CONTRACTS, LEARNING_ONLY_CORE_AND_CONTRACTS],
+        },
+      ],
+    },
+  },
+  {
+    // The one exception, as in `goals`: a foreign key needs the table itself, so the schema file
+    // may import the table of `projects` (its folder pattern is left out here).
+    files: ["src/modules/learning/db/schema.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: LEARNING_NO_BARRELS, patterns: [LEARNING_ONLY_CORE_AND_CONTRACTS] },
       ],
     },
   },
@@ -337,8 +411,14 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL],
-          patterns: [FINANCE_FOR_TODAY, REMINDERS_IMPORT, WEEKLY_REVIEW_IMPORT, HOUSEHOLD_IMPORT],
+          paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL, LEARNING_BARREL],
+          patterns: [
+            FINANCE_FOR_TODAY,
+            REMINDERS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
+            LEARNING_FOR_CONSUMERS,
+          ],
         },
       ],
     },
@@ -350,7 +430,13 @@ const moduleBoundaries = [
         "error",
         {
           paths: [GOALS_BARREL],
-          patterns: [REMINDERS_ONLY_CORE, GOALS_IMPORT, WEEKLY_REVIEW_IMPORT, HOUSEHOLD_IMPORT],
+          patterns: [
+            REMINDERS_ONLY_CORE,
+            GOALS_IMPORT,
+            WEEKLY_REVIEW_IMPORT,
+            HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
+          ],
         },
       ],
     },
@@ -369,6 +455,7 @@ const moduleBoundaries = [
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
           ],
         },
       ],
@@ -388,6 +475,7 @@ const moduleBoundaries = [
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
           ],
         },
       ],
@@ -408,6 +496,7 @@ const moduleBoundaries = [
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
           ],
         },
       ],
@@ -429,6 +518,7 @@ const moduleBoundaries = [
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
           ],
         },
       ],
@@ -451,6 +541,7 @@ const moduleBoundaries = [
             GOALS_IMPORT,
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
+            LEARNING_IMPORT,
           ],
         },
       ],
