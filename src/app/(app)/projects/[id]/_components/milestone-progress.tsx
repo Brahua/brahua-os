@@ -4,7 +4,7 @@ import { useLayoutEffect, useSyncExternalStore } from "react";
 import { ProgressMeter } from "@/modules/projects/components/progress-meter";
 import { MILESTONES_COPY } from "@/modules/projects/milestones-copy";
 import { milestoneProgress } from "@/modules/projects/progress";
-import type { ProgressCounts } from "@/modules/projects/progress-source";
+import type { ContributedCounts, ProgressCounts } from "@/modules/projects/progress-source";
 import { useProjectDetail } from "./project-detail-context";
 
 // "Cerrar proyecto" counts the open phases (milestones not complete) and lives apart from the
@@ -67,9 +67,10 @@ export function useMilestoneCounts(projectId: string, counts: PhaseCounts): Phas
  * The project's progress under its dates (the P3 slot of `ProjectPlanSection`): the tasks done of
  * all (hitos-agrupan-tareas: a milestone is a phase that groups tasks, not a unit of its own).
  * Nothing without tasks or in Mantenimiento (the state as shown, so changing it hides or shows the
- * meter at once). `contributed` (P6) is what the progress sources (tasks) count.
+ * meter at once). `contributed` (P6) is what the progress sources count (tasks and learning
+ * tracks), with the units the label names.
  */
-export function ProjectProgress({ contributed }: { contributed?: ProgressCounts }) {
+export function ProjectProgress({ contributed }: { contributed?: ContributedCounts }) {
   const { project } = useProjectDetail();
   const progress = milestoneProgress(contributed, project.status);
   if (!progress) return null;

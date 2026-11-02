@@ -375,3 +375,69 @@ describe("composition root", () => {
     expect(source).not.toMatch(/^import "@\/modules\//m);
   });
 });
+
+// L4 of `learning`: the progress label names what is counted («tareas y frentes»), never only
+// «tareas» once a learning track counts too. Decisión autónoma para revisar con el owner.
+describe("progress units", () => {
+  const named = (id: string, unit: string | undefined, counts: Record<string, ProgressCounts>) => {
+    const { source } = fakeSource(id, counts);
+    return unit === undefined ? source : { ...source, unit };
+  };
+
+  test("units of the sources that counted something, in registration order, once each", async () => {
+    const registry = createProgressRegistry();
+    registry.register(
+      named("tasks", "tareas", { a: { done: 1, total: 2 }, b: { done: 0, total: 3 } }),
+    );
+    registry.register(
+      named("learning", "frentes", { a: { done: 0.5, total: 1 }, c: { done: 0, total: 1 } }),
+    );
+    registry.register(named("more-tasks", "tareas", { a: { done: 1, total: 1 } }));
+    const counts = await registry.countsFor(["a", "b", "c"]);
+    expect(counts.get("a")).toEqual({ done: 2.5, total: 4, units: ["tareas", "frentes"] });
+    expect(counts.get("b")).toEqual({ done: 0, total: 3, units: ["tareas"] });
+    expect(counts.get("c")).toEqual({ done: 0, total: 1, units: ["frentes"] });
+  });
+
+  test("a source that counted nothing for a project doesn't name its units", async () => {
+    const registry = createProgressRegistry();
+    registry.register(named("tasks", "tareas", { a: { done: 1, total: 2 } }));
+    registry.register(named("learning", "frentes", { a: { done: 0, total: 0 } }));
+    expect((await registry.countsFor(["a"])).get("a")).toEqual({
+      done: 1,
+      total: 2,
+      units: ["tareas"],
+    });
+  });
+
+  test("one counting source without a unit: no units at all (never a partial name)", async () => {
+    const registry = createProgressRegistry();
+    registry.register(named("tasks", "tareas", { a: { done: 1, total: 2 } }));
+    registry.register(named("unnamed", undefined, { a: { done: 0, total: 1 } }));
+    expect((await registry.countsFor(["a"])).get("a")).toEqual({ done: 1, total: 3 });
+    expect((await registry.countsFor(["a"])).get("a")).not.toHaveProperty("units");
+  });
+
+  test("the progress keeps the units and the texts join them", () => {
+    const progress = milestoneProgress(
+      { done: 1.5, total: 3, units: ["tareas", "frentes"] },
+      "active",
+    );
+    expect(progress).toEqual({ done: 1, total: 3, ratio: 0.5, units: ["tareas", "frentes"] });
+    expect(milestoneProgress({ done: 1, total: 3, units: [] }, "active")).not.toHaveProperty(
+      "units",
+    );
+    expect(MILESTONES_COPY.progressUnits(["tareas"])).toBe("tareas");
+    expect(MILESTONES_COPY.progressUnits(["tareas", "frentes"])).toBe("tareas y frentes");
+    expect(MILESTONES_COPY.progressUnits(["a", "b", "c"])).toBe("a, b y c");
+    expect(MILESTONES_COPY.progressUnits([])).toBe("");
+    expect(MILESTONES_COPY.progressUnits()).toBe("");
+    expect(MILESTONES_COPY.progressName("50%", 1, 3, ["tareas", "frentes"])).toBe(
+      "Avance: 50%, 1 de 3 tareas y frentes",
+    );
+    expect(MILESTONES_COPY.progressName("50%", 1, 3, ["tareas"])).toBe(
+      "Avance: 50%, 1 de 3 tareas",
+    );
+    expect(MILESTONES_COPY.progressName("50%", 1, 3)).toBe("Avance: 50%, 1 de 3");
+  });
+});

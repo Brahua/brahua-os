@@ -60,8 +60,14 @@ export const isUrgentDue = (due: DueState | null) =>
 /**
  * A project's progress: whole units done of total («N de M», rounded down), and the exact share
  * (0–1) the percentage and the bar's proportion use (SPEC-learning L3: `done` may be fractional).
+ * `units` names what is counted («tareas», «tareas y frentes»); missing, the texts name nothing.
  */
-export type Progress = { done: number; total: number; ratio: number };
+export type Progress = {
+  done: number;
+  total: number;
+  ratio: number;
+  units?: readonly string[];
+};
 
 /**
  * Progress from the milestones (SPEC-projects "Avance"): done / total. Null when there is
@@ -71,7 +77,7 @@ export type Progress = { done: number; total: number; ratio: number };
  * its whole units: 1.5 of 3 is 50 % and «1 de 3».
  */
 export function milestoneProgress(
-  counts: { done: number; total: number } | null | undefined,
+  counts: { done: number; total: number; units?: readonly string[] } | null | undefined,
   status: ProjectStatus,
 ): Progress | null {
   if (!counts || status === "maintenance") return null;
@@ -80,7 +86,9 @@ export function milestoneProgress(
   const exact = Math.min(total, Math.max(0, Number.isFinite(counts.done) ? counts.done : 0));
   // Never «100 %» until every unit is whole (a track at 99.6 % would round up to it).
   const ratio = wholeDone(exact) >= total ? 1 : Math.min(exact / total, 0.99);
-  return { done: wholeDone(exact), total, ratio };
+  const progress: Progress = { done: wholeDone(exact), total, ratio };
+  if (counts.units && counts.units.length > 0) progress.units = counts.units;
+  return progress;
 }
 
 /** Done and total of a list of milestones (`doneAt` set means done). */

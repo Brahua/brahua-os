@@ -54,6 +54,8 @@ export async function selectLearningProjectCounts(
 
 export const learningProgressSource: ProgressSource = {
   id: "learning",
+  // How the project's progress label names these units (UI copy): «1 de 3 · tareas y frentes».
+  unit: "frentes",
   // One query for every id the list or the detail asks for. The page checked the owner.
   countsFor: (projectIds) => selectLearningProjectCounts(getDb(), projectIds),
 };

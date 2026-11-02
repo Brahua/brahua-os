@@ -357,3 +357,26 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **Un estado derivado no se guarda:** el hito completo sale de contar sus tareas (`milestoneState`); `done_at` del hito quedó sin leer (se borra en H3, con OK del owner y respaldo).
 - **Migración de datos y CHECK en un mismo archivo:** primero mover los datos (idempotente, ids derivados con `md5`), luego el CHECK; la prueba de integración corre las sentencias del `.sql` sobre filas viejas.
 - **Los fixtures E2E siguen el modelo:** un hito «hecho» ahora es una tarea hecha; los helpers `insertProject` crean hitos vacíos.
+
+## Lessons from `learning` (retrospective, 2026-11-02)
+
+- **A new source in a shared aggregate renames its units:** once a learning track counted in a project's progress,
+  the label still said «· tareas» (found only in the production checkpoint). When a module joins a sum another
+  module shows, grep every text that names the unit (progress label, accessible names, «Cerrar proyecto»); the
+  source now declares its `unit` and the label joins them («tareas y frentes»).
+- **Fractional contracts are audited per reader:** `done` became fractional, so «N de M» rounds down, the percentage
+  uses the exact ratio and never says 100 % before every unit is whole, and open work rounds up. Review every use of
+  the field before the push, with a sum-of-fractions case (1 of 2 tasks + a track at 50 % = 50 %, «1 de 3»).
+- **Timestamps compared by an undo are truncated to the millisecond:** the client's ISO has ms and Postgres keeps µs;
+  store `date_trunc('milliseconds', now())` or the exact-undo comparison never matches.
+- **One running row: lock first, index as the hard guarantee:** a partial unique index (`WHERE ended_at IS NULL`)
+  plus a first advisory lock lets the second «Estudiar» see the first session instead of failing on the index. A timer
+  is computed from `started_at` with one shared interval (`useSyncExternalStore`), never by adding ticks.
+- **Sibling sections share the page's width:** a leftover `max-w-160` on one section of a detail page made it half as
+  wide as the one above, with its header button floating mid-page. Only a desktop look in the real browser showed it;
+  check the first deploy of a new screen at desktop width too.
+- **Two Chromes on the extension:** with two browsers connected to Claude in Chrome, list them and select the owner's
+  (the one with the session) before concluding the session expired.
+- **A red dispatched run is read, not skipped:** after the screenshot bot commit, the dispatched run failed in
+  `reminders-push` integration tests the slice never touched, and the PR run on the same head passed. Name the cause
+  (here, an unrelated flake, logged in the backlog) before merging on the green one.

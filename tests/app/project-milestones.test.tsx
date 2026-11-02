@@ -12,6 +12,7 @@ import { ProjectMilestonesSection } from "@/app/(app)/projects/[id]/_components/
 import { ProjectPlanSection } from "@/app/(app)/projects/[id]/_components/project-plan-section";
 import { fail, ok, type ActionResult } from "@/lib/action-result";
 import { ProjectCard } from "@/modules/projects/components/project-card";
+import { ProgressMeter } from "@/modules/projects/components/progress-meter";
 import {
   addMilestone,
   deleteMilestone,
@@ -144,6 +145,7 @@ function Page({ initial }: { initial: State }) {
             contributed={{
               done: state.milestones.reduce((sum, item) => sum + item.tasks.done, 0),
               total: state.milestones.reduce((sum, item) => sum + item.tasks.total, 0),
+              units: ["tareas"],
             }}
           />
         }
@@ -554,7 +556,7 @@ describe("card", () => {
       <ProjectCard
         project={PROJECT}
         due={null}
-        progress={milestoneProgress({ done: 3, total: 5 }, "active")}
+        progress={milestoneProgress({ done: 3, total: 5, units: ["tareas"] }, "active")}
       />,
     );
     document.body.innerHTML = html;
@@ -564,6 +566,35 @@ describe("card", () => {
     expect(screen.queryByRole("meter")).toBeNull();
     expect(document.querySelector("[data-progress]")).toHaveAttribute("aria-hidden", "true");
     expect(document.querySelectorAll(".bo-segbar__seg.is-filled")).toHaveLength(3);
+  });
+
+  test("a learning track counts too: the texts say «tareas y frentes» (L4)", () => {
+    const progress = milestoneProgress(
+      { done: 1.5, total: 3, units: ["tareas", "frentes"] },
+      "active",
+    )!;
+    document.body.innerHTML = renderToStaticMarkup(
+      <>
+        <ProjectCard project={PROJECT} due={null} progress={progress} />
+        <ProgressMeter progress={progress} variant="detail" />
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Cocina" })).toHaveAccessibleDescription(
+      "Avance: 50%, 1 de 3 tareas y frentes",
+    );
+    expect(screen.getByRole("meter")).toHaveAccessibleName("Avance: 50%, 1 de 3 tareas y frentes");
+    expect(screen.getByText("1 de 3 · tareas y frentes")).toBeInTheDocument();
+  });
+
+  test("units unknown: «N de M» without naming them", () => {
+    document.body.innerHTML = renderToStaticMarkup(
+      <ProgressMeter
+        progress={milestoneProgress({ done: 1, total: 3 }, "active")!}
+        variant="detail"
+      />,
+    );
+    expect(screen.getByRole("meter")).toHaveAccessibleName("Avance: 33%, 1 de 3");
+    expect(document.querySelector("[data-progress] .bo-text-label")).toHaveTextContent(/^1 de 3$/);
   });
 
   test("no progress, no meter and no empty slot", () => {

@@ -145,7 +145,12 @@ describe("the progress source of projects", () => {
     ]);
     const half = await track({ projectId: project }, 2);
     await check(half, 1);
-    expect((await contributedProgress([project])).get(project)).toEqual({ done: 1.5, total: 3 });
+    // The label names both kinds of unit (L4): «1 de 3 · tareas y frentes».
+    expect((await contributedProgress([project])).get(project)).toEqual({
+      done: 1.5,
+      total: 3,
+      units: ["tareas", "frentes"],
+    });
     expect((await selectProjectsProgress(testDb, [project])).get(project)).toMatchObject({
       percent: 50,
     });

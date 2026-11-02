@@ -536,6 +536,7 @@ describe("progress source", () => {
     expect((await contributedProgress([project.id])).get(project.id)).toEqual({
       done: 1,
       total: 2,
+      units: ["tareas"],
     });
   });
 

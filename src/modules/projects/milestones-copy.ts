@@ -3,6 +3,10 @@ import { MILESTONE_TITLE_MAX_LENGTH } from "./project-constants";
 
 const milestones = (n: number) => (n === 1 ? "1 hito" : `${n} hitos`);
 
+/** «tareas», «tareas y frentes», «a, b y c»; "" with none. */
+const unitNames = (units: readonly string[] = []): string =>
+  units.length <= 1 ? (units[0] ?? "") : `${units.slice(0, -1).join(", ")} y ${units.at(-1)}`;
+
 export const MILESTONES_COPY = {
   section: "Hitos",
   /** Accessible name of the heading: the count on screen is a bare number. */
@@ -67,11 +71,15 @@ export const MILESTONES_COPY = {
     reorder: "No se pudo guardar el orden de los hitos; volvió a como estaba.",
   },
 
-  // Progress counts tasks only (hitos-agrupan-tareas): a milestone is a phase that groups them.
+  // Progress counts the sources' units (hitos-agrupan-tareas: a milestone is a phase that groups
+  // tasks, not a unit), named as the sources declare them: «tareas», or «tareas y frentes» once
+  // a learning track counts too (L4). No units known, no name.
   progressLabel: "Avance",
   progressCount: (done: number, total: number) => `${done} de ${total}`,
-  progressUnits: "tareas",
+  progressUnits: unitNames,
   /** Accessible name of the meter (and of the card's progress). */
-  progressName: (percent: string, done: number, total: number) =>
-    `Avance: ${percent}, ${done} de ${total} tareas`,
+  progressName: (percent: string, done: number, total: number, units?: readonly string[]) => {
+    const named = unitNames(units);
+    return `Avance: ${percent}, ${done} de ${total}${named ? ` ${named}` : ""}`;
+  },
 } as const;

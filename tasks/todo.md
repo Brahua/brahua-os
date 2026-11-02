@@ -1,38 +1,27 @@
 # Tareas
 
-> Módulo en curso: **`learning`** (Aprendizaje). Spec: [`SPEC-learning.md`](../SPEC-learning.md) (aprobada el 2026-10-29) · Plan: [`plan.md`](plan.md). Después: `notes` y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Sin módulo en curso. Último cerrado: **`learning`** (Aprendizaje, 2026-11-02; plan y tareas en [`archive/learning-plan.md`](archive/learning-plan.md) y [`archive/learning-todo.md`](archive/learning-todo.md)). **Siguiente: `notes`** (sin spec todavía: se arranca con `spec-driven-development`) y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `learning` (Aprendizaje): en curso
+## Módulo `learning` (Aprendizaje): cerrado el 2026-11-02
 
-Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(learning): …`). Máximo un E2E nuevo en todo el módulo (L3).
+Spec [`SPEC-learning.md`](../SPEC-learning.md); plan y tareas archivados en [`archive/learning-plan.md`](archive/learning-plan.md) y [`archive/learning-todo.md`](archive/learning-todo.md) (con el párrafo del Checkpoint). L1 frentes y temario (#165), L2 tiempo y sesiones (#166) y L3 Hoy, proyectos, revisión y E2E (#167) están en producción; L4 (`feat/learning-l4`) corrige los dos hallazgos del Checkpoint (ancho de «Sesiones» y «tareas y frentes» en el avance del proyecto) y cierra. **Pendiente del owner:**
 
-- [x] **L1: Frentes y temario** (M; `feat/learning-l1`, #165; ver `docs/HANDOFF.md` → «Cómo funciona learning → L1»)
-  - Migración aditiva `learning_tracks` y `learning_steps` (`CHECK` de longitudes, `kind`, `status`, `finished_at` si y solo si `done`, `url ~ '^https?://'`; FK a `projects` con `ON DELETE RESTRICT` y la excepción de un archivo en ESLint), Prettier sobre el snapshot; `EXPORTABLE_TABLES` y respaldo.
-  - `src/modules/learning/`: `module.ts` («Aprendizaje», `navOrder` 68, sin atajo, bajo «Más» en el celular), `routes.ts`, `lock-keys.ts` (`LEARNING_ADVISORY_SPACE = 8000`), `tracks-*.ts` y `steps-*.ts` (Zod, dominio puro, acciones con `ownerAction`, queries, copy), `pace.ts` (ritmo a la fecha), `revalidate.ts`, `export.ts`, `components/`; páginas `/learning` y `/learning/[id]` con `requireOwner()`.
-  - Lista «En curso / En espera / Terminados»; hoja «Nuevo frente» (tipo, título, temario pegado, proyecto, meta semanal, fecha objetivo, enlace); detalle con temario (marcar con «Deshacer», añadir, renombrar, reordenar con teclado y arrastre, quitar) y acciones de estado; límite de 2 en curso con la oferta de pasar uno a espera; slot «Sesiones» vacío para L2; regla de ESLint (nadie importa `learning`; excepciones `today` y `weekly-review` solo a `contracts`); módulo en `MODULES`.
-  - **Aceptación:** pegar 40 líneas crea 40 pasos en orden (vacías ignoradas, 500 como máximo, NUL rechazado); «Hecho» avanza el siguiente paso y la barra; nunca más de 2 en curso, ni con dos solicitudes a la vez; `practice` sin temario; el ritmo nunca dice «atrasado».
-  - **Verificación:** unitarias (pegar temario, siguiente paso, avance, ritmo, copy sin cadenas prohibidas, componentes); integración `rtk proxy pnpm test:integration <archivo>` (`CHECK` crudos, lock con control positivo, «Deshacer» exacto, autorización, exportación); gate liviano; tras el push, revisar `e2e/home.spec.ts` y dispatch de `update-screenshots.yml`. Sin E2E nueva.
-- [x] **L2: Tiempo y sesiones** (M; `feat/learning-l2`, #166; ver `docs/HANDOFF.md` → «Cómo funciona learning → L2»)
-  - Migración aditiva `learning_sessions` (`source` timer/manual, `minutes` si y solo si `ended_at`, `ended_at ≥ started_at`, único parcial de la sesión corriendo); exportación.
-  - `sessions-*.ts` y `pace.ts` (semana de Lima: la sesión cuenta en la semana en que empezó; minutos de la semana; meta 15–3000): «Estudiar» / «Detener» (más de 4 h pide confirmar o corregir; iniciar otro frente detiene el anterior en la misma transacción), «Anotar tiempo» (1–600 min, hasta 30 días atrás), sesiones por semana con totales y «Quitar» con «Deshacer»; «1 h 20 de 3 h esta semana» en la lista y el detalle.
-  - **Aceptación:** el cronómetro sigue tras recargar y hay uno solo; «Detener» guarda los minutos; la sesión manual entra en la semana del día elegido; temporizadores limpiados al desmontar.
-  - **Verificación:** unitarias (semana de Lima con lunes 00:00, domingo 23:59 y cruce; duración y umbral de 4 h; textos de meta; componentes con el día real de Lima); integración (una sola sesión con dos «Estudiar» a la vez, «Deshacer» exacto, autorización, exportación). Sin E2E nueva.
-- [x] **L3: Hoy, proyectos, revisión y E2E** (M; `feat/learning-l3`, #167; ver `docs/HANDOFF.md` → «Cómo funciona learning → L3»)
-  - `contracts.ts`: `getLearningTodaySummary(now)`, `getLearningWeekReview(weekStart)` y la fuente de avance (`total` = frentes enlazados, `done` = suma de fracciones; terminado = 1; sin temario o práctica = 0 hasta terminar) registrada en `src/lib/progress-sources.ts`.
-  - `projects`: `ProgressCounts` acepta `done` fraccionario (`clean` en `progress.ts`); el porcentaje usa el valor exacto y «N de M» redondea `done` hacia abajo. Revisar cada uso de `progress.done`.
-  - `today`: sección «Estudio» después de Tareas con una tarjeta «Sigue con» por frente en curso (siguiente paso, avance, minutos de la semana, «Estudiar» / «Detener», «Hecho» del paso). `weekly-review`: cifra «Estudio: 3 h 20» en «Logros» (oculta en 0) que cuenta para «Una semana tranquila».
-  - **El único E2E** `e2e/learning.spec.ts`: crear un frente con temario y proyecto, marcar un paso, iniciar y detener el cronómetro desde Hoy, ver el avance del proyecto; axe en 0 en ambos temas y 320 px con `afterSaveSettled`; una captura con `expectScreenshot`; entrada `["learning", "today", "projects"]` en `SPEC_MODULES`.
-  - **Aceptación:** «Sigue con» aparece por cada frente en curso y desaparece sin ellos; 1 de 2 tareas + un frente al 50 % da 50 % y «1 de 3»; «Logros» muestra las horas y no las muestra sin sesiones.
-  - **Verificación:** unitarias (suma fraccionaria, `logros.ts`, tarjeta de Hoy); integración (fuente de avance: al 50 %, terminado, sin temario, borrado; minutos de la semana); raíces de composición mockeadas en las pruebas de página; tras el push, `update-screenshots.yml` (también es la primera corrida del E2E).
-- [ ] **L4: Cierre y carga real** (S; `feat/learning-l4`) — depende de L3
-  - Retrospectiva en `CLAUDE.md`, backlog consolidado, estado en el mapa, HANDOFF («Cómo funciona learning»), archivar plan y tareas.
-  - Checkpoint en producción (Chrome del owner, datos `[QA]` borrados después) y carga de los frentes reales con el owner por la interfaz.
+- Confirmar en el iPhone la tarjeta «Sigue con» de Hoy y el cronómetro (que siga corriendo tras cerrar la app instalada).
+- Revisar las decisiones autónomas de `docs/HANDOFF.md` → «Cómo funciona learning» (L1–L4).
+- Cargar los frentes reales con el agente, por la interfaz (como en «Mi hogar»): títulos, temarios, proyecto, meta semanal y fecha objetivo.
 
-### Checkpoint final
-- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
-- [ ] Frentes reales cargados con el owner.
-- [ ] Se cumplen los criterios de éxito de `SPEC-learning.md`.
-- [ ] Revisión con el owner de las decisiones autónomas (`docs/HANDOFF.md` → «Cómo funciona learning»).
+### `learning` → backlog consolidado
+
+- **Fuera de v1 por la spec:** hábito enlazado («Estudiar»), una fuente nueva en `goals`, Pomodoro con avisos, sincronizar con Platzi/Udemy o leer sus páginas, notas de estudio (van a `notes`), tarjetas de repaso, avisos nuevos de `reminders` (p. ej. «Te faltan 1 h 40 esta semana» el viernes), registrar una sesión por Telegram y estadísticas largas (heatmap anual).
+- **Temario con secciones o subpasos:** hoy es una lista plana (supuesto 2 de la spec); un curso largo con módulos se pega con los nombres de los módulos como pasos.
+- **Revisión semanal del estudio más allá de la cifra:** hoy «Logros» muestra solo los minutos de la semana; quedan por frente, contra la meta y el paso más avanzado (sin comparaciones que culpen).
+- **Editar una sesión:** hoy se quita y se anota de nuevo (decisión autónoma de L2); cambiar minutos o día en la fila.
+- **Orden manual de frentes** dentro de cada estado (hoy por llegada) y **«Deshacer» al crear** un frente (hoy se elimina desde su página).
+- **Cronómetro de un frente que no está en curso en Hoy:** hoy solo sale en `/learning` («Cronómetro en marcha»).
+- **«Cerrar proyecto» cuenta los frentes como tareas:** la confirmación dice «Quedan … 3 tareas abiertas» con lo abierto de todas las fuentes (`openWork` suma tareas y frentes); nombrar las unidades como el avance (`units`).
+- **Unidades del avance en el card:** la tarjeta de `/projects` no muestra el sufijo visible (solo el nombre accesible lo dice); evaluar si conviene.
+- **Intermitente en CI:** la corrida despachada de L3 (tras el commit de capturas) falló en 7 pruebas de acciones de `tests/integration/reminders-push.test.ts` sin tocar `reminders`; la corrida del PR sobre el mismo head pasó. Si se repite, investigar el orden o el estado compartido de esa prueba.
+- **Filas que quedaron de prueba en producción:** el Checkpoint eliminó su frente `[QA]` desde la app (borrado lógico, con sus pasos y sesiones dentro); no se ve y queda en el respaldo.
 
 ## Módulo `finance-resumen-charts`: revertido el 2026-10-17 (decisión del owner)
 
