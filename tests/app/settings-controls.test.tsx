@@ -88,6 +88,10 @@ describe("ShortcutsSwitch", () => {
     const toggle = screen.getByRole("switch", { name: "Atajos de teclado" });
     expect(toggle).toHaveAttribute("aria-checked", "true");
     expect(toggle).toHaveAccessibleDescription(/contrae la barra lateral/);
+    // N1 of notes: the description names N (today's note) and E (edit a note).
+    expect(toggle).toHaveAccessibleDescription(
+      /N la nota de hoy\. En una nota, E la pasa a edición/,
+    );
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-checked", "false");

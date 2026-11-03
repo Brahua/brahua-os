@@ -190,6 +190,13 @@
       "when": 1793645571425,
       "tag": "0026_learning_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793729611090,
+      "tag": "0027_notes",
+      "breakpoints": true
     }
   ]
 }

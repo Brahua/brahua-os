@@ -6,7 +6,7 @@
 
 Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(notes): …`). Máximo un E2E nuevo en todo el módulo (N4).
 
-- [ ] **N1: Notas y editor** (M; `feat/notes-n1`)
+- [x] **N1: Notas y editor** (M; `feat/notes-n1`) — PR abierto (sin merge), con las correcciones de la revisión: migración `0027_notes.sql`, `/notes` y `/notes/[key]`, guardado automático con versión y conflicto, «Nota de hoy» en Hoy, tecla `N`, regla de ESLint, exportación; unitarias e integración (`tests/integration/notes.test.ts`) en verde. Detalle y decisiones autónomas en HANDOFF «Cómo funciona notes → N1». Pendiente tras el push: dispatch de `update-screenshots.yml` (cambian la barra lateral y la cabecera de Hoy).
   - Migración aditiva `notes` (`kind` daily/page, `day` si y solo si daily, `title` 1–120 si y solo si page, `body` ≤ 50 000, `area_id` y `pinned_at` solo en page, `version ≥ 1`; único parcial del día; FK a `life_areas`), Prettier sobre el snapshot; `EXPORTABLE_TABLES` y respaldo.
   - `src/modules/notes/`: `module.ts` («Notas», `navOrder` 69, sin atajo de número), `routes.ts`, `lock-keys.ts` (`NOTES_ADVISORY_SPACE = 9000`), `note-input.ts` (saneo de proyectos con 50 000), `notes.ts`, `actions.ts` (`ownerAction`), `copy.ts`, `revalidate.ts`, `export.ts`, `components/`; páginas `/notes` y `/notes/[key]` con `requireOwner()`.
   - Lista (filtro «Todas · Diario · Notas», área, fijadas primero, de 30 en 30); nota del día (fecha larga, día anterior/siguiente hasta hoy, selector de fecha; futura o mal formada → 404) y de conocimiento (título en el sitio, área, fijar); vista renderizada con «Editar»/`E` y «Listo»/Esc; guardado automático (1 s, `pagehide`, cola, indicador `aria-live`) con versión y conflicto con borrador; eliminar con «Deshacer»; «Nota de hoy»/«Seguir la nota de hoy» en Hoy vía `src/lib`; tecla `N` en `core`; regla de ESLint (nadie importa `notes`; solo raíces de `src/lib`); módulo en `MODULES`.
@@ -133,6 +133,9 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+- [ ] **Espacios de advisory lock repetidos** (visto en la revisión de N1, 2026-11-03): `FINANCE` y `GOALS` usan los dos `5000`, y `PUSH` y `WEEKLY_REVIEW` los dos `6000`. Hoy no chocan (las segundas claves son distintas), pero el espacio debía separar módulos: darle a cada uno el suyo y anotar la tabla de espacios en un solo lugar.
+- [ ] **`notes`: Atrás/Adelante muestra la lista o Hoy de antes** (N1): guardar el cuerpo no revalida (para no volver a dibujar la nota abierta) y el navegador restaura `/notes` y `/` de su caché al volver atrás. Una navegación normal las vuelve a pedir. Revisar si molesta en el uso real.
 
 ### `weekly-review` → backlog consolidado (W1–W4, cierre)
 

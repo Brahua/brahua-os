@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth";
+import { getTodayNoteSlot } from "@/lib/note-extensions";
 import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { dayPartFor, formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { getFinanceTodaySummary } from "@/modules/finance/contracts";
@@ -33,7 +34,7 @@ export default async function Home() {
   // One `Promise.all`, one entry per contract (SPEC-today "Lecturas"), each passed to its slot
   // of `TodayBoard` ("Día completo" reads the tasks completed today; "Pagos" is `finance`'s, F4;
   // "Estudio" is `learning`'s, L3).
-  const [habits, tasks, projects, tasksDoneToday, payments, study, reviewInvite] =
+  const [habits, tasks, projects, tasksDoneToday, payments, study, reviewInvite, todayNote] =
     await Promise.all([
       getHabitsDueToday(now),
       getTasksTodaySummary(now),
@@ -43,6 +44,8 @@ export default async function Home() {
       getLearningTodaySummary(now),
       // W4: the invitation to close the week (Sunday 18:00 → Monday 23:59 Lima), or null.
       getReviewInviteSlot(now),
+      // N1 of notes: «Nota de hoy» (or «Seguir la nota de hoy») under the greeting.
+      getTodayNoteSlot(now),
     ]);
   const today = ownerDateKey(now);
   // evening-close-ritual: from 20:00 (Lima) the header turns into the close of the day.
@@ -66,6 +69,7 @@ export default async function Home() {
               {greetingFor(now)}
             </h1>
             <GreetingLine part={dayPartFor(now)} closing={closing} />
+            {todayNote}
           </header>
         }
         today={today}

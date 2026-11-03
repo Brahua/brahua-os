@@ -336,6 +336,40 @@ const LEARNING_ONLY_CORE_AND_CONTRACTS = {
   ],
   message: "`learning` depende de `core` y `projects`: no importa otros módulos.",
 };
+// `notes` (SPEC-notes "Contratos") sits above `core` and, through contracts (N2–N3), above the
+// modules it links to. NOBODY imports it: the composition roots in src/lib (note-extensions.tsx,
+// note-routes.ts, modules.ts, db.ts, data-export.ts) and the pages under src/app/(app)/notes are
+// the only ones that may. N1 imports no module but `core`.
+const NOTES_IMPORT = {
+  group: ["@/modules/notes", "@/modules/notes/*"],
+  message:
+    "Nadie importa `notes`: lo que añade a otras pantallas entra por sus raíces de composición en src/lib (note-extensions.tsx, note-routes.ts).",
+};
+const NOTES_ONLY_CORE = {
+  group: [
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/goals",
+    "@/modules/goals/*",
+    "@/modules/habits",
+    "@/modules/habits/*",
+    "@/modules/household",
+    "@/modules/household/*",
+    "@/modules/learning",
+    "@/modules/learning/*",
+    "@/modules/projects",
+    "@/modules/projects/*",
+    "@/modules/reminders",
+    "@/modules/reminders/*",
+    "@/modules/tasks",
+    "@/modules/tasks/*",
+    "@/modules/today",
+    "@/modules/today/*",
+    "@/modules/weekly-review",
+    "@/modules/weekly-review/*",
+  ],
+  message: "`notes` depende de `core`: en N1 no importa otros módulos.",
+};
 const moduleBoundaries = [
   {
     files: ["src/modules/goals/**/*.{ts,tsx}"],
@@ -350,6 +384,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -371,6 +406,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -388,6 +424,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS,
             HOUSEHOLD_IMPORT,
             LEARNING_FOR_CONSUMERS,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -400,7 +437,12 @@ const moduleBoundaries = [
         "error",
         {
           paths: HOUSEHOLD_NO_BARRELS,
-          patterns: [HOUSEHOLD_ONLY_CONTRACTS, HOUSEHOLD_ONLY_CORE_AND_CONTRACTS, LEARNING_IMPORT],
+          patterns: [
+            HOUSEHOLD_ONLY_CONTRACTS,
+            HOUSEHOLD_ONLY_CORE_AND_CONTRACTS,
+            LEARNING_IMPORT,
+            NOTES_IMPORT,
+          ],
         },
       ],
     },
@@ -412,7 +454,7 @@ const moduleBoundaries = [
         "error",
         {
           paths: LEARNING_NO_BARRELS,
-          patterns: [LEARNING_ONLY_CONTRACTS, LEARNING_ONLY_CORE_AND_CONTRACTS],
+          patterns: [LEARNING_ONLY_CONTRACTS, LEARNING_ONLY_CORE_AND_CONTRACTS, NOTES_IMPORT],
         },
       ],
     },
@@ -424,7 +466,7 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: LEARNING_NO_BARRELS, patterns: [LEARNING_ONLY_CORE_AND_CONTRACTS] },
+        { paths: LEARNING_NO_BARRELS, patterns: [LEARNING_ONLY_CORE_AND_CONTRACTS, NOTES_IMPORT] },
       ],
     },
   },
@@ -441,6 +483,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_FOR_TODAY,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -459,6 +502,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -479,6 +523,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -499,6 +544,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -520,6 +566,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -542,6 +589,7 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
@@ -565,9 +613,25 @@ const moduleBoundaries = [
             WEEKLY_REVIEW_IMPORT,
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
+            NOTES_IMPORT,
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["src/modules/notes/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [NOTES_ONLY_CORE] }],
+    },
+  },
+  {
+    // The app's pages and routes: only the notes pages read `notes` directly; every other page
+    // (Hoy among them) goes through src/lib/note-extensions.tsx.
+    files: ["src/app/**/*.{ts,tsx}"],
+    ignores: ["src/app/(app)/notes/**"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [NOTES_IMPORT] }],
     },
   },
 ];

@@ -11,6 +11,7 @@ import {
 import { AppNav } from "@/modules/core/components/app-nav";
 import { BottomNav } from "@/modules/core/components/bottom-nav";
 import { Sidebar } from "@/modules/core/components/sidebar";
+import { ownerDateKey } from "@/lib/time";
 import { SIDEBAR_COOKIE } from "@/modules/core/nav-preferences";
 
 const push = vi.fn();
@@ -504,5 +505,63 @@ describe("AppNav quick capture with several providers (Tarea · Gasto, SPEC-fina
     fireEvent.pointerEnter(screen.getAllByRole("button", { name: "Capturar" })[1]);
     expect(tasksPreload).toHaveBeenCalled();
     expect(financePreload).toHaveBeenCalled();
+  });
+});
+
+// N1 of notes: `N` opens today's note (Lima's day at the key press), with the same rules as `C`.
+describe("AppNav: N opens today's note", () => {
+  const todayNote = () => `/notes/${ownerDateKey(new Date())}`;
+
+  test("from 1024 px, N (or Caps Lock N) goes to today's note; Shift, ⌘ or Ctrl + N don't", () => {
+    render(<AppNav initialCollapsed={false} shortcutsEnabled />);
+    expect(fireEvent.keyDown(document.body, { key: "N", shiftKey: true })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: "n", metaKey: true })).toBe(true);
+    expect(fireEvent.keyDown(document.body, { key: "n", ctrlKey: true })).toBe(true);
+    expect(push).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(document.body, { key: "n" })).toBe(false);
+    expect(push).toHaveBeenCalledWith(todayNote());
+    expect(fireEvent.keyDown(document.body, { key: "N" })).toBe(false);
+    expect(push).toHaveBeenCalledTimes(2);
+  });
+
+  test("not below 1024 px, not while typing, not with a dialog open, not with shortcuts off", () => {
+    desktop = false;
+    const { unmount } = render(<AppNav initialCollapsed={false} shortcutsEnabled />);
+    expect(fireEvent.keyDown(document.body, { key: "n" })).toBe(true);
+    unmount();
+
+    desktop = true;
+    const second = render(
+      <>
+        <AppNav initialCollapsed={false} shortcutsEnabled />
+        <textarea aria-label="Texto" />
+        <div role="dialog" aria-label="Hoja">
+          <button type="button">Dentro</button>
+        </div>
+      </>,
+    );
+    expect(fireEvent.keyDown(screen.getByRole("textbox", { name: "Texto" }), { key: "n" })).toBe(
+      true,
+    );
+    expect(fireEvent.keyDown(screen.getByRole("button", { name: "Dentro" }), { key: "n" })).toBe(
+      true,
+    );
+    expect(push).not.toHaveBeenCalled();
+    // Positive control: the same key on the page goes.
+    expect(fireEvent.keyDown(document.body, { key: "n" })).toBe(false);
+    expect(push).toHaveBeenCalledTimes(1);
+    second.unmount();
+
+    push.mockReset();
+    render(<AppNav initialCollapsed={false} shortcutsEnabled={false} />);
+    expect(fireEvent.keyDown(document.body, { key: "n" })).toBe(true);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  test("already on today's note: nothing to open", () => {
+    window.history.replaceState(null, "", todayNote());
+    render(<AppNav initialCollapsed={false} shortcutsEnabled />);
+    fireEvent.keyDown(document.body, { key: "n" });
+    expect(push).not.toHaveBeenCalled();
   });
 });
