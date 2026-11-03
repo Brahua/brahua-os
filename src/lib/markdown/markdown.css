@@ -63,6 +63,17 @@
 .bo-markdown a:hover {
   text-decoration-thickness: 2.5px;
 }
+/* A `[[…]]` link to something in the app (same tab): a quiet chip instead of the underline that
+   marks a link to another site. */
+.bo-markdown a.bo-md-note-link {
+  text-decoration: none;
+  background: var(--color-well);
+  box-shadow: inset 0 -1.5px 0 var(--color-signal);
+  padding: 0 var(--space-1);
+}
+.bo-markdown a.bo-md-note-link:hover {
+  box-shadow: inset 0 -2.5px 0 var(--color-signal);
+}
 .bo-markdown a:focus-visible,
 .bo-markdown .bo-md-table:focus-visible {
   outline: 2px solid var(--color-focus);

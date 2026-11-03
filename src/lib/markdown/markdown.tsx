@@ -10,7 +10,11 @@
 //    http(s) (mailto for links), so `javascript:`, `data:` and `vbscript:` go.
 // 3. react-markdown's own URL filter (defaultUrlTransform) also blanks unsafe schemes.
 // 4. The components below decide how links, images, checkboxes and tables look.
+//
+// `[[type:id|Nombre]]` links of the notes (./note-links.ts) are set aside before parsing and put
+// back by a remark plugin as links whose href the app builds; the sanitizer still runs after them.
 import "./markdown.css";
+import Link from "next/link";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -23,6 +27,13 @@ import {
   MARKDOWN_SCHEMA,
   rehypePrefixFragmentLinks,
 } from "./schema";
+import {
+  isNoteLinkHref,
+  isNoteLinkType,
+  remarkNoteLinks,
+  tokenizeNoteLinks,
+  type NoteLinkResolutions,
+} from "./note-links";
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -35,6 +46,11 @@ export type MarkdownProps = {
    */
   headingOffset?: 0 | 1 | 2 | 3 | 4 | 5;
   className?: string;
+  /**
+   * What the server resolved for the `[[type:id|Nombre]]` links (current names, deleted targets).
+   * Without it, links show their saved name and are never drawn as deleted.
+   */
+  noteLinks?: NoteLinkResolutions;
 };
 
 const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
@@ -68,6 +84,17 @@ const BASE_COMPONENTS: Partial<Components> = {
    * referrer.
    */
   a({ href, children, ...props }) {
+    // A note link (its marker survives the sanitizer only with a known type): an app route, in the
+    // same tab, and only if the href is one the app builds.
+    const noteLink = (props as Record<string, unknown>)["data-note-link"];
+    if (typeof noteLink === "string" && isNoteLinkType(noteLink)) {
+      if (!href || !isNoteLinkHref(href)) return <span>{children}</span>;
+      return (
+        <Link href={href} className="bo-md-note-link" data-note-link={noteLink}>
+          {children}
+        </Link>
+      );
+    }
     const kind = href ? linkKind(href) : null;
     if (!href || !kind) return <span>{children}</span>;
     if (kind !== "external") {
@@ -123,7 +150,6 @@ const BASE_COMPONENTS: Partial<Components> = {
 };
 
 const PLUGINS = {
-  remarkPlugins: [remarkGfm],
   rehypePlugins: [[rehypeSanitize, MARKDOWN_SCHEMA], rehypePrefixFragmentLinks],
   remarkRehypeOptions: {
     // The sanitizer prefixes ids once; remark-rehype must not do it too ("user-content-" twice).
@@ -134,14 +160,16 @@ const PLUGINS = {
 } satisfies Partial<Options>;
 
 /** Renders untrusted Markdown (GFM) as sanitized, design-system styled HTML. */
-export function Markdown({ children, headingOffset = 0, className }: MarkdownProps) {
+export function Markdown({ children, headingOffset = 0, className, noteLinks }: MarkdownProps) {
+  const tokens = tokenizeNoteLinks(children);
   return (
     <div className={cn("bo-markdown", className)}>
       <ReactMarkdown
         {...PLUGINS}
+        remarkPlugins={[remarkGfm, [remarkNoteLinks, { tokens, resolutions: noteLinks }]]}
         components={{ ...BASE_COMPONENTS, ...headingComponents(headingOffset) }}
       >
-        {children}
+        {tokens.source}
       </ReactMarkdown>
     </div>
   );
