@@ -157,6 +157,8 @@ describe("pnpm db:export", () => {
       "learning_steps",
       // L2 of learning (filled rows: tests/integration/learning-sessions.test.ts → "export").
       "learning_sessions",
+      // N1 of notes (filled rows: tests/integration/notes.test.ts → "export").
+      "notes",
       // F1 of finance: all six (filled rows: tests/integration/finance.test.ts → "export").
       "finance_categories",
       "finance_payment_methods",
