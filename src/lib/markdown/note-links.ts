@@ -130,7 +130,8 @@ export type ResolvedNoteLink = {
 export type NoteLinkResolutions = Readonly<Record<string, ResolvedNoteLink>>;
 
 /** How one link renders: a link (name, href) or plain text (deleted). */
-export type NoteLinkView = { kind: "link"; name: string; href: string } | { kind: "text"; text: string };
+export type NoteLinkView =
+  { kind: "link"; name: string; href: string } | { kind: "text"; text: string };
 
 export function noteLinkView(
   link: Pick<ParsedNoteLink, "type" | "id" | "name">,

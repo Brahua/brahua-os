@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { Markdown } from "@/lib/markdown/markdown";
+import { NoteMentions } from "@/lib/note-extensions";
 import { TasksScreen } from "@/modules/tasks/components/tasks-screen";
 import { getTask, getTaskTargets } from "@/modules/tasks/queries";
 import { TASKS_PATH } from "@/modules/tasks/routes";
@@ -58,6 +59,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
             // the h2 "Notas").
             renderedNotes={notes ? <Markdown headingOffset={2}>{notes}</Markdown> : null}
           />
+          <NoteMentions type="task" id={task.id} />
         </div>
       </div>
     </TasksScreen>

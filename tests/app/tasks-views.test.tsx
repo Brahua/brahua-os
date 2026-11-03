@@ -35,6 +35,8 @@ vi.mock("next/navigation", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// N2 of notes: «Mencionado en» reads the database (tested in notes-backlinks.test.tsx).
+vi.mock("@/lib/note-extensions", () => ({ NoteMentions: () => null }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@/modules/tasks/queries", () => ({
   listInboxTasks: vi.fn(async () => []),

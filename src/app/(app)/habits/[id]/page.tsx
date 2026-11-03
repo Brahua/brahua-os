@@ -7,6 +7,7 @@ import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 // G3: the "Metas" section of `goals` (the goals that follow this habit), registered before it renders.
 import { ensureGoalExtensions } from "@/lib/goal-extensions";
+import { NoteMentions } from "@/lib/note-extensions";
 import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
 import { monthOf, parseMonthParam } from "@/modules/habits/calendar";
@@ -104,6 +105,7 @@ export default async function HabitPage({ params, searchParams }: HabitPageProps
         {sections.map(({ id: sectionId, node }) => (
           <Fragment key={sectionId}>{node}</Fragment>
         ))}
+        <NoteMentions type="habit" id={item.id} className="max-w-180" />
       </div>
     </HabitsScreen>
   );

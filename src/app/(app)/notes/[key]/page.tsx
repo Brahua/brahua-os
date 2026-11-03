@@ -2,20 +2,30 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { Markdown } from "@/lib/markdown/markdown";
+import { searchNoteLinks } from "@/lib/note-link-actions";
+import { NOTE_LINK_SOURCES } from "@/lib/note-link-sources";
 import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
 import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
 import { DailyNoteHeader } from "@/modules/notes/components/daily-note-header";
+import { NoteBacklinks } from "@/modules/notes/components/note-backlinks";
 import { NoteBody } from "@/modules/notes/components/note-body";
 import { PageNoteHeader } from "@/modules/notes/components/page-note-header";
 import { NOTES_COPY as COPY } from "@/modules/notes/copy";
 import { dailyTitle, parseNoteKey } from "@/modules/notes/note-day";
-import { getDailyNote, getPageNote, listNoteAreas } from "@/modules/notes/queries";
-import { NOTES_PATH } from "@/modules/notes/routes";
+import {
+  getDailyNote,
+  getDailyNoteDay,
+  getLinkedFrom,
+  getNoteLinkResolutions,
+  getPageNote,
+  listNoteAreas,
+} from "@/modules/notes/queries";
+import { notePath, NOTES_PATH } from "@/modules/notes/routes";
 
 type NotePageProps = { params: Promise<{ key: string }> };
 
@@ -54,10 +64,20 @@ export default async function NotePage({ params }: NotePageProps) {
     parsed.kind === "daily" ? getDailyNote(parsed.day) : getPageNote(parsed.id),
     parsed.kind === "page" ? listNoteAreas() : Promise.resolve([]),
   ]);
-  if (parsed.kind === "page" && !note) notFound();
+  if (parsed.kind === "page" && !note) {
+    // A daily note's id (a `[[note:…]]` link drawn without the server's resolution): its day.
+    const linkedDay = await getDailyNoteDay(parsed.id);
+    if (linkedDay) redirect(notePath(linkedDay));
+    notFound();
+  }
 
   const body = note?.body ?? "";
   const day = parsed.kind === "daily" ? parsed.day : null;
+  // N2: what the links point to now (one query per type present) and the notes linking here.
+  const [noteLinks, linkedFrom] = await Promise.all([
+    getNoteLinkResolutions(NOTE_LINK_SOURCES, body),
+    note ? getLinkedFrom(note.id) : Promise.resolve([]),
+  ]);
 
   return (
     <ScreenServicesProvider label={COPY.noticesLabel} actionHint={COPY.undoHint}>
@@ -81,12 +101,29 @@ export default async function NotePage({ params }: NotePageProps) {
           ) : null}
           <NoteBody
             // A new day or note is a new editor (its own text, version and timers).
-            key={day ?? note?.id}
+            // (Prefixed: the day header is a sibling keyed by the same day.)
+            key={`body:${day ?? note?.id}`}
             note={{ id: note?.id ?? null, body, version: note?.version ?? 0 }}
             day={day}
-            rendered={body ? <Markdown headingOffset={HEADING_OFFSET}>{body}</Markdown> : null}
+            rendered={
+              body ? (
+                <Markdown headingOffset={HEADING_OFFSET} noteLinks={noteLinks}>
+                  {body}
+                </Markdown>
+              ) : null
+            }
+            noteLinks={noteLinks}
+            searchLinks={searchNoteLinks}
             shortcuts={shortcuts}
-            // N2 fills `linkedFrom` («Enlazada desde») and N3 `dayFooter` («Ese día») here.
+            linkedFrom={
+              <NoteBacklinks
+                title={COPY.linkedFromTitle}
+                notes={linkedFrom}
+                headingId="note-linked-from-title"
+                marker="note-linked-from"
+              />
+            }
+            // N3 fills `dayFooter` («Ese día») here.
           />
         </article>
       </div>

@@ -52,6 +52,12 @@ vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/lib/progress-sources", () => ({ ensureProgressSources: vi.fn() }));
 vi.mock("@/lib/project-extensions", () => ({ ensureProjectExtensions: vi.fn() }));
 vi.mock("@/lib/goal-extensions", () => ({ ensureGoalExtensions: vi.fn() }));
+// N2 of notes: «Mencionado en» reads the database (tested in notes-backlinks.test.tsx).
+vi.mock("@/lib/note-extensions", () => ({
+  NoteMentions: ({ type, id }: { type: string; id: string }) => (
+    <div data-note-mentions-slot={`${type}:${id}`} />
+  ),
+}));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/projects/queries", () => ({
   getProject: vi.fn(),
@@ -292,6 +298,9 @@ describe("page", () => {
     render(await ProjectPage(params(PROJECT.id)));
     expect(requireOwner).toHaveBeenCalled();
     expect(heading()).toHaveTextContent("Mudanza");
+    expect(
+      document.querySelector(`[data-note-mentions-slot="project:${PROJECT.id}"]`),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Estado y prioridad",
       "Objetivo y fechas",

@@ -29,11 +29,15 @@ import { addDays, dailyTitle } from "@/modules/notes/note-day";
 import type { NoteArea, NoteItem, NoteListItem } from "@/modules/notes/note-input";
 import {
   getDailyNote,
+  getDailyNoteDay,
   getDeletedNote,
+  getLinkedFrom,
+  getNoteLinkResolutions,
   getPageNote,
   listNoteAreas,
   listNotes,
 } from "@/modules/notes/queries";
+import { NOTE_LINK_SOURCES } from "@/lib/note-link-sources";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/notes/queries", () => ({
@@ -42,7 +46,13 @@ vi.mock("@/modules/notes/queries", () => ({
   getPageNote: vi.fn(),
   getDeletedNote: vi.fn(),
   listNoteAreas: vi.fn(),
+  getNoteLinkResolutions: vi.fn(),
+  getLinkedFrom: vi.fn(),
+  getDailyNoteDay: vi.fn(),
 }));
+// N2: the link sources' root and the picker's action (tested on their own).
+vi.mock("@/lib/note-link-sources", () => ({ NOTE_LINK_SOURCES: [] }));
+vi.mock("@/lib/note-link-actions", () => ({ searchNoteLinks: vi.fn() }));
 vi.mock("@/modules/notes/contracts", () => ({ getTodayNoteState: vi.fn() }));
 vi.mock("@/modules/notes/actions", () => ({
   saveDailyNote: vi.fn(),
@@ -124,6 +134,9 @@ beforeEach(() => {
   vi.mocked(getDeletedNote).mockReset().mockResolvedValue(null);
   vi.mocked(listNoteAreas).mockReset().mockResolvedValue(AREAS);
   vi.mocked(getTodayNoteState).mockReset().mockResolvedValue({ day: TODAY, hasText: false });
+  vi.mocked(getNoteLinkResolutions).mockReset().mockResolvedValue({});
+  vi.mocked(getLinkedFrom).mockReset().mockResolvedValue([]);
+  vi.mocked(getDailyNoteDay).mockReset().mockResolvedValue(null);
 });
 
 const search = (params: Record<string, string> = {}) =>
@@ -534,5 +547,64 @@ describe("/notes/[key]", () => {
     await expect(NotePage(keyParams(TODAY))).rejects.toThrow("NEXT_REDIRECT");
     expect(getDailyNote).not.toHaveBeenCalled();
     await act(async () => {});
+  });
+});
+
+describe("/notes/[key]: links (N2)", () => {
+  const TARGET = id(700);
+
+  test("the body's links are resolved on the server (through the root's sources) and drawn with the current name", async () => {
+    const body = `Ver [[project:${TARGET}|Nombre viejo]] y [[task:${id(701)}|Llamar]]`;
+    vi.mocked(getPageNote).mockResolvedValue({ ...PAGE, body });
+    vi.mocked(getNoteLinkResolutions).mockResolvedValue({
+      [`project:${TARGET}`]: { name: "Ruta AWS + IA", href: `/projects/${TARGET}`, deleted: false },
+      [`task:${id(701)}`]: { name: "Llamar", href: `/tasks/${id(701)}`, deleted: true },
+    });
+    render(await NotePage(keyParams(id(1))));
+    expect(getNoteLinkResolutions).toHaveBeenCalledWith(NOTE_LINK_SOURCES, body);
+    expect(screen.getByRole("link", { name: "Ruta AWS + IA" })).toHaveAttribute(
+      "href",
+      `/projects/${TARGET}`,
+    );
+    expect(screen.getByText(/Llamar \(eliminado\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Llamar/ })).toBeNull();
+  });
+
+  test("«Enlazada desde» lists the notes linking here; without any, no section", async () => {
+    vi.mocked(getPageNote).mockResolvedValue(PAGE);
+    vi.mocked(getLinkedFrom).mockResolvedValue([
+      { id: id(2), kind: "daily", name: "Lunes 3 de noviembre", href: "/notes/2026-11-03" },
+      { id: id(3), kind: "page", name: "Ideas", href: `/notes/${id(3)}` },
+    ]);
+    const { unmount } = render(await NotePage(keyParams(id(1))));
+    expect(getLinkedFrom).toHaveBeenCalledWith(id(1));
+    const section = screen.getByRole("region", { name: COPY.linkedFromTitle });
+    expect(within(section).getByRole("link", { name: "Lunes 3 de noviembre" })).toHaveAttribute(
+      "href",
+      "/notes/2026-11-03",
+    );
+    expect(within(section).getByRole("link", { name: "Ideas" })).toHaveAttribute(
+      "href",
+      `/notes/${id(3)}`,
+    );
+    unmount();
+
+    vi.mocked(getLinkedFrom).mockResolvedValue([]);
+    render(await NotePage(keyParams(id(1))));
+    expect(screen.queryByRole("region", { name: COPY.linkedFromTitle })).toBeNull();
+  });
+
+  test("a day without a note has no «Enlazada desde» (nothing is read)", async () => {
+    render(await NotePage(keyParams(TODAY)));
+    expect(getLinkedFrom).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: COPY.linkedFromTitle })).toBeNull();
+  });
+
+  test("a daily note's id (a link drawn without resolution) opens its day", async () => {
+    vi.mocked(getDailyNoteDay).mockResolvedValue(YESTERDAY);
+    await expect(NotePage(keyParams(id(9)))).rejects.toMatchObject({
+      digest: expect.stringContaining(`/notes/${YESTERDAY}`),
+    });
+    expect(getDailyNoteDay).toHaveBeenCalledWith(id(9));
   });
 });

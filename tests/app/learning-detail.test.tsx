@@ -55,6 +55,12 @@ vi.mock("next/navigation", async (importOriginal) => ({
   },
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// N2 of notes: «Mencionado en» reads the database (tested in notes-backlinks.test.tsx).
+vi.mock("@/lib/note-extensions", () => ({
+  NoteMentions: ({ type, id }: { type: string; id: string }) => (
+    <div data-note-mentions-slot={`${type}:${id}`} />
+  ),
+}));
 vi.mock("@/lib/celebrate", () => ({ celebrate: vi.fn() }));
 vi.mock("@/modules/learning/queries", () => ({
   getTrack: vi.fn(),
@@ -167,6 +173,9 @@ describe("the page", () => {
     render(await TrackPage(params(TRACK.id)));
     expect(requireOwner).toHaveBeenCalled();
     expect(getTrack).toHaveBeenCalledWith(TRACK.id);
+    expect(
+      document.querySelector(`[data-note-mentions-slot="learning:${TRACK.id}"]`),
+    ).toBeInTheDocument();
     expect(listSteps).toHaveBeenCalledWith(TRACK.id);
     expect(listProjectChoices).toHaveBeenCalledWith(id(900));
     expect(getRunningSession).toHaveBeenCalled();

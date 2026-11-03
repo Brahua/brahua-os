@@ -392,3 +392,11 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 .bo-check input { width: 18px; height: 18px; accent-color: var(--color-text); }
 .bo-check:has(input:checked) { box-shadow: inset 0 0 0 1.5px var(--color-text); }
 .bo-check:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+/* notes N2: the `[[` picker under the editor. The active option (aria-activedescendant: the focus
+   stays in the field) is marked by its background and a signal bar, and in forced colors by an
+   outline. */
+.bo-note-link-option { background: var(--color-surface); color: var(--color-text); transition: background-color var(--duration-hover) var(--ease-standard); }
+.bo-note-link-option:hover { background: var(--color-surface-hover); }
+.bo-note-link-option[aria-selected="true"] { background: var(--color-surface-hover); box-shadow: inset 3px 0 0 var(--color-signal); }
+@media (forced-colors: active) { .bo-note-link-option[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; } }

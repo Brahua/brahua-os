@@ -34,6 +34,9 @@ vi.mock("@/lib/db", async (importOriginal) => ({
   getDb: () => testDb,
 }));
 
+// N2 of notes: «Mencionado en» is an async Server Component, tested in notes-links.test.ts.
+vi.mock("@/lib/note-extensions", () => ({ NoteMentions: () => null }));
+
 let removeSource: (() => void) | undefined;
 
 beforeEach(async () => {
