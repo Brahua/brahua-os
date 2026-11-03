@@ -80,16 +80,28 @@ export function NoteBody({
   const ids = useId();
 
   // The `[[` picker: choosing replaces `[[texto` with the link (the autosave runs as with any key)
-  // and the cursor goes right after it, once React has put the new text in the field.
+  // and the cursor goes right after it. Through `insertText` when the browser has it, so ⌘Z undoes
+  // the insertion natively (its input event reaches onChange); otherwise the text is set, and the
+  // cursor placed once React has put it in the field.
   const pendingCaret = useRef<number | null>(null);
   const picker = useLinkPicker({
     text,
     search: searchLinks,
     announce,
     idPrefix: ids,
-    onChoose: ({ text: next, caret, name }) => {
+    onChoose: ({ text: next, caret, name, link, start, end }) => {
+      const field = textarea.current;
+      let inserted = false;
+      if (field && typeof document.execCommand === "function") {
+        field.setSelectionRange(start, end);
+        try {
+          inserted = document.execCommand("insertText", false, link) && field.value === next;
+        } catch {
+          inserted = false;
+        }
+      }
       pendingCaret.current = caret;
-      setText(next);
+      if (!inserted) setText(next);
       announce(COPY.linkInserted(name));
     },
   });
@@ -430,7 +442,13 @@ export function NoteBody({
           ) : showServerRender ? (
             rendered
           ) : (
-            <ClientMarkdown headingOffset={HEADING_OFFSET} noteLinks={noteLinks}>
+            // The typed text may hold links the server never looked up (just inserted): those
+            // show their saved name, never «(ya no existe)».
+            <ClientMarkdown
+              headingOffset={HEADING_OFFSET}
+              noteLinks={noteLinks}
+              unknownNoteLinks="saved"
+            >
               {text}
             </ClientMarkdown>
           )}

@@ -59,7 +59,7 @@ export default async function TaskPage({ params }: TaskPageProps) {
             // the h2 "Notas").
             renderedNotes={notes ? <Markdown headingOffset={2}>{notes}</Markdown> : null}
           />
-          <NoteMentions type="task" id={task.id} />
+          <NoteMentions type="task" id={task.id} heading="label" />
         </div>
       </div>
     </TasksScreen>

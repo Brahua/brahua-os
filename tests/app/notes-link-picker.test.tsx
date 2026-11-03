@@ -113,8 +113,27 @@ describe("pure helpers", () => {
     expect(findLinkQuery(inside, inside.length)).toBe(null); // inside a link
     const after = `[[project:${P1}|Ruta]] y`;
     expect(findLinkQuery(after, after.length)).toBe(null); // after a finished link
-    expect(findLinkQuery(`[[${"a".repeat(81)}`, 83)).toBe(null); // too long
     expect(findLinkQuery("a [[x b [[Ru", 12)).toEqual({ start: 8, query: "Ru" });
+  });
+
+  test("findLinkQuery: never with the cursor inside a link already written", () => {
+    const text = `Ver [[project:${P1}|Ruta AWS]] hoy`;
+    // Cursor right after `[[pro`: the rest of the line reaches `|` before another `[[`.
+    expect(findLinkQuery(text, 9)).toBe(null);
+    // Inside the name: `]]` comes first.
+    expect(findLinkQuery(`Ver [[Ruta AWS]] hoy`, 9)).toBe(null);
+    // A later link on the line doesn't count against a `[[` being typed before it.
+    const later = `[[Ru y [[project:${P1}|X]]`;
+    expect(findLinkQuery(later, 4)).toEqual({ start: 0, query: "Ru" });
+    // Another line doesn't count either.
+    expect(findLinkQuery("[[Ru\nx|y]]", 4)).toEqual({ start: 0, query: "Ru" });
+  });
+
+  test("findLinkQuery: a `[[` left open earlier in the line stops (40 characters or two spaces)", () => {
+    expect(findLinkQuery(`[[${"a".repeat(40)}`, 42)).toEqual({ start: 0, query: "a".repeat(40) });
+    expect(findLinkQuery(`[[${"a".repeat(41)}`, 43)).toBe(null);
+    expect(findLinkQuery("ver [[ luego  sigo", 18)).toBe(null);
+    expect(findLinkQuery("ver [[ luego sigo", 17)).toEqual({ start: 4, query: " luego sigo" });
   });
 
   test("insertLink replaces `[[texto` and puts the cursor right after the link", () => {
@@ -132,6 +151,9 @@ describe("pure helpers", () => {
   test.each([
     ["2026-11-03", { kind: "iso", prefix: "2026-11-03" }],
     ["2026-11", { kind: "iso", prefix: "2026-11" }],
+    // One digit is that day or month (never the 30th or 31st).
+    ["2026-11-3", { kind: "iso", prefix: "2026-11-03" }],
+    ["2026-1", { kind: "iso", prefix: "2026-01" }],
     ["3 nov", { kind: "dayMonth", day: 3, month: 11, year: null }],
     ["3 de noviembre", { kind: "dayMonth", day: 3, month: 11, year: null }],
     ["03 Nov. 2026", { kind: "dayMonth", day: 3, month: 11, year: 2026 }],
@@ -146,11 +168,13 @@ describe("pure helpers", () => {
 });
 
 describe("the picker", () => {
-  test("`[[` + text opens a grouped list under the field; the field is the combobox and keeps the focus", async () => {
+  test("`[[` + text opens a grouped list under the field; the field stays a text box with the focus", async () => {
     const search = vi.fn<Search>(async () => ok(GROUPS));
     render(<Body search={search} />);
-    // At rest the field is a plain text box (no combobox role).
-    expect(screen.getByRole("textbox", { name: COPY.bodyLabel })).not.toHaveAttribute("role");
+    const box = screen.getByRole("textbox", { name: COPY.bodyLabel });
+    expect(box).toHaveAttribute("aria-autocomplete", "list");
+    expect(box).not.toHaveAttribute("aria-controls");
+    expect(box).not.toHaveAttribute("aria-activedescendant");
     await typeText("Hablé con [[");
     await tick(200);
     expect(search).not.toHaveBeenCalled();
@@ -158,21 +182,70 @@ describe("the picker", () => {
     await typeAndSearch("Ru");
     expect(search).toHaveBeenCalledTimes(1);
     expect(search).toHaveBeenCalledWith({ q: "Ru" });
-    const combo = screen.getByRole("combobox", { name: COPY.bodyLabel });
-    expect(combo).toHaveFocus();
-    expect(combo).toHaveAttribute("aria-expanded", "true");
-    expect(combo).toHaveAttribute("aria-controls", listbox()!.id);
+    // Always a text box: no combobox role, no aria-expanded or aria-haspopup.
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(box).toHaveFocus();
+    expect(box).not.toHaveAttribute("aria-expanded");
+    expect(box).not.toHaveAttribute("aria-haspopup");
+    expect(box).toHaveAttribute("aria-controls", listbox()!.id);
     expect(screen.getByRole("group", { name: "Proyectos" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Tareas" })).toBeInTheDocument();
     const options = screen.getAllByRole("option");
+    // Name, state and type for screen readers («Rumbo 2027, Terminado, Proyecto»).
     expect(options.map((option) => option.textContent)).toEqual([
-      "Ruta AWS + IA",
-      "Rumbo 2027Terminado",
-      "Revisar rutaHecha",
+      "Ruta AWS + IA, Proyecto",
+      "Rumbo 2027, Terminado, Proyecto",
+      "Revisar ruta, Hecha, Tarea",
     ]);
-    expect(combo).toHaveAttribute("aria-activedescendant", options[0].id);
+    expect(options.map((option) => option.getAttribute("aria-posinset"))).toEqual(["1", "2", "3"]);
+    expect(options.every((option) => option.getAttribute("aria-setsize") === "3")).toBe(true);
+    expect(box).toHaveAttribute("aria-activedescendant", options[0].id);
     expect(options[0]).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(announcer()).toHaveTextContent(COPY.linkResults(3)));
+  });
+
+  test("the list comes into view when it opens and scrolls inside", async () => {
+    const scrolled = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      render(<Body search={async () => ok(GROUPS)} />);
+      await typeAndSearch("[[Ru");
+      const picker = document.querySelector("[data-note-link-picker]");
+      expect(picker).toHaveClass("bo-note-link-picker");
+      expect(scrolled.mock.contexts).toContain(picker);
+      expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  test("the result is announced when its count changes, not on every answer", async () => {
+    const search = vi.fn<Search>(async () => ok(GROUPS));
+    render(<Body search={search} />);
+    await typeAndSearch("[[R");
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.linkResults(3)));
+    const said: string[] = [];
+    const observer = new MutationObserver(() => said.push(announcer().textContent ?? ""));
+    observer.observe(announcer(), { childList: true, subtree: true, characterData: true });
+    await typeAndSearch("u");
+    await tick(1000);
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(said.filter((text) => text === COPY.linkResults(3))).toEqual([]);
+    // Positive control: a different count is said.
+    search.mockResolvedValueOnce(ok([GROUPS[1]]));
+    await typeAndSearch("t");
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.linkResults(1)));
+    observer.disconnect();
+  });
+
+  test("an IME composing owns Enter (Safari's keyCode 229): nothing is chosen", async () => {
+    render(<Body search={async () => ok(GROUPS)} />);
+    await typeAndSearch("[[Ru");
+    fireEvent.keyDown(field(), { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(field(), { key: "Enter", isComposing: true });
+    expect(field()).toHaveValue("[[Ru");
+    expect(listbox()).not.toBeNull();
   });
 
   test("a burst of keys searches once, 150 ms after the last one", async () => {
@@ -189,7 +262,7 @@ describe("the picker", () => {
   test("arrows move (and wrap), Enter chooses: `[[texto` becomes the link, cursor after it, then saved", async () => {
     render(<Body search={async () => ok(GROUPS)} />);
     await typeAndSearch("Hablé con [[Ru");
-    const combo = screen.getByRole("combobox", { name: COPY.bodyLabel });
+    const combo = field();
     await user.keyboard("{ArrowDown}");
     expect(combo).toHaveAttribute("aria-activedescendant", screen.getAllByRole("option")[1].id);
     await user.keyboard("{ArrowUp}{ArrowUp}");
@@ -200,7 +273,8 @@ describe("the picker", () => {
     expect(field().selectionStart).toBe(`Hablé con ${link}`.length);
     expect(field()).toHaveFocus();
     expect(listbox()).toBeNull();
-    expect(field()).not.toHaveAttribute("role");
+    expect(field()).not.toHaveAttribute("aria-controls");
+    expect(field()).not.toHaveAttribute("aria-activedescendant");
     await waitFor(() => expect(announcer()).toHaveTextContent(COPY.linkInserted("Ruta AWS + IA")));
     // The autosave runs as with any key press.
     await tick(1000);
@@ -263,7 +337,7 @@ describe("the picker", () => {
     expect(Object.keys(answers)).toEqual(["R", "Ru"]);
     await act(async () => answers.Ru(ok([GROUPS[1]])));
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-      "Revisar rutaHecha",
+      "Revisar ruta, Hecha, Tarea",
     ]);
     await act(async () => answers.R(ok(GROUPS)));
     expect(screen.getAllByRole("option")).toHaveLength(1);
@@ -275,10 +349,9 @@ describe("the picker", () => {
     expect(screen.getByText(COPY.linkNoMatches)).toBeVisible();
     expect(listbox()).toBeNull();
     await waitFor(() => expect(announcer()).toHaveTextContent(COPY.linkNoMatches));
-    expect(screen.getByRole("combobox", { name: COPY.bodyLabel })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    // No list: nothing to control or point at.
+    expect(field()).not.toHaveAttribute("aria-controls");
+    expect(field()).not.toHaveAttribute("aria-activedescendant");
     await user.keyboard("{Enter}");
     expect(field()).toHaveValue("[[zzz\n");
   });
@@ -325,7 +398,39 @@ describe("the picker", () => {
     );
     await typeText("[[Ru");
     await tick(200);
-    expect(field()).not.toHaveAttribute("role");
+    expect(field()).not.toHaveAttribute("aria-autocomplete");
     expect(screen.queryByText(COPY.linkSearching)).toBeNull();
+  });
+
+  test("a link just inserted shows as a link with its name after Esc or «Listo» (never as gone)", async () => {
+    // The page's resolutions cover the saved body only (another link, resolved).
+    const OTHER = "00000000-0000-4000-8000-000000000301";
+    render(
+      <ScreenServicesProvider label={COPY.noticesLabel} actionHint={COPY.undoHint}>
+        <NoteBody
+          note={{ id: ID, body: `Antes [[goal:${OTHER}|Leer]]`, version: 3 }}
+          day={null}
+          rendered={<p data-testid="server-render">Antes Leer</p>}
+          shortcuts={false}
+          searchLinks={async () => ok(GROUPS)}
+          noteLinks={{
+            [`goal:${OTHER}`]: { name: "Leer 12 libros", href: `/goals/${OTHER}`, deleted: false },
+          }}
+        />
+      </ScreenServicesProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await typeAndSearch(" y [[Ru");
+    await user.keyboard("{Enter}");
+    await user.keyboard("{Escape}");
+    // The client render (loaded lazily) shows both: the new one by its saved name.
+    const link = await screen.findByRole("link", { name: "Ruta AWS + IA" });
+    expect(link).toHaveAttribute("href", `/projects/${P1}`);
+    expect(screen.getByRole("link", { name: "Leer 12 libros" })).toBeInTheDocument();
+    expect(screen.queryByText(/ya no existe/)).toBeNull();
+    // «Listo» the same way.
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.click(screen.getByRole("button", { name: COPY.done }));
+    expect(await screen.findByRole("link", { name: "Ruta AWS + IA" })).toBeInTheDocument();
   });
 });

@@ -9,11 +9,26 @@ export function normalizeName(value: string): string {
 }
 
 /**
- * Text to search names with (the `[[` picker of the notes, src/lib/link-search.ts): no accents
- * (NFD without marks), lowercase, runs of whitespace as one space, trimmed.
+ * Accented letters and what each folds to (same position): the one table the `[[` picker's search
+ * uses both here and in SQL (`translate`, src/lib/link-search.ts), so the two always agree.
+ */
+export const SEARCH_FOLD_FROM = "áàäâãåéèëêíìïîóòöôõúùüûñçýÿÁÀÄÂÃÅÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇÝ";
+export const SEARCH_FOLD_TO = "aaaaaaeeeeiiiiooooouuuuncyyaaaaaaeeeeiiiiooooouuuuncy";
+const SEARCH_FOLD = new Map(
+  [...SEARCH_FOLD_FROM].map((from, index) => [from, SEARCH_FOLD_TO[index]]),
+);
+
+/**
+ * Text to search names with (the `[[` picker of the notes): NFC (a Mac may type decomposed
+ * accents), lowercase, folded with SEARCH_FOLD_FROM → SEARCH_FOLD_TO (as SQL does), runs of
+ * whitespace as one space, trimmed.
  */
 export function foldSearchText(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return [...text.normalize("NFC").toLowerCase()]
+    .map((character) => SEARCH_FOLD.get(character) ?? character)
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**

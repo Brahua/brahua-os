@@ -126,9 +126,10 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <ProjectNotesSection
             rendered={project.notes ? <Markdown headingOffset={2}>{project.notes}</Markdown> : null}
           />
+          {/* ── notes N2: «Aparece en N notas», before the zone to close or delete. ── */}
+          <NoteMentions type="project" id={project.id} heading="label" />
           <ProjectCloseSection counts={countMilestones(milestones)} contributed={contributed} />
           <ProjectDeleteSection />
-          <NoteMentions type="project" id={project.id} />
         </div>
         {justCreated ? (
           <CreatedNotice headingId={HEADING_ID} message={PROJECTS_COPY.created(project.name)} />

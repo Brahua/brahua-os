@@ -23,9 +23,17 @@ import { taskPath } from "@/modules/tasks/routes";
 const ID = "0b7c5a0e-1d2f-4a3b-8c4d-5e6f7a8b9c0d";
 const ID2 = "1b7c5a0e-1d2f-4a3b-8c4d-5e6f7a8b9c0d";
 
-function dom(source: string, noteLinks?: NoteLinkResolutions) {
+function dom(
+  source: string,
+  noteLinks?: NoteLinkResolutions,
+  unknownNoteLinks: "deleted" | "saved" = "deleted",
+) {
   const container = document.createElement("div");
-  container.innerHTML = renderToStaticMarkup(<Markdown noteLinks={noteLinks}>{source}</Markdown>);
+  container.innerHTML = renderToStaticMarkup(
+    <Markdown noteLinks={noteLinks} unknownNoteLinks={unknownNoteLinks}>
+      {source}
+    </Markdown>,
+  );
   return container;
 }
 
@@ -74,7 +82,13 @@ describe("parsing", () => {
   });
 
   test("hand-typed placeholder characters are dropped", () => {
-    expect(tokenizeNoteLinks("a0b").source).toBe("a0b");
+    expect(tokenizeNoteLinks("a\uE0100\uE011b").source).toBe("a0b");
+  });
+
+  test("a link escaped with a backslash is not a link", () => {
+    expect(parseNoteLinks(`\\[[task:${ID}|x]]`)).toEqual([]);
+    // An escaped backslash before it doesn't escape the link.
+    expect(parseNoteLinks(`\\\\[[task:${ID}|x]]`)).toHaveLength(1);
   });
 
   test("the app's routes match each module's detail path", () => {
@@ -122,13 +136,64 @@ describe("rendering", () => {
     const links = container.querySelectorAll("a");
     expect(links).toHaveLength(1);
     expect(links[0].textContent).toBe("Nuevo nombre");
-    expect(container.textContent).toBe("Nuevo nombre · Llamar al banco (eliminado)");
+    expect(container.textContent).toBe("Nuevo nombre · Llamar al banco (ya no existe)");
+    // A gone target is muted text.
+    expect(container.querySelector(".bo-md-note-link-gone")).toHaveTextContent(
+      "Llamar al banco (ya no existe)",
+    );
   });
 
-  test("with resolutions, a link the server didn't find is deleted (saved name)", () => {
-    const container = dom(`[[goal:${ID}|Correr 10K]]`, {});
+  test("resolved for exactly this text (the server's render), a link it didn't find is gone", () => {
+    const container = dom(`[[goal:${ID}|Correr 10K]]`, {}, "deleted");
     expect(container.querySelector("a")).toBe(null);
-    expect(container.textContent).toBe("Correr 10K (eliminado)");
+    expect(container.textContent).toBe("Correr 10K (ya no existe)");
+  });
+
+  test("the editor's text: a link nobody looked up yet is a link with its saved name", () => {
+    const container = dom(
+      `[[goal:${ID}|Correr 10K]] y [[task:${ID2}|Llamar]]`,
+      { [`task:${ID2}`]: { name: "Llamar", href: `/tasks/${ID2}`, deleted: true } },
+      "saved",
+    );
+    expect(container.querySelector("a")).toHaveAttribute("href", `/goals/${ID}`);
+    expect(container.querySelector("a")).toHaveTextContent("Correr 10K");
+    // What the server did resolve still counts.
+    expect(container.textContent).toContain("Llamar (ya no existe)");
+  });
+
+  test("external links carry an icon and «new tab» (a `[[…]]` link has neither)", () => {
+    const container = dom(`[a](https://example.com) [[project:${ID}|B]]`);
+    const [external, internal] = container.querySelectorAll("a");
+    expect(external.querySelector("svg.bo-md-external-icon")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(external).toHaveTextContent("(se abre en una pestaña nueva)");
+    expect(internal.querySelector("svg")).toBe(null);
+  });
+
+  test.each([
+    ["hexadecimal", "&#xE010;0&#xE011;"],
+    ["decimal", "&#57360;0&#57361;"],
+    ["with a guessed nonce", "&#xE010;abcd1234:0&#xE011;"],
+  ])("a placeholder can't be forged with %s character references", (_name, forged) => {
+    const container = dom(`[[project:${ID}|Real]] ${forged}`);
+    const links = container.querySelectorAll("a");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveTextContent("Real");
+  });
+
+  test("an escaped link shows as written, without the backslash", () => {
+    const container = dom(`\\[[task:${ID}|x]]`);
+    expect(container.querySelector("a")).toBe(null);
+    expect(container.textContent).toBe(`[[task:${ID}|x]]`);
+  });
+
+  test("a code block's language and meta keep the link text as written", () => {
+    const raw = `[[project:${ID}|R]]`;
+    const container = dom(`\`\`\`${raw} ${raw}\ncode\n\`\`\``);
+    expect(container.querySelector("a")).toBe(null);
+    expect(container.innerHTML).not.toContain("\uE010");
   });
 
   test("a resolved href outside the app's routes is ignored (built from the type and id)", () => {
@@ -187,7 +252,7 @@ describe("rendering", () => {
 
   test("a link's text inside a URL stays as written", () => {
     const container = dom(`[x](https://example.com/[[project:${ID}|A]])`);
-    expect(container.querySelector("a")?.getAttribute("href")).not.toContain("");
+    expect(container.querySelector("a")?.getAttribute("href")).not.toContain("\uE010");
   });
 
   test("a path written by hand is never an app link", () => {
@@ -196,18 +261,18 @@ describe("rendering", () => {
   });
 
   test("no href ever leaves the app's routes, whatever the note says", () => {
-    const sources = [
-      `[[project:${ID}|x]](javascript:alert(1))`,
-      `[[project:${ID}|x]]`,
-      `[[note:${ID}|<a href="javascript:alert(1)">y</a>]]`,
-      `<a data-note-link="project" href="/settings">z</a>`,
-      `[[project:${ID}|x]] [y](/projects/${ID} "t")`,
+    // [source, how many links it must produce] (a positive control: zero links passes trivially).
+    const sources: [string, number][] = [
+      [`[[project:${ID}|x]](javascript:alert(1))`, 1],
+      [`[[project:${ID}|x]]`, 1],
+      [`[[note:${ID}|<a href="javascript:alert(1)">y</a>]]`, 1],
+      [`<a data-note-link="project" href="/settings">z</a>`, 0],
+      [`[[project:${ID}|x]] [y](/projects/${ID} "t")`, 1],
     ];
-    for (const source of sources) {
-      for (const link of dom(source).querySelectorAll("a")) {
-        const href = link.getAttribute("href") ?? "";
-        expect(href).toMatch(APP_ROUTE);
-      }
+    for (const [source, count] of sources) {
+      const links = dom(source).querySelectorAll("a");
+      expect(links).toHaveLength(count);
+      for (const link of links) expect(link.getAttribute("href") ?? "").toMatch(APP_ROUTE);
     }
   });
 });

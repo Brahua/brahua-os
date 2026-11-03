@@ -566,7 +566,7 @@ describe("/notes/[key]: links (N2)", () => {
       "href",
       `/projects/${TARGET}`,
     );
-    expect(screen.getByText(/Llamar \(eliminado\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Llamar \(ya no existe\)/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Llamar/ })).toBeNull();
   });
 

@@ -8,11 +8,11 @@
 // themselves.
 import "server-only";
 import { sql, type AnyColumn, type SQL } from "drizzle-orm";
-import { foldSearchText } from "./text";
+import { foldSearchText, SEARCH_FOLD_FROM, SEARCH_FOLD_TO } from "./text";
 
-/** Accented letters and what each folds to (same position). Exported for a test. */
-export const ACCENTED = "áàäâãåéèëêíìïîóòöôõúùüûñçýÿÁÀÄÂÃÅÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇÝ";
-export const PLAIN = "aaaaaaeeeeiiiiooooouuuuncyyaaaaaaeeeeiiiiooooouuuuncy";
+/** The fold table shared with `foldSearchText` (re-exported for a test). */
+export const ACCENTED = SEARCH_FOLD_FROM;
+export const PLAIN = SEARCH_FOLD_TO;
 
 /** `%`, `_` and `\` match themselves in a LIKE pattern (Postgres' default escape is `\`). */
 export function escapeLike(text: string): string {

@@ -2,15 +2,19 @@
 
 // The `[[` picker of the note editor (SPEC-notes "Selector `[[`"). Typing `[[` and some text opens a
 // list of up to 8 results UNDER the field (not by the cursor: stable with the iPhone keyboard),
-// grouped by type. The focus never leaves the `textarea`: it is the combobox (`aria-activedescendant`
-// points at the active option). Arrows move, Enter or Tab choose, Esc closes (and doesn't leave the
-// editor), a tap chooses on the phone. The search runs 150 ms after the last key press through a
-// read-only Server Action; an answer to an older text is ignored. Every timer is cleared.
+// grouped by type. The focus never leaves the `textarea`, which stays a plain text box
+// (`aria-autocomplete="list"`; `aria-controls` while the list exists and `aria-activedescendant` on
+// the active option): ARIA in HTML allows no other role on a `textarea`, and the list's state is
+// told by the announcer («3 resultados…», «Sin coincidencias»). Arrows move, Enter or Tab choose
+// (never while an IME is composing), Esc closes (and doesn't leave the editor), a tap chooses on the
+// phone. The search runs 150 ms after the last key press through a read-only Server Action; an
+// answer to an older text is ignored. Every timer and listener is cleared.
 //
-// `role="combobox"` sits on the `textarea` only while the picker is open (decisión autónoma para
-// revisar con el owner): ARIA in HTML allows no role on a `textarea`, and axe (run by the E2E with
-// every rule) flags it, so at rest the field is a plain text box.
-import { useCallback, useEffect, useRef, useState } from "react";
+// The list scrolls itself into view when it opens (the page's `scroll-padding` keeps it clear of the
+// bottom bar and toasts) and is at most 40 % of the visible viewport tall (`visualViewport`: with the
+// iPhone keyboard up, what is left above it), scrolling inside. Whether it sits clear of the
+// keyboard is checked by the owner on the iPhone.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ActionResult } from "@/lib/action-result";
 import type { NoteLinkType } from "@/lib/markdown/note-links";
 import type { NoteLinkGroup } from "../contracts";
@@ -22,10 +26,20 @@ export type SearchLinks = (input: { q: string }) => Promise<ActionResult<NoteLin
 
 type Option = { type: NoteLinkType; id: string; name: string; hint: string | null };
 
+/** What choosing a result does to the text: `link` replaces `start`–`end`; then `text`, `caret`. */
+export type LinkChoice = {
+  text: string;
+  caret: number;
+  name: string;
+  link: string;
+  start: number;
+  end: number;
+};
+
 type Options = {
   text: string;
-  /** Replaces the text (the autosave runs as with any key press) and puts the cursor at `caret`. */
-  onChoose: (next: { text: string; caret: number; name: string }) => void;
+  /** Puts the link in the text (the autosave runs as with any key press), the cursor after it. */
+  onChoose: (choice: LinkChoice) => void;
   search: SearchLinks | undefined;
   /** The screen's polite announcer. */
   announce: (message: string) => void;
@@ -45,6 +59,7 @@ export function useLinkPicker({ text, onChoose, search, announce, idPrefix }: Op
   const [results, setResults] = useState<Results | null>(null);
   const [active, setActive] = useState<{ key: string; index: number } | null>(null);
   const request = useRef(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const match = search && focused && caret !== null ? findLinkQuery(text, caret) : null;
   const key = match ? keyOf(match) : null;
@@ -91,9 +106,9 @@ export function useLinkPicker({ text, onChoose, search, announce, idPrefix }: Op
       ? Math.min(active.index, options.length - 1)
       : 0;
 
-  // Results arrived: say how many (or that there are none, or that the search failed).
+  // Say what the list shows, only when that changes (how many, none, or a failure): not again on
+  // each answer that brings as many results while the owner keeps typing.
   const announced = useRef<string | null>(null);
-  const answered = current?.key ?? null;
   useEffect(() => {
     if (state === "closed") announced.current = null;
     if (state === "closed" || state === "loading") return;
@@ -103,37 +118,54 @@ export function useLinkPicker({ text, onChoose, search, announce, idPrefix }: Op
         : state === "empty"
           ? COPY.linkNoMatches
           : COPY.linkSearchFailed;
-    // Once per answer (not again on each key press while it stays on screen).
-    const said = `${answered}|${message}`;
-    if (announced.current === said) return;
-    announced.current = said;
+    if (announced.current === message) return;
+    announced.current = message;
     announce(message);
-  }, [state, answered, options.length, announce]);
+  }, [state, options.length, announce]);
+
+  // Opening: the list comes into view (under a tall field it would sit below the keyboard), at most
+  // 40 % of what is visible tall. `visualViewport` shrinks when the iPhone keyboard is up.
+  const isOpen = state !== "closed";
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const list = listRef.current;
+    const viewport = window.visualViewport;
+    function fit() {
+      if (!list) return;
+      if (viewport) list.style.setProperty("--bo-link-picker-max", `${viewport.height * 0.4}px`);
+      list.scrollIntoView?.({ block: "nearest" });
+    }
+    fit();
+    viewport?.addEventListener("resize", fit);
+    return () => viewport?.removeEventListener("resize", fit);
+  }, [isOpen]);
 
   const choose = useCallback(
     (option: Option) => {
       if (!match || caret === null) return;
       const next = insertLink(text, match, caret, option);
       setCaret(next.caret);
-      onChoose({ ...next, name: option.name });
+      const link = next.text.slice(match.start, next.caret);
+      onChoose({ ...next, name: option.name, link, start: match.start, end: caret });
     },
     [match, caret, text, onChoose],
   );
 
   const listId = `${idPrefix}-links`;
   const optionId = (index: number) => `${idPrefix}-link-${index}`;
-  const expanded = state === "results";
+  const hasOptions = state === "results";
 
   /** Handles the picker's keys; true when the key was its own (the editor must ignore it). */
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): boolean {
-    if (!open || !key || event.nativeEvent.isComposing) return false;
+    // An IME composing (Safari reports its Enter as keyCode 229) owns the key.
+    if (!open || !key || event.nativeEvent.isComposing || event.keyCode === 229) return false;
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
       setDismissed(key);
       return true;
     }
-    if (!expanded) return false;
+    if (!hasOptions) return false;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;
@@ -162,75 +194,71 @@ export function useLinkPicker({ text, onChoose, search, announce, idPrefix }: Op
     },
     onBlur: () => setFocused(false),
     "aria-autocomplete": search ? ("list" as const) : undefined,
-    ...(open
-      ? {
-          role: "combobox",
-          "aria-expanded": expanded,
-          "aria-controls": listId,
-          "aria-activedescendant": expanded ? optionId(activeIndex) : undefined,
-        }
-      : {}),
+    "aria-controls": hasOptions ? listId : undefined,
+    "aria-activedescendant": hasOptions ? optionId(activeIndex) : undefined,
   };
 
-  const list =
-    state === "closed" ? null : (
-      <div className="bo-note-link-picker" data-note-link-picker="">
-        {state === "results" ? (
-          <div role="listbox" id={listId} aria-label={COPY.linkPickerLabel} className="bo-list">
-            {groups.map((group, groupIndex) => {
-              const offset = groups
-                .slice(0, groupIndex)
-                .reduce((sum, previous) => sum + previous.items.length, 0);
-              const labelId = `${idPrefix}-links-${group.type}`;
-              return (
-                <div key={group.type} role="group" aria-labelledby={labelId}>
-                  <div
-                    id={labelId}
-                    role="presentation"
-                    className="bo-text-label bg-surface px-4 pt-3 pb-1 text-text-secondary"
-                  >
-                    {group.label}
-                  </div>
-                  {group.items.map((item, itemIndex) => {
-                    const index = offset + itemIndex;
-                    const selected = index === activeIndex;
-                    return (
-                      <div
-                        key={item.id}
-                        id={optionId(index)}
-                        role="option"
-                        aria-selected={selected}
-                        data-note-link-option={`${group.type}:${item.id}`}
-                        className="bo-note-link-option flex min-h-11 min-w-0 cursor-pointer items-baseline gap-2 px-4 py-2"
-                        // The focus stays in the field: a tap or click never moves it.
-                        onPointerDown={(event) => event.preventDefault()}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => choose({ type: group.type, ...item })}
-                      >
-                        <span className="bo-text-body min-w-0 flex-1 break-words">{item.name}</span>
-                        {item.hint ? (
-                          <span className="bo-text-label shrink-0 text-text-secondary">
-                            {item.hint}
-                          </span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+  const list = !isOpen ? null : (
+    <div ref={listRef} className="bo-note-link-picker" data-note-link-picker="">
+      {hasOptions ? (
+        <div role="listbox" id={listId} aria-label={COPY.linkPickerLabel} className="bo-list">
+          {groups.map((group, groupIndex) => {
+            const offset = groups
+              .slice(0, groupIndex)
+              .reduce((sum, previous) => sum + previous.items.length, 0);
+            const labelId = `${idPrefix}-links-${group.type}`;
+            return (
+              <div key={group.type} role="group" aria-labelledby={labelId}>
+                <div
+                  id={labelId}
+                  role="presentation"
+                  className="bo-text-label bg-surface px-4 pt-3 pb-1 text-text-secondary"
+                >
+                  {group.label}
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="bo-text-body-sm text-text-secondary" data-note-link-status="">
-            {state === "loading"
-              ? COPY.linkSearching
-              : state === "empty"
-                ? COPY.linkNoMatches
-                : COPY.linkSearchFailed}
-          </p>
-        )}
-      </div>
-    );
+                {group.items.map((item, itemIndex) => {
+                  const index = offset + itemIndex;
+                  return (
+                    <div
+                      key={item.id}
+                      id={optionId(index)}
+                      role="option"
+                      aria-selected={index === activeIndex}
+                      aria-setsize={options.length}
+                      aria-posinset={index + 1}
+                      data-note-link-option={`${group.type}:${item.id}`}
+                      className="bo-note-link-option flex min-h-11 min-w-0 cursor-pointer items-baseline gap-2 px-4 py-2"
+                      // The focus stays in the field: a tap or click never moves it.
+                      onPointerDown={(event) => event.preventDefault()}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => choose({ type: group.type, ...item })}
+                    >
+                      <span className="bo-text-body min-w-0 flex-1 break-words">{item.name}</span>
+                      {item.hint ? (
+                        <span className="bo-text-label shrink-0 text-text-secondary">
+                          <span className="sr-only">, </span>
+                          {item.hint}
+                        </span>
+                      ) : null}
+                      <span className="sr-only">, {COPY.linkTypeNames[group.type]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="bo-text-body-sm text-text-secondary" data-note-link-status="">
+          {state === "loading"
+            ? COPY.linkSearching
+            : state === "empty"
+              ? COPY.linkNoMatches
+              : COPY.linkSearchFailed}
+        </p>
+      )}
+    </div>
+  );
 
   return { fieldProps, onKeyDown, track, list, open };
 }

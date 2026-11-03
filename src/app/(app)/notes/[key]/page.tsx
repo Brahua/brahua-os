@@ -107,7 +107,12 @@ export default async function NotePage({ params }: NotePageProps) {
             day={day}
             rendered={
               body ? (
-                <Markdown headingOffset={HEADING_OFFSET} noteLinks={noteLinks}>
+                // Resolved for exactly this text: a link the server didn't find is gone.
+                <Markdown
+                  headingOffset={HEADING_OFFSET}
+                  noteLinks={noteLinks}
+                  unknownNoteLinks="deleted"
+                >
                   {body}
                 </Markdown>
               ) : null

@@ -14,6 +14,7 @@
 // `[[type:id|Nombre]]` links of the notes (./note-links.ts) are set aside before parsing and put
 // back by a remark plugin as links whose href the app builds; the sanitizer still runs after them.
 import "./markdown.css";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -33,6 +34,7 @@ import {
   remarkNoteLinks,
   tokenizeNoteLinks,
   type NoteLinkResolutions,
+  type UnknownNoteLinks,
 } from "./note-links";
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -48,9 +50,15 @@ export type MarkdownProps = {
   className?: string;
   /**
    * What the server resolved for the `[[type:id|Nombre]]` links (current names, deleted targets).
-   * Without it, links show their saved name and are never drawn as deleted.
+   * Without it, links show their saved name and are never drawn as gone.
    */
   noteLinks?: NoteLinkResolutions;
+  /**
+   * A link missing from `noteLinks`: `"deleted"` when they were resolved for exactly this text (the
+   * server's render), `"saved"` (default) when the text may hold links nobody looked up yet (the
+   * editor's text: a link just inserted shows its saved name).
+   */
+  unknownNoteLinks?: UnknownNoteLinks;
 };
 
 const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
@@ -75,6 +83,20 @@ function headingComponents(offset: number): Partial<Components> {
     return [`h${level}`, Heading] as const;
   });
   return Object.fromEntries(entries);
+}
+
+/**
+ * What marks a link that leaves the app (new tab): an icon (hidden from screen readers) and the
+ * spoken «(se abre en una pestaña nueva)». A `[[…]]` link has neither, so the two never depend on
+ * color alone to tell apart.
+ */
+function ExternalMark() {
+  return (
+    <>
+      <ExternalLink aria-hidden className="bo-md-external-icon" size={12} strokeWidth={2} />
+      <span className="sr-only"> {MARKDOWN_COPY.newTab}</span>
+    </>
+  );
 }
 
 const BASE_COMPONENTS: Partial<Components> = {
@@ -107,8 +129,17 @@ const BASE_COMPONENTS: Partial<Components> = {
     return (
       <a {...domProps(props)} href={href} target="_blank" rel="noopener noreferrer nofollow">
         {children}
-        <span className="sr-only"> {MARKDOWN_COPY.newTab}</span>
+        <ExternalMark />
       </a>
+    );
+  },
+  /** A `[[…]]` link whose target is gone: plain, muted text (never a link). */
+  span({ children, ...props }) {
+    const gone = (props as Record<string, unknown>)["data-note-link-gone"] !== undefined;
+    return (
+      <span {...domProps(props)} className={gone ? "bo-md-note-link-gone" : undefined}>
+        {children}
+      </span>
     );
   },
   /**
@@ -122,7 +153,7 @@ const BASE_COMPONENTS: Partial<Components> = {
     return (
       <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="bo-md-image-link">
         {text}
-        <span className="sr-only"> {MARKDOWN_COPY.newTab}</span>
+        <ExternalMark />
       </a>
     );
   },
@@ -160,13 +191,21 @@ const PLUGINS = {
 } satisfies Partial<Options>;
 
 /** Renders untrusted Markdown (GFM) as sanitized, design-system styled HTML. */
-export function Markdown({ children, headingOffset = 0, className, noteLinks }: MarkdownProps) {
+export function Markdown({
+  children,
+  headingOffset = 0,
+  className,
+  noteLinks,
+  unknownNoteLinks = "saved",
+}: MarkdownProps) {
+  // A new nonce on every render (the placeholders never reach the output).
   const tokens = tokenizeNoteLinks(children);
+  const linkOptions = { tokens, resolutions: noteLinks, unknown: unknownNoteLinks };
   return (
     <div className={cn("bo-markdown", className)}>
       <ReactMarkdown
         {...PLUGINS}
-        remarkPlugins={[remarkGfm, [remarkNoteLinks, { tokens, resolutions: noteLinks }]]}
+        remarkPlugins={[remarkGfm, [remarkNoteLinks, linkOptions]]}
         components={{ ...BASE_COMPONENTS, ...headingComponents(headingOffset) }}
       >
         {tokens.source}

@@ -2,7 +2,7 @@
 // `%` and `_` as themselves, deleted rows out, live ones first, pending tasks before done ones) and
 // `resolve` (current names, deleted rows marked, tasks' state, unknown ids missing); the picker's
 // search through the composition root (at most 8); a note's links resolved one query per type; the
-// backlinks («Enlazada desde», «Mencionado en»: deleted notes don't count, another type or an id
+// backlinks («Enlazada desde», «Aparece en»: deleted notes don't count, another type or an id
 // that differs in its last character doesn't either); and the authorization of every new read.
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
@@ -175,6 +175,19 @@ describe("search of each source", () => {
     const rows = await searchTaskLinkTargets(testDb, "LLAMAR", 8);
     expect(names(rows)).toEqual(["llamar a mamá", "Llamar al banco"]);
     expect(rows.map((row) => row.hint)).toEqual([null, "Hecha"]);
+  });
+
+  test("tasks of a deleted project: hidden from the picker and resolved as gone (visibleTask)", async () => {
+    const gone = await project("Proyecto borrado", { deletedAt });
+    const alive = await project("Proyecto vivo");
+    const hidden = await task("Llamar al banco", { projectId: gone });
+    const shown = await task("Llamar al banco también", { projectId: alive });
+    expect((await searchTaskLinkTargets(testDb, "llamar", 8)).map((row) => row.id)).toEqual([
+      shown,
+    ]);
+    const resolved = await resolveTaskLinkTargets(testDb, [hidden, shown]);
+    expect(resolved.find((row) => row.id === hidden)).toMatchObject({ deleted: true });
+    expect(resolved.find((row) => row.id === shown)).toMatchObject({ deleted: false });
   });
 
   test("habits: archived ones last (marked), deleted never", async () => {

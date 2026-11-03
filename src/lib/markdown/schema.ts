@@ -15,6 +15,8 @@ export const MARKDOWN_SCHEMA: SanitizeSchema = {
     // The marker of a `[[type:id|Nombre]]` link (./note-links.ts), only with a known type. Markdown
     // can't write it (raw HTML never gets here) and the `a` component still checks the href.
     a: [...(defaultSchema.attributes?.a ?? []), ["dataNoteLink", ...NOTE_LINK_TYPES]],
+    // A link whose target is gone: «Nombre (ya no existe)», muted (a style hook, nothing else).
+    span: [...(defaultSchema.attributes?.span ?? []), "dataNoteLinkGone"],
     // Column alignment of GFM tables (`| :-- | --: |`).
     th: [...(defaultSchema.attributes?.th ?? []), ["align", "left", "center", "right"]],
     td: [...(defaultSchema.attributes?.td ?? []), ["align", "left", "center", "right"]],

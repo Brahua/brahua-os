@@ -87,7 +87,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
             />
           }
         />
-        <NoteMentions type="learning" id={track.id} />
+        <NoteMentions type="learning" id={track.id} heading="label" />
       </div>
     </ScreenServicesProvider>
   );

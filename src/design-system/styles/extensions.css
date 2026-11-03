@@ -400,3 +400,4 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 .bo-note-link-option:hover { background: var(--color-surface-hover); }
 .bo-note-link-option[aria-selected="true"] { background: var(--color-surface-hover); box-shadow: inset 3px 0 0 var(--color-signal); }
 @media (forced-colors: active) { .bo-note-link-option[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; } }
+.bo-note-link-picker { max-height: min(40vh, var(--bo-link-picker-max, 40vh)); overflow-y: auto; overscroll-behavior: contain; border-radius: var(--radius-xl); }

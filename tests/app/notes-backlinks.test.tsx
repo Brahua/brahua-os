@@ -1,4 +1,4 @@
-// N2 of `notes`: «Mencionado en N notas» (`<NoteMentions>`, the root the five detail pages render)
+// N2 of `notes`: «Aparece en N notas» (`<NoteMentions>`, the root the five detail pages render)
 // and the list it shares with «Enlazada desde»; the picker's merge of every source (at most 8, in
 // turns, grouped in the sources' order); and the name-search helpers every source uses.
 import { render, screen, within } from "@testing-library/react";
@@ -22,14 +22,14 @@ beforeEach(() => {
 });
 
 describe("<NoteMentions>", () => {
-  test("«Mencionado en 2 notas» with a link to each note (a daily note by its date, marked)", async () => {
+  test("«Aparece en 2 notas» with a link to each note (a daily note by its date, marked)", async () => {
     vi.mocked(getNoteMentions).mockResolvedValue([
       { id: "n1", kind: "daily", name: "Lunes 3 de noviembre", href: "/notes/2026-11-03" },
       { id: "n2", kind: "page", name: "Apuntes IAM", href: "/notes/n2" },
     ]);
     render(await NoteMentions({ type: "project", id: PROJECT, className: "max-w-160" }));
     expect(getNoteMentions).toHaveBeenCalledWith("project", PROJECT);
-    const section = screen.getByRole("region", { name: "Mencionado en 2 notas" });
+    const section = screen.getByRole("region", { name: "Aparece en 2 notas" });
     expect(section).toHaveClass("max-w-160");
     const rows = within(section).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
@@ -45,12 +45,29 @@ describe("<NoteMentions>", () => {
     expect(rows[1]).not.toHaveTextContent(COPY.linkDailyHint);
   });
 
+  test("the heading matches its neighbours: `SectionLabel` or `bo-text-title`; the list has no label of its own", async () => {
+    vi.mocked(getNoteMentions).mockResolvedValue([
+      { id: "n1", kind: "page", name: "Ideas", href: "/notes/n1" },
+    ]);
+    const { unmount } = render(
+      await NoteMentions({ type: "project", id: PROJECT, heading: "label" }),
+    );
+    const label = screen.getByRole("heading", { level: 2, name: "Aparece en 1 nota" });
+    expect(label).toHaveClass("bo-section-label");
+    expect(screen.getByRole("list")).not.toHaveAttribute("aria-labelledby");
+    unmount();
+    render(await NoteMentions({ type: "goal", id: PROJECT }));
+    expect(screen.getByRole("heading", { level: 2, name: "Aparece en 1 nota" })).toHaveClass(
+      "bo-text-title",
+    );
+  });
+
   test("one mention is singular; none renders nothing", async () => {
     vi.mocked(getNoteMentions).mockResolvedValue([
       { id: "n1", kind: "page", name: "Ideas", href: "/notes/n1" },
     ]);
     const { unmount } = render(await NoteMentions({ type: "task", id: PROJECT }));
-    expect(screen.getByRole("heading", { name: "Mencionado en 1 nota" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Aparece en 1 nota" })).toBeInTheDocument();
     unmount();
 
     vi.mocked(getNoteMentions).mockResolvedValue([]);
@@ -111,6 +128,10 @@ describe("searchLinkTargets (the picker's merge)", () => {
 describe("name search helpers", () => {
   test("the typed text is folded like the column: no accents, lowercase, single spaces", () => {
     expect(foldSearchText("  Educación   FÍSICA  Ñandú ")).toBe("educacion fisica nandu");
+    // Decomposed accents (as a Mac may type them) fold the same.
+    expect(foldSearchText("Educacio\u0301n")).toBe("educacion");
+    // Only the table folds (as `translate` does in SQL): other marks stay.
+    expect(foldSearchText("Ő")).toBe("ő");
   });
 
   test("the SQL fold maps each accented letter to its plain one (same length, same folding)", () => {

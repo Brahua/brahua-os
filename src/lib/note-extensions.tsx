@@ -10,9 +10,9 @@
 import "server-only";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
-import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
 import type { NoteLinkType } from "@/lib/markdown/note-links";
-import { NoteBacklinks } from "@/modules/notes/components/note-backlinks";
+import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
+import { NoteBacklinks, type BacklinksHeading } from "@/modules/notes/components/note-backlinks";
 import { TodayNoteKey } from "@/modules/notes/components/today-note-key";
 import { getNoteMentions, getTodayNoteState } from "@/modules/notes/contracts";
 import { NOTES_COPY } from "@/modules/notes/copy";
@@ -28,11 +28,14 @@ export async function getTodayNoteSlot(now: Date): Promise<ReactNode> {
   return <TodayNoteKey day={day} hasText={hasText} shortcuts={shortcuts} />;
 }
 
-/** The entities whose pages show «Mencionado en» (every link type but notes, which have «Enlazada desde»). */
+/**
+ * The entities whose pages show «Aparece en» (every link type but notes, which have «Enlazada
+ * desde»).
+ */
 export type NoteMentionsType = Exclude<NoteLinkType, "note">;
 
 /**
- * «Mencionado en N notas» (SPEC-notes "Backlinks hacia los módulos", N2): the live notes that link to
+ * «Aparece en N notas» (SPEC-notes "Backlinks hacia los módulos", N2): the live notes that link to
  * this project, task, habit, goal or track, at the end of its page. Nothing without mentions. A
  * Server Component (async): the detail pages render `<NoteMentions type="project" id={id} />` and
  * never import `notes`. One query.
@@ -41,16 +44,20 @@ export async function NoteMentions({
   type,
   id,
   className,
+  heading = "title",
 }: {
   type: NoteMentionsType;
   id: string;
   /** The page's reading width, so the section measures what its siblings do (e.g. `max-w-160`). */
   className?: string;
+  /** The heading style of the page's other sections (`"label"`: `SectionLabel`). */
+  heading?: BacklinksHeading;
 }) {
   const notes = await getNoteMentions(type, id);
   return (
     <NoteBacklinks
       className={className}
+      heading={heading}
       title={NOTES_COPY.mentionedInTitle(notes.length)}
       notes={notes}
       headingId="note-mentions-title"

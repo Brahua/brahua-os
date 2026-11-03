@@ -3,15 +3,19 @@
 //
 // How a link reaches the page without the Markdown parser touching it:
 // 1. Before parsing, `tokenizeNoteLinks` swaps every well-formed link in the source for a
-//    placeholder of private-use characters (U+E010 index U+E011). A name with `<script>`, `*`, `_`,
-//    backticks or `|` can't turn into HTML, emphasis or a table cell: the parser only sees the
-//    placeholder.
+//    placeholder: U+E010, a random nonce of this render, `:`, the index and U+E011. A name with
+//    `<script>`, `*`, `_`, backticks or `|` can't turn into HTML, emphasis or a table cell: the
+//    parser only sees the placeholder. The nonce keeps a note from forging one with HTML character
+//    references (`&#xE010;…`, which the parser decodes into the same characters).
 // 2. After parsing, `remarkNoteLinks` puts each link back: in plain text it becomes a link node
 //    whose `href` the app builds from the type and the id (never from the text) with the
-//    `data-note-link` marker; inside code (inline or block), a URL or raw HTML the original text
-//    comes back as it was written (a link in code doesn't count); inside another link, just the name.
+//    `data-note-link` marker; inside code (inline or block, its language and meta too), a URL or
+//    raw HTML the original text comes back as it was written (a link in code doesn't count); inside
+//    another link, just the name.
 // 3. The sanitizer still runs after (it lets `data-note-link` through on `a`), and the `a`
 //    component only treats as internal a marked link whose `href` passes `isNoteLinkHref`.
+//
+// A link escaped with a backslash (`\[[task:…|x]]`) is not a link: Markdown shows `[[task:…|x]]`.
 
 export const NOTE_LINK_TYPES = ["note", "project", "task", "habit", "goal", "learning"] as const;
 export type NoteLinkType = (typeof NOTE_LINK_TYPES)[number];
@@ -40,7 +44,7 @@ const HREF_PATTERN = new RegExp(
 );
 
 export const NOTE_LINK_COPY = {
-  deleted: (name: string) => `${name} (eliminado)`,
+  gone: (name: string) => `${name} (ya no existe)`,
 } as const;
 
 export function isNoteLinkType(value: string): value is NoteLinkType {
@@ -73,12 +77,22 @@ export type ParsedNoteLink = {
   end: number;
 };
 
-/** Every well-formed link of `text`, in order (code included: this is the raw text). */
+/** Whether the character at `index` is escaped (an odd run of backslashes right before it). */
+function isEscaped(text: string, index: number): boolean {
+  let backslashes = 0;
+  for (let at = index - 1; at >= 0 && text[at] === "\\"; at--) backslashes++;
+  return backslashes % 2 === 1;
+}
+
+/**
+ * Every well-formed link of `text`, in order (code included: this is the raw text). One escaped
+ * with a backslash is not a link.
+ */
 export function parseNoteLinks(text: string): ParsedNoteLink[] {
   const links: ParsedNoteLink[] = [];
   for (const match of text.matchAll(LINK_PATTERN)) {
     const name = match[3].trim();
-    if (name === "") continue;
+    if (name === "" || isEscaped(text, match.index)) continue;
     links.push({
       type: match[1] as NoteLinkType,
       id: match[2],
@@ -123,28 +137,35 @@ export type ResolvedNoteLink = {
   done?: boolean;
 };
 
-/**
- * Resolutions by `noteLinkKey`. A plain object (it crosses from the page to the client editor).
- * When present, a link missing from it is drawn as deleted: the server looked and found nothing.
- */
+/** Resolutions by `noteLinkKey`. A plain object (it crosses from the page to the client editor). */
 export type NoteLinkResolutions = Readonly<Record<string, ResolvedNoteLink>>;
 
-/** How one link renders: a link (name, href) or plain text (deleted). */
+/**
+ * What a link missing from the resolutions means: `"deleted"` when the server resolved exactly this
+ * text (it looked and found nothing: drawn as gone), `"saved"` when the text may have links the
+ * server never looked at (the editor's text: drawn as a link with its saved name).
+ */
+export type UnknownNoteLinks = "deleted" | "saved";
+
+/** How one link renders: a link (name, href) or plain text (a target that is gone). */
 export type NoteLinkView =
-  { kind: "link"; name: string; href: string } | { kind: "text"; text: string };
+  { kind: "link"; name: string; href: string } | { kind: "gone"; text: string };
 
 export function noteLinkView(
   link: Pick<ParsedNoteLink, "type" | "id" | "name">,
   resolutions: NoteLinkResolutions | undefined,
+  unknown: UnknownNoteLinks = "saved",
 ): NoteLinkView {
   const fallbackHref = noteLinkHref(link.type, link.id);
-  if (!resolutions) return { kind: "link", name: link.name, href: fallbackHref };
-  const resolved = Object.hasOwn(resolutions, noteLinkKey(link.type, link.id))
-    ? resolutions[noteLinkKey(link.type, link.id)]
-    : undefined;
-  if (!resolved) return { kind: "text", text: NOTE_LINK_COPY.deleted(link.name) };
+  const key = noteLinkKey(link.type, link.id);
+  const resolved = resolutions && Object.hasOwn(resolutions, key) ? resolutions[key] : undefined;
+  if (!resolved) {
+    return unknown === "deleted" && resolutions
+      ? { kind: "gone", text: NOTE_LINK_COPY.gone(link.name) }
+      : { kind: "link", name: link.name, href: fallbackHref };
+  }
   const name = cleanNoteLinkName(resolved.name) || link.name;
-  if (resolved.deleted) return { kind: "text", text: NOTE_LINK_COPY.deleted(name) };
+  if (resolved.deleted) return { kind: "gone", text: NOTE_LINK_COPY.gone(name) };
   return {
     kind: "link",
     name,
@@ -155,35 +176,51 @@ export function noteLinkView(
 // ---------------------------------------------------------------------------------------------
 // Rendering (steps 1 and 2 of the header).
 
-const OPEN = "";
-const CLOSE = "";
-const PLACEHOLDER = /(\d+)/g;
+const OPEN = "\uE010";
+const CLOSE = "\uE011";
 
-export type TokenizedNoteLinks = { source: string; links: ParsedNoteLink[]; raws: string[] };
+/** A random nonce for one render (a non-secure context has no `randomUUID`). */
+function newNonce(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return (uuid ?? Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 8);
+}
+
+export type TokenizedNoteLinks = {
+  source: string;
+  links: ParsedNoteLink[];
+  raws: string[];
+  /** Finds this render's placeholders (group 1: the index). */
+  placeholder: RegExp;
+};
 
 /** Step 1: the source with every link swapped for a placeholder (and the links, by index). */
-export function tokenizeNoteLinks(text: string): TokenizedNoteLinks {
-  // Placeholder characters typed by hand mean nothing: they go, so no text can pose as a link.
-  const clean = text.replace(/[]/g, "");
+export function tokenizeNoteLinks(text: string, nonce: string = newNonce()): TokenizedNoteLinks {
+  // Placeholder characters typed as such mean nothing: they go.
+  const clean = text.replace(/[\uE010\uE011]/g, "");
+  const safeNonce = nonce.replace(/[^0-9a-z]/gi, "");
+  const placeholder = new RegExp(`\\uE010${safeNonce}:(\\d+)\\uE011`, "g");
   const links = parseNoteLinks(clean);
-  if (links.length === 0) return { source: clean, links, raws: [] };
+  if (links.length === 0) return { source: clean, links, raws: [], placeholder };
   const raws: string[] = [];
   let source = "";
   let at = 0;
   links.forEach((link, index) => {
-    source += clean.slice(at, link.start) + `${OPEN}${index}${CLOSE}`;
+    source += clean.slice(at, link.start) + `${OPEN}${safeNonce}:${index}${CLOSE}`;
     raws.push(clean.slice(link.start, link.end));
     at = link.end;
   });
-  return { source: source + clean.slice(at), links, raws };
+  return { source: source + clean.slice(at), links, raws, placeholder };
 }
 
 type RemarkNoteLinksOptions = {
   tokens: TokenizedNoteLinks;
   resolutions?: NoteLinkResolutions;
+  unknown?: UnknownNoteLinks;
 };
 
 const INSIDE_LINK = new Set(["link", "linkReference"]);
+/** String fields restored as written (every one but a text's value). */
+const RAW_FIELDS = ["value", "url", "title", "alt", "label", "lang", "meta"];
 
 // The few mdast shapes this plugin touches (`@types/mdast` isn't a direct dependency).
 type MdNode = { type: string; children?: MdNode[]; [field: string]: unknown };
@@ -192,34 +229,37 @@ const isText = (node: MdNode): node is MdText =>
   node.type === "text" && typeof node.value === "string";
 
 /** Step 2: a remark plugin that puts the links back (see the header). */
-export function remarkNoteLinks({ tokens, resolutions }: RemarkNoteLinksOptions) {
+export function remarkNoteLinks({ tokens, resolutions, unknown }: RemarkNoteLinksOptions) {
+  const pattern = () => new RegExp(tokens.placeholder.source, "g");
   const restore = (value: string) =>
-    value.replace(PLACEHOLDER, (whole, index: string) => tokens.raws[Number(index)] ?? "");
-
-  function viewOf(index: string) {
-    const link = tokens.links[Number(index)];
-    return link ? noteLinkView(link, resolutions) : null;
-  }
+    value.replace(pattern(), (_whole, index: string) => tokens.raws[Number(index)] ?? "");
 
   function splitText(node: MdText, insideLink: boolean): MdNode[] {
     const parts: MdNode[] = [];
     let at = 0;
-    for (const match of node.value.matchAll(PLACEHOLDER)) {
+    for (const match of node.value.matchAll(pattern())) {
       if (match.index > at) parts.push({ type: "text", value: node.value.slice(at, match.index) });
       at = match.index + match[0].length;
-      const view = viewOf(match[1]);
-      if (!view) continue;
-      if (view.kind === "text") parts.push({ type: "text", value: view.text });
-      else if (insideLink) parts.push({ type: "text", value: view.name });
+      const link = tokens.links[Number(match[1])];
+      if (!link) continue;
+      const view = noteLinkView(link, resolutions, unknown);
+      if (view.kind === "gone") {
+        // Muted, as text (`span` keeps no attribute through the sanitizer: the class comes from
+        // the `span` component, which only styles spans marked this way).
+        parts.push({
+          type: "emphasis",
+          children: [{ type: "text", value: view.text }],
+          data: { hName: "span", hProperties: { dataNoteLinkGone: "" } },
+        });
+      } else if (insideLink) parts.push({ type: "text", value: view.name });
       else {
-        const link: MdNode = {
+        parts.push({
           type: "link",
           url: view.href,
           title: null,
           children: [{ type: "text", value: view.name }],
-          data: { hProperties: { dataNoteLink: tokens.links[Number(match[1])].type } },
-        };
-        parts.push(link);
+          data: { hProperties: { dataNoteLink: link.type } },
+        });
       }
     }
     if (at < node.value.length) parts.push({ type: "text", value: node.value.slice(at) });
@@ -227,8 +267,7 @@ export function remarkNoteLinks({ tokens, resolutions }: RemarkNoteLinksOptions)
   }
 
   function visit(node: MdNode, insideLink: boolean) {
-    // Every string field but text values (URLs, titles, alt texts, code, raw HTML): as written.
-    for (const field of ["value", "url", "title", "alt", "label"]) {
+    for (const field of RAW_FIELDS) {
       if (node.type === "text" && field === "value") continue;
       const value = node[field];
       if (typeof value === "string" && value.includes(OPEN)) node[field] = restore(value);

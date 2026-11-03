@@ -149,7 +149,16 @@ export const NOTES_COPY = {
     task: "Tareas",
     habit: "Hábitos",
     goal: "Metas",
-    learning: "Aprendizaje",
+    learning: "Frentes",
+  },
+  /** Each option's type, said by screen readers after its name. */
+  linkTypeNames: {
+    note: "Nota",
+    project: "Proyecto",
+    task: "Tarea",
+    habit: "Hábito",
+    goal: "Meta",
+    learning: "Frente",
   },
   linkDailyHint: "Diario",
   linkPickerLabel: "Enlazar con",
@@ -157,7 +166,9 @@ export const NOTES_COPY = {
   linkNoMatches: "Sin coincidencias",
   linkSearchFailed: "No se pudo buscar. Sigue escribiendo para intentarlo de nuevo.",
   linkResults: (count: number) =>
-    count === 1 ? "1 resultado. Flechas para elegir." : `${count} resultados. Flechas para elegir.`,
+    count === 1
+      ? "1 resultado. Elige uno de la lista."
+      : `${count} resultados. Elige uno de la lista.`,
   linkInserted: (name: string) => `Enlace a «${name}».`,
   bodyHelpLinks:
     "Escribe [[ para enlazar una nota, un proyecto, una tarea, un hábito, una meta o un frente.",
@@ -165,7 +176,7 @@ export const NOTES_COPY = {
   // Backlinks (N2).
   linkedFromTitle: "Enlazada desde",
   mentionedInTitle: (count: number) =>
-    count === 1 ? "Mencionado en 1 nota" : `Mencionado en ${count} notas`,
+    count === 1 ? "Aparece en 1 nota" : `Aparece en ${count} notas`,
 
   // Not found.
   notFoundTitle: "Nota no encontrada · brahua-os",
