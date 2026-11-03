@@ -12,7 +12,10 @@ import { isDayKey } from "./note-day";
 const id = z.uuid({ error: NOTES_ERRORS.notFound });
 
 /** A note's body as stored: NFC, `\n`, no leading blank lines or trailing spaces, ≤ 50 000. */
-export const noteBodySchema = markdownTextSchema(NOTE_BODY_MAX_LENGTH, NOTES_ERRORS.body);
+export const noteBodySchema = markdownTextSchema(NOTE_BODY_MAX_LENGTH, NOTES_ERRORS.body, {
+  // A note's body is always text: null is refused, never read as «empty it».
+  nullable: false,
+});
 
 /** A knowledge note's title, normalized like names: 1–120, no invisible characters. */
 export const noteTitleSchema = z
@@ -44,7 +47,11 @@ export type SaveDailyNoteInput = z.output<typeof saveDailyNoteInputSchema>;
 export const saveNoteInputSchema = z.object({
   id,
   body: noteBodySchema,
-  version: z.int({ error: NOTES_ERRORS.version }).min(1, NOTES_ERRORS.version),
+  // Postgres' integer is the ceiling: a larger number would fail the query instead of being refused.
+  version: z
+    .int({ error: NOTES_ERRORS.version })
+    .min(1, NOTES_ERRORS.version)
+    .max(2_147_483_647, NOTES_ERRORS.version),
 });
 export type SaveNoteInput = z.output<typeof saveNoteInputSchema>;
 

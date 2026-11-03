@@ -32,7 +32,7 @@ import {
   setPageNotePinned,
   softDeleteNote,
 } from "./notes";
-import { revalidateNoteLists, revalidateNotes } from "./revalidate";
+import { revalidateNotes } from "./revalidate";
 
 /** A refusal: on its field when it has one, else the general message. */
 function refused<T>(failure: NoteFailure): ActionResult<T> {
@@ -59,8 +59,8 @@ const saveDaily = ownerAction(
     if (!isWritableDay(data.day, ownerDateKey(new Date()))) {
       return { ok: false, error: INVALID_FIELDS_MESSAGE, fieldErrors: { day: [NOTES_ERRORS.day] } };
     }
+    // No revalidation for body saves (revalidate.ts explains why).
     const result = await saveDailyNoteBody(getDb(), data);
-    if (result.status === "saved") revalidateNoteLists();
     return ok(result);
   },
   { name: "saveDailyNote" },
@@ -79,10 +79,8 @@ const save = ownerAction(
   async (data) => {
     const result = await saveNoteBody(getDb(), data);
     if (result === "notFound") {
-      revalidateNotes();
       return fail(NOTES_ERRORS.notFound);
     }
-    if (result.status === "saved") revalidateNoteLists();
     return ok(result);
   },
   { name: "saveNote" },

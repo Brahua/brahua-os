@@ -18,7 +18,7 @@ export function hasControlCharacters(value: string): boolean {
  * they reorder what is shown (text, or a link's visible address) away from what is stored.
  * The plain marks (U+200E, U+200F) stay: they only nudge punctuation in mixed scripts.
  */
-const BIDI_CONTROL = /[‪-‮⁦-⁩]/u;
+const BIDI_CONTROL = /[\u202A-\u202E\u2066-\u2069]/u;
 
 export function hasBidiControls(value: string): boolean {
   return BIDI_CONTROL.test(value);
@@ -42,21 +42,32 @@ export type MarkdownTextErrors = {
   bidi: string;
 };
 
+function checkedText(maxLength: number, errors: MarkdownTextErrors) {
+  return z
+    .string()
+    .max(maxLength, errors.tooLong)
+    .refine((value) => !hasControlCharacters(value), errors.control)
+    .refine((value) => !hasBidiControls(value), errors.bidi);
+}
+
 /**
- * A Markdown text (null reads as empty; a missing value is refused), normalized as stored, at most `maxLength`
- * characters after normalizing, without control characters (except `\n` and `\t`) or bidi
- * controls. The output is the normalized string ("" when empty).
+ * A Markdown text normalized as stored, at most `maxLength` characters after normalizing,
+ * without control characters (except `\n` and `\t`) or bidi controls. The output is the
+ * normalized string ("" when empty). A missing value is always refused; `null` reads as empty
+ * (projects' and tasks' notes: «clear them») unless `nullable` is false (a note's body, where
+ * null means nothing).
  */
-export function markdownTextSchema(maxLength: number, errors: MarkdownTextErrors) {
+export function markdownTextSchema(
+  maxLength: number,
+  errors: MarkdownTextErrors,
+  { nullable = true }: { nullable?: boolean } = {},
+) {
+  if (!nullable) {
+    return z.string().transform(normalizeNotes).pipe(checkedText(maxLength, errors));
+  }
   return z
     .string()
     .nullable()
     .transform((value) => normalizeNotes(value ?? ""))
-    .pipe(
-      z
-        .string()
-        .max(maxLength, errors.tooLong)
-        .refine((value) => !hasControlCharacters(value), errors.control)
-        .refine((value) => !hasBidiControls(value), errors.bidi),
-    );
+    .pipe(checkedText(maxLength, errors));
 }

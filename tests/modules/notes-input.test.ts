@@ -40,8 +40,10 @@ describe("the body", () => {
   test("is stored normalized: NFC, \\n, no leading blank lines, no trailing spaces", () => {
     expect(noteBodySchema.parse("\n\n  \nHola\r\nmundo\rfin  \n\n")).toBe("Hola\nmundo\nfin");
     expect(noteBodySchema.parse("    código")).toBe("    código");
-    expect(noteBodySchema.parse("é")).toBe("é");
-    expect(noteBodySchema.parse(null)).toBe("");
+    expect(noteBodySchema.parse("e\u0301")).toBe("é");
+    // In a note, null is not «empty»: it is refused (projects keep null = clear).
+    expect(noteBodySchema.safeParse(null).success).toBe(false);
+    expect(noteBodySchema.safeParse(undefined).success).toBe(false);
   });
 
   test("takes up to 50 000 characters (after normalizing), not one more", () => {
@@ -62,12 +64,12 @@ describe("the body", () => {
     expect(noteBodySchema.parse("a\tb\nc")).toBe("a\tb\nc");
   });
 
-  test.each(["‮", "⁦", "‪", "⁩"])("refuses the bidi control %j", (bidi) => {
+  test.each(["\u202E", "\u2066", "\u202A", "\u2069"])("refuses the bidi control %j", (bidi) => {
     expect(messages(noteBodySchema.safeParse(`hola${bidi}mundo`))).toEqual([
       NOTES_ERRORS.body.bidi,
     ]);
     // The plain marks stay.
-    expect(noteBodySchema.safeParse("hola‏mundo").success).toBe(true);
+    expect(noteBodySchema.safeParse("hola\u200Fmundo").success).toBe(true);
   });
 
   test("the shared schema keeps the projects' limit and messages (20 000, null clears)", () => {
@@ -92,7 +94,7 @@ describe("the title", () => {
   });
 
   test("refuses invisible characters", () => {
-    expect(messages(noteTitleSchema.safeParse("Apu​ntes"))).toEqual([NOTES_ERRORS.invisible]);
+    expect(messages(noteTitleSchema.safeParse("Apu\u200Bntes"))).toEqual([NOTES_ERRORS.invisible]);
     expect(messages(noteTitleSchema.safeParse("Apu\u0000ntes"))).toEqual([NOTES_ERRORS.invisible]);
   });
 });
@@ -106,6 +108,10 @@ describe("the actions' inputs", () => {
     });
     expect(saveNoteInputSchema.safeParse({ id: ID, body: "x", version: 0 }).success).toBe(false);
     expect(saveNoteInputSchema.safeParse({ id: ID, body: "x", version: 1.5 }).success).toBe(false);
+    // Postgres' integer is the ceiling.
+    const max = { id: ID, body: "x", version: 2_147_483_647 };
+    expect(saveNoteInputSchema.safeParse(max).success).toBe(true);
+    expect(saveNoteInputSchema.safeParse({ ...max, version: 2_147_483_648 }).success).toBe(false);
     expect(saveNoteInputSchema.safeParse({ id: "x", body: "x", version: 1 }).success).toBe(false);
     expect(saveNoteInputSchema.safeParse({ id: ID, version: 1 }).success).toBe(false);
   });

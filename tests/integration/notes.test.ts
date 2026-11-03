@@ -274,7 +274,7 @@ describe("the autosave", () => {
     expect(await saveNote({ id, body: "a\u0000b", version: 2 })).toMatchObject({
       fieldErrors: { body: [NOTES_ERRORS.body.control] },
     });
-    expect(await saveNote({ id, body: "a‮b", version: 2 })).toMatchObject({
+    expect(await saveNote({ id, body: "a\u202Eb", version: 2 })).toMatchObject({
       fieldErrors: { body: [NOTES_ERRORS.body.bidi] },
     });
     expect((await rowOf(id)).version).toBe(2);
@@ -289,11 +289,39 @@ describe("the autosave", () => {
     });
   });
 
-  test("a body save revalidates the list and Hoy, not the open note", async () => {
+  test("a body save revalidates nothing (the open note isn't rendered again); a pin does", async () => {
     const id = await page();
     vi.mocked(revalidatePath).mockClear();
     await saveNote({ id, body: "x", version: 1 });
-    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/notes"], ["/"]]);
+    await saveDailyNote({ day: TODAY, body: "Hoy" });
+    await saveNote({ id, body: "y", version: 1 });
+    expect(revalidatePath).not.toHaveBeenCalled();
+    // Positive control: a change to the note itself revalidates every notes page and Hoy.
+    await pinNote({ id, pinned: true });
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/notes", "layout"], ["/"]]);
+  });
+
+  test("only the body and the title move «last edited»: pin, area, delete and restore don't", async () => {
+    const [area] = await areaIds();
+    const id = await page("Apuntes");
+    const stamp = async () => (await rowOf(id)).updatedAt.getTime();
+    const backdate = () =>
+      testDb
+        .update(notes)
+        .set({ updatedAt: sql`now() - interval '1 day'` })
+        .where(eq(notes.id, id));
+    await backdate();
+    const old = await stamp();
+    await pinNote({ id, pinned: true });
+    await setNoteArea({ id, areaId: area });
+    await deleteNote({ id });
+    await restoreNote({ id });
+    expect(await stamp()).toBe(old);
+    await saveNote({ id, body: "Texto", version: 1 });
+    expect(await stamp()).toBeGreaterThan(old);
+    await backdate();
+    await renameNote({ id, title: "Apuntes AWS" });
+    expect(await stamp()).toBeGreaterThan(old);
   });
 });
 

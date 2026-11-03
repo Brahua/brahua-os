@@ -52,11 +52,10 @@ export const notes = pgTable(
     pinnedAt: timestamp("pinned_at", { withTimezone: true }), // page only
     version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      // Stamped by the database clock on every Drizzle update. Raw SQL updates must set it themselves.
-      .$onUpdate(() => sql`now()`),
+    // The last EDIT (the body or the title), which orders the list. No `$onUpdate` on purpose:
+    // pinning, the area, deleting and restoring must not move a note up as «edited»; notes.ts
+    // stamps it by hand where the body or the title change.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [

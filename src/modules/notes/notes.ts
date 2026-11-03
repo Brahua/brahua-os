@@ -207,7 +207,7 @@ export async function saveNoteBody(
 ): Promise<SaveResult | "notFound"> {
   const [saved] = await db
     .update(notes)
-    .set({ body, version: sql`${notes.version} + 1` })
+    .set({ body, version: sql`${notes.version} + 1`, updatedAt: sql`now()` })
     .where(and(eq(notes.id, id), live, eq(notes.version, version)))
     .returning(SAVED);
   if (saved) return { status: "saved", ...saved };
@@ -253,7 +253,7 @@ export async function renamePageNote(
 ): Promise<NoteItem | NoteFailure> {
   const [row] = await db
     .update(notes)
-    .set({ title })
+    .set({ title, updatedAt: sql`now()` })
     .where(livePage(id))
     .returning({ id: notes.id });
   if (!row) return "notFound";
