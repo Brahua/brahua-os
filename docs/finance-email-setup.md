@@ -21,6 +21,8 @@ Sin la variable `FINANCE_EMAIL_SECRET` la app no se rompe: el endpoint responde 
 | --- | --- |
 | BCP · consumo con tarjeta de crédito o débito | Sugerencia. Un pago por Plin con débito (`PLIN-NOMBRE`) sale como transferencia a esa persona. |
 | BCP · transferencia a terceros | Sugerencia («Transferencia a …»). |
+| BCP · yapeo a celular desde la cuenta («Constancia de Yapeo a Celular») | Sugerencia al destinatario; si el nombre es el tuyo («Mis nombres») se ignora. El yapeo **recibido** no entra. |
+| BCP · pago de servicio («Constancia de pago de servicio») | Sugerencia con la empresa y el «Monto total». |
 | BBVA · consumo con tarjeta | Sugerencia. |
 | BBVA · Plin enviado (también con QR) | Sugerencia; si el nombre es el tuyo («Mis nombres») se ignora. |
 | BBVA · transferencia interbancaria | Sugerencia; se ignora si es a una cuenta tuya. |

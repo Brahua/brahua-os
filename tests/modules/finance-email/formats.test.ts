@@ -9,7 +9,9 @@ import {
   BBVA_PLIN,
   BCP_CARD,
   BCP_CARD_BOLD,
+  BCP_SERVICE,
   BCP_TRANSFER,
+  BCP_YAPEO,
   LAYOUT_NAMES,
   LAYOUTS,
   SUBJECTS,
@@ -144,6 +146,87 @@ describe("BCP transfer to a third party", () => {
   test("a missing recipient is unreadable", () => {
     const text = BCP_TRANSFER().replace(/Enviado a \*[^*]*\*/, "");
     expect(parseEmail(mail("bcp", SUBJECTS.bcpTransfer, text))).toEqual({
+      type: "unreadable",
+      source: "bcp",
+    });
+  });
+});
+
+describe("BCP yapeo from the account", () => {
+  test("amount, the recipient without the masked phone, and day", () => {
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpYapeo, BCP_YAPEO())))).toEqual({
+      kind: "transfer",
+      amountCents: 12000,
+      currency: "PEN",
+      merchant: "Clinica D G S.",
+      occurredOn: "2026-10-25",
+      cardLast4: null,
+    });
+  });
+
+  test("the bold markers of Gmail's plain body read the same", () => {
+    const text = `Realizaste un yapeo a celular de *S/ 120.00* desde tu *Cuenta de ahorro Soles.*
+Fecha y hora *25 de octubre de 2026 - 04:11 PM* Enviado a *Clinica D G S.*
+*** **1 111 Destino *Yape*`;
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpYapeo, text)))).toMatchObject({
+      merchant: "Clinica D G S.",
+      amountCents: 12000,
+      occurredOn: "2026-10-25",
+    });
+  });
+
+  test("a missing recipient is unreadable", () => {
+    const text = BCP_YAPEO().replace(/\| Enviado a \|[^\n]*\n/, "");
+    expect(parseEmail(mail("bcp", SUBJECTS.bcpYapeo, text))).toEqual({
+      type: "unreadable",
+      source: "bcp",
+    });
+  });
+
+  test("a yapeo RECEIVED is not an expense and never reaches the app", () => {
+    expect(parseEmail(mail("bcp", SUBJECTS.bcpYapeoReceived, BCP_YAPEO()))).toEqual({
+      type: "unknown",
+    });
+  });
+});
+
+describe("BCP service payment", () => {
+  test("the company is the merchant and «Monto total» the amount, not an «Importe» row", () => {
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpService, BCP_SERVICE())))).toEqual({
+      kind: "transfer",
+      amountCents: 5990,
+      currency: "PEN",
+      merchant: "TELEFONIA DEMO",
+      occurredOn: "2026-10-15",
+      cardLast4: null,
+    });
+  });
+
+  test("«Septiembre» and a company of several words", () => {
+    const text = BCP_SERVICE({
+      when: "Viernes, 18 Septiembre 2026 - 05:00 P. M.",
+      company: "LUZ DEL SUR",
+    });
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpService, text)))).toMatchObject({
+      merchant: "LUZ DEL SUR",
+      occurredOn: "2026-09-18",
+    });
+  });
+
+  test("without the bold markers the company ends at the next label", () => {
+    const text = BCP_SERVICE().replace(/\*/g, "").replace(/\s+/g, " ");
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpService, text)))).toMatchObject({
+      merchant: "TELEFONIA DEMO",
+      amountCents: 5990,
+    });
+  });
+
+  test.each([
+    ["no total", BCP_SERVICE().replace(/Monto total: \*[^*]*\*/, "Monto total: **")],
+    ["no company", BCP_SERVICE().replace(/Empresa: \*[^*]*\*/, "")],
+    ["no date", BCP_SERVICE({ when: "ayer" })],
+  ])("%s is unreadable", (_label, text) => {
+    expect(parseEmail(mail("bcp", SUBJECTS.bcpService, text))).toEqual({
       type: "unreadable",
       source: "bcp",
     });
@@ -318,6 +401,15 @@ describe.each(LAYOUT_NAMES)("layout: %s", (layout) => {
       amountCents: 40000,
       merchant: "Perez Quispe Maria L.",
       occurredOn: "2026-10-11",
+    });
+  });
+
+  test("BCP yapeo from the account", () => {
+    expect(reading(parseEmail(mail("bcp", SUBJECTS.bcpYapeo, lay(BCP_YAPEO()))))).toMatchObject({
+      kind: "transfer",
+      amountCents: 12000,
+      merchant: "Clinica D G S.",
+      occurredOn: "2026-10-25",
     });
   });
 

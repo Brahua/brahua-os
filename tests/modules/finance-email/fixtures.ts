@@ -59,6 +59,52 @@ Moneda Soles Desde *Clasica*
 **** 3001 Mensaje ** Canal *Banca Móvil BCP* Número de operación *00000002*
 `;
 
+export const BCP_YAPEO = (opts: { amount?: string; to?: string; when?: string } = {}) =>
+  `| |
+| Hola Ana, Realizaste un yapeo a celular de S/ ${opts.amount ?? "120.00"} desde tu Cuenta de ahorro Soles. A continuación, te enviamos los datos de tu operación. |
+| |
+| Montos |
+
+| |
+| Monto enviado | S/ ${opts.amount ?? "120.00"} |
+
+| |
+| Datos de la operación |
+
+| |
+| Operación realizada | Yapear a celular |
+| Fecha y hora | ${opts.when ?? "25 de octubre de 2026 - 04:11 PM"} |
+| Enviado a | ${opts.to ?? "Clinica D G S."} *** **1 111 |
+| Destino | Yape |
+| Desde | Cuenta de ahorro **** 1111 |
+| Moneda | Soles |
+| Mensaje | |
+| Canal | Banca Móvil BCP |
+| Número de operación | 00000003 |
+`;
+
+export const BCP_SERVICE = (opts: { amount?: string; company?: string; when?: string } = {}) =>
+  `*Hola ANA DEMO,*
+
+¡Tu operación se realizó con éxito!
+
+Operación realizada:
+
+*Pago de servicios*
+
+Número de operación:
+
+*00000004*
+
+Fecha y hora: *${opts.when ?? "Jueves, 15 Octubre 2026 - 01:26 P. M."}* Empresa: *${opts.company ?? "TELEFONIA DEMO"}* Servicio: *02 PAGO POR TELEFONO* Titular del servicio: *ANA****************** Código de usuario: *900000000* Comisión: ** Cuenta de origen: *Cuenta de ahorros
+**** 1111
+ANA DEMO* Vigencia: ** Valor venta: ** IGV: ** Subtotal: ** Monto total: *S/ ${opts.amount ?? "59.90"}* Tipo de cambio: ** Monto transferido al cambio: **
+
+Nº 1 Nº 2 Doc. pago: *SB02-0000000001* ** Vencimiento: *17/10/2026* ** Importe: *S/ 11.11* ** Cargo fijo: *S/ 0.00* ** Mora: *S/ 0.00* **
+
+Nº 3 Nº 4 Doc. pago: ** ** Vencimiento: ** ** Importe: ** ** Cargo fijo: ** ** Mora: ** **
+`;
+
 export const YAPE_PAYMENT = (opts: { amount?: string; merchant?: string; when?: string } = {}) =>
   `Hola ANA,
 ¡Tu pago en ${opts.merchant ?? "TIENDA YAPE"}
@@ -178,6 +224,10 @@ export const SUBJECTS = {
   bcpCredit: "Realizaste un consumo con tu Tarjeta de Crédito BCP - Servicio de Notificaciones BCP",
   bcpDebit: "Realizaste un consumo con tu Tarjeta de Débito BCP - Servicio de Notificaciones BCP",
   bcpTransfer: "Constancia de Transferencia a Terceros BCP - Servicio de Notificaciones BCP",
+  bcpYapeo: "Constancia de Yapeo a Celular - Servicio de Notificaciones BCP",
+  bcpYapeoReceived:
+    "Constancia de recepción de Yapeo a celular BCP - Servicio de Notificaciones BCP",
+  bcpService: "ENVIO AUTOMATICO - CONSTANCIA DE PAGO DE SERVICIO - BANCA MOVIL BCP",
   yape: "Pago exitoso",
   yapeYapeo: "Por tu seguridad, te notificaremos por cada yapeo que realices",
   bbvaPlin: "Constancia de operación transferencia PLIN",
