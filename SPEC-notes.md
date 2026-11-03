@@ -9,7 +9,7 @@ Que brahua-os sea un «segundo cerebro» de verdad: **escribir el día y guardar
 - **Nota del día:** una por día de Lima (`/notes/2026-11-02`), sin título (su título es la fecha), abierta desde Hoy con «Nota de hoy».
 - **Nota de conocimiento:** con título (`/notes/<id>`), para ideas, apuntes de estudio y referencias.
 - **Markdown** con el renderizador saneado de `src/lib/markdown/` y **guardado automático** (owner: sin botón «Guardar»).
-- **`[[enlaces]]`** a notas, proyectos, tareas, hábitos, metas y frentes de Aprendizaje, guardados por id; **backlinks** en la nota («Enlazada desde») y en el detalle de cada entidad («Mencionado en 3 notas»).
+- **`[[enlaces]]`** a notas, proyectos, tareas, hábitos, metas y frentes de Aprendizaje, guardados por id; **backlinks** en la nota («Enlazada desde») y en el detalle de cada entidad («Aparece en 3 notas»).
 - **Línea → tarea:** una línea `- [ ] …` se convierte en tarea de la bandeja y queda como enlace con la casilla real de la tarea (el estado vive solo en la tarea).
 - **Búsqueda** de texto completo dentro de Notas (Postgres, español, sin acentos ni mayúsculas, con prefijos).
 - **Captura rápida «Nota»** (Tarea · Gasto · Nota): añade una línea con la hora a la nota del día.
@@ -22,14 +22,14 @@ Fuera de este módulo (backlog): grafo (descartado con el owner, 2026-10-06), `@
 1. **Nombre «Notas»**, ruta `/notes`; en la barra lateral después de Aprendizaje (`navOrder` 69); en el celular bajo «Más». Sin atajo de número (1–8 ocupados); la tecla **`N`** abre la nota de hoy en escritorio.
 2. **Una tabla, dos tipos** (`daily`, `page`). La nota del día se crea al escribir la primera letra (nunca filas vacías) y se puede escribir para cualquier día pasado; no para días futuros.
 3. **Markdown, sin editor de bloques ni dependencias nuevas.** Hasta 50 000 caracteres por nota (un diario largo no cabe en los 20 000 de proyectos).
-4. **Enlaces por id:** `[[type:id|Nombre]]`. Renombrar no rompe nada (se dibuja el nombre actual); lo borrado se dibuja como «Nombre (eliminado)», sin enlace.
+4. **Enlaces por id:** `[[type:id|Nombre]]`. Renombrar no rompe nada (se dibuja el nombre actual); lo borrado se dibuja como «Nombre (ya no existe)», sin enlace.
 5. **Nada se borra físicamente:** `deleted_at` con «Deshacer». Todo entra en `pnpm db:export` y en el respaldo.
 6. **Dos dispositivos no se pisan:** cada guardado lleva la versión que se editó; si el servidor tiene otra, «Cambió en otro dispositivo» y el texto queda como borrador (como en proyectos).
 
 ### Historias de usuario
 
 1. En Hoy toco «Nota de hoy»: se abre la nota del 3 nov con el cursor en el texto. Escribo; un segundo después de parar se ve «Guardado».
-2. Escribo «Hablé con Ana sobre [[Ru» y elijo «Ruta AWS + IA» en la lista que aparece debajo: queda un enlace que abre el proyecto. En el proyecto veo «Mencionado en 1 nota · 3 nov».
+2. Escribo «Hablé con Ana sobre [[Ru» y elijo «Ruta AWS + IA» en la lista que aparece debajo: queda un enlace que abre el proyecto. En el proyecto veo «Aparece en 1 nota» con la nota del 3 nov.
 3. Escribo «- [ ] Llamar al banco» y, al terminar de editar, la línea muestra «Convertir en tarea». La toco: la tarea queda en la bandeja y la línea pasa a ser su casilla. Al marcarla en la nota, la tarea se completa; al completarla en Tareas, la nota la muestra hecha.
 4. En la calle aprieto la tecla naranja, elijo «Nota» y escribo «idea: comparar Neon con Supabase»: la nota de hoy gana «- 18:42 idea: comparar Neon con Supabase», con «Deshacer».
 5. Creo «Apuntes IAM» (nota de conocimiento), la fijo y le pongo el área «Aprendizaje y Desarrollo profesional».
@@ -47,7 +47,7 @@ Fuera de este módulo (backlog): grafo (descartado con el owner, 2026-10-06), `@
 | Edición y lectura | La nota se ve renderizada; tocar el texto, «Editar» o `E` la pasa a un `textarea` (el mismo saneo y contador que proyectos) y «Listo» o Esc vuelven a la vista. Una nota vacía (o la de hoy sin texto) se abre directo en edición. Las acciones de línea (convertir, casillas de tareas) viven en la vista. | Autónoma para revisar con el owner |
 | Enlaces | Formato `[[type:uuid\|Nombre]]` con `type` ∈ `note, project, task, habit, goal, learning`. El nombre guardado es solo respaldo (sin `[`, `]`, `\|` ni saltos). Un enlace con id mal formado o tipo desconocido se dibuja como texto. | Owner (lista de tipos) |
 | Selector `[[` | Al escribir `[[` + texto, una lista (`role="listbox"`, combobox ARIA en el `textarea`) aparece **debajo del campo** (no junto al cursor: estable con el teclado del iPhone), con hasta 8 resultados agrupados por tipo y por nombre; flechas, Enter, Tab y Esc; toque en el celular. Elegir reemplaza `[[texto` por el enlace completo y deja el cursor después. | Autónoma |
-| Backlinks | Se calculan al leer: notas vivas cuyo cuerpo contiene `[[type:<id>\|`. Sin tabla de enlaces (no hay estado derivado que pueda desincronizarse; para un usuario y miles de notas, el `LIKE` alcanza; si pasara de 5 000 notas se agrega un índice o tabla). La nota muestra «Enlazada desde»; proyecto, tarea, hábito, meta y frente muestran «Mencionado en N notas» con la lista (fecha o título). Sin menciones, la sección no sale. | Owner (backlinks); autónoma (sin tabla) |
+| Backlinks | Se calculan al leer: notas vivas cuyo cuerpo contiene `[[type:<id>\|`. Sin tabla de enlaces (no hay estado derivado que pueda desincronizarse; para un usuario y miles de notas, el `LIKE` alcanza; si pasara de 5 000 notas se agrega un índice o tabla). La nota muestra «Enlazada desde»; proyecto, tarea, hábito, meta y frente muestran «Aparece en N notas» con la lista (fecha o título). Sin menciones, la sección no sale. | Owner (backlinks); autónoma (sin tabla) |
 | Línea → tarea | En la vista, cada ítem `- [ ] texto` (casilla vacía, sin enlace dentro) muestra «Convertir en tarea». La acción recibe la nota, su versión, el índice del ítem y su texto: si la nota cambió, «Cambió mientras tanto», sin escribir. En una transacción crea la tarea en la bandeja (título = texto, sin interpretar fechas) por el contrato de `tasks` y reemplaza la línea por `- [[task:<id>\|texto]]`. «Deshacer» borra (lógico) esa tarea y devuelve la línea, solo si la nota sigue en la versión que dejó. | Owner |
 | Casilla de tarea | Un ítem de lista que empieza con `[[task:…]]` se dibuja con la casilla del estado real de la tarea. Marcarla completa la tarea con la acción de `tasks` (recurrencia incluida) y su «Deshacer»; desmarcar una tarea hecha usa el «Deshacer»/reabrir que `tasks` ya expone. Una tarea borrada se ve como texto tachado «(eliminada)». | Owner (el estado vive en la tarea) |
 | Búsqueda | Columna generada `search tsvector` con la configuración `notes_spanish` (copia de `spanish` con `unaccent`) sobre título + cuerpo, donde los enlaces se reemplazan por su nombre; índice GIN. La consulta se arma en el servidor: palabras del texto (letras y números, máx. 8), cada una con prefijo (`:*`), unidas con `&`. Orden por `ts_rank` y fecha. Fragmento con `ts_headline` y marcadores propios (nunca HTML de Postgres) que se dibujan con `<mark>`. Mínimo 2 caracteres. | Owner (solo Notas; texto completo) |
@@ -64,7 +64,7 @@ Fuera de este módulo (backlog): grafo (descartado con el owner, 2026-10-06), `@
 - **Nota del día `/notes/[day]`** (`YYYY-MM-DD`; fuera de formato o futura → 404): cabecera con la fecha larga («Lunes 3 de noviembre»), «Día anterior/siguiente», indicador de guardado, menú «Eliminar»; cuerpo (vista o edición); «Enlazada desde»; pie «Ese día».
 - **Nota de conocimiento `/notes/[id]`** (uuid): título editable en el sitio, área, «Fijar», menú «Eliminar»; cuerpo; «Enlazada desde».
 - **Nueva nota:** «Nueva nota» crea la fila al escribir el título (una hoja con título y área; < 10 s en el celular) y abre la nota en edición.
-- **Sección «Mencionado en»** en `/projects/[id]`, `/tasks/[id]`, `/habits/[id]`, `/goals/[id]` y `/learning/[id]`, al final de la página.
+- **Sección «Aparece en»** en `/projects/[id]`, `/tasks/[id]`, `/habits/[id]`, `/goals/[id]` y `/learning/[id]`, al final de la página.
 - **Captura «Nota»:** hoja con un campo y «Añadir a la nota de hoy».
 
 Principios aplicables (`docs/principios-ux.md`): registro en un toque (captura, casilla), UI optimista con «Deshacer», foco restaurado y `aria-disabled` con guarda, toasts que no tapan el control enfocado, 320 px sin scroll horizontal, movimiento reducido.
@@ -126,7 +126,7 @@ src/modules/{projects,tasks,habits,goals,learning}/note-link-source.ts (+ conteo
 
 | Nivel | Qué cubre |
 |---|---|
-| Unitarias | Saneo (50 000, NUL, bidi, CRLF), parseo y reemplazo de `[[…]]` (ids inválidos, tipos desconocidos, nombres con `]`/`\|`, enlaces dentro de código que no cuentan), ítems de lista y conversión por índice, añadir línea con hora de Lima (cruce de medianoche), armado de la consulta de búsqueda (comillas, operadores de `tsquery`, 8 palabras), cola de guardado y conflicto de versión, combobox del selector (teclado y foco), copy sin cadenas prohibidas, componentes de lista, nota, pie y sección «Mencionado en» |
+| Unitarias | Saneo (50 000, NUL, bidi, CRLF), parseo y reemplazo de `[[…]]` (ids inválidos, tipos desconocidos, nombres con `]`/`\|`, enlaces dentro de código que no cuentan), ítems de lista y conversión por índice, añadir línea con hora de Lima (cruce de medianoche), armado de la consulta de búsqueda (comillas, operadores de `tsquery`, 8 palabras), cola de guardado y conflicto de versión, combobox del selector (teclado y foco), copy sin cadenas prohibidas, componentes de lista, nota, pie y sección «Aparece en» |
 | Integración | `CHECK` con inserts crudos, una sola nota del día con dos *upserts* a la vez (control positivo: días distintos crean dos), versión que rechaza un guardado viejo, convertir en tarea y su «Deshacer» exacto, captura con dos solicitudes a la vez (dos líneas, ninguna perdida), backlinks (borrada no cuenta), búsqueda (acentos, prefijo, enlace por su nombre, inyección de operadores), conteos del pie, autorización de cada acción, exportación |
 | E2E | **Un solo spec nuevo** (`notes.spec.ts`): nota de hoy desde Hoy, escribir y ver «Guardado» tras recargar, `[[` y elegir un proyecto, backlink en el proyecto, convertir una línea en tarea y marcarla, buscar; axe en 0 en ambos temas y 320 px (con `afterSaveSettled`); una captura con `expectScreenshot`. Entrada en `SPEC_MODULES` con `["notes", "today", "projects", "tasks"]`. |
 
@@ -135,13 +135,13 @@ Local: solo el gate liviano; integración nueva de a un archivo (`rtk proxy pnpm
 ## Límites
 
 - **Siempre:** las de `SPEC-core` y las lecciones de `CLAUDE.md`: `ownerAction(schema, handler)` y `requireOwner()`, locks de dos claves como primer lock, nada se borra físicamente, «Deshacer» exacto con el id y la versión que se dejaron, foco restaurado y `aria-disabled`, temporizadores limpiados (el del guardado incluido), logs con `describeError` (nunca el texto de una nota), Markdown solo por `src/lib/markdown/` (nunca `rehype-raw`, nunca imágenes cargadas).
-- **Preguntar primero:** dependencias nuevas, cambios en `ci.yml` o en la configuración de build, tocar otros módulos más allá de sus contratos y del hueco «Mencionado en», un aviso nuevo en `reminders`, escribir en producción fuera de migraciones aditivas.
+- **Preguntar primero:** dependencias nuevas, cambios en `ci.yml` o en la configuración de build, tocar otros módulos más allá de sus contratos y del hueco «Aparece en», un aviso nuevo en `reminders`, escribir en producción fuera de migraciones aditivas.
 - **Nunca:** texto de culpa; que un módulo importe `notes`; HTML de `ts_headline` sin pasar por los marcadores propios; seguir o precargar URLs de una nota desde el servidor; el contenido de las notas en logs, errores o capturas de E2E con datos reales; PNG hechos en macOS; correr build, integración completa o E2E locales.
 
 ## Criterios de éxito
 
 1. **Escribir:** «Nota de hoy» abre la nota del día en edición; lo escrito queda guardado sin botón y sobrevive a recargar; dos pestañas no se pisan (la segunda ve «Cambió en otro dispositivo» y no pierde su texto).
-2. **Enlaces:** `[[Ru` + elegir deja un enlace que abre la entidad, con su nombre actual tras renombrarla; la entidad muestra «Mencionado en N notas».
+2. **Enlaces:** `[[Ru` + elegir deja un enlace que abre la entidad, con su nombre actual tras renombrarla; la entidad muestra «Aparece en N notas».
 3. **Línea → tarea:** convertir crea la tarea en la bandeja en 1 toque y la casilla de la nota refleja y cambia su estado; «Deshacer» deja todo como estaba.
 4. **Buscar:** «polit» encuentra «políticas»; un texto con `&`, `!` o `:` no rompe la consulta.
 5. **Captura y pie:** la captura «Nota» añade la línea con la hora a la nota de hoy y su «Deshacer» la quita; el pie muestra los conteos del día.
@@ -152,7 +152,7 @@ Local: solo el gate liviano; integración nueva de a un archivo (`rtk proxy pnpm
 Cortes verticales; el detalle va en `tasks/plan.md`. Un implementador a la vez (gate liviano). Un solo E2E nuevo (N4).
 
 - **N1 — Notas y editor:** migración de `notes`, manifiesto y entrada «Notas», lista, nota del día y de conocimiento, edición con guardado automático y versión, eliminar con «Deshacer», fijar y área, «Nota de hoy» en Hoy y la tecla `N`, exportación, regla de ESLint. Sin E2E.
-- **N2 — Enlaces:** plugin `[[…]]` del renderizador, fuentes de enlace de los seis tipos, selector en el editor, «Enlazada desde» y la sección «Mencionado en» en las cinco páginas de detalle. Sin E2E.
+- **N2 — Enlaces:** plugin `[[…]]` del renderizador, fuentes de enlace de los seis tipos, selector en el editor, «Enlazada desde» y la sección «Aparece en» en las cinco páginas de detalle. Sin E2E.
 - **N3 — Línea → tarea, captura y pie:** convertir y la casilla viva, proveedor «Nota» de la captura rápida, pie «Ese día». Sin E2E.
 - **N4 — Búsqueda y E2E:** migración de búsqueda, buscador de `/notes` con fragmentos, el único E2E (`notes.spec.ts`).
 - **N5 — Cierre:** Checkpoint en producción (Chrome del owner, datos `[QA]`), retrospectiva, backlog, mapa y HANDOFF.
