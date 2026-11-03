@@ -48,6 +48,8 @@ export const NOTES_COPY = {
   emptyFiltered: "No hay notas con estos filtros.",
   clearFilters: "Quitar filtros",
   showMore: "Ver más",
+  noteCount: (count: number, more: boolean) =>
+    more ? `Más de ${count} notas` : count === 1 ? "1 nota" : `${count} notas`,
   pinned: "Fijada",
   noText: "Sin texto todavía",
   editedToday: "Hoy",
@@ -68,6 +70,7 @@ export const NOTES_COPY = {
 
   // A note's page.
   backToList: "Notas",
+  goToList: "Ir a Notas",
   previousDay: "Día anterior",
   nextDay: "Día siguiente",
   dayNavLabel: "Otros días",
@@ -78,11 +81,11 @@ export const NOTES_COPY = {
   done: "Listo",
   editorLabel: "Editar la nota",
   bodyLabel: "Texto de la nota",
-  bodyHelp: "Markdown. Se guarda solo mientras escribes. Esc o «Listo» vuelven a la vista.",
+  bodyHelp: "Markdown. Se guarda automáticamente.",
   counter: (used: number, max: number) => `${formatCount(used)} de ${formatCount(max)} caracteres.`,
   overLimit: (used: number, max: number) =>
     `${formatCount(used)} de ${formatCount(max)} caracteres: quita ${formatCount(used - max)} para guardar.`,
-  emptyBody: "Esta nota está vacía. Toca «Editar» para escribir.",
+  emptyBody: "Usa «Editar» o toca el texto para escribir.",
   previewLoading: "Cargando…",
 
   // The autosave indicator.
@@ -90,6 +93,7 @@ export const NOTES_COPY = {
   saved: "Guardado",
   unsaved: (reason: string) => `Sin guardar: ${reason}`,
   checkConnection: "Revisa tu conexión e inténtalo de nuevo.",
+  retry: "Reintentar",
 
   // Two devices.
   conflictTitle: "Cambió en otro dispositivo",

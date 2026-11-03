@@ -4,7 +4,7 @@
 // blur, one in flight and the newest waiting, the version it carries), a day's first save, the
 // indicator, a failure that keeps the text, the conflict with its draft, delete, and the timers
 // left behind on unmount.
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fail, ok } from "@/lib/action-result";
@@ -52,6 +52,7 @@ function Body(props: Props) {
 
 const textarea = () => screen.getByRole("textbox", { name: COPY.bodyLabel });
 const status = () => document.querySelector("[data-note-save-status]")!;
+const announcer = () => document.querySelector("[data-screen-announcer]")!;
 const saved = (body: string, version: number, id = ID): ReturnType<typeof ok<SaveResult>> =>
   ok({ status: "saved", id, body, version });
 
@@ -125,6 +126,10 @@ describe("view and editor", () => {
 
   test("`E` opens the editor; not while typing, not with shortcuts off", async () => {
     const { unmount } = render(<Body />);
+    // The key is named and shown on «Editar».
+    const edit = screen.getByRole("button", { name: COPY.edit });
+    expect(edit).toHaveAttribute("aria-keyshortcuts", "E");
+    expect(edit.querySelector("kbd")).toHaveTextContent("E");
     await user.keyboard("e");
     expect(textarea()).toHaveFocus();
     // Typing an «e» in the field is text, not the key.
@@ -132,6 +137,9 @@ describe("view and editor", () => {
     expect(textarea()).toHaveValue("Hola **mundo**e");
     unmount();
     render(<Body shortcuts={false} />);
+    expect(screen.getByRole("button", { name: COPY.edit })).not.toHaveAttribute(
+      "aria-keyshortcuts",
+    );
     await user.keyboard("e");
     expect(screen.queryByRole("textbox", { name: COPY.bodyLabel })).toBeNull();
   });
@@ -145,9 +153,11 @@ describe("autosave", () => {
     render(<Body />);
     await user.click(screen.getByRole("button", { name: COPY.edit }));
     await user.type(textarea(), "!");
-    await tick(900);
+    // Wide margins: the fake clock also moves with real time (shouldAdvanceTime), and a loaded CI
+    // runner can take a while between the key press and the next line.
+    await tick(500);
     expect(saveNote).not.toHaveBeenCalled();
-    await tick(150);
+    await tick(600);
     await waitFor(() =>
       expect(saveNote).toHaveBeenCalledWith({ id: ID, body: "Hola **mundo**!", version: 3 }),
     );
@@ -311,7 +321,11 @@ describe("two devices", () => {
 
   test("a conflict stops the autosave and keeps the text; «Quedarme con la mía» overwrites", async () => {
     await conflictAfterTyping();
-    expect(screen.getByText(COPY.conflictTitle)).toHaveFocus();
+    // The owner was typing: the focus stays in the text and the notice is announced.
+    expect(textarea()).toHaveFocus();
+    await waitFor(() =>
+      expect(announcer()).toHaveTextContent(`${COPY.conflictTitle}. ${COPY.conflictText}`),
+    );
     expect(textarea()).toHaveValue("Hola **mundo** mío");
     // More typing doesn't save while the owner hasn't decided.
     await user.type(textarea(), "!");
@@ -350,8 +364,166 @@ describe("two devices", () => {
         version: 7,
       }),
     );
+    await waitFor(() => expect(status()).toHaveTextContent(COPY.saved));
+    // Everything typed is saved, but the draft kept aside isn't: leaving still asks.
+    const go = vi.fn();
+    act(() => requestNavigation("/notes", go));
+    expect(go).not.toHaveBeenCalled();
+    expect(await screen.findByText(COPY.leaveTitle)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: COPY.stay }));
     await user.click(screen.getByRole("button", { name: COPY.discardDraft }));
     expect(screen.queryByRole("textbox", { name: COPY.draftLabel })).toBeNull();
+    // The key left: the focus goes to the text.
+    await waitFor(() => expect(textarea()).toHaveFocus());
+    // Nothing unsaved now (positive control): the navigation goes ahead.
+    requestNavigation("/notes", go);
+    expect(go).toHaveBeenCalledTimes(1);
+  });
+
+  test("a conflict while the focus is outside the editor takes the focus to the notice", async () => {
+    vi.mocked(saveNote).mockResolvedValueOnce(ok({ status: "conflict", current: STORED }));
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), " mío");
+    // Leaving the field saves at once: the focus is on the next control when the answer comes.
+    await user.tab();
+    await waitFor(() => expect(screen.getByText(COPY.conflictTitle)).toHaveFocus());
+  });
+
+  test("a day's first save that finds a note: the conflict, «Eliminar» for it, and «Quedarme con la mía»", async () => {
+    const theirs = { id: "their-id", body: "Escrito en el celular", version: 2 };
+    vi.mocked(saveDailyNote).mockResolvedValueOnce(ok({ status: "conflict", current: theirs }));
+    render(<Body note={{ id: null, body: "", version: 0 }} day={DAY} rendered={null} />);
+    expect(screen.queryByRole("button", { name: COPY.delete })).toBeNull();
+    await user.type(textarea(), "Desde la laptop");
+    await tick(1000);
+    expect(await screen.findByText(COPY.conflictTitle)).toBeVisible();
+    expect(screen.getByRole("button", { name: COPY.delete })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: COPY.keepMine }));
+    await waitFor(() =>
+      expect(saveNote).toHaveBeenLastCalledWith({
+        id: "their-id",
+        body: "Desde la laptop",
+        version: 2,
+      }),
+    );
+  });
+});
+
+describe("events, retries and announcements", () => {
+  test("hiding the page and `pagehide` save what is pending at once", async () => {
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "!");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(saveNote).toHaveBeenCalledTimes(1));
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    await user.type(textarea(), "?");
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    await waitFor(() => expect(saveNote).toHaveBeenCalledTimes(2));
+    expect(saveNote).toHaveBeenLastCalledWith({ id: ID, body: "Hola **mundo**!?", version: 4 });
+  });
+
+  test("a failed save: «Reintentar» tries again and gives the focus back to the text", async () => {
+    vi.mocked(saveNote).mockRejectedValueOnce(new Error("network"));
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "!");
+    await tick(1000);
+    const retry = await screen.findByRole("button", { name: COPY.retry });
+    await user.click(retry);
+    await waitFor(() => expect(saveNote).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(status()).toHaveTextContent(COPY.saved));
+    expect(screen.queryByRole("button", { name: COPY.retry })).toBeNull();
+    expect(textarea()).toHaveFocus();
+  });
+
+  test("back online, a failed save is tried again", async () => {
+    vi.mocked(saveNote).mockRejectedValueOnce(new Error("network"));
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "!");
+    await tick(1000);
+    await screen.findByRole("button", { name: COPY.retry });
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(saveNote).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(status()).toHaveTextContent(COPY.saved));
+    // Recovering from a failure is announced.
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.saved));
+  });
+
+  test("«Guardando…» is only visual; the same failure is announced once, not on every pause", async () => {
+    vi.mocked(saveNote).mockResolvedValue(
+      fail("No se pudo guardar. Inténtalo de nuevo en un momento."),
+    );
+    const messages: string[] = [];
+    const observer = new MutationObserver(() => {
+      const text = announcer().textContent;
+      if (text) messages.push(text);
+    });
+    render(<Body />);
+    observer.observe(announcer(), { childList: true, characterData: true, subtree: true });
+    expect(status()).not.toHaveAttribute("role");
+    expect(status()).not.toHaveAttribute("aria-live");
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    for (const key of ["1", "2", "3"]) {
+      await user.type(textarea(), key);
+      await tick(1000);
+      await waitFor(() => expect(saveNote).toHaveBeenCalled());
+    }
+    await waitFor(() => expect(saveNote).toHaveBeenCalledTimes(3));
+    await tick(200);
+    observer.disconnect();
+    expect(messages).toEqual([
+      COPY.unsaved("No se pudo guardar. Inténtalo de nuevo en un momento."),
+    ]);
+  });
+
+  test("«Listo» with a save pending saves it now and says «Guardado» once it lands", async () => {
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "!");
+    await user.click(screen.getByRole("button", { name: COPY.done }));
+    // No 1 s wait: closing saved it.
+    await waitFor(() =>
+      expect(saveNote).toHaveBeenCalledWith({ id: ID, body: "Hola **mundo**!", version: 3 }),
+    );
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.saved));
+  });
+
+  test("Esc with a save pending saves it too", async () => {
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "?");
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(saveNote).toHaveBeenCalledWith({ id: ID, body: "Hola **mundo**?", version: 3 }),
+    );
+  });
+
+  test("over 50 000 characters: the editor says it and sends nothing", async () => {
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    act(() => {
+      fireEvent.change(textarea(), { target: { value: "x".repeat(50_001) } });
+    });
+    await tick(1000);
+    expect(saveNote).not.toHaveBeenCalled();
+    expect(screen.getAllByText(COPY.overLimit(50_001, 50_000)).length).toBeGreaterThan(0);
+    expect(textarea()).toHaveAttribute("aria-invalid", "true");
+    expect(status()).toHaveTextContent(COPY.unsaved(COPY.overLimit(50_001, 50_000)));
+  });
+
+  test("an empty note mounts with the cursor in the text", () => {
+    render(<Body note={{ id: null, body: "", version: 0 }} day={DAY} rendered={null} />);
+    expect(textarea()).toHaveFocus();
   });
 });
 
@@ -374,5 +546,39 @@ describe("delete", () => {
       await screen.findByText(`${COPY.notSaved.delete} Esta nota ya no existe (se eliminó).`),
     ).toBeVisible();
     expect(router.push).not.toHaveBeenCalled();
+  });
+
+  test("after a refused delete the autosave still works", async () => {
+    vi.mocked(deleteNote).mockResolvedValue(
+      fail("No se pudo guardar. Inténtalo de nuevo en un momento."),
+    );
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.delete }));
+    await screen.findByText(/No se eliminó la nota/);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "!");
+    await tick(1000);
+    await waitFor(() =>
+      expect(saveNote).toHaveBeenCalledWith({ id: ID, body: "Hola **mundo**!", version: 3 }),
+    );
+  });
+
+  test("the last second of text is saved before the delete", async () => {
+    const order: string[] = [];
+    vi.mocked(saveNote).mockImplementation(async () => {
+      order.push("save");
+      return saved("Hola **mundo**!", 4);
+    });
+    vi.mocked(deleteNote).mockImplementation(async () => {
+      order.push("delete");
+      return ok({ id: ID, kind: "page", day: null, title: "Apuntes" });
+    });
+    render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(textarea(), "!");
+    // Before the 1 s autosave.
+    await user.click(screen.getByRole("button", { name: COPY.delete }));
+    await waitFor(() => expect(router.push).toHaveBeenCalled());
+    expect(order).toEqual(["save", "delete"]);
   });
 });

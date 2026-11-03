@@ -5,21 +5,32 @@
 // One save in flight and only the newest one waiting (src/lib/use-save-queue.ts), each sending the
 // text and the version as they are when its turn comes. A save that finds another version is a
 // conflict: autosave stops, the text stays as a draft, and the owner picks «Ver la versión
-// guardada» or «Quedarme con la mía». Every timer and listener is cleared on unmount.
+// guardada» or «Quedarme con la mía». A failed save is tried again on the next key press, when
+// the field loses focus, when the browser is back `online`, when the page is visible again, or
+// with «Reintentar». Every timer and listener is cleared on unmount.
+//
+// Screen readers (decisión autónoma para revisar con el owner): «Guardando…» and «Guardado» are
+// only visual. The polite announcer says «Sin guardar: …» once per reason (not again on every
+// pause with the same problem), «Guardado» when a save recovers from a failure, and «Guardado»
+// when the owner closes the editor («Listo» or Esc: `announceWhenSaved`).
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ActionResult } from "@/lib/action-result";
 import { normalizeNotes } from "@/lib/markdown-text";
 import { useSaveQueue } from "@/lib/use-save-queue";
 import { saveDailyNote, saveNote } from "../actions";
 import { NOTES_COPY as COPY } from "../copy";
 import { NOTE_BODY_MAX_LENGTH, NOTE_SAVE_DELAY_MS } from "../note-constants";
 import type { SavedNote, SaveResult } from "../note-input";
-import type { ActionResult } from "@/lib/action-result";
 
 /** What the server holds, as far as this screen knows. `id` null: a day without a note yet. */
 export type KnownNote = { id: string | null; body: string; version: number };
 
 export type SaveStatus =
-  { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "failed"; reason: string };
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved" }
+  /** `key` names the reason for the announcer (the same problem is said once). */
+  | { kind: "failed"; reason: string; key: string };
 
 /** The server's message for a failed result: a field's own when it gives one, else the general. */
 export function failureReason(result: {
@@ -41,15 +52,15 @@ type Options = {
   initial: KnownNote;
   /** A daily note's day (its first save creates it); null for a knowledge note. */
   day: string | null;
-  /** Called once a save created the day's note or wrote a new version (e.g. to show «Eliminar»). */
-  onSaved?: (note: SavedNote) => void;
+  /** The screen's polite announcer. */
+  announce: (message: string) => void;
 };
 
-export function useNoteAutosave({ initial, day, onSaved }: Options) {
+export function useNoteAutosave({ initial, day, announce }: Options) {
   const enqueue = useSaveQueue();
   const [text, setTextState] = useState(initial.body);
   const [known, setKnownState] = useState<KnownNote>(initial);
-  const [status, setStatus] = useState<SaveStatus>({ kind: "idle" });
+  const [status, setStatusState] = useState<SaveStatus>({ kind: "idle" });
   const [conflict, setConflictState] = useState<SavedNote | null>(null);
   /** The local text kept aside after «Ver la versión guardada». */
   const [draft, setDraft] = useState<string | null>(null);
@@ -58,11 +69,16 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
   const textRef = useRef(initial.body);
   const knownRef = useRef<KnownNote>(initial);
   const conflictRef = useRef<SavedNote | null>(null);
+  const statusRef = useRef<SaveStatus>({ kind: "idle" });
   const timer = useRef<number | undefined>(undefined);
   const stopped = useRef(false);
-  const onSavedRef = useRef(onSaved);
+  /** The reason last announced (cleared by a save that lands). */
+  const announcedFailure = useRef<string | null>(null);
+  /** «Listo» or Esc while a save was pending: say «Guardado» when it lands. */
+  const sayWhenSaved = useRef(false);
+  const announceRef = useRef(announce);
   useEffect(() => {
-    onSavedRef.current = onSaved;
+    announceRef.current = announce;
   });
 
   const setKnown = useCallback((next: KnownNote) => {
@@ -72,6 +88,25 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
   const setConflict = useCallback((next: SavedNote | null) => {
     conflictRef.current = next;
     setConflictState(next);
+  }, []);
+  const setStatus = useCallback((next: SaveStatus) => {
+    const before = statusRef.current;
+    statusRef.current = next;
+    setStatusState(next);
+    if (next.kind === "failed") {
+      sayWhenSaved.current = false;
+      if (announcedFailure.current !== next.key) {
+        announcedFailure.current = next.key;
+        announceRef.current(COPY.unsaved(next.reason));
+      }
+      return;
+    }
+    if (next.kind === "saved") {
+      const recovered = before.kind === "failed" || announcedFailure.current !== null;
+      announcedFailure.current = null;
+      if (recovered || sayWhenSaved.current) announceRef.current(COPY.saved);
+      sayWhenSaved.current = false;
+    }
   }, []);
 
   const clearTimer = useCallback(() => {
@@ -83,10 +118,12 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
     clearTimer();
     if (stopped.current || conflictRef.current) return;
     if (!differsFrom(textRef.current, knownRef.current.body)) return;
-    if (normalizeNotes(textRef.current).length > NOTE_BODY_MAX_LENGTH) {
+    const length = normalizeNotes(textRef.current).length;
+    if (length > NOTE_BODY_MAX_LENGTH) {
       setStatus({
         kind: "failed",
-        reason: COPY.overLimit(normalizeNotes(textRef.current).length, NOTE_BODY_MAX_LENGTH),
+        reason: COPY.overLimit(length, NOTE_BODY_MAX_LENGTH),
+        key: "overLimit",
       });
       return;
     }
@@ -105,18 +142,19 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
       });
       if (queued.kind === "skipped" || stopped.current) return;
       if (queued.kind === "threw") {
-        // A network failure or a new deployment: the text stays, the next key press tries again.
-        setStatus({ kind: "failed", reason: COPY.checkConnection });
+        // A network failure or a new deployment: the text stays; see the header for retries.
+        setStatus({ kind: "failed", reason: COPY.checkConnection, key: "connection" });
         return;
       }
       const result = queued.value;
       if (result === null) {
-        if (!queued.superseded)
-          setStatus(conflictRef.current ? { kind: "idle" } : { kind: "saved" });
+        if (queued.superseded) return;
+        setStatus(conflictRef.current ? { kind: "idle" } : { kind: "saved" });
         return;
       }
       if (!result.ok) {
-        setStatus({ kind: "failed", reason: failureReason(result) });
+        const reason = failureReason(result);
+        setStatus({ kind: "failed", reason, key: reason });
         return;
       }
       const data = result.data;
@@ -127,15 +165,13 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
         return;
       }
       if (data.status === "saved") {
-        const saved = { id: data.id, body: data.body, version: data.version };
-        setKnown(saved);
-        onSavedRef.current?.(saved);
+        setKnown({ id: data.id, body: data.body, version: data.version });
       }
       // Another save is coming (newer text): it decides what the indicator says.
       if (queued.superseded || differsFrom(textRef.current, knownRef.current.body)) return;
       setStatus({ kind: "saved" });
     })();
-  }, [clearTimer, day, enqueue, setConflict, setKnown]);
+  }, [clearTimer, day, enqueue, setConflict, setKnown, setStatus]);
 
   const setText = useCallback(
     (value: string) => {
@@ -147,6 +183,28 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
     },
     [clearTimer, flush],
   );
+
+  /**
+   * Saves what is pending now and resolves once every save on its way has landed (or failed):
+   * nothing typed is lost before something like a delete.
+   */
+  const settle = useCallback(async () => {
+    flush();
+    await enqueue(null, async () => undefined);
+  }, [enqueue, flush]);
+
+  /** «Listo» or Esc: saves what is pending and says «Guardado» once it is (or now, if it was). */
+  const announceWhenSaved = useCallback(() => {
+    const pending = !conflictRef.current && differsFrom(textRef.current, knownRef.current.body);
+    if (pending) {
+      flush();
+      // The save may have failed at once (over the limit): then the failure was said instead.
+      if (statusRef.current.kind === "saving") sayWhenSaved.current = true;
+      return;
+    }
+    if (statusRef.current.kind === "saving") sayWhenSaved.current = true;
+    else if (statusRef.current.kind === "saved") announceRef.current(COPY.saved);
+  }, [flush]);
 
   /** «Quedarme con la mía»: the local text overwrites the version that is stored now. */
   const keepMine = useCallback(() => {
@@ -167,25 +225,31 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
     textRef.current = current.body;
     setTextState(current.body);
     setStatus({ kind: "idle" });
-  }, [setConflict, setKnown]);
+  }, [setConflict, setKnown, setStatus]);
 
   const discardDraft = useCallback(() => setDraft(null), []);
 
-  /** No more saves (the note is being deleted). */
+  /** The note's id as the last save left it (read after `settle`, when state may lag). */
+  const currentId = useCallback(() => knownRef.current.id, []);
+
+  /** No more saves (the note was deleted). */
   const stop = useCallback(() => {
     stopped.current = true;
     clearTimer();
   }, [clearTimer]);
 
-  // Leaving or hiding the page saves what is pending (best effort: the browser may not wait).
+  // Hidden or left: save what is pending (best effort: the browser may not wait). Visible again or
+  // back online: try again what is pending (a failed save among it).
   useEffect(() => {
     function onVisibility() {
-      if (document.visibilityState === "hidden") flush();
+      flush();
     }
     window.addEventListener("pagehide", flush);
+    window.addEventListener("online", flush);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", flush);
+      window.removeEventListener("online", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [flush]);
@@ -199,12 +263,16 @@ export function useNoteAutosave({ initial, day, onSaved }: Options) {
     [flush],
   );
 
-  const dirty = conflict !== null || differsFrom(text, known.body);
+  // A draft kept aside is unsaved too: leaving asks until «Descartar borrador».
+  const dirty = conflict !== null || draft !== null || differsFrom(text, known.body);
 
   return {
     text,
     setText,
     flush,
+    settle,
+    currentId,
+    announceWhenSaved,
     known,
     status,
     conflict,

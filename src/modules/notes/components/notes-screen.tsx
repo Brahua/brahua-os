@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon, Key, SegmentedControl } from "@/design-system";
-import { NOTES_COPY as COPY, todayNoteLabel } from "../copy";
+import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
+import { NOTES_COPY as COPY } from "../copy";
 import { NOTES_PAGE_SIZE } from "../note-constants";
 import { dailyTitle } from "../note-day";
 import type { NoteArea, NoteKindFilter, NoteListItem } from "../note-input";
@@ -13,6 +14,7 @@ import { editedLabel, notesListUrl } from "../note-list";
 import { dailyNotePath, notePath, NOTES_PATH } from "../routes";
 import { AreaSelect, NO_AREA } from "./area-select";
 import { NewNoteSheet } from "./new-note-sheet";
+import { TodayNoteKey } from "./today-note-key";
 
 type NotesScreenProps = {
   items: NoteListItem[];
@@ -31,6 +33,8 @@ type NotesScreenProps = {
   todayHasText: boolean;
   /** Id of the `<h1>`. */
   headingId: string;
+  /** Single-key shortcuts on («Nota de hoy» shows `N`). */
+  shortcuts?: boolean;
 };
 
 /**
@@ -48,8 +52,10 @@ export function NotesScreen({
   today,
   todayHasText,
   headingId,
+  shortcuts = false,
 }: NotesScreenProps) {
   const router = useRouter();
+  const { announce } = useRequiredScreenServices();
   const ids = useId();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetKey, setSheetKey] = useState(0);
@@ -57,6 +63,30 @@ export function NotesScreen({
   const rows = useRef<(HTMLAnchorElement | null)[]>([]);
   const focusFrom = useRef<number | null>(null);
   const filtered = kind !== "all" || areaId !== null;
+  const filters = useRef<HTMLDivElement>(null);
+  /** A filter changed: say what the new list holds once it arrives. */
+  const announceResult = useRef(false);
+  /** «Quitar filtros» was pressed (and leaves): focus goes to the kind filter. */
+  const focusFilters = useRef(false);
+
+  useEffect(() => {
+    if (focusFilters.current && !filtered) {
+      focusFilters.current = false;
+      const checked = filters.current?.querySelector<HTMLElement>(
+        '[role="radio"][aria-checked="true"]',
+      );
+      (checked ?? document.getElementById(headingId))?.focus();
+    }
+    if (!announceResult.current) return;
+    announceResult.current = false;
+    announce(
+      items.length === 0
+        ? filtered
+          ? COPY.emptyFiltered
+          : COPY.emptyTitle
+        : COPY.noteCount(items.length, more),
+    );
+  }, [items, more, kind, areaId, filtered, announce, headingId]);
 
   // «Ver más» brought more rows: focus the first new one.
   useEffect(() => {
@@ -70,6 +100,11 @@ export function NotesScreen({
     router.replace(url, { scroll: false });
   }
 
+  function filter(url: string) {
+    announceResult.current = true;
+    go(url);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-4">
@@ -77,12 +112,13 @@ export function NotesScreen({
           {COPY.heading}
         </h1>
         <div className="flex flex-wrap gap-2">
-          <Key asChild variant="signal">
-            <Link href={dailyNotePath(today)} data-today-note-link="">
-              <Icon icon={NotebookPen} />
-              {todayNoteLabel(todayHasText)}
-            </Link>
-          </Key>
+          <TodayNoteKey
+            day={today}
+            hasText={todayHasText}
+            shortcuts={shortcuts}
+            variant="signal"
+            className=""
+          />
           <Key
             ref={newKey}
             variant="default"
@@ -98,7 +134,7 @@ export function NotesScreen({
         </div>
       </header>
 
-      <div className="flex flex-wrap items-end gap-4">
+      <div ref={filters} className="flex flex-wrap items-end gap-4">
         <SegmentedControl
           mode="radio"
           label={COPY.kindFilterLabel}
@@ -109,7 +145,7 @@ export function NotesScreen({
             { value: "daily", label: COPY.kindDaily },
             { value: "page", label: COPY.kindPage },
           ]}
-          onValueChange={(value) => go(notesListUrl({ kind: value, areaId }))}
+          onValueChange={(value) => filter(notesListUrl({ kind: value, areaId }))}
         />
         <div className="min-w-48">
           <AreaSelect
@@ -119,7 +155,7 @@ export function NotesScreen({
             areas={areas}
             value={areaId ?? NO_AREA}
             onValueChange={(value) =>
-              go(notesListUrl({ kind, areaId: value === NO_AREA ? null : value }))
+              filter(notesListUrl({ kind, areaId: value === NO_AREA ? null : value }))
             }
           />
         </div>
@@ -129,7 +165,13 @@ export function NotesScreen({
         filtered ? (
           <div className="flex flex-col items-start gap-3" data-notes-empty="filtered">
             <p className="bo-text-body text-text-secondary">{COPY.emptyFiltered}</p>
-            <Key variant="ghost" onClick={() => go(NOTES_PATH)}>
+            <Key
+              variant="ghost"
+              onClick={() => {
+                focusFilters.current = true;
+                filter(NOTES_PATH);
+              }}
+            >
               {COPY.clearFilters}
             </Key>
           </div>
@@ -137,7 +179,8 @@ export function NotesScreen({
           <div className="bo-card max-w-160 gap-3" data-notes-empty="">
             <h2 className="bo-text-title">{COPY.emptyTitle}</h2>
             <p className="bo-text-body-sm text-text-secondary">{COPY.emptyText}</p>
-            <Key asChild variant="signal" className="w-fit">
+            {/* The header's «Nota de hoy» is the primary key: this one is plain. */}
+            <Key asChild variant="default" className="w-fit">
               <Link href={dailyNotePath(today)}>
                 <Icon icon={NotebookPen} />
                 {COPY.todayNote}

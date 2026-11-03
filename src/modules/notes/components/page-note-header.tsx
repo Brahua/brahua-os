@@ -188,12 +188,7 @@ export function PageNoteHeader({ note, areas, headingId }: PageNoteHeaderProps) 
             {COPY.rename}
           </Key>
         )}
-        <Key
-          variant={pinned ? "signal" : "ghost"}
-          icon={pinned ? PinOff : Pin}
-          data-note-pin=""
-          onClick={togglePin}
-        >
+        <Key variant="ghost" icon={pinned ? PinOff : Pin} data-note-pin="" onClick={togglePin}>
           {pinned ? COPY.unpin : COPY.pin}
         </Key>
         <div className="min-w-48">

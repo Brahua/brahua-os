@@ -20,14 +20,13 @@ export function saveStatusText(status: SaveStatus): string {
 
 /**
  * The discreet autosave indicator (SPEC-notes "Guardado"): «Guardando…», «Guardado» or «Sin
- * guardar: …», in a polite live region that is always on the page (a region added with its text
- * isn't read).
+ * guardar: …». Only visual: what screen readers hear goes through the screen's announcer, with
+ * less noise (`useNoteAutosave` decides: a failure once per reason, «Guardado» on closing the
+ * editor or after a failure).
  */
 export function SaveIndicator({ status, className }: { status: SaveStatus; className?: string }) {
   return (
     <p
-      role="status"
-      aria-live="polite"
       data-note-save-status={status.kind}
       className={cn(
         "bo-text-body-sm",

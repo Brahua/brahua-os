@@ -69,9 +69,13 @@ export default async function NotePage({ params }: NotePageProps) {
           <Icon icon={ArrowLeft} size="sm" />
           {COPY.backToList}
         </Link>
-        <article className="flex min-w-0 flex-col gap-6" data-note-kind={parsed.kind}>
+        {/* One reading width for the whole note: header, body and the slots of N2 and N3. */}
+        <article
+          className="flex w-full max-w-192 min-w-0 flex-col gap-6"
+          data-note-kind={parsed.kind}
+        >
           {day !== null ? (
-            <DailyNoteHeader day={day} today={today} headingId={HEADING_ID} />
+            <DailyNoteHeader key={day} day={day} today={today} headingId={HEADING_ID} />
           ) : note ? (
             <PageNoteHeader note={note} areas={areas} headingId={HEADING_ID} />
           ) : null}

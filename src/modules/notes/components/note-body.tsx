@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { Check, Pencil, RotateCw, Trash2, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Icon, Key, TextArea } from "@/design-system";
 import { normalizeNotes } from "@/lib/markdown-text";
 import { useUnsavedChangesGuard } from "@/lib/navigation-guard";
@@ -12,6 +12,7 @@ import { deleteNote } from "../actions";
 import { NOTES_COPY as COPY } from "../copy";
 import { NOTE_BODY_COUNTER_FROM, NOTE_BODY_MAX_LENGTH } from "../note-constants";
 import { DELETED_PARAM, NOTES_PATH } from "../routes";
+import { pendingDayLink } from "./day-focus";
 import { ClientMarkdown, loadMarkdown } from "./note-markdown";
 import { SaveIndicator } from "./save-indicator";
 import { differsFrom, failureReason, useNoteAutosave, type KnownNote } from "./use-note-autosave";
@@ -37,7 +38,8 @@ type NoteBodyProps = {
 /**
  * A note's body (SPEC-notes "Edición y lectura"): shown rendered; «Editar», the `E` key or a tap
  * on the text turn it into a `textarea`, and «Listo» or Esc go back to the view (what was typed is
- * already saving: Esc saves what is pending first). An empty note opens straight in the editor.
+ * already saving: Esc saves what is pending first). An empty note opens straight in the editor,
+ * with the cursor in it (unless a day link brought the owner here: the focus stays on that link).
  * Saving is automatic (`useNoteAutosave`); while something is unsaved, leaving asks first.
  */
 export function NoteBody({
@@ -49,21 +51,21 @@ export function NoteBody({
   dayFooter = null,
 }: NoteBodyProps) {
   const router = useRouter();
-  const { toaster } = useRequiredScreenServices();
-  const [noteId, setNoteId] = useState(note.id);
-  const autosave = useNoteAutosave({
-    initial: note,
-    day,
-    onSaved: (saved) => setNoteId(saved.id),
-  });
+  const { toaster, announce } = useRequiredScreenServices();
+  const autosave = useNoteAutosave({ initial: note, day, announce });
   const { text, setText, flush, status, conflict, draft, dirty } = autosave;
+  // From what the server answered: a day's first save (or its conflict) gives the note an id.
+  const noteId = autosave.known.id ?? conflict?.id ?? null;
   const [editing, setEditing] = useState(note.body === "");
+  // Read once, during the first render (before the day header takes the pending link).
+  const [focusOnMount] = useState(() => note.body === "" && pendingDayLink() === null);
   const [leaving, setLeaving] = useState<(() => void) | null>(null);
   const [deleting, setDeleting] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const editKey = useRef<HTMLButtonElement>(null);
   const stayKey = useRef<HTMLButtonElement>(null);
   const conflictHeading = useRef<HTMLParagraphElement>(null);
+  const retryPressed = useRef(false);
   const ids = useId();
 
   // Element to focus after the next render (the editor opened or closed).
@@ -79,6 +81,12 @@ export function NoteBody({
       element.setSelectionRange(end, end);
     }
   });
+
+  // An empty note reached on purpose («Nota de hoy», `N`, «Crear nota», a day): the cursor is in
+  // the text (SPEC-notes, story 1).
+  useEffect(() => {
+    if (focusOnMount) textarea.current?.focus();
+  }, [focusOnMount]);
 
   useUnsavedChangesGuard(dirty, (proceed) => {
     flush();
@@ -97,10 +105,23 @@ export function NoteBody({
     stayKey.current?.focus();
   }, [leaving]);
 
-  // The conflict notice takes the focus once (the owner must decide before saving again).
+  // A conflict never takes the focus from the text being typed: it is announced there. From
+  // anywhere else, the notice takes it (the owner must decide before saving again).
   useEffect(() => {
-    if (conflict) conflictHeading.current?.focus();
-  }, [conflict]);
+    if (!conflict) return;
+    if (textarea.current && document.activeElement === textarea.current) {
+      announce(`${COPY.conflictTitle}. ${COPY.conflictText}`);
+      return;
+    }
+    conflictHeading.current?.focus();
+  }, [conflict, announce]);
+
+  // «Reintentar» leaves once the save is on its way: its focus goes back to the text (or «Editar»).
+  useEffect(() => {
+    if (status.kind === "failed" || !retryPressed.current) return;
+    retryPressed.current = false;
+    (textarea.current ?? editKey.current)?.focus();
+  }, [status.kind]);
 
   function openEditor() {
     void loadMarkdown();
@@ -109,14 +130,14 @@ export function NoteBody({
   }
 
   function closeEditor() {
-    flush();
+    autosave.announceWhenSaved();
     setEditing(false);
     pendingFocus.current = () => editKey.current;
   }
 
   // `E` opens the editor (the same rules as the app's keys: never while typing, in a widget or a
-  // dialog, nor with modifiers).
-  useEffect(() => {
+  // dialog, nor with modifiers). A layout effect: a key pressed right after a render isn't lost.
+  useLayoutEffect(() => {
     if (!shortcuts || editing) return;
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat || event.isComposing) return;
@@ -136,8 +157,10 @@ export function NoteBody({
   async function remove() {
     if (deleting || noteId === null) return;
     setDeleting(true);
-    autosave.stop();
-    const id = noteId;
+    // First what is pending lands (the last second of text is never lost), then the delete; the
+    // autosave stops only once the note is really gone.
+    await autosave.settle();
+    const id = autosave.currentId() ?? noteId;
     let result;
     try {
       result = await deleteNote({ id });
@@ -153,16 +176,17 @@ export function NoteBody({
       });
       return;
     }
+    autosave.stop();
     router.push(`${NOTES_PATH}?${DELETED_PARAM}=${id}`);
   }
 
   const used = normalizeNotes(text).length;
+  const over = used > NOTE_BODY_MAX_LENGTH;
+  // The counter joins the help (never replaces it).
   const help =
-    used > NOTE_BODY_MAX_LENGTH
-      ? COPY.overLimit(used, NOTE_BODY_MAX_LENGTH)
-      : used >= NOTE_BODY_COUNTER_FROM
-        ? COPY.counter(used, NOTE_BODY_MAX_LENGTH)
-        : COPY.bodyHelp;
+    used >= NOTE_BODY_COUNTER_FROM && !over
+      ? `${COPY.bodyHelp} ${COPY.counter(used, NOTE_BODY_MAX_LENGTH)}`
+      : COPY.bodyHelp;
   const showServerRender = rendered !== null && !differsFrom(text, note.body);
 
   return (
@@ -185,6 +209,7 @@ export function NoteBody({
             ref={editKey}
             variant="default"
             icon={Pencil}
+            shortcut={shortcuts ? "E" : undefined}
             aria-keyshortcuts={shortcuts ? "E" : undefined}
             data-note-edit=""
             onClick={openEditor}
@@ -203,7 +228,23 @@ export function NoteBody({
             {COPY.delete}
           </Key>
         ) : null}
-        <SaveIndicator status={status} className="ms-auto" />
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          <SaveIndicator status={status} />
+          {status.kind === "failed" ? (
+            <Key
+              variant="ghost"
+              size="sm"
+              icon={RotateCw}
+              data-note-retry=""
+              onClick={() => {
+                retryPressed.current = true;
+                flush();
+              }}
+            >
+              {COPY.retry}
+            </Key>
+          ) : null}
+        </div>
       </div>
 
       {leaving ? (
@@ -267,7 +308,7 @@ export function NoteBody({
             ref={conflictHeading}
             id={`${ids}-conflict-title`}
             tabIndex={-1}
-            className="bo-text-body-strong flex items-center gap-2 outline-none"
+            className="bo-text-body-strong flex items-center gap-2 rounded-md outline-none focus:outline-2 focus:outline-offset-2 focus:outline-focus"
           >
             <Icon icon={TriangleAlert} size="sm" />
             {COPY.conflictTitle}
@@ -315,10 +356,14 @@ export function NoteBody({
             rows={16}
             spellCheck
             help={help}
-            error={used > NOTE_BODY_MAX_LENGTH ? help : undefined}
+            error={over ? COPY.overLimit(used, NOTE_BODY_MAX_LENGTH) : undefined}
             data-note-textarea=""
             onChange={(event) => setText(event.target.value)}
-            onBlur={() => flush()}
+            // After a failure, leaving the field doesn't try again by itself (pressing «Reintentar»
+            // blurs the field first: the key must still be there to take the click).
+            onBlur={() => {
+              if (status.kind !== "failed") flush();
+            }}
             onKeyDown={(event) => {
               if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
               event.preventDefault();
@@ -360,7 +405,14 @@ export function NoteBody({
           </h2>
           <p className="bo-text-body-sm text-text-secondary">{COPY.draftText}</p>
           <TextArea label={COPY.draftLabel} value={draft} rows={8} readOnly />
-          <Key variant="ghost" className="w-fit" onClick={autosave.discardDraft}>
+          <Key
+            variant="ghost"
+            className="w-fit"
+            onClick={() => {
+              autosave.discardDraft();
+              pendingFocus.current = () => textarea.current ?? editKey.current;
+            }}
+          >
             {COPY.discardDraft}
           </Key>
         </section>

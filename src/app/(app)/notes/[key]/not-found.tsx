@@ -20,7 +20,7 @@ export default function NoteNotFound() {
       <Key asChild variant="signal">
         <Link href={NOTES_PATH}>
           <Icon icon={NotebookPen} />
-          {COPY.backToList}
+          {COPY.goToList}
         </Link>
       </Key>
     </StatusScreen>

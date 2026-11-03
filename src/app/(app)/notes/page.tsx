@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { requireOwner } from "@/lib/auth";
 import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
+import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
 import { NoteDeletedNotice } from "@/modules/notes/components/note-deleted-notice";
 import { NotesScreen } from "@/modules/notes/components/notes-screen";
 import { getTodayNoteState } from "@/modules/notes/contracts";
@@ -36,6 +38,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
   const areaId = areas.some((area) => area.id === wanted) ? wanted : null;
   const shown = shownFromParam(one(search[SHOWN_PARAM]));
   const deletedId = one(search[DELETED_PARAM]);
+  const shortcuts = areShortcutsEnabled((await cookies()).get(SHORTCUTS_COOKIE)?.value);
   const [list, todayNote, deleted] = await Promise.all([
     listNotes({ kind, areaId, shown }),
     getTodayNoteState(now),
@@ -62,6 +65,7 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
           today={today}
           todayHasText={todayNote.hasText}
           headingId={HEADING_ID}
+          shortcuts={shortcuts}
         />
         <NoteDeletedNotice headingId={HEADING_ID} deleted={deleted} today={today} />
       </div>

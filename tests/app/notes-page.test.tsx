@@ -3,19 +3,28 @@
 // mocked): the list with its filters in the URL, «Ver más» with the focus on the first new row,
 // «Nueva nota», the deleted note's «Deshacer», a daily note's header, and a knowledge note's title,
 // area and «Fijar».
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import NoteNotFound from "@/app/(app)/notes/[key]/not-found";
 import NotePage, { generateMetadata } from "@/app/(app)/notes/[key]/page";
 import NotesPage, { metadata } from "@/app/(app)/notes/page";
 import { fail, ok } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
 import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
-import { createNote, pinNote, renameNote, restoreNote, setNoteArea } from "@/modules/notes/actions";
+import {
+  createNote,
+  pinNote,
+  renameNote,
+  restoreNote,
+  saveDailyNote,
+  setNoteArea,
+} from "@/modules/notes/actions";
+import { markDayLink, takeDayLink } from "@/modules/notes/components/day-focus";
 import { NotesScreen } from "@/modules/notes/components/notes-screen";
 import { getTodayNoteState } from "@/modules/notes/contracts";
-import { NOTES_COPY as COPY } from "@/modules/notes/copy";
+import { NOTES_COPY as COPY, NOTES_ERRORS } from "@/modules/notes/copy";
 import { addDays, dailyTitle } from "@/modules/notes/note-day";
 import type { NoteArea, NoteItem, NoteListItem } from "@/modules/notes/note-input";
 import {
@@ -99,7 +108,8 @@ const PAGE: NoteItem = {
 };
 
 beforeEach(() => {
-  for (const fn of [createNote, pinNote, renameNote, restoreNote, setNoteArea]) {
+  takeDayLink();
+  for (const fn of [createNote, pinNote, renameNote, restoreNote, setNoteArea, saveDailyNote]) {
     vi.mocked(fn).mockReset();
   }
   router.push.mockReset();
@@ -119,6 +129,7 @@ beforeEach(() => {
 const search = (params: Record<string, string> = {}) =>
   ({ searchParams: Promise.resolve(params) }) as never;
 const keyParams = (key: string) => ({ params: Promise.resolve({ key }) }) as never;
+const announcer = () => document.querySelector("[data-screen-announcer]")!;
 
 describe("/notes", () => {
   test("checks the owner first, reads the first 30 of every kind, and titles itself", async () => {
@@ -234,11 +245,50 @@ describe("the list", () => {
     expect(router.replace).toHaveBeenLastCalledWith(`/notes?area=${id(902)}`, { scroll: false });
   });
 
-  test("filters with no match: «Quitar filtros» goes back to every note", async () => {
-    render(<List kind="daily" />);
+  test("filters with no match: «Quitar filtros» goes back to every note, focus on the filter", async () => {
+    const { rerender } = render(<List kind="daily" />);
     expect(screen.getByText(COPY.emptyFiltered)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: COPY.clearFilters }));
     expect(router.replace).toHaveBeenLastCalledWith("/notes", { scroll: false });
+    // The server answers with every note: the key left, the focus goes to the kind filter.
+    rerender(<List items={[row(1), row(2)]} />);
+    await waitFor(() => expect(screen.getByRole("radio", { name: COPY.kindAll })).toHaveFocus());
+    await waitFor(() => expect(announcer()).toHaveTextContent("2 notas"));
+  });
+
+  test("a filter change announces what the list holds now", async () => {
+    const { rerender } = render(<List items={[row(1), row(2)]} />);
+    await userEvent.click(screen.getByRole("radio", { name: COPY.kindPage }));
+    rerender(<List items={[row(1)]} kind="page" />);
+    await waitFor(() => expect(announcer()).toHaveTextContent("1 nota"));
+    await userEvent.click(screen.getByRole("radio", { name: COPY.kindDaily }));
+    rerender(<List items={[]} kind="daily" />);
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.emptyFiltered));
+  });
+
+  test("an empty list has one primary «Nota de hoy» (the header's)", () => {
+    render(<List />);
+    const links = screen.getAllByRole("link", { name: COPY.todayNote });
+    expect(links).toHaveLength(2);
+    expect(links.filter((link) => link.classList.contains("bo-key--signal"))).toHaveLength(1);
+  });
+
+  test("with shortcuts on, «Nota de hoy» shows N from 1024 px", () => {
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    const { unmount } = render(<List items={[row(1)]} shortcuts />);
+    const key = screen.getByRole("link", { name: COPY.todayNote });
+    expect(key).toHaveAttribute("aria-keyshortcuts", "N");
+    expect(within(key).getByText("N")).toBeInTheDocument();
+    unmount();
+    render(<List items={[row(1)]} />);
+    expect(screen.getByRole("link", { name: COPY.todayNote })).not.toHaveAttribute(
+      "aria-keyshortcuts",
+    );
   });
 
   test("«Ver más» asks for 30 more and lands on the first new row", async () => {
@@ -313,6 +363,8 @@ describe("/notes/[key]", () => {
     );
     expect(screen.queryByRole("link", { name: COPY.nextDay })).toBeNull();
     expect(screen.getByRole("textbox", { name: COPY.bodyLabel })).toHaveValue("");
+    // Reached on purpose: the cursor is in the text (SPEC-notes, story 1).
+    expect(screen.getByRole("textbox", { name: COPY.bodyLabel })).toHaveFocus();
     expect(screen.queryByRole("button", { name: COPY.delete })).toBeNull();
     expect((await generateMetadata(keyParams(TODAY))).title).toBe(
       `${dailyTitle(TODAY, TODAY)} · brahua-os`,
@@ -345,6 +397,67 @@ describe("/notes/[key]", () => {
     await userEvent.click(screen.getByRole("button", { name: COPY.go }));
     expect(router.push).toHaveBeenCalledWith(`/notes/${addDays(TODAY, -5)}`);
     expect(screen.getByRole("button", { name: COPY.delete })).toBeVisible();
+  });
+
+  test("«Ir» refuses a future, empty or too old day on the field, with the focus there", async () => {
+    render(await NotePage(keyParams(YESTERDAY)));
+    const picker = screen.getByLabelText(COPY.goToDayLabel, { selector: "input" });
+    for (const value of [addDays(TODAY, 1), "", "1999-12-31"]) {
+      fireEvent.change(picker, { target: { value } });
+      await userEvent.click(screen.getByRole("button", { name: COPY.go }));
+      expect(picker).toHaveAttribute("aria-invalid", "true");
+      expect(picker).toHaveAccessibleDescription(NOTES_ERRORS.day);
+      expect(picker).toHaveFocus();
+    }
+    expect(router.push).not.toHaveBeenCalled();
+    // Changing the value clears the error.
+    fireEvent.change(picker, { target: { value: addDays(TODAY, -3) } });
+    expect(picker).toHaveAttribute("aria-invalid", "false");
+  });
+
+  test("«Ir» goes through the unsaved-changes guard", async () => {
+    vi.mocked(saveDailyNote).mockReturnValue(new Promise(() => {}));
+    render(await NotePage(keyParams(TODAY)));
+    await userEvent.type(screen.getByRole("textbox", { name: COPY.bodyLabel }), "Hoy");
+    const picker = screen.getByLabelText(COPY.goToDayLabel, { selector: "input" });
+    fireEvent.change(picker, { target: { value: YESTERDAY } });
+    await userEvent.click(screen.getByRole("button", { name: COPY.go }));
+    expect(await screen.findByText(COPY.leaveTitle)).toBeVisible();
+    expect(router.push).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: COPY.leave }));
+    expect(router.push).toHaveBeenCalledWith(`/notes/${YESTERDAY}`);
+  });
+
+  test("arriving through «Día anterior»: focus on the same link, never the empty editor", async () => {
+    markDayLink("previous");
+    render(await NotePage(keyParams(YESTERDAY)));
+    await waitFor(() => expect(screen.getByRole("link", { name: COPY.previousDay })).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: COPY.bodyLabel })).not.toHaveFocus();
+  });
+
+  test("arriving at today through «Día siguiente» (not there today): focus on the h1", async () => {
+    markDayLink("next");
+    render(await NotePage(keyParams(TODAY)));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { level: 1, name: dailyTitle(TODAY, TODAY) }),
+      ).toHaveFocus(),
+    );
+  });
+
+  test("a day link marks itself only on a plain click", async () => {
+    render(await NotePage(keyParams(YESTERDAY)));
+    const link = screen.getByRole("link", { name: COPY.nextDay });
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link, { metaKey: true });
+    expect(takeDayLink()).toBeNull();
+    fireEvent.click(link);
+    expect(takeDayLink()).toBe("next");
+  });
+
+  test("the 404 goes back with «Ir a Notas»", () => {
+    render(<NoteNotFound />);
+    expect(screen.getByRole("link", { name: COPY.goToList })).toHaveAttribute("href", "/notes");
   });
 
   test("the `E` key follows the shortcuts cookie", async () => {
