@@ -6,7 +6,12 @@ import type { AreaColor, AreaIconName } from "@/design-system";
 import { markdownTextSchema } from "@/lib/markdown-text";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
 import { NOTES_ERRORS } from "./copy";
-import { NOTE_BODY_MAX_LENGTH, NOTE_TITLE_MAX_LENGTH, type NoteKind } from "./note-constants";
+import {
+  NOTE_BODY_MAX_LENGTH,
+  NOTE_LINK_QUERY_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+  type NoteKind,
+} from "./note-constants";
 import { isDayKey } from "./note-day";
 
 const id = z.uuid({ error: NOTES_ERRORS.notFound });
@@ -69,6 +74,17 @@ export const pinNoteInputSchema = z.object({ id, pinned: z.boolean() });
 export type PinNoteInput = z.output<typeof pinNoteInputSchema>;
 
 export const noteIdInputSchema = z.object({ id });
+
+/**
+ * The `[[` picker's search (N2): the text typed after `[[`, at most 80 characters. Control
+ * characters become spaces (Postgres refuses NUL in a parameter).
+ */
+export const searchNoteLinksInputSchema = z.object({
+  q: z
+    .string()
+    .max(NOTE_LINK_QUERY_MAX_LENGTH)
+    .transform((value) => value.replace(/\p{Cc}/gu, " ")),
+});
 export type NoteIdInput = z.output<typeof noteIdInputSchema>;
 
 /** The note as the server holds it after a save, or the one that won a conflict. */

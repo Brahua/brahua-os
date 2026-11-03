@@ -9,6 +9,14 @@ export function normalizeName(value: string): string {
 }
 
 /**
+ * Text to search names with (the `[[` picker of the notes, src/lib/link-search.ts): no accents
+ * (NFD without marks), lowercase, runs of whitespace as one space, trimmed.
+ */
+export function foldSearchText(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
  * Control and format characters (NUL, zero-width spaces, bidi overrides…) that are left after
  * normalizing. They are invisible or reorder the text, and Postgres rejects NUL outright.
  * Except the zero-width non-joiner and joiner (U+200C, U+200D): emoji sequences such as

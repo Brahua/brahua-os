@@ -114,6 +114,19 @@ export function selectPageNote(db: Database, id: string): Promise<NoteItem | nul
   return selectItem(db, and(eq(notes.id, id), eq(notes.kind, "page"), live));
 }
 
+/**
+ * The day of a live daily note by its id, or null. A `[[note:<id>|…]]` link drawn without the
+ * server's resolution (the editor's preview) opens `/notes/<id>`, and the page sends it to its day.
+ */
+export async function selectDailyNoteDay(db: Database, id: string): Promise<string | null> {
+  const [row] = await db
+    .select({ day: notes.day })
+    .from(notes)
+    .where(and(eq(notes.id, id), eq(notes.kind, "daily"), live))
+    .limit(1);
+  return row?.day ?? null;
+}
+
 /** How much of the body the list reads for a row's excerpt (its first lines). */
 const EXCERPT_SOURCE_LENGTH = 2_000;
 

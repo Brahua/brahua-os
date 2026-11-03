@@ -142,6 +142,31 @@ export const NOTES_COPY = {
     delete: "No se eliminó la nota.",
   },
 
+  // `[[` links (N2): the picker's groups, hints and states.
+  linkTypeLabels: {
+    note: "Notas",
+    project: "Proyectos",
+    task: "Tareas",
+    habit: "Hábitos",
+    goal: "Metas",
+    learning: "Aprendizaje",
+  },
+  linkDailyHint: "Diario",
+  linkPickerLabel: "Enlazar con",
+  linkSearching: "Buscando…",
+  linkNoMatches: "Sin coincidencias",
+  linkSearchFailed: "No se pudo buscar. Sigue escribiendo para intentarlo de nuevo.",
+  linkResults: (count: number) =>
+    count === 1 ? "1 resultado. Flechas para elegir." : `${count} resultados. Flechas para elegir.`,
+  linkInserted: (name: string) => `Enlace a «${name}».`,
+  bodyHelpLinks:
+    "Escribe [[ para enlazar una nota, un proyecto, una tarea, un hábito, una meta o un frente.",
+
+  // Backlinks (N2).
+  linkedFromTitle: "Enlazada desde",
+  mentionedInTitle: (count: number) =>
+    count === 1 ? "Mencionado en 1 nota" : `Mencionado en ${count} notas`,
+
   // Not found.
   notFoundTitle: "Nota no encontrada · brahua-os",
   notFoundLcd: "SIN NOTA",
