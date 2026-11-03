@@ -587,3 +587,71 @@ test.each([
   expect(messages).toHaveLength(1);
   expect(messages[0]).toContain("`learning` depende de `core` y `projects`");
 });
+
+// SPEC-notes "Contratos": NOBODY imports `notes` (not even a contract): what it adds to other
+// screens goes through the composition roots in src/lib (note-extensions.tsx for Hoy, note-routes.ts
+// for the `N` key). Only the notes pages and src/lib may import it. N1 imports only `core`.
+const IMPORT_NOTES = `import { NOTES_PATH } from "@/modules/notes/routes";
+export const path = NOTES_PATH;
+`;
+const IMPORT_NOTES_CONTRACT = `import { getTodayNoteState } from "@/modules/notes/contracts";
+export const read = getTodayNoteState;
+`;
+const IMPORT_NOTES_BARREL = `import * as notes from "@/modules/notes";
+export const all = notes;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+  "src/modules/finance/expenses.ts",
+  "src/modules/reminders/engine.ts",
+  "src/modules/goals/goals.ts",
+  "src/modules/goals/db/schema.ts",
+  "src/modules/household/actions.ts",
+  "src/modules/learning/tracks.ts",
+  "src/modules/learning/db/schema.ts",
+  "src/modules/today/components/today-board.tsx",
+  "src/modules/weekly-review/queries.ts",
+  "src/app/(app)/page.tsx",
+  "src/app/(app)/projects/[id]/page.tsx",
+])("%s cannot import notes, not even its contract", async (file) => {
+  for (const code of [IMPORT_NOTES, IMPORT_NOTES_CONTRACT, IMPORT_NOTES_BARREL]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("Nadie importa `notes`");
+  }
+});
+
+test("notes itself, its pages and the composition roots in src/lib may import it", async () => {
+  expect(await restricted(IMPORT_NOTES, "src/modules/notes/notes.ts")).toEqual([]);
+  expect(await restricted(IMPORT_NOTES, "src/app/(app)/notes/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_NOTES, "src/app/(app)/notes/[key]/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_NOTES_CONTRACT, "src/lib/note-extensions.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_NOTES, "src/lib/note-routes.ts")).toEqual([]);
+  expect(await restricted(IMPORT_NOTES, "src/lib/modules.ts")).toEqual([]);
+  // Hoy reads the key through the root (positive control of the page's rule).
+  const root = `import { getTodayNoteSlot } from "@/lib/note-extensions";\nexport const x = getTodayNoteSlot;\n`;
+  expect(await restricted(root, "src/app/(app)/page.tsx")).toEqual([]);
+});
+
+test.each([
+  `import { listLifeAreas } from "@/modules/core/queries";\nexport const x = listLifeAreas;\n`,
+  `import { lifeAreas } from "@/modules/core/db/schema";\nexport const x = lifeAreas;\n`,
+  `import { requireOwner } from "@/lib/auth";\nexport const x = requireOwner;\n`,
+])("notes may read core %#", async (code) => {
+  expect(await restricted(code, "src/modules/notes/notes.ts")).toEqual([]);
+});
+
+test.each([
+  `import { projectPath } from "@/modules/projects/routes";\nexport const x = projectPath;\n`,
+  `import { tasks } from "@/modules/tasks/db/schema";\nexport const x = tasks;\n`,
+  `import { getLearningTodaySummary } from "@/modules/learning/contracts";\nexport const x = getLearningTodaySummary;\n`,
+  `import * as today from "@/modules/today";\nexport const x = today;\n`,
+])("notes depends on core only in N1 %#", async (code) => {
+  const messages = await restricted(code, "src/modules/notes/notes.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`notes` depende de `core`");
+});
