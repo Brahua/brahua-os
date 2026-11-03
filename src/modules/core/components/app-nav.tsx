@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { itemForShortcut, navItems } from "@/lib/modules";
 import { requestNavigation } from "@/lib/navigation-guard";
+import { todayNotePath } from "@/lib/note-routes";
 import {
   pickCaptureProvider,
   QuickCaptureContext,
@@ -32,7 +33,7 @@ type AppNavProps = {
 
 /**
  * The app's navigation: sidebar from 1024 px, bottom bar below (CSS decides which one shows,
- * so there is no flash). Owns the collapsed state and the global shortcuts `[`, `1`–`8` and `C`,
+ * so there is no flash). Owns the collapsed state and the global shortcuts `[`, `1`–`8`, `C` and `N`,
  * which only act from 1024 px, where the sidebar that shows them is on screen.
  *
  * Quick capture: the orange keys and `C` open the sheet of a registered capture provider
@@ -108,6 +109,15 @@ export function AppNav({ initialCollapsed, shortcutsEnabled }: AppNavProps) {
         if (!canCapture) return;
         event.preventDefault();
         openCapture();
+        return;
+      }
+      if (shortcut.type === "today-note") {
+        event.preventDefault();
+        // Lima's today at the key press (the page may have been open since yesterday).
+        const href = todayNotePath();
+        if (window.location.pathname !== href) {
+          requestNavigation(href, () => router.push(href));
+        }
         return;
       }
       const item = itemForShortcut(ITEMS, shortcut.digit);

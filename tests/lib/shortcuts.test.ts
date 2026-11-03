@@ -98,6 +98,39 @@ describe("navShortcutFor", () => {
   });
 });
 
+// N1 of notes: `N` opens today's note, with the same rules as `C` (quick capture).
+describe("N: today's note", () => {
+  test("N (and n, and with Caps Lock) opens today's note; C still opens the capture", () => {
+    expect(press("n")).toEqual({ type: "today-note" });
+    expect(press("N")).toEqual({ type: "today-note" });
+    expect(press("c")).toEqual({ type: "capture" });
+  });
+
+  test("not with ⌘, Ctrl, Shift, ⌥ or AltGr, on auto-repeat or while composing", () => {
+    expect(press("n", { metaKey: true })).toBeNull();
+    expect(press("n", { ctrlKey: true })).toBeNull();
+    expect(press("N", { shiftKey: true })).toBeNull();
+    expect(press("n", { altKey: true })).toBeNull();
+    expect(press("n", { altKey: true, ctrlKey: true, altGraph: true })).toBeNull();
+    expect(press("n", { repeat: true })).toBeNull();
+    expect(press("n", { isComposing: true })).toBeNull();
+    expect(press("n", { defaultPrevented: true })).toBeNull();
+  });
+
+  test.each([
+    ["<textarea></textarea>", "textarea"],
+    ["<input>", "input"],
+    ['<div contenteditable="true"><p>texto</p></div>', "p"],
+    ['<div role="dialog"><button>ok</button></div>', "button"],
+    ['<div role="alertdialog"><button>ok</button></div>', "button"],
+  ])("never while typing or with a dialog open: %s", (html, selector) => {
+    const target = element(html, selector);
+    expect(press("n", { target })).toBeNull();
+    // Positive control: the same key on the page opens the note.
+    expect(press("n", { target: document.body })).toEqual({ type: "today-note" });
+  });
+});
+
 describe("isShortcutFreeTarget", () => {
   test("buttons, links and the page itself take shortcuts", () => {
     expect(isShortcutFreeTarget(element("<button>x</button>", "button"))).toBe(false);

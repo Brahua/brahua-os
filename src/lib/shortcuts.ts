@@ -47,7 +47,9 @@ export type NavShortcut =
   | { type: "toggle-sidebar" }
   | { type: "go"; digit: number }
   /** `C`: quick capture (SPEC-tasks). */
-  | { type: "capture" };
+  | { type: "capture" }
+  /** `N`: today's note (SPEC-notes "Supuestos" 1). */
+  | { type: "today-note" };
 
 type ShortcutEvent = Pick<
   KeyboardEvent,
@@ -64,8 +66,9 @@ type ShortcutEvent = Pick<
 > & { getModifierState?: (key: string) => boolean };
 
 /**
- * `[` toggles the sidebar, `1`–`8` go to the section with that number and `C` opens quick
- * capture (with Caps Lock too: `key` is then "C" without Shift). Nothing fires while
+ * `[` toggles the sidebar, `1`–`8` go to the section with that number, `C` opens quick
+ * capture and `N` today's note (with Caps Lock too: `key` is then "C"/"N" without Shift). Nothing
+ * fires while
  * typing or inside a widget/dialog (see IGNORED_TARGETS), on auto-repeat, or with ⌘/Ctrl/Shift.
  * Two ⌥ cases are accepted on purpose:
  * - `[` with ⌥ or AltGr: many layouts (Spanish and Latin American among them) need that
@@ -82,6 +85,7 @@ export function navShortcutFor(event: ShortcutEvent): NavShortcut | null {
   if (event.key === "[") return { type: "toggle-sidebar" };
   if (event.shiftKey || altGraph) return null;
   if (!event.altKey && (event.key === "c" || event.key === "C")) return { type: "capture" };
+  if (!event.altKey && (event.key === "n" || event.key === "N")) return { type: "today-note" };
 
   if (event.altKey) {
     // ⌥ changes `key` ("¡" on a Mac), so use the physical key.

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import Home from "@/app/(app)/page";
 import { ok } from "@/lib/action-result";
 import { requireOwner } from "@/lib/auth";
+import { getTodayNoteSlot } from "@/lib/note-extensions";
 import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { getFinanceTodaySummary, type FinanceTodayItem } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
@@ -20,6 +21,15 @@ import {
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 // The root of the weekly review invitation (W4) reads the database: the page tests mock it.
 vi.mock("@/lib/review-extensions", () => ({ getReviewInviteSlot: vi.fn() }));
+// N1 of notes: the root of the «Nota de hoy» key reads the database too.
+vi.mock("@/lib/note-extensions", async () => {
+  const { createElement } = await import("react");
+  return {
+    getTodayNoteSlot: vi.fn(async () =>
+      createElement("a", { href: "/notes/2026-09-30" }, "Nota de hoy"),
+    ),
+  };
+});
 vi.mock("@/modules/habits/contracts", () => ({ getHabitsDueToday: vi.fn() }));
 vi.mock("@/modules/tasks/contracts", () => ({
   getTasksTodaySummary: vi.fn(),
@@ -377,4 +387,14 @@ test("the weekly review invitation renders at the top, above the board, and noth
   const heading = screen.getByRole("heading", { level: 1 });
   expect(invite.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(getReviewInviteSlot).toHaveBeenCalledWith(expect.any(Date));
+});
+
+test("N1 of notes: the header carries the «Nota de hoy» key from notes' composition root", async () => {
+  render(await Home());
+  expect(getTodayNoteSlot).toHaveBeenCalledWith(expect.any(Date));
+  const header = screen.getByRole("heading", { level: 1 }).closest("header")!;
+  expect(within(header).getByRole("link", { name: "Nota de hoy" })).toHaveAttribute(
+    "href",
+    "/notes/2026-09-30",
+  );
 });
