@@ -1,6 +1,42 @@
 # Tareas
 
-> Sin módulo en curso. Último cerrado: **`learning`** (Aprendizaje, 2026-11-02; plan y tareas en [`archive/learning-plan.md`](archive/learning-plan.md) y [`archive/learning-todo.md`](archive/learning-todo.md)). **Siguiente: `notes`** (sin spec todavía: se arranca con `spec-driven-development`) y al final `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Módulo en curso: **`notes`** (Notas; spec [`SPEC-notes.md`](../SPEC-notes.md) aprobada el 2026-11-03, plan en [`plan.md`](plan.md)). Después, al final, `health` (nuevo orden del owner, 2026-10-29: la salud la desarrolla en otra app), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Módulo `notes` (Notas)
+
+Cada tarea termina con el gate local liviano en verde, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(notes): …`). Máximo un E2E nuevo en todo el módulo (N4).
+
+- [ ] **N1: Notas y editor** (M; `feat/notes-n1`)
+  - Migración aditiva `notes` (`kind` daily/page, `day` si y solo si daily, `title` 1–120 si y solo si page, `body` ≤ 50 000, `area_id` y `pinned_at` solo en page, `version ≥ 1`; único parcial del día; FK a `life_areas`), Prettier sobre el snapshot; `EXPORTABLE_TABLES` y respaldo.
+  - `src/modules/notes/`: `module.ts` («Notas», `navOrder` 69, sin atajo de número), `routes.ts`, `lock-keys.ts` (`NOTES_ADVISORY_SPACE = 9000`), `note-input.ts` (saneo de proyectos con 50 000), `notes.ts`, `actions.ts` (`ownerAction`), `copy.ts`, `revalidate.ts`, `export.ts`, `components/`; páginas `/notes` y `/notes/[key]` con `requireOwner()`.
+  - Lista (filtro «Todas · Diario · Notas», área, fijadas primero, de 30 en 30); nota del día (fecha larga, día anterior/siguiente hasta hoy, selector de fecha; futura o mal formada → 404) y de conocimiento (título en el sitio, área, fijar); vista renderizada con «Editar»/`E` y «Listo»/Esc; guardado automático (1 s, `pagehide`, cola, indicador `aria-live`) con versión y conflicto con borrador; eliminar con «Deshacer»; «Nota de hoy»/«Seguir la nota de hoy» en Hoy vía `src/lib`; tecla `N` en `core`; regla de ESLint (nadie importa `notes`; solo raíces de `src/lib`); módulo en `MODULES`.
+  - **Aceptación:** lo escrito se guarda sin botón y sobrevive a recargar; nunca dos notas vivas del mismo día; un guardado con versión vieja se rechaza y el texto queda como borrador; nada se borra físicamente.
+  - **Verificación:** unitarias (saneo, cola de guardado y conflicto, día válido, copy sin cadenas prohibidas, componentes); integración de a un archivo (`CHECK` crudos, *upsert* concurrente con control positivo, versión, «Deshacer», autorización, exportación); gate liviano; tras el push, revisar `e2e/home.spec.ts` y dispatch de `update-screenshots.yml`. Sin E2E nueva.
+- [ ] **N2: Enlaces** (M; `feat/notes-n2`) — depende de N1
+  - Plugin `[[type:id|Nombre]]` en `src/lib/markdown/` (seis tipos, id uuid, nombre como texto; dentro de código no cuenta), `NoteLinkSource` (`search`, `resolve`) y `src/lib/note-link-sources.ts` con `note-link-source.ts` en `projects`, `tasks`, `habits`, `goals`, `learning` y `notes`; resueltos por tipo en una consulta; borrado → «Nombre (eliminado)» sin enlace.
+  - Selector combobox debajo del `textarea` al escribir `[[` (8 resultados, flechas, Enter/Tab, Esc, toque); «Enlazada desde» en la nota; `<NoteMentions type id>` (`src/lib/note-extensions.tsx`) al final de `/projects/[id]`, `/tasks/[id]`, `/habits/[id]`, `/goals/[id]` y `/learning/[id]`.
+  - **Aceptación:** `[[Ru` + elegir deja un enlace que abre la entidad, con el nombre actual tras renombrarla; la entidad muestra «Mencionado en N notas» y no lo muestra sin menciones.
+  - **Verificación:** unitarias (parseo y reemplazo, nombres hostiles, combobox con teclado y foco, sección de menciones); integración (backlinks sin borradas, búsqueda de cada fuente, resolución); `@/lib/note-extensions` mockeado en las cinco pruebas de página; dispatch de `update-screenshots.yml` tras el push. Sin E2E nueva.
+- [ ] **N3: Línea → tarea, captura y pie** (M; `feat/notes-n3`) — depende de N2
+  - «Convertir en tarea» en ítems `- [ ] texto` (versión + índice + texto; una transacción con `createInboxTask`; «Deshacer» con `undoInboxTask` por versión); casilla viva de `- [[task:…]]` con completar y deshacer de `tasks`.
+  - Proveedor «Nota» en `src/lib/capture-providers.tsx` (Tarea · Gasto · Nota): `- HH:MM texto` al final de la nota de hoy bajo el lock del día, «Deshacer» por versión.
+  - Pie «Ese día» con `countTasksCompletedOn` y `countHabitsDoneOn` (día de Lima).
+  - **Aceptación:** convertir en 1 toque crea la tarea en la bandeja y la casilla refleja y cambia su estado; dos capturas a la vez dejan dos líneas; los «Deshacer» son exactos o dicen «Cambió mientras tanto».
+  - **Verificación:** unitarias (ítems por índice, línea con hora y cruce de medianoche, hoja de captura, pie); integración (convertir y deshacer, captura concurrente, captura + guardado viejo, conteos, autorización); dispatch de `update-screenshots.yml` tras el push. Sin E2E nueva.
+- [ ] **N4: Búsqueda y E2E** (M; `feat/notes-n4`) — depende de N3
+  - Migración aditiva: `unaccent`, configuración `notes_spanish`, columna generada `search` (enlaces reemplazados por su nombre) y GIN; la exportación la omite. Verificar `unaccent` en `embedded-postgres` antes.
+  - `search.ts` (palabras `\p{L}\p{N}`, máx. 8, prefijo `:*`, `ts_rank`, `ts_headline` con U+E000/U+E001) y buscador en `/notes` con `?q=` (mínimo 2 caracteres, fragmento con `<mark>`, foco al limpiar).
+  - **El único E2E** `e2e/notes.spec.ts`: nota de hoy desde Hoy, escribir y recargar, `[[` y elegir un proyecto, backlink en el proyecto, convertir una línea en tarea y marcarla, buscar; axe en 0 en ambos temas y 320 px con `afterSaveSettled`; una captura con `expectScreenshot`; entrada en `SPEC_MODULES`.
+  - **Aceptación:** «polit» encuentra «políticas»; `&`, `!`, `:` o `'` no rompen la consulta; el E2E pasa en CI.
+  - **Verificación:** unitarias (armado de la consulta, fragmento); integración (acentos, prefijo, enlace por nombre, inyección, borradas fuera); `update-screenshots.yml` tras el push (primera corrida del E2E).
+- [ ] **N5: Cierre** (S; `docs/notes-close`) — depende de N4
+  - Checkpoint en producción (Chrome del owner, datos `[QA]` borrados después) y corrección de hallazgos; retrospectiva en `CLAUDE.md`, backlog consolidado, estado en el mapa, HANDOFF («Cómo funciona notes»), archivar plan y tareas.
+
+### Checkpoint final
+- [ ] Recorrido en producción por el agente (Chrome del owner, datos `[QA]` borrados después).
+- [ ] Se cumplen los criterios de éxito de `SPEC-notes.md`.
+- [ ] Revisión con el owner de las decisiones autónomas (al final de `SPEC-notes.md` y en HANDOFF).
+- [ ] iPhone (el owner): selector `[[` con el teclado, guardado automático al salir de la app y captura «Nota».
 
 ## Módulo `learning` (Aprendizaje): cerrado el 2026-11-02
 
