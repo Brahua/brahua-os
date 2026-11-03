@@ -7,7 +7,8 @@ import { parseBbvaConsumption } from "./bbva-consumption";
 import { parseBbvaInterbank } from "./bbva-interbank";
 import { parseBbvaPlin } from "./bbva-plin";
 import { parseBcpConsumption } from "./bcp-consumption";
-import { parseBcpTransfer } from "./bcp-transfer";
+import { parseBcpService } from "./bcp-service";
+import { parseBcpTransfer, parseBcpYapeo } from "./bcp-transfer";
 import { parseYapePayment } from "./yape-payment";
 import { parseYapeYapeo } from "./yape-yapeo";
 
@@ -41,6 +42,19 @@ const FORMATS: readonly Format[] = [
     from: BCP,
     subject: /^Constancia de Transferencia a Terceros BCP\b/i,
     parse: parseBcpTransfer,
+  },
+  // Anchored: «Constancia de recepción de Yapeo a celular BCP» is money received and stays unknown.
+  {
+    source: "bcp",
+    from: BCP,
+    subject: /^Constancia de Yapeo a Celular\b/i,
+    parse: parseBcpYapeo,
+  },
+  {
+    source: "bcp",
+    from: BCP,
+    subject: /^ENV[IÍ]O AUTOM[AÁ]TICO - CONSTANCIA DE PAGO DE SERVICIO\b/i,
+    parse: parseBcpService,
   },
   { source: "yape", from: YAPE, subject: /^Pago exitoso$/i, parse: parseYapePayment },
   {

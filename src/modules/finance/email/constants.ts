@@ -5,7 +5,11 @@
 export const EMAIL_SOURCES = ["bcp", "bbva", "yape"] as const;
 export type EmailSource = (typeof EMAIL_SOURCES)[number];
 
-/** What the email was about: a card purchase, a Yape payment or a transfer to someone. */
+/**
+ * What the email was about: a card purchase, a Yape payment or money sent from an account to someone
+ * (`transfer`, which also covers a bill paid from an account: a new kind would need a migration of the
+ * CHECK for a value nothing reads differently).
+ */
 export const EMAIL_KINDS = ["card", "yape", "transfer"] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
