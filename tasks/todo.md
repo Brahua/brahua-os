@@ -1,6 +1,33 @@
 # Tareas
 
-> Sin módulo en curso. Último cerrado: **`notes`** (Notas, 2026-11-03; plan y tareas en [`archive/notes-plan.md`](archive/notes-plan.md) y [`archive/notes-todo.md`](archive/notes-todo.md)). **Siguiente: `health`** (al final del orden: el owner desarrolla la salud en otra app, 2026-10-29; sin spec todavía: se arranca con `spec-driven-development` y se revisa si sigue teniendo sentido), y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> En curso: **`health`** (Entreno; spec [`SPEC-health.md`](../SPEC-health.md) aprobada el 2026-11-04, plan en [`plan.md`](plan.md)). Último cerrado: **`notes`** (Notas, 2026-11-03; plan y tareas en [`archive/notes-plan.md`](archive/notes-plan.md) y [`archive/notes-todo.md`](archive/notes-todo.md)). Después: los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+
+## Módulo `health` (Entreno): en curso
+
+Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, revisión del commit local, un push, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(health): …`). Máximo un E2E nuevo en todo el módulo (E4).
+
+- [ ] **E1: Catálogo y rutinas** (M; `feat/health-e1`)
+  - Migración aditiva `0029`: `health_exercises` (semilla de 64 por `seed_key`, ids `md5`, `ON CONFLICT DO NOTHING`; único parcial por `name_key`), `health_routines`, `health_routine_exercises`, `health_settings` (una fila, FK a `habits`); Prettier sobre el snapshot; `EXPORTABLE_TABLES`.
+  - `src/modules/health/`: `module.ts` («Entreno», `navOrder` 70, `Dumbbell`), `routes.ts`, `lock-keys.ts` (`HEALTH_ADVISORY_SPACE = 10000`), `seed.ts`, `exercises-*.ts`, `routines-*.ts`, copy, `export.ts`, `components/`; páginas `/health`, `/health/exercises`, `/health/exercises/[id]`, `/health/routines/[id]` con `requireOwner()`.
+  - Regla de ESLint `HEALTH_ONLY_CONTRACTS` (nadie importa `health` salvo `today` y `weekly-review`; `health` solo `habits/contracts` y `routes`) y la excepción de un archivo para la FK.
+  - **Aceptación:** los 64 ejercicios existen tras migrar (dos veces = 64); «Nuevo ejercicio» rechaza un nombre repetido sin acentos; una rutina con 5 ejercicios se arma y reordena con teclado y toque; borrar tiene «Deshacer».
+  - **Verificación:** unitarias (clave de nombre, Zod de rutina, copy sin cadenas prohibidas, componentes); integración de a un archivo (`tests/integration/health-catalog.test.ts`: `CHECK` crudos, semilla idempotente, unicidad, orden con lock, autorización, exportación); tras el push, `e2e/home.spec.ts` y dispatch de `update-screenshots.yml`. Sin E2E nueva.
+- [ ] **E2: Sesión** (L; `feat/health-e2`) — depende de E1
+  - Migración `0030`: `health_sessions` (único parcial de la abierta), `health_session_exercises`, `health_sets`.
+  - Empezar (rutina o libre; lock primero), precarga por posición, serie (peso ↔ gramos, reps, segundos, distancia, calentamiento, casilla), añadir/quitar con «Deshacer», reordenar, nota, barra de descanso, terminar/descartar (4 h, «Deshacer» exacto), `/health/sessions` y `/health/sessions/[id]` (terminadas editables), `useSecondClock` a `src/lib`.
+  - **Aceptación:** nunca dos sesiones abiertas; una serie marcada sobrevive a recargar; «Terminar» quita las planificadas y su «Deshacer» las devuelve.
+  - **Verificación:** unitarias (peso, precarga, 4 h, descanso, componentes); integración (`health-sessions.test.ts`: concurrencia con control positivo, terminar y deshacer, autorización); dispatch de `update-screenshots.yml` si cambian capturas. Sin E2E nueva.
+- [ ] **E3: Récords e historial** (M; `feat/health-e3`) — depende de E2
+  - `records.ts` (por tipo, Epley 1–12, nuevos estrictos), resumen al terminar con `celebrate`, detalle del ejercicio (récords, línea SVG + tabla, historial de 20 en 20), récords en las filas de sesiones.
+  - **Aceptación:** el resumen nombra exactamente los récords superados; editar o borrar una sesión los recalcula.
+  - **Verificación:** unitarias (récords y bordes, línea, componentes); integración (`health-records.test.ts`). Sin E2E nueva.
+- [ ] **E4: Hábito, Hoy, revisión y E2E** (M; `feat/health-e4`) — depende de E3
+  - Contrato en `habits/contracts.ts` (`getCheckHabitOptions`, `markHabitDoneBySource`, `unmarkHabitBySource`), hoja «Ajustes», marcado al terminar y su «Deshacer»; `getHealthTodaySummary` y el slot «Entreno»; `getHealthWeekReview` y la cifra en «Logros».
+  - **El único E2E** `e2e/health.spec.ts` (extiende `boardTest`, limpia sus tablas), `e2e/support/health.ts`, entrada en `SPEC_MODULES` y `ROUTE_MODULES`.
+  - **Aceptación:** terminar marca el hábito y el «Deshacer» desmarca solo lo propio; Hoy y «Logros» aparecen y desaparecen según las reglas; el E2E pasa en CI.
+  - **Verificación:** unitarias (`today-board`, `logros`, componentes); integración (`health-habit.test.ts`: los cuatro casos del hábito, contratos de Hoy y revisión); `update-screenshots.yml` tras el push (primera corrida del E2E).
+- [ ] **E5: Cierre** (S; `feat/health-e5`) — depende de E4
+  - Checkpoint en producción (Chrome del owner, datos `[QA]` borrados después), retrospectiva en `CLAUDE.md`, backlog consolidado, mapa, HANDOFF («Cómo funciona health»), archivo del plan y las tareas; carga de las rutinas reales con el owner.
 
 ## Módulo `notes` (Notas): cerrado el 2026-11-03
 
