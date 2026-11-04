@@ -10,10 +10,13 @@ import { NOTES_COPY as COPY } from "../copy";
 import { NOTES_PAGE_SIZE } from "../note-constants";
 import { dailyTitle } from "../note-day";
 import type { NoteArea, NoteKindFilter, NoteListItem } from "../note-input";
+import type { NoteSearchItem } from "../search";
 import { editedLabel, notesListUrl } from "../note-list";
 import { dailyNotePath, notePath, NOTES_PATH } from "../routes";
 import { AreaSelect, NO_AREA } from "./area-select";
 import { NewNoteSheet } from "./new-note-sheet";
+import { NoteSearchResults } from "./note-search-results";
+import { NotesSearch } from "./notes-search";
 import { TodayNoteKey } from "./today-note-key";
 
 type NotesScreenProps = {
@@ -35,6 +38,13 @@ type NotesScreenProps = {
   headingId: string;
   /** Single-key shortcuts on («Nota de hoy» shows `N`). */
   shortcuts?: boolean;
+  /** N4: the search in the URL (`?q=`, "" when not searching). */
+  query?: string;
+  /**
+   * N4: the search's results (they replace the list), or null when not searching. `tooShort`: the
+   * text has fewer than 2 letters or numbers (nothing was searched).
+   */
+  search?: { items: NoteSearchItem[]; more: boolean; tooShort: boolean } | null;
 };
 
 /**
@@ -53,6 +63,8 @@ export function NotesScreen({
   todayHasText,
   headingId,
   shortcuts = false,
+  query = "",
+  search = null,
 }: NotesScreenProps) {
   const router = useRouter();
   const { announce } = useRequiredScreenServices();
@@ -63,6 +75,11 @@ export function NotesScreen({
   const rows = useRef<(HTMLAnchorElement | null)[]>([]);
   const focusFrom = useRef<number | null>(null);
   const filtered = kind !== "all" || areaId !== null;
+  const searching = search !== null;
+  // While searching, the results take the list's place (and «Ver más» pages through them).
+  const shownItems: NoteListItem[] = searching ? search.items : items;
+  const shownMore = searching ? search.more : more;
+  const searchInput = useRef<HTMLInputElement>(null);
   const filters = useRef<HTMLDivElement>(null);
   /** A filter changed: say what the new list holds once it arrives. */
   const announceResult = useRef(false);
@@ -79,6 +96,18 @@ export function NotesScreen({
     }
     if (!announceResult.current) return;
     announceResult.current = false;
+    if (search !== null) {
+      announce(
+        search.tooShort
+          ? COPY.searchTooShort
+          : search.items.length === 0
+            ? filtered
+              ? COPY.searchNoResultsFiltered(query)
+              : COPY.searchNoResults(query)
+            : COPY.searchResultCount(search.items.length, search.more),
+      );
+      return;
+    }
     announce(
       items.length === 0
         ? filtered
@@ -86,15 +115,15 @@ export function NotesScreen({
           : COPY.emptyTitle
         : COPY.noteCount(items.length, more),
     );
-  }, [items, more, kind, areaId, filtered, announce, headingId]);
+  }, [items, more, search, query, kind, areaId, filtered, announce, headingId]);
 
   // «Ver más» brought more rows: focus the first new one.
   useEffect(() => {
     const from = focusFrom.current;
-    if (from === null || items.length <= from) return;
+    if (from === null || shownItems.length <= from) return;
     focusFrom.current = null;
     rows.current[from]?.focus();
-  }, [items.length]);
+  }, [shownItems.length]);
 
   function go(url: string) {
     router.replace(url, { scroll: false });
@@ -134,6 +163,13 @@ export function NotesScreen({
         </div>
       </header>
 
+      <NotesSearch
+        query={query}
+        inputRef={searchInput}
+        onSearch={(text) => filter(notesListUrl({ kind, areaId, q: text }))}
+        onClear={() => filter(notesListUrl({ kind, areaId }))}
+      />
+
       <div ref={filters} className="flex flex-wrap items-end gap-4">
         <SegmentedControl
           mode="radio"
@@ -145,7 +181,7 @@ export function NotesScreen({
             { value: "daily", label: COPY.kindDaily },
             { value: "page", label: COPY.kindPage },
           ]}
-          onValueChange={(value) => filter(notesListUrl({ kind: value, areaId }))}
+          onValueChange={(value) => filter(notesListUrl({ kind: value, areaId, q: query }))}
         />
         <div className="min-w-48">
           <AreaSelect
@@ -155,13 +191,28 @@ export function NotesScreen({
             areas={areas}
             value={areaId ?? NO_AREA}
             onValueChange={(value) =>
-              filter(notesListUrl({ kind, areaId: value === NO_AREA ? null : value }))
+              filter(notesListUrl({ kind, areaId: value === NO_AREA ? null : value, q: query }))
             }
           />
         </div>
       </div>
 
-      {items.length === 0 ? (
+      {searching ? (
+        <NoteSearchResults
+          query={query}
+          items={search.items}
+          tooShort={search.tooShort}
+          filtered={filtered}
+          today={today}
+          rowRef={(index, element) => {
+            rows.current[index] = element;
+          }}
+          onClearFilters={() => {
+            focusFilters.current = true;
+            filter(notesListUrl({ kind: "all", areaId: null, q: query }));
+          }}
+        />
+      ) : items.length === 0 ? (
         filtered ? (
           <div className="flex flex-col items-start gap-3" data-notes-empty="filtered">
             <p className="bo-text-body text-text-secondary">{COPY.emptyFiltered}</p>
@@ -224,14 +275,14 @@ export function NotesScreen({
         </ul>
       )}
 
-      {more ? (
+      {shownMore ? (
         <Key
           variant="ghost"
           className="w-fit"
           data-notes-more=""
           onClick={() => {
-            focusFrom.current = items.length;
-            go(notesListUrl({ kind, areaId, shown: shown + NOTES_PAGE_SIZE }));
+            focusFrom.current = shownItems.length;
+            go(notesListUrl({ kind, areaId, shown: shown + NOTES_PAGE_SIZE, q: query }));
           }}
         >
           {COPY.showMore}

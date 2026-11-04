@@ -401,3 +401,9 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 .bo-note-link-option[aria-selected="true"] { background: var(--color-surface-hover); box-shadow: inset 3px 0 0 var(--color-signal); }
 @media (forced-colors: active) { .bo-note-link-option[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; } }
 .bo-note-link-picker { max-height: min(40vh, var(--bo-link-picker-max, 40vh)); overflow-y: auto; overscroll-behavior: contain; border-radius: var(--radius-xl); }
+
+/* notes N4: the words a search found, inside a result's fragment. Not by color alone: the text color
+   (stronger than the fragment's secondary text), weight and a signal underline; forced colors use
+   the system Mark colors. */
+.bo-note-search-mark { background: transparent; color: var(--color-text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--color-signal); text-decoration-thickness: 2px; text-underline-offset: 2px; }
+@media (forced-colors: active) { .bo-note-search-mark { background: Mark; color: MarkText; } }

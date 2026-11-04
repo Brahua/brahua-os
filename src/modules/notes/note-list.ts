@@ -5,7 +5,7 @@ import { NOTES_COPY as COPY } from "./copy";
 import { NOTES_MAX_SHOWN, NOTES_PAGE_SIZE } from "./note-constants";
 import { daysBetween } from "./note-day";
 import type { NoteKindFilter } from "./note-input";
-import { AREA_PARAM, KIND_PARAM, NOTES_PATH, SHOWN_PARAM } from "./routes";
+import { AREA_PARAM, KIND_PARAM, NOTES_PATH, SEARCH_PARAM, SHOWN_PARAM } from "./routes";
 
 /** `?tipo=` values (Spanish, they are in the URL) for each kind filter. */
 const KIND_PARAM_VALUES: Record<NoteKindFilter, string | null> = {
@@ -28,17 +28,21 @@ export function shownFromParam(value: string | null): number {
   return Math.min(Math.ceil(number / NOTES_PAGE_SIZE) * NOTES_PAGE_SIZE, NOTES_MAX_SHOWN);
 }
 
-/** The list's URL for some filters (`shown` only when beyond the first page). */
+/** The list's URL for some filters (`shown` only when beyond the first page; `q` when searching). */
 export function notesListUrl({
   kind,
   areaId,
   shown = NOTES_PAGE_SIZE,
+  q = "",
 }: {
   kind: NoteKindFilter;
   areaId: string | null;
   shown?: number;
+  q?: string;
 }): string {
   const params = new URLSearchParams();
+  const text = q.trim();
+  if (text) params.set(SEARCH_PARAM, text);
   const kindValue = KIND_PARAM_VALUES[kind];
   if (kindValue) params.set(KIND_PARAM, kindValue);
   if (areaId) params.set(AREA_PARAM, areaId);

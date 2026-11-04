@@ -9,6 +9,8 @@ import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
 import type { NoteLinkSource } from "./contracts";
 import { resolveLinks, selectLinkingNotes, type LinkingNote } from "./links";
+import { searchWords, type NoteSearchItem } from "./search";
+import { selectNoteSearch } from "./search-data";
 import type { DeletedNote, NoteArea, NoteItem, NoteKindFilter, NoteListItem } from "./note-input";
 import {
   selectDailyNote,
@@ -88,4 +90,28 @@ export async function getLinkedFrom(id: string): Promise<LinkingNote[]> {
 export async function listNoteAreas(): Promise<NoteArea[]> {
   const areas = await listLifeAreas();
   return areas.map(({ id, name, color, icon }) => ({ id, name, color, icon }));
+}
+
+/**
+ * N4: the search (SPEC-notes "Búsqueda"). The text becomes words here (`searchWords`: letters and
+ * numbers only, at most 8); fewer than 2 characters is no query. The list's kind and area filters
+ * apply too.
+ */
+export async function searchNotes(filter: {
+  text: string;
+  kind: NoteKindFilter;
+  areaId: string | null;
+  shown: number;
+}): Promise<{ items: NoteSearchItem[]; more: boolean }> {
+  await requireOwner();
+  const words = searchWords(filter.text);
+  if (words.length === 0) return { items: [], more: false };
+  const areaId =
+    filter.areaId !== null && noteId.safeParse(filter.areaId).success ? filter.areaId : null;
+  return selectNoteSearch(getDb(), {
+    words,
+    kind: filter.kind,
+    areaId,
+    limit: filter.shown,
+  });
 }
