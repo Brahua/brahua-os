@@ -6,14 +6,23 @@ import { notFound, redirect } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
 import { Markdown } from "@/lib/markdown/markdown";
+import { getDayFooterSlot } from "@/lib/note-extensions";
 import { searchNoteLinks } from "@/lib/note-link-actions";
 import { NOTE_LINK_SOURCES } from "@/lib/note-link-sources";
+import {
+  completeNoteTask,
+  convertNoteLineToTask,
+  reopenNoteTask,
+  undoNoteLineToTask,
+} from "@/lib/note-task-actions";
 import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
 import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
 import { DailyNoteHeader } from "@/modules/notes/components/daily-note-header";
 import { NoteBacklinks } from "@/modules/notes/components/note-backlinks";
 import { NoteBody } from "@/modules/notes/components/note-body";
+import { NOTE_TASK_ITEMS } from "@/modules/notes/components/note-task-items";
+import type { NoteLineActions } from "@/modules/notes/components/note-task-lines";
 import { PageNoteHeader } from "@/modules/notes/components/page-note-header";
 import { NOTES_COPY as COPY } from "@/modules/notes/copy";
 import { dailyTitle, parseNoteKey } from "@/modules/notes/note-day";
@@ -32,6 +41,14 @@ type NotePageProps = { params: Promise<{ key: string }> };
 const HEADING_ID = "note-title";
 /** Headings in a note start at h2 (the page's h1 is the note's title or date). */
 const HEADING_OFFSET = 1;
+
+/** N3: the line controls' Server Actions (they live next to the composition roots in src/lib). */
+const LINE_ACTIONS: NoteLineActions = {
+  convert: convertNoteLineToTask,
+  undoConvert: undoNoteLineToTask,
+  complete: completeNoteTask,
+  reopen: reopenNoteTask,
+};
 
 export async function generateMetadata({ params }: NotePageProps): Promise<Metadata> {
   const { key } = await params;
@@ -74,9 +91,11 @@ export default async function NotePage({ params }: NotePageProps) {
   const body = note?.body ?? "";
   const day = parsed.kind === "daily" ? parsed.day : null;
   // N2: what the links point to now (one query per type present) and the notes linking here.
-  const [noteLinks, linkedFrom] = await Promise.all([
+  // N3: «Ese día» (a daily note's footer, with or without a note yet).
+  const [noteLinks, linkedFrom, dayFooter] = await Promise.all([
     getNoteLinkResolutions(NOTE_LINK_SOURCES, body),
     note ? getLinkedFrom(note.id) : Promise.resolve([]),
+    day !== null ? getDayFooterSlot(day) : Promise.resolve(null),
   ]);
 
   return (
@@ -112,6 +131,7 @@ export default async function NotePage({ params }: NotePageProps) {
                   headingOffset={HEADING_OFFSET}
                   noteLinks={noteLinks}
                   unknownNoteLinks="deleted"
+                  taskItems={NOTE_TASK_ITEMS}
                 >
                   {body}
                 </Markdown>
@@ -128,7 +148,8 @@ export default async function NotePage({ params }: NotePageProps) {
                 marker="note-linked-from"
               />
             }
-            // N3 fills `dayFooter` («Ese día») here.
+            lineActions={LINE_ACTIONS}
+            dayFooter={dayFooter}
           />
         </article>
       </div>

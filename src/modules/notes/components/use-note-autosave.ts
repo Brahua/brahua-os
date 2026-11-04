@@ -232,6 +232,41 @@ export function useNoteAutosave({ initial, day, announce }: Options) {
   /** The note's id as the last save left it (read after `settle`, when state may lag). */
   const currentId = useCallback(() => knownRef.current.id, []);
 
+  /**
+   * N3: what a line action (convert, its «Deshacer») may act on, read after `settle`: the note as
+   * the server holds it, or null when the screen isn't in step with it (no note yet, a conflict,
+   * text not saved, or saving stopped). Then the action isn't sent.
+   */
+  const inStep = useCallback((): (KnownNote & { id: string }) | null => {
+    const target = knownRef.current;
+    if (stopped.current || conflictRef.current || target.id === null) return null;
+    if (differsFrom(textRef.current, target.body)) return null;
+    return { ...target, id: target.id };
+  }, []);
+
+  /**
+   * N3: a line action changed the note on the server (a new body and version). With nothing
+   * pending, the screen takes it as the saved text. If something was typed meanwhile, it is a
+   * conflict like any other («Cambió en otro dispositivo»): the typed text stays as the draft and is
+   * never sent over the new version by itself.
+   */
+  const adopt = useCallback(
+    (saved: SavedNote) => {
+      const pending =
+        conflictRef.current !== null || differsFrom(textRef.current, knownRef.current.body);
+      if (pending) {
+        clearTimer();
+        setConflict(saved);
+        setStatus({ kind: "idle" });
+        return;
+      }
+      setKnown({ ...saved });
+      textRef.current = saved.body;
+      setTextState(saved.body);
+    },
+    [clearTimer, setConflict, setKnown, setStatus],
+  );
+
   /** No more saves (the note was deleted). */
   const stop = useCallback(() => {
     stopped.current = true;
@@ -272,6 +307,8 @@ export function useNoteAutosave({ initial, day, announce }: Options) {
     flush,
     settle,
     currentId,
+    inStep,
+    adopt,
     announceWhenSaved,
     known,
     status,

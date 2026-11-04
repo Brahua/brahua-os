@@ -3,12 +3,14 @@
 // one projects' and tasks' notes use (src/lib/markdown-text.ts) with the notes' own limit.
 import { z } from "zod";
 import type { AreaColor, AreaIconName } from "@/design-system";
-import { markdownTextSchema } from "@/lib/markdown-text";
+import { hasControlCharacters, markdownTextSchema } from "@/lib/markdown-text";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
 import { NOTES_ERRORS } from "./copy";
 import {
   NOTE_BODY_MAX_LENGTH,
+  NOTE_CAPTURE_MAX_LENGTH,
   NOTE_LINK_QUERY_MAX_LENGTH,
+  NOTE_TASK_ITEMS_MAX,
   NOTE_TITLE_MAX_LENGTH,
   type NoteKind,
 } from "./note-constants";
@@ -136,3 +138,107 @@ export type NoteKindFilter = "all" | NoteKind;
 
 /** What the «Deshacer» of a deletion names. */
 export type DeletedNote = { id: string; kind: NoteKind; day: string | null; title: string | null };
+
+// ---------------------------------------------------------------------------------------------
+// N3: a line turned into a task, and the quick capture «Nota».
+
+const version = z
+  .int({ error: NOTES_ERRORS.version })
+  .min(1, NOTES_ERRORS.version)
+  .max(2_147_483_647, NOTES_ERRORS.version);
+
+/** One line of a note as the screen read it: no line breaks or control characters. */
+const lineText = z
+  .string({ error: NOTES_ERRORS.version })
+  .max(NOTE_BODY_MAX_LENGTH, NOTES_ERRORS.version)
+  .refine((value) => !/[\r\n]/.test(value) && !hasControlCharacters(value), NOTES_ERRORS.version);
+
+/**
+ * «Convertir en tarea»: the note, the version the screen showed, the item's index among the task
+ * items and its text (both must still match, SPEC-notes "Línea → tarea").
+ */
+export const convertLineInputSchema = z.object({
+  noteId: id,
+  version,
+  index: z
+    .int({ error: NOTES_ERRORS.version })
+    .min(0, NOTES_ERRORS.version)
+    .max(NOTE_TASK_ITEMS_MAX, NOTES_ERRORS.version),
+  text: lineText.refine((value) => value.trim() !== "", NOTES_ERRORS.version),
+});
+export type ConvertLineInput = z.output<typeof convertLineInputSchema>;
+
+/**
+ * «Deshacer» of a conversion: what the conversion left (the version, the task and its line) and
+ * the line as it was before.
+ */
+export const undoConvertLineInputSchema = z.object({
+  noteId: id,
+  version,
+  taskId: z.uuid({ error: NOTES_ERRORS.version }),
+  line: z
+    .int({ error: NOTES_ERRORS.version })
+    .min(0, NOTES_ERRORS.version)
+    .max(NOTE_BODY_MAX_LENGTH, NOTES_ERRORS.version),
+  original: lineText,
+});
+export type UndoConvertLineInput = z.output<typeof undoConvertLineInputSchema>;
+
+/**
+ * The quick capture's text: one line (runs of whitespace, line breaks included, as one space),
+ * 1–500 characters, no invisible or control characters.
+ */
+export const captureTextSchema = z
+  .string({ error: NOTES_ERRORS.captureEmpty })
+  .transform(normalizeName)
+  .pipe(
+    z
+      .string()
+      .min(1, NOTES_ERRORS.captureEmpty)
+      .max(NOTE_CAPTURE_MAX_LENGTH, NOTES_ERRORS.captureTooLong)
+      .refine((value) => !hasInvisibleCharacters(value), NOTES_ERRORS.captureInvisible),
+  );
+
+export const captureNoteInputSchema = z.object({ text: captureTextSchema });
+export type CaptureNoteInput = z.output<typeof captureNoteInputSchema>;
+
+/** What a capture appended: `- HH:MM texto`, after a line break when the note had text. */
+const APPENDED = new RegExp(`^\\n?- \\d{2}:\\d{2} [^\\r\\n]{1,${NOTE_CAPTURE_MAX_LENGTH}}$`);
+
+/** «Deshacer» of a capture: the note, the version it left and exactly what it appended. */
+export const undoCaptureInputSchema = z.object({
+  noteId: id,
+  version,
+  appended: z
+    .string({ error: NOTES_ERRORS.version })
+    .refine((value) => APPENDED.test(value), NOTES_ERRORS.version),
+});
+export type UndoCaptureInput = z.output<typeof undoCaptureInputSchema>;
+
+/** A line turned into a task: the note as it is now and what «Deshacer» needs. */
+export type ConvertedLine = {
+  noteId: string;
+  version: number;
+  body: string;
+  taskId: string;
+  /** The task's title (as stored). */
+  title: string;
+  /** The line that changed (0-based) and what it held before. */
+  line: number;
+  original: string;
+};
+
+/** A task after the live checkbox (or its notice's «Deshacer»), and what the notice says. */
+export type NoteTaskToggled = { id: string; title: string; done: boolean; notice: string };
+
+/** A note after an undo: its new version and body. */
+export type RestoredLine = { noteId: string; version: number; body: string };
+
+/** A capture: today's note (created or not), the version it left and what it appended. */
+export type CapturedLine = {
+  noteId: string;
+  day: string;
+  version: number;
+  appended: string;
+  created: boolean;
+};

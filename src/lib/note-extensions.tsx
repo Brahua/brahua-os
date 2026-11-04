@@ -3,19 +3,25 @@
 // (eslint.config.mjs lets only src/lib and the notes pages do it). Like review-extensions.tsx:
 // nothing to register, the home page awaits `getTodayNoteSlot(now)` with its other reads and
 // renders the node it returns. N2: `<NoteMentions type id />` at the end of the detail pages of
-// projects, tasks, habits, goals and learning tracks.
+// projects, tasks, habits, goals and learning tracks. N3: «Ese día», the daily note's footer, with
+// counts from `tasks` and `habits` (`getDayFooterSlot`).
 //
 // The provider is imported BY NAME, never a side-effect-only `import "…"` (package.json declares
 // every JS module free of side effects: the bundler would drop it, see progress-sources.ts).
 import "server-only";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+import { requireOwner } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import type { NoteLinkType } from "@/lib/markdown/note-links";
 import { areShortcutsEnabled, SHORTCUTS_COOKIE } from "@/modules/core/nav-preferences";
+import { countHabitsDoneOn } from "@/modules/habits/note-day-count";
 import { NoteBacklinks, type BacklinksHeading } from "@/modules/notes/components/note-backlinks";
+import { NoteDayFooter } from "@/modules/notes/components/note-day-footer";
 import { TodayNoteKey } from "@/modules/notes/components/today-note-key";
 import { getNoteMentions, getTodayNoteState } from "@/modules/notes/contracts";
 import { NOTES_COPY } from "@/modules/notes/copy";
+import { countTasksCompletedOn } from "@/modules/tasks/note-tasks";
 
 /**
  * Hoy's key for the page's instant `now`: «Nota de hoy», or «Seguir la nota de hoy» when today's
@@ -26,6 +32,21 @@ export async function getTodayNoteSlot(now: Date): Promise<ReactNode> {
   const [{ day, hasText }, cookieStore] = await Promise.all([getTodayNoteState(now), cookies()]);
   const shortcuts = areShortcutsEnabled(cookieStore.get(SHORTCUTS_COOKIE)?.value);
   return <TodayNoteKey day={day} hasText={hasText} shortcuts={shortcuts} />;
+}
+
+/**
+ * «Ese día» (SPEC-notes "Pie", N3): the footer of the daily note of `day` (`YYYY-MM-DD`, Lima),
+ * with the tasks completed and the habits met that day, read from `tasks` and `habits` (plain
+ * data functions that never import `notes`). Two queries. Checks the owner.
+ */
+export async function getDayFooterSlot(day: string): Promise<ReactNode> {
+  await requireOwner();
+  const db = getDb();
+  const [tasksDone, habitsDone] = await Promise.all([
+    countTasksCompletedOn(db, day),
+    countHabitsDoneOn(db, day),
+  ]);
+  return <NoteDayFooter tasksDone={tasksDone} habitsDone={habitsDone} />;
 }
 
 /**

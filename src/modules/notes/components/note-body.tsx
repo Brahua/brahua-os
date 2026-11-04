@@ -4,18 +4,27 @@ import { Check, Pencil, RotateCw, Trash2, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Icon, Key, TextArea } from "@/design-system";
+import type { ActionResult } from "@/lib/action-result";
 import { normalizeNotes } from "@/lib/markdown-text";
 import { useUnsavedChangesGuard } from "@/lib/navigation-guard";
 import { isShortcutFreeTarget } from "@/lib/shortcuts";
 import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import { deleteNote } from "../actions";
-import { NOTES_COPY as COPY } from "../copy";
+import { NOTES_COPY as COPY, NOTES_ERRORS } from "../copy";
 import { NOTE_BODY_COUNTER_FROM, NOTE_BODY_MAX_LENGTH } from "../note-constants";
+import type { ConvertedLine, RestoredLine } from "../note-input";
 import { DELETED_PARAM, NOTES_PATH } from "../routes";
-import type { NoteLinkResolutions } from "@/lib/markdown/note-links";
+import { noteLinkHref, noteLinkKey, type NoteLinkResolutions } from "@/lib/markdown/note-links";
 import { pendingDayLink } from "./day-focus";
 import { useLinkPicker, type SearchLinks } from "./link-picker";
 import { ClientMarkdown, loadMarkdown } from "./note-markdown";
+import { NOTE_TASK_ITEMS } from "./note-task-items";
+import {
+  LINE_CONTROL,
+  NoteLinesContext,
+  type NoteLineActions,
+  type NoteLines,
+} from "./note-task-lines";
 import { SaveIndicator } from "./save-indicator";
 import { differsFrom, failureReason, useNoteAutosave, type KnownNote } from "./use-note-autosave";
 
@@ -42,6 +51,12 @@ type NoteBodyProps = {
   searchLinks?: SearchLinks;
   /** N3: the daily note's «Ese día» footer goes in this slot, last. */
   dayFooter?: React.ReactNode;
+  /**
+   * N3: the Server Actions of «Convertir en tarea» and the task checkboxes (src/lib). Without them,
+   * task items render read-only. The page's server render must pass `NOTE_TASK_ITEMS` to its
+   * `<Markdown>` too.
+   */
+  lineActions?: NoteLineActions;
 };
 
 /**
@@ -60,9 +75,10 @@ export function NoteBody({
   dayFooter = null,
   noteLinks,
   searchLinks,
+  lineActions,
 }: NoteBodyProps) {
   const router = useRouter();
-  const { toaster, announce } = useRequiredScreenServices();
+  const { toaster, announce, enqueue } = useRequiredScreenServices();
   const autosave = useNoteAutosave({ initial: note, day, announce });
   const { text, setText, flush, status, conflict, draft, dirty } = autosave;
   // From what the server answered: a day's first save (or its conflict) gives the note an id.
@@ -78,6 +94,14 @@ export function NoteBody({
   const conflictHeading = useRef<HTMLParagraphElement>(null);
   const retryPressed = useRef(false);
   const ids = useId();
+  // N3: a conversion on its way (ref for the guard, state for the keys' `aria-disabled`), the tasks
+  // this screen just created, and the task states the server answered after a checkbox.
+  const converting = useRef(false);
+  /** The task whose checkbox takes the focus when it shows (see `claimFocus`). */
+  const focusTask = useRef<string | null>(null);
+  const [convertingState, setConvertingState] = useState(false);
+  const [localLinks, setLocalLinks] = useState<NoteLinkResolutions>({});
+  const [taskStates, setTaskStates] = useState<Record<string, boolean>>({});
 
   // The `[[` picker: choosing replaces `[[texto` with the link (the autosave runs as with any key)
   // and the cursor goes right after it. Through `insertText` when the browser has it, so ⌘Z undoes
@@ -223,6 +247,161 @@ export function NoteBody({
     autosave.stop();
     router.push(`${NOTES_PATH}?${DELETED_PARAM}=${id}`);
   }
+
+  // ── N3: «Convertir en tarea» and the task checkboxes (note-task-lines.tsx explains the rules) ──
+
+  function notSaved(what: string, reason: string) {
+    toaster.push({ title: COPY.notSavedTitle, text: `${what} ${reason}`, tone: "error" });
+  }
+
+  async function convertLine({ index, text: lineText }: { index: number; text: string }) {
+    if (!lineActions || converting.current) return;
+    converting.current = true;
+    setConvertingState(true);
+    void loadMarkdown();
+    try {
+      // What is pending lands first; then only a screen in step with the server sends the action.
+      await autosave.settle();
+      const target = autosave.inStep();
+      if (!target) {
+        notSaved(COPY.notConverted, NOTES_ERRORS.changed);
+        return;
+      }
+      let result: ActionResult<ConvertedLine> | null;
+      try {
+        result = await lineActions.convert({
+          noteId: target.id,
+          version: target.version,
+          index,
+          text: lineText,
+        });
+      } catch {
+        result = null;
+      }
+      if (!result || !result.ok) {
+        notSaved(COPY.notConverted, result ? failureReason(result) : COPY.checkConnection);
+        return;
+      }
+      const converted = result.data;
+      // The new task is known at once (its checkbox shows before the page is read again).
+      setLocalLinks((previous) => ({
+        ...previous,
+        [noteLinkKey("task", converted.taskId)]: {
+          name: converted.title,
+          href: noteLinkHref("task", converted.taskId),
+          deleted: false,
+          done: false,
+        },
+      }));
+      autosave.adopt({ id: converted.noteId, body: converted.body, version: converted.version });
+      // The key is gone with its line: focus goes to the task's new checkbox, which claims it when
+      // it shows; until then (the editor's Markdown may still be loading) «Editar» holds it.
+      focusTask.current = converted.taskId;
+      pendingFocus.current = () =>
+        focusTask.current === converted.taskId &&
+        !document.querySelector(`[data-note-task-check="${converted.taskId}"]`)
+          ? editKey.current
+          : null;
+      toaster.push({
+        title: COPY.convertedTitle,
+        text: COPY.converted(converted.title),
+        action: { label: COPY.undo, run: () => void undoConvert(converted) },
+      });
+    } finally {
+      converting.current = false;
+      setConvertingState(false);
+    }
+  }
+
+  async function undoConvert(converted: ConvertedLine) {
+    if (!lineActions || converting.current) return;
+    converting.current = true;
+    setConvertingState(true);
+    try {
+      await autosave.settle();
+      // Something typed since (and not saved, or a conflict): the note isn't the one it left.
+      if (!autosave.inStep()) {
+        notSaved(COPY.notUndone, NOTES_ERRORS.changed);
+        return;
+      }
+      let result: ActionResult<RestoredLine> | null;
+      try {
+        result = await lineActions.undoConvert({
+          noteId: converted.noteId,
+          version: converted.version,
+          taskId: converted.taskId,
+          line: converted.line,
+          original: converted.original,
+        });
+      } catch {
+        result = null;
+      }
+      if (!result || !result.ok) {
+        notSaved(COPY.notUndone, result ? failureReason(result) : COPY.checkConnection);
+        return;
+      }
+      // (The notice viewport puts the focus back where it was before «Deshacer».)
+      autosave.adopt({
+        id: result.data.noteId,
+        body: result.data.body,
+        version: result.data.version,
+      });
+      toaster.push({ title: COPY.undoneTitle, text: COPY.convertUndone(converted.title) });
+    } finally {
+      converting.current = false;
+      setConvertingState(false);
+    }
+  }
+
+  async function toggleTask(task: { id: string; name: string }, done: boolean): Promise<boolean> {
+    if (!lineActions) return false;
+    const action = done ? lineActions.complete : lineActions.reopen;
+    // The screen's queue, with the key the task lists use: a newer tap on the same task wins.
+    const queued = await enqueue(`task-done:${task.id}`, () => action({ id: task.id }));
+    if (queued.kind === "skipped" || queued.superseded) return false;
+    if (queued.kind === "threw") {
+      notSaved(COPY.notToggled, COPY.checkConnection);
+      return false;
+    }
+    const result = queued.value;
+    if (!result.ok) {
+      notSaved(COPY.notToggled, failureReason(result));
+      return false;
+    }
+    const toggled = result.data;
+    setTaskStates((previous) => ({ ...previous, [toggled.id]: toggled.done }));
+    if (toggled.done) {
+      toaster.push({
+        title: COPY.taskDoneTitle,
+        text: toggled.notice,
+        action: {
+          label: COPY.undo,
+          run: () => void toggleTask({ id: toggled.id, name: task.name }, false),
+        },
+      });
+    } else {
+      announce(toggled.notice);
+    }
+    return true;
+  }
+
+  const lines: NoteLines | null = lineActions
+    ? {
+        canConvert: noteId !== null && conflict === null,
+        converting: convertingState,
+        convert: (item) => void convertLine(item),
+        toggle: toggleTask,
+        doneOf: (id) => taskStates[id],
+        claimFocus: (id) => {
+          if (focusTask.current !== id) return false;
+          focusTask.current = null;
+          return true;
+        },
+      }
+    : null;
+  // What the editor's text shows for links: the server's resolutions win over what this screen
+  // learned by itself (a task just converted).
+  const knownLinks = { ...localLinks, ...noteLinks };
 
   const used = normalizeNotes(text).length;
   const over = used > NOTE_BODY_MAX_LENGTH;
@@ -426,33 +605,44 @@ export function NoteBody({
           {picker.list}
         </form>
       ) : (
-        <div
-          className="min-w-0 cursor-text"
-          data-note-view=""
-          // A tap on the text opens the editor; a link inside still opens, and selecting text
-          // (to copy it) doesn't. Keyboard users have «Editar» and `E`.
-          onClick={(event) => {
-            if ((event.target as Element).closest("a, button, summary, [role='group']")) return;
-            if (window.getSelection()?.toString()) return;
-            openEditor();
-          }}
-        >
-          {normalizeNotes(text) === "" ? (
-            <p className="bo-text-body-sm text-text-secondary">{COPY.emptyBody}</p>
-          ) : showServerRender ? (
-            rendered
-          ) : (
-            // The typed text may hold links the server never looked up (just inserted): those
-            // show their saved name, never «(ya no existe)».
-            <ClientMarkdown
-              headingOffset={HEADING_OFFSET}
-              noteLinks={noteLinks}
-              unknownNoteLinks="saved"
-            >
-              {text}
-            </ClientMarkdown>
-          )}
-        </div>
+        <NoteLinesContext value={lines}>
+          <div
+            className="min-w-0 cursor-text"
+            data-note-view=""
+            // A tap on the text opens the editor; a link or a line control (N3) inside still does
+            // its own thing, and selecting text (to copy it) doesn't. Keyboard users have
+            // «Editar» and `E`.
+            onClick={(event) => {
+              const target = event.target as Element;
+              if (
+                target.closest(
+                  `a, button, summary, label, input, [role='group'], [${LINE_CONTROL}]`,
+                )
+              ) {
+                return;
+              }
+              if (window.getSelection()?.toString()) return;
+              openEditor();
+            }}
+          >
+            {normalizeNotes(text) === "" ? (
+              <p className="bo-text-body-sm text-text-secondary">{COPY.emptyBody}</p>
+            ) : showServerRender ? (
+              rendered
+            ) : (
+              // The typed text may hold links the server never looked up (just inserted): those
+              // show their saved name, never «(ya no existe)».
+              <ClientMarkdown
+                headingOffset={HEADING_OFFSET}
+                noteLinks={knownLinks}
+                unknownNoteLinks="saved"
+                taskItems={lineActions ? NOTE_TASK_ITEMS : undefined}
+              >
+                {text}
+              </ClientMarkdown>
+            )}
+          </div>
+        </NoteLinesContext>
       )}
 
       {draft !== null ? (

@@ -1,6 +1,6 @@
-// The quick capture's extension point (SPEC-tasks, SPEC-finance): the composition root hands the
-// shell the providers of `tasks` and `finance` (in that order) through context, and `core` never
-// imports a module.
+// The quick capture's extension point (SPEC-tasks, SPEC-finance, SPEC-notes): the composition root
+// hands the shell the providers of `tasks`, `finance` and `notes` (in that order) through context,
+// and `core` never imports a module.
 import { readFileSync } from "node:fs";
 import { render } from "@testing-library/react";
 import { createElement, use } from "react";
@@ -26,7 +26,7 @@ describe("the app's composition root", () => {
     expect(seen).toEqual([]);
   });
 
-  test("CaptureRoot gives the shell Tarea, then Gasto", async () => {
+  test("CaptureRoot gives the shell Tarea, Gasto and Nota, in that order", async () => {
     const { CaptureRoot } = await import("@/lib/capture-providers");
     let seen: readonly CaptureProvider[] = [];
     function Probe() {
@@ -37,6 +37,7 @@ describe("the app's composition root", () => {
     expect(seen.map(({ id, label }) => [id, label])).toEqual([
       ["tasks", "Tarea"],
       ["finance", "Gasto"],
+      ["notes", "Nota"],
     ]);
     for (const provider of seen) expect(typeof provider.preload).toBe("function");
   });
@@ -48,6 +49,9 @@ describe("the app's composition root", () => {
     );
     expect(source).toMatch(
       /import \{ financeCaptureProvider \} from "@\/modules\/finance\/capture-provider";/,
+    );
+    expect(source).toMatch(
+      /import \{ notesCaptureProvider \} from "@\/modules\/notes\/capture-provider";/,
     );
     expect(source).not.toMatch(/^import "@\/modules\//m);
   });
@@ -86,7 +90,7 @@ describe("the app's composition root", () => {
       "src/modules/core/components/capture-switcher.tsx",
       "src/lib/quick-capture.ts",
     ]) {
-      expect(readFileSync(file, "utf8"), file).not.toMatch(/modules\/(tasks|finance)/);
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/modules\/(tasks|finance|notes)/);
     }
   });
 });
