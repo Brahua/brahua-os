@@ -129,6 +129,32 @@
   display: block;
 }
 
+/*
+ * Notes (N3): an item that starts with a task link carries the task's real checkbox instead of a
+ * bullet. The 44 px touch square overflows the line box (negative margins) so lines keep their
+ * rhythm. A task that is gone has no box: its text is struck through.
+ */
+.bo-markdown .bo-md-task-linked {
+  list-style: none;
+}
+.bo-markdown .bo-md-task-linked.is-gone {
+  text-decoration: line-through;
+}
+.bo-md-task-check {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  margin: -12px 0 -12px -12px;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.bo-md-task-convert {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
 /* Read-only task box: drawn like the design system's controls, never a form control. */
 .bo-md-check {
   display: inline-block;

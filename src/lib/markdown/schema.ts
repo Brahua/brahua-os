@@ -17,6 +17,9 @@ export const MARKDOWN_SCHEMA: SanitizeSchema = {
     a: [...(defaultSchema.attributes?.a ?? []), ["dataNoteLink", ...NOTE_LINK_TYPES]],
     // A link whose target is gone: «Nombre (ya no existe)», muted (a style hook, nothing else).
     span: [...(defaultSchema.attributes?.span ?? []), "dataNoteLinkGone"],
+    // The mark of a task item the notes draw a control next to (./task-items.ts): digits only,
+    // an index into the marks of that render. Markdown can't write it (raw HTML never gets here).
+    li: [...(defaultSchema.attributes?.li ?? []), ["dataMdItem", /^\d{1,6}$/]],
     // Column alignment of GFM tables (`| :-- | --: |`).
     th: [...(defaultSchema.attributes?.th ?? []), ["align", "left", "center", "right"]],
     td: [...(defaultSchema.attributes?.td ?? []), ["align", "left", "center", "right"]],
