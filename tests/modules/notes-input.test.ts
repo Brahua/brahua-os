@@ -182,6 +182,30 @@ describe("the list", () => {
     expect(long.endsWith("…")).toBe(true);
   });
 
+  // Checkpoint finding (N5): the excerpt showed `[[project:…|Nombre]]` as written.
+  test("the excerpt shows a link by its saved name, as the search fragment does", () => {
+    const project = "37d10de3-1111-4222-8333-444455556666";
+    const task = "0b9a8c7d-1111-4222-8333-444455556666";
+    expect(
+      excerptOf(
+        `[QA] Políticas de IAM revisadas. Proyecto: [[project:${project}|Preparación profesional: ruta AWS + IA aplicada]]`,
+      ),
+    ).toBe(
+      "[QA] Políticas de IAM revisadas. Proyecto: Preparación profesional: ruta AWS + IA aplicada",
+    );
+    expect(excerptOf(`- [[task:${task}|Llamar al banco]] y [[project:${project}|Ruta AWS]]`)).toBe(
+      "Llamar al banco y Ruta AWS",
+    );
+    // A name with emphasis marks keeps its text, as the rest of the excerpt.
+    expect(excerptOf(`Ver [[project:${project}|Ruta *AWS*]]`)).toBe("Ver Ruta AWS");
+    // A Markdown link shows only its text.
+    expect(excerptOf("Leer [la guía](https://example.com/guia) hoy")).toBe("Leer la guía hoy");
+    // What isn't a well-formed link stays as text.
+    expect(excerptOf("Ver [[project:no-es-uuid|Ruta]]")).toBe("Ver [[project:no-es-uuid|Ruta]]");
+    expect(excerptOf(`Ver [[persona:${project}|Ana]]`)).toBe(`Ver [[persona:${project}|Ana]]`);
+    expect(excerptOf(`Ver [[project:${project}|Ruta`)).toBe(`Ver [[project:${project}|Ruta`);
+  });
+
   test("the URL parameters: kind, area and how many", () => {
     expect(kindFromParam("diario")).toBe("daily");
     expect(kindFromParam("notas")).toBe("page");
