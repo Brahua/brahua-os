@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+import { NoteMentions } from "@/lib/note-extensions";
 import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
 import { GoalDetail } from "@/modules/goals/components/goal-detail";
@@ -60,6 +61,7 @@ export default async function GoalPage({ params }: GoalPageProps) {
           {GOALS_COPY.backToList}
         </Link>
         <GoalDetail goal={goal} entries={entries} headingId={HEADING_ID} />
+        <NoteMentions type="goal" id={goal.id} className="max-w-160" />
       </div>
     </GoalsScreen>
   );

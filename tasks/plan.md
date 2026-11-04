@@ -43,7 +43,7 @@ Todos son secuenciales: N2 escribe sobre el editor de N1, N3 sobre la vista y lo
 ## Checkpoints
 
 - **Tras N1:** «Nota de hoy» desde Hoy, escribir, recargar y ver lo guardado; dos pestañas dan el conflicto sin perder texto; nota de conocimiento fijada con área.
-- **Tras N2:** `[[` enlaza un proyecto y el proyecto muestra «Mencionado en 1 nota»; renombrarlo cambia el texto del enlace.
+- **Tras N2:** `[[` enlaza un proyecto y el proyecto muestra «Aparece en 1 nota»; renombrarlo cambia el texto del enlace.
 - **Tras N3:** convertir una línea en tarea y marcarla desde la nota; captura «Nota» con «Deshacer»; pie «Ese día».
 - **Tras N4:** búsqueda con acentos y prefijo; el E2E pasa en CI.
 - **Checkpoint final:** recorrido del agente en producción con el Chrome personal del owner (datos `[QA]` que luego borra); el iPhone (selector `[[` con el teclado, captura) queda para el owner.

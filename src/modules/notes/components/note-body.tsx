@@ -12,7 +12,9 @@ import { deleteNote } from "../actions";
 import { NOTES_COPY as COPY } from "../copy";
 import { NOTE_BODY_COUNTER_FROM, NOTE_BODY_MAX_LENGTH } from "../note-constants";
 import { DELETED_PARAM, NOTES_PATH } from "../routes";
+import type { NoteLinkResolutions } from "@/lib/markdown/note-links";
 import { pendingDayLink } from "./day-focus";
+import { useLinkPicker, type SearchLinks } from "./link-picker";
 import { ClientMarkdown, loadMarkdown } from "./note-markdown";
 import { SaveIndicator } from "./save-indicator";
 import { differsFrom, failureReason, useNoteAutosave, type KnownNote } from "./use-note-autosave";
@@ -31,6 +33,13 @@ type NoteBodyProps = {
   shortcuts: boolean;
   /** N2: «Enlazada desde» (the notes that link here) goes in this slot, under the body. */
   linkedFrom?: React.ReactNode;
+  /**
+   * N2: what the server resolved for the body's `[[…]]` links, so a text rendered on the client
+   * (just typed) still shows current names. Links it doesn't know show their saved name.
+   */
+  noteLinks?: NoteLinkResolutions;
+  /** N2: the `[[` picker's search (a read-only Server Action). Without it, no picker. */
+  searchLinks?: SearchLinks;
   /** N3: the daily note's «Ese día» footer goes in this slot, last. */
   dayFooter?: React.ReactNode;
 };
@@ -49,6 +58,8 @@ export function NoteBody({
   shortcuts,
   linkedFrom = null,
   dayFooter = null,
+  noteLinks,
+  searchLinks,
 }: NoteBodyProps) {
   const router = useRouter();
   const { toaster, announce } = useRequiredScreenServices();
@@ -67,6 +78,39 @@ export function NoteBody({
   const conflictHeading = useRef<HTMLParagraphElement>(null);
   const retryPressed = useRef(false);
   const ids = useId();
+
+  // The `[[` picker: choosing replaces `[[texto` with the link (the autosave runs as with any key)
+  // and the cursor goes right after it. Through `insertText` when the browser has it, so ⌘Z undoes
+  // the insertion natively (its input event reaches onChange); otherwise the text is set, and the
+  // cursor placed once React has put it in the field.
+  const pendingCaret = useRef<number | null>(null);
+  const picker = useLinkPicker({
+    text,
+    search: searchLinks,
+    announce,
+    idPrefix: ids,
+    onChoose: ({ text: next, caret, name, link, start, end }) => {
+      const field = textarea.current;
+      let inserted = false;
+      if (field && typeof document.execCommand === "function") {
+        field.setSelectionRange(start, end);
+        try {
+          inserted = document.execCommand("insertText", false, link) && field.value === next;
+        } catch {
+          inserted = false;
+        }
+      }
+      pendingCaret.current = caret;
+      if (!inserted) setText(next);
+      announce(COPY.linkInserted(name));
+    },
+  });
+  useLayoutEffect(() => {
+    const caret = pendingCaret.current;
+    if (caret === null || !textarea.current) return;
+    pendingCaret.current = null;
+    textarea.current.setSelectionRange(caret, caret);
+  });
 
   // Element to focus after the next render (the editor opened or closed).
   const pendingFocus = useRef<(() => HTMLElement | null) | null>(null);
@@ -183,10 +227,11 @@ export function NoteBody({
   const used = normalizeNotes(text).length;
   const over = used > NOTE_BODY_MAX_LENGTH;
   // The counter joins the help (never replaces it).
+  const baseHelp = searchLinks ? `${COPY.bodyHelp} ${COPY.bodyHelpLinks}` : COPY.bodyHelp;
   const help =
     used >= NOTE_BODY_COUNTER_FROM && !over
-      ? `${COPY.bodyHelp} ${COPY.counter(used, NOTE_BODY_MAX_LENGTH)}`
-      : COPY.bodyHelp;
+      ? `${baseHelp} ${COPY.counter(used, NOTE_BODY_MAX_LENGTH)}`
+      : baseHelp;
   const showServerRender = rendered !== null && !differsFrom(text, note.body);
 
   return (
@@ -358,19 +403,27 @@ export function NoteBody({
             help={help}
             error={over ? COPY.overLimit(used, NOTE_BODY_MAX_LENGTH) : undefined}
             data-note-textarea=""
-            onChange={(event) => setText(event.target.value)}
+            {...picker.fieldProps}
+            onChange={(event) => {
+              setText(event.target.value);
+              picker.track(event);
+            }}
             // After a failure, leaving the field doesn't try again by itself (pressing «Reintentar»
             // blurs the field first: the key must still be there to take the click).
             onBlur={() => {
+              picker.fieldProps.onBlur();
               if (status.kind !== "failed") flush();
             }}
             onKeyDown={(event) => {
+              // The picker's own keys first (its Esc closes the list, never the editor).
+              if (picker.onKeyDown(event)) return;
               if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
               event.preventDefault();
               event.stopPropagation();
               closeEditor();
             }}
           />
+          {picker.list}
         </form>
       ) : (
         <div
@@ -389,7 +442,15 @@ export function NoteBody({
           ) : showServerRender ? (
             rendered
           ) : (
-            <ClientMarkdown headingOffset={HEADING_OFFSET}>{text}</ClientMarkdown>
+            // The typed text may hold links the server never looked up (just inserted): those
+            // show their saved name, never «(ya no existe)».
+            <ClientMarkdown
+              headingOffset={HEADING_OFFSET}
+              noteLinks={noteLinks}
+              unknownNoteLinks="saved"
+            >
+              {text}
+            </ClientMarkdown>
           )}
         </div>
       )}

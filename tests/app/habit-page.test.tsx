@@ -29,6 +29,12 @@ vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/core/queries", () => ({ listLifeAreas: vi.fn() }));
 vi.mock("@/modules/habits/queries", () => ({ getHabitDetail: vi.fn() }));
 vi.mock("@/lib/goal-extensions", () => ({ ensureGoalExtensions: vi.fn() }));
+// N2 of notes: «Mencionado en» reads the database (tested in notes-backlinks.test.tsx).
+vi.mock("@/lib/note-extensions", () => ({
+  NoteMentions: ({ type, id }: { type: string; id: string }) => (
+    <div data-note-mentions-slot={`${type}:${id}`} />
+  ),
+}));
 vi.mock("@/modules/habits/actions", () => ({ deleteHabit: vi.fn(), createHabit: vi.fn() }));
 vi.mock("@/modules/habits/log-actions", () => ({
   setHabitDone: vi.fn(),
@@ -122,6 +128,8 @@ describe("/habits/[id]: days rested with Saltar hoy", () => {
     });
     render(await HabitPage(props()));
     expect(skipped()).toHaveTextContent("3 días saltados este mes");
+    // N2: «Mencionado en» at the end of the page, for this habit.
+    expect(document.querySelector(`[data-note-mentions-slot="habit:${ID}"]`)).toBeInTheDocument();
     // No alarm color, no judgment.
     expect(skipped()).toHaveClass("text-text-secondary");
     expect(skipped()?.className).not.toMatch(/danger|error|signal|red/);

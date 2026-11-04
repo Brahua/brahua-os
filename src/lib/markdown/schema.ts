@@ -1,5 +1,6 @@
 // Sanitization rules and copy of the Markdown renderer (./markdown.tsx). Client-safe.
 import { defaultSchema, type Options as SanitizeSchema } from "rehype-sanitize";
+import { NOTE_LINK_TYPES } from "./note-links";
 
 /**
  * GitHub's schema (what rehype-sanitize ships), narrowed: links may only be http, https or
@@ -11,6 +12,11 @@ export const MARKDOWN_SCHEMA: SanitizeSchema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
+    // The marker of a `[[type:id|Nombre]]` link (./note-links.ts), only with a known type. Markdown
+    // can't write it (raw HTML never gets here) and the `a` component still checks the href.
+    a: [...(defaultSchema.attributes?.a ?? []), ["dataNoteLink", ...NOTE_LINK_TYPES]],
+    // A link whose target is gone: «Nombre (ya no existe)», muted (a style hook, nothing else).
+    span: [...(defaultSchema.attributes?.span ?? []), "dataNoteLinkGone"],
     // Column alignment of GFM tables (`| :-- | --: |`).
     th: [...(defaultSchema.attributes?.th ?? []), ["align", "left", "center", "right"]],
     td: [...(defaultSchema.attributes?.td ?? []), ["align", "left", "center", "right"]],
@@ -37,7 +43,9 @@ export const CLOBBER_PREFIX = "user-content-";
  * fragment of this page (`#…`, footnotes), `mailto:` and absolute http(s). Everything else
  * is text, including what the sanitizer lets through as "relative": `/path`, protocol-relative
  * `//evil.example` and its backslash forms (`/\evil`, `\\evil`), which browsers open on
- * another host.
+ * another host. The one exception, a `[[type:id|Nombre]]` link of the notes, never goes through
+ * here: the `a` component opens it only with its marker and an href that passes `isNoteLinkHref`
+ * (./note-links.ts), so a path written by hand stays text.
  */
 export function linkKind(href: string): "fragment" | "mailto" | "external" | null {
   const value = href.trim();

@@ -12,6 +12,7 @@ import { ensureProjectExtensions } from "@/lib/project-extensions";
 // G3: the "Metas" section of `goals` (the goals that follow this project), registered the same way.
 import { ensureGoalExtensions } from "@/lib/goal-extensions";
 import { Markdown } from "@/lib/markdown/markdown";
+import { NoteMentions } from "@/lib/note-extensions";
 import { listLifeAreas } from "@/modules/core/queries";
 import { contributedProgress, renderProjectSections } from "@/modules/projects/contracts";
 import { getProjectMilestones } from "@/modules/projects/milestone-queries";
@@ -125,6 +126,8 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
           <ProjectNotesSection
             rendered={project.notes ? <Markdown headingOffset={2}>{project.notes}</Markdown> : null}
           />
+          {/* ── notes N2: «Aparece en N notas», before the zone to close or delete. ── */}
+          <NoteMentions type="project" id={project.id} heading="label" />
           <ProjectCloseSection counts={countMilestones(milestones)} contributed={contributed} />
           <ProjectDeleteSection />
         </div>

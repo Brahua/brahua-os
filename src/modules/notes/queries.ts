@@ -4,9 +4,19 @@ import { cache } from "react";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import type { NoteLinkResolutions } from "@/lib/markdown/note-links";
+import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
+import type { NoteLinkSource } from "./contracts";
+import { resolveLinks, selectLinkingNotes, type LinkingNote } from "./links";
 import type { DeletedNote, NoteArea, NoteItem, NoteKindFilter, NoteListItem } from "./note-input";
-import { selectDailyNote, selectDeletedNote, selectNoteList, selectPageNote } from "./notes";
+import {
+  selectDailyNote,
+  selectDailyNoteDay,
+  selectDeletedNote,
+  selectNoteList,
+  selectPageNote,
+} from "./notes";
 
 const noteId = z.uuid();
 
@@ -39,11 +49,39 @@ export const getPageNote = cache(async (id: string): Promise<NoteItem | null> =>
   return selectPageNote(getDb(), id);
 });
 
+/** The day of a live daily note by its id (a link to it opens its day), or null. */
+export async function getDailyNoteDay(id: string): Promise<string | null> {
+  await requireOwner();
+  if (!noteId.safeParse(id).success) return null;
+  return selectDailyNoteDay(getDb(), id);
+}
+
 /** A note just deleted from its page (`?deleted=<id>`), or null when it isn't deleted. */
 export async function getDeletedNote(id: string): Promise<DeletedNote | null> {
   await requireOwner();
   if (!noteId.safeParse(id).success) return null;
   return selectDeletedNote(getDb(), id);
+}
+
+/**
+ * What the links of `body` point to now (N2): one query per type present, through `sources` (the
+ * composition root's list: `notes` doesn't import the modules it links to).
+ */
+export async function getNoteLinkResolutions(
+  sources: readonly NoteLinkSource[],
+  body: string,
+): Promise<NoteLinkResolutions> {
+  await requireOwner();
+  return resolveLinks(getDb(), sources, body);
+}
+
+/**
+ * «Enlazada desde» (N2): the other live notes whose body links to the note `id`. One query.
+ */
+export async function getLinkedFrom(id: string): Promise<LinkingNote[]> {
+  await requireOwner();
+  if (!noteId.safeParse(id).success) return [];
+  return selectLinkingNotes(getDb(), "note", id, ownerDateKey(new Date()), id);
 }
 
 /** The active life areas, in their order: the ones a note can be put in. */

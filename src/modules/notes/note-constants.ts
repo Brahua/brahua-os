@@ -21,5 +21,14 @@ export const NOTES_PAGE_SIZE = 30;
 /** The most notes the list shows at once (`?n=`), so a hand-written URL can't ask for millions. */
 export const NOTES_MAX_SHOWN = 3_000;
 
+/** The `[[` picker shows at most this many results, across every type (SPEC-notes). */
+export const NOTE_LINK_RESULTS_MAX = 8;
+/** The longest text after `[[` the picker searches with (longer: the list closes). */
+export const NOTE_LINK_QUERY_MAX_LENGTH = 80;
+/** The picker stays open while the text after `[[` is at most this long (names are short). */
+export const NOTE_LINK_OPEN_MAX_LENGTH = 40;
+/** The picker searches this long after the last key press. */
+export const NOTE_LINK_SEARCH_DELAY_MS = 150;
+
 /** The autosave runs this long after the last key press. */
 export const NOTE_SAVE_DELAY_MS = 1_000;

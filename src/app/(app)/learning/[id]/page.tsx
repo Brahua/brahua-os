@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/design-system";
 import { requireOwner } from "@/lib/auth";
+import { NoteMentions } from "@/lib/note-extensions";
 import { ownerDateKey } from "@/lib/time";
 import { ScreenServicesProvider } from "@/modules/core/components/screen-services";
 import { SessionsSection } from "@/modules/learning/components/sessions-section";
@@ -86,6 +87,7 @@ export default async function TrackPage({ params }: TrackPageProps) {
             />
           }
         />
+        <NoteMentions type="learning" id={track.id} heading="label" />
       </div>
     </ScreenServicesProvider>
   );

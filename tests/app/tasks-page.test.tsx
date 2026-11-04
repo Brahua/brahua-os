@@ -30,6 +30,12 @@ vi.mock("next/navigation", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
+// N2 of notes: «Mencionado en» reads the database (tested in notes-backlinks.test.tsx).
+vi.mock("@/lib/note-extensions", () => ({
+  NoteMentions: ({ type, id }: { type: string; id: string }) => (
+    <div data-note-mentions-slot={`${type}:${id}`} />
+  ),
+}));
 const cookieJar = vi.hoisted(() => ({ shortcuts: undefined as string | undefined }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -644,6 +650,9 @@ describe("/tasks/<id>", () => {
     });
     render(await TaskPage({ params: Promise.resolve({ id: PLANTAS.id }) }));
     expect(requireOwner).toHaveBeenCalled();
+    expect(
+      document.querySelector(`[data-note-mentions-slot="task:${PLANTAS.id}"]`),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "regar plantas" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Volver a Tareas" })).toHaveAttribute("href", "/tasks");
     vi.mocked(deleteTask).mockResolvedValueOnce(ok({ id: PLANTAS.id, title: "regar plantas" }));

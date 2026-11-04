@@ -9,6 +9,29 @@ export function normalizeName(value: string): string {
 }
 
 /**
+ * Accented letters and what each folds to (same position): the one table the `[[` picker's search
+ * uses both here and in SQL (`translate`, src/lib/link-search.ts), so the two always agree.
+ */
+export const SEARCH_FOLD_FROM = "áàäâãåéèëêíìïîóòöôõúùüûñçýÿÁÀÄÂÃÅÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇÝ";
+export const SEARCH_FOLD_TO = "aaaaaaeeeeiiiiooooouuuuncyyaaaaaaeeeeiiiiooooouuuuncy";
+const SEARCH_FOLD = new Map(
+  [...SEARCH_FOLD_FROM].map((from, index) => [from, SEARCH_FOLD_TO[index]]),
+);
+
+/**
+ * Text to search names with (the `[[` picker of the notes): NFC (a Mac may type decomposed
+ * accents), lowercase, folded with SEARCH_FOLD_FROM → SEARCH_FOLD_TO (as SQL does), runs of
+ * whitespace as one space, trimmed.
+ */
+export function foldSearchText(text: string): string {
+  return [...text.normalize("NFC").toLowerCase()]
+    .map((character) => SEARCH_FOLD.get(character) ?? character)
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Control and format characters (NUL, zero-width spaces, bidi overrides…) that are left after
  * normalizing. They are invisible or reorder the text, and Postgres rejects NUL outright.
  * Except the zero-width non-joiner and joiner (U+200C, U+200D): emoji sequences such as
