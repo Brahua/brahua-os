@@ -211,7 +211,7 @@ Escrita para la app (nombres comunes en español; ninguno copiado de openGym). T
 - **Tríceps (5):** Extensión de tríceps en polea (polea) · Press francés (barra) · Extensión sobre la cabeza con mancuerna (mancuernas) · Fondos en banco (peso corporal, `reps`) · Press de banca con agarre cerrado (barra).
 - **Piernas (16):** Sentadilla con barra (barra; cuádriceps) · Sentadilla frontal (barra; cuádriceps) · Sentadilla goblet (mancuernas; cuádriceps) · Prensa de piernas (máquina; cuádriceps) · Extensión de cuádriceps (máquina; cuádriceps) · Zancadas con mancuernas ★ (cuádriceps) · Sentadilla búlgara ★ (cuádriceps) · Peso muerto rumano (barra; isquiotibiales) · Curl femoral tumbado (máquina; isquiotibiales) · Curl femoral sentado (máquina; isquiotibiales) · Hip thrust (barra; glúteos) · Patada de glúteo en polea (polea; glúteos) · Abductores en máquina (máquina; glúteos) · Aductores en máquina (máquina; cuádriceps) · Elevación de talones de pie (máquina; pantorrillas) · Elevación de talones sentado (máquina; pantorrillas).
 - **Abdomen (6):** Plancha (peso corporal, `time`) · Plancha lateral (peso corporal, `time`) · Crunch (peso corporal, `reps`) · Elevación de piernas colgado (peso corporal, `reps`) · Rueda abdominal (otro, `reps`) · Crunch en polea (polea).
-- **Cardio (6, `cardio`):** Cinta · Bicicleta estática · Elíptica · Remo en máquina · Escaladora · Saltar la cuerda (todas «máquina» salvo la cuerda, «otro»).
+- **Cardio (6, `cardio`):** Cinta · Bicicleta estática · Elíptica · Remo ergómetro · Escaladora · Saltar la cuerda (todas «máquina» salvo la cuerda, «otro»). «Remo ergómetro» y no «Remo en máquina», que ya es el de espalda: dos ejercicios vivos no comparten nombre (E1).
 
 ## Decisiones autónomas para revisar con el owner
 

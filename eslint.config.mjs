@@ -369,9 +369,59 @@ const NOTES_ONLY_CORE = {
     "@/modules/today/*",
     "@/modules/weekly-review",
     "@/modules/weekly-review/*",
+    "@/modules/health",
+    "@/modules/health/*",
   ],
   message:
     "`notes` depende de `core`: no importa otros módulos (las fuentes de enlace le llegan desde src/lib/note-link-sources.ts).",
+};
+// `health` (SPEC-health "Contratos") sits above `habits`: it reads it only through its contract
+// (`contracts`) and its client-safe routes, and imports no other module but `core`. Only `today` and
+// `weekly-review` read it (E4), and only through `@/modules/health/contracts`.
+const HEALTH_IMPORT = {
+  group: ["@/modules/health", "@/modules/health/*"],
+  message: "`health` depende de este módulo: no puede importarlo.",
+};
+const HEALTH_FOR_CONSUMERS_MESSAGE =
+  "`today` y `weekly-review` leen `health` solo por su contrato (`@/modules/health/contracts`).";
+// Same gotcha as REMINDERS_IMPORT: the barrel is an exact path and the contract is let in after its
+// folder pattern.
+const HEALTH_FOR_CONSUMERS = {
+  group: ["@/modules/health/*", "!@/modules/health/contracts"],
+  message: HEALTH_FOR_CONSUMERS_MESSAGE,
+};
+const HEALTH_BARREL = { name: "@/modules/health", message: HEALTH_FOR_CONSUMERS_MESSAGE };
+const HEALTH_MESSAGE =
+  "`health` lee `habits` solo por su contrato (`contracts`) y sus rutas (`routes`).";
+const HEALTH_ONLY_CONTRACTS = {
+  group: ["@/modules/habits/*", "!@/modules/habits/contracts", "!@/modules/habits/routes"],
+  message: HEALTH_MESSAGE,
+};
+const HEALTH_NO_BARRELS = [{ name: "@/modules/habits", message: HEALTH_MESSAGE }];
+const HEALTH_ONLY_CORE_AND_CONTRACTS = {
+  group: [
+    "@/modules/finance",
+    "@/modules/finance/*",
+    "@/modules/goals",
+    "@/modules/goals/*",
+    "@/modules/household",
+    "@/modules/household/*",
+    "@/modules/learning",
+    "@/modules/learning/*",
+    "@/modules/notes",
+    "@/modules/notes/*",
+    "@/modules/projects",
+    "@/modules/projects/*",
+    "@/modules/reminders",
+    "@/modules/reminders/*",
+    "@/modules/tasks",
+    "@/modules/tasks/*",
+    "@/modules/today",
+    "@/modules/today/*",
+    "@/modules/weekly-review",
+    "@/modules/weekly-review/*",
+  ],
+  message: "`health` depende de `core` y `habits`: no importa otros módulos.",
 };
 const moduleBoundaries = [
   {
@@ -388,6 +438,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -410,6 +461,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -421,13 +473,14 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [...WEEKLY_REVIEW_NO_BARRELS, LEARNING_BARREL],
+          paths: [...WEEKLY_REVIEW_NO_BARRELS, LEARNING_BARREL, HEALTH_BARREL],
           patterns: [
             WEEKLY_REVIEW_ONLY_CONTRACTS,
             WEEKLY_REVIEW_ONLY_CORE_AND_CONTRACTS,
             HOUSEHOLD_IMPORT,
             LEARNING_FOR_CONSUMERS,
             NOTES_IMPORT,
+            HEALTH_FOR_CONSUMERS,
           ],
         },
       ],
@@ -445,6 +498,7 @@ const moduleBoundaries = [
             HOUSEHOLD_ONLY_CORE_AND_CONTRACTS,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -457,7 +511,12 @@ const moduleBoundaries = [
         "error",
         {
           paths: LEARNING_NO_BARRELS,
-          patterns: [LEARNING_ONLY_CONTRACTS, LEARNING_ONLY_CORE_AND_CONTRACTS, NOTES_IMPORT],
+          patterns: [
+            LEARNING_ONLY_CONTRACTS,
+            LEARNING_ONLY_CORE_AND_CONTRACTS,
+            NOTES_IMPORT,
+            HEALTH_IMPORT,
+          ],
         },
       ],
     },
@@ -469,7 +528,33 @@ const moduleBoundaries = [
     rules: {
       "no-restricted-imports": [
         "error",
-        { paths: LEARNING_NO_BARRELS, patterns: [LEARNING_ONLY_CORE_AND_CONTRACTS, NOTES_IMPORT] },
+        {
+          paths: LEARNING_NO_BARRELS,
+          patterns: [LEARNING_ONLY_CORE_AND_CONTRACTS, NOTES_IMPORT, HEALTH_IMPORT],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/health/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: HEALTH_NO_BARRELS,
+          patterns: [HEALTH_ONLY_CONTRACTS, HEALTH_ONLY_CORE_AND_CONTRACTS],
+        },
+      ],
+    },
+  },
+  {
+    // The one exception, as in `goals`: a foreign key needs the table itself, so the schema file
+    // may import the table of `habits` (its folder pattern is left out here).
+    files: ["src/modules/health/db/schema.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: HEALTH_NO_BARRELS, patterns: [HEALTH_ONLY_CORE_AND_CONTRACTS] },
       ],
     },
   },
@@ -479,7 +564,12 @@ const moduleBoundaries = [
       "no-restricted-imports": [
         "error",
         {
-          paths: [FINANCE_BARREL_FOR_TODAY, REMINDERS_BARREL, LEARNING_BARREL_FOR_TODAY],
+          paths: [
+            FINANCE_BARREL_FOR_TODAY,
+            REMINDERS_BARREL,
+            LEARNING_BARREL_FOR_TODAY,
+            HEALTH_BARREL,
+          ],
           patterns: [
             FINANCE_FOR_TODAY,
             REMINDERS_IMPORT,
@@ -487,6 +577,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_FOR_TODAY,
             NOTES_IMPORT,
+            HEALTH_FOR_CONSUMERS,
           ],
         },
       ],
@@ -506,6 +597,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -527,6 +619,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -548,6 +641,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -570,6 +664,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -593,6 +688,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],
@@ -617,6 +713,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_IMPORT,
             NOTES_IMPORT,
+            HEALTH_IMPORT,
           ],
         },
       ],

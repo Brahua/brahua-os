@@ -10,6 +10,7 @@ import { areasModule, settingsModule } from "@/modules/core/module";
 import { financeModule } from "@/modules/finance/module";
 import { goalsModule } from "@/modules/goals/module";
 import { habitsModule } from "@/modules/habits/module";
+import { healthModule } from "@/modules/health/module";
 import { householdModule } from "@/modules/household/module";
 import { learningModule } from "@/modules/learning/module";
 import { notesModule } from "@/modules/notes/module";
@@ -62,6 +63,7 @@ export const MODULES: readonly ModuleManifest[] = [
   householdModule,
   learningModule,
   notesModule,
+  healthModule,
   areasModule,
   settingsModule,
 ];

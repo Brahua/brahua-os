@@ -6,7 +6,7 @@
 
 Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, revisión del commit local, un push, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(health): …`). Máximo un E2E nuevo en todo el módulo (E4).
 
-- [ ] **E1: Catálogo y rutinas** (M; `feat/health-e1`)
+- [ ] **E1: Catálogo y rutinas** (M; `feat/health-e1`) — hecho en local con el gate liviano en verde, pendiente de revisión, push y merge
   - Migración aditiva `0029`: `health_exercises` (semilla de 64 por `seed_key`, ids `md5`, `ON CONFLICT DO NOTHING`; único parcial por `name_key`), `health_routines`, `health_routine_exercises`, `health_settings` (una fila, FK a `habits`); Prettier sobre el snapshot; `EXPORTABLE_TABLES`.
   - `src/modules/health/`: `module.ts` («Entreno», `navOrder` 70, `Dumbbell`), `routes.ts`, `lock-keys.ts` (`HEALTH_ADVISORY_SPACE = 10000`), `seed.ts`, `exercises-*.ts`, `routines-*.ts`, copy, `export.ts`, `components/`; páginas `/health`, `/health/exercises`, `/health/exercises/[id]`, `/health/routines/[id]` con `requireOwner()`.
   - Regla de ESLint `HEALTH_ONLY_CONTRACTS` (nadie importa `health` salvo `today` y `weekly-review`; `health` solo `habits/contracts` y `routes`) y la excepción de un archivo para la FK.

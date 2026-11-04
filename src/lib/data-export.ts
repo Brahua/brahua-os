@@ -9,6 +9,7 @@ import { coreExportTables } from "@/modules/core/export";
 import { financeExportTables } from "@/modules/finance/export";
 import { goalsExportTables } from "@/modules/goals/export";
 import { habitsExportTables } from "@/modules/habits/export";
+import { healthExportTables } from "@/modules/health/export";
 import { projectsExportTables } from "@/modules/projects/export";
 import { REMINDERS_EXCLUDED_TABLES, remindersExportTables } from "@/modules/reminders/export";
 import { tasksExportTables } from "@/modules/tasks/export";
@@ -45,6 +46,7 @@ export const EXPORTABLE_TABLES: readonly ExportableTable[] = [
   ...householdExportTables,
   ...learningExportTables,
   ...notesExportTables,
+  ...healthExportTables,
 ];
 
 /**
