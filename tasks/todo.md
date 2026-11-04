@@ -6,13 +6,13 @@
 
 Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, revisión del commit local, un push, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(health): …`). Máximo un E2E nuevo en todo el módulo (E4).
 
-- [ ] **E1: Catálogo y rutinas** (M; `feat/health-e1`) — hecho en local con el gate liviano en verde, pendiente de revisión, push y merge
+- [x] **E1: Catálogo y rutinas** (M; `feat/health-e1`) — en producción (#178)
   - Migración aditiva `0029`: `health_exercises` (semilla de 64 por `seed_key`, ids `md5`, `ON CONFLICT DO NOTHING`; único parcial por `name_key`), `health_routines`, `health_routine_exercises`, `health_settings` (una fila, FK a `habits`); Prettier sobre el snapshot; `EXPORTABLE_TABLES`.
   - `src/modules/health/`: `module.ts` («Entreno», `navOrder` 70, `Dumbbell`), `routes.ts`, `lock-keys.ts` (`HEALTH_ADVISORY_SPACE = 10000`), `seed.ts`, `exercises-*.ts`, `routines-*.ts`, copy, `export.ts`, `components/`; páginas `/health`, `/health/exercises`, `/health/exercises/[id]`, `/health/routines/[id]` con `requireOwner()`.
   - Regla de ESLint `HEALTH_ONLY_CONTRACTS` (nadie importa `health` salvo `today` y `weekly-review`; `health` solo `habits/contracts` y `routes`) y la excepción de un archivo para la FK.
   - **Aceptación:** los 64 ejercicios existen tras migrar (dos veces = 64); «Nuevo ejercicio» rechaza un nombre repetido sin acentos; una rutina con 5 ejercicios se arma y reordena con teclado y toque; borrar tiene «Deshacer».
   - **Verificación:** unitarias (clave de nombre, Zod de rutina, copy sin cadenas prohibidas, componentes); integración de a un archivo (`tests/integration/health-catalog.test.ts`: `CHECK` crudos, semilla idempotente, unicidad, orden con lock, autorización, exportación); tras el push, `e2e/home.spec.ts` y dispatch de `update-screenshots.yml`. Sin E2E nueva.
-- [ ] **E2: Sesión** (L; `feat/health-e2`) — depende de E1
+- [ ] **E2: Sesión** (L; `feat/health-e2`) — hecho en local con el gate liviano en verde, pendiente de revisión, push y merge
   - Migración `0030`: `health_sessions` (único parcial de la abierta), `health_session_exercises`, `health_sets`.
   - Empezar (rutina o libre; lock primero), precarga por posición, serie (peso ↔ gramos, reps, segundos, distancia, calentamiento, casilla), añadir/quitar con «Deshacer», reordenar, nota, barra de descanso, terminar/descartar (4 h, «Deshacer» exacto), `/health/sessions` y `/health/sessions/[id]` (terminadas editables), `useSecondClock` a `src/lib`.
   - **Aceptación:** nunca dos sesiones abiertas; una serie marcada sobrevive a recargar; «Terminar» quita las planificadas y su «Deshacer» las devuelve.

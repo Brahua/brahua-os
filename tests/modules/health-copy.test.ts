@@ -4,6 +4,7 @@
 import { describe, expect, test } from "vitest";
 import { EXERCISE_ERRORS } from "@/modules/health/exercises-copy";
 import { ROUTINES_COPY } from "@/modules/health/routines-copy";
+import { SESSION_ERRORS, SESSIONS_COPY } from "@/modules/health/sessions-copy";
 
 // learning's list, plus «solo», «todavía», «perdiste» and «fallaste» (SPEC-health "Tono").
 const FORBIDDEN = [
@@ -56,7 +57,12 @@ const offenders = (strings: [string, string][]) =>
 describe("health copy has no guilt", () => {
   test("it finds the copy files and scans their strings", () => {
     const files = Object.keys(copyModules);
-    for (const name of ["health-copy.ts", "exercises-copy.ts", "routines-copy.ts"]) {
+    for (const name of [
+      "health-copy.ts",
+      "exercises-copy.ts",
+      "routines-copy.ts",
+      "sessions-copy.ts",
+    ]) {
       expect(files.some((file) => file.endsWith(name))).toBe(true);
     }
     const scanned = allStrings().map(([, text]) => text);
@@ -69,6 +75,11 @@ describe("health copy has no guilt", () => {
       "Agregar ejercicio",
       "Peso corporal",
       "Isquiotibiales",
+      // E2
+      "Sesión libre",
+      "Ya tienes un entreno en curso.",
+      "Descanso terminado. A la siguiente serie.",
+      "Descartar la sesión",
     ]) {
       expect(scanned).toContain(expected);
     }
@@ -81,6 +92,13 @@ describe("health copy has no guilt", () => {
       ["count0", ROUTINES_COPY.exerciseCount(0)],
       ["count1", ROUTINES_COPY.exerciseCount(1)],
       ["full", ROUTINES_COPY.itemsFull],
+      ["noDone", SESSION_ERRORS.noDoneSets],
+      ["discardHint", SESSIONS_COPY.discardHint],
+      ["planned1", SESSIONS_COPY.finishPlannedHint(1)],
+      ["planned3", SESSIONS_COPY.finishPlannedHint(3)],
+      ["summary", SESSIONS_COPY.finishSummary("52 min", 0)],
+      ["previousNone", SESSIONS_COPY.previousNone],
+      ["restLeft", SESSIONS_COPY.restLeftName(0, 5)],
     ];
     expect(offenders(sentences)).toEqual([]);
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Play, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useOptimistic, useRef, useState } from "react";
 import { IconKey, Key, TextField } from "@/design-system";
@@ -11,8 +11,10 @@ import { DELETED_PARAM, HEALTH_PATH } from "../routes";
 import { deleteRoutine, renameRoutine } from "../routines-actions";
 import { ROUTINES_COPY as COPY } from "../routines-copy";
 import { routineNameSchema, type RoutineItem, type RoutineRef } from "../routines-input";
+import { SESSIONS_COPY } from "../sessions-copy";
 import { RoutineItemsSection } from "./routine-items-section";
 import { failureReason, useHealthSave } from "./use-health-save";
+import { useStartSession } from "./use-start-session";
 
 type RoutineDetailProps = {
   routine: RoutineRef;
@@ -26,7 +28,7 @@ type RoutineDetailProps = {
 /**
  * A routine's page (SPEC-health "Pantallas"): its name, edited in place; its exercises with their
  * targets (routine-items-section.tsx); «Eliminar rutina» (the list on /health then offers
- * «Deshacer»). «Empezar esta rutina» comes with the sessions (E2).
+ * «Deshacer»); «Empezar esta rutina» (E2) starts a session from it and opens it.
  */
 export function RoutineDetail({
   routine,
@@ -41,6 +43,7 @@ export function RoutineDetail({
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const renameKey = useRef<HTMLButtonElement>(null);
+  const { start, busy: starting } = useStartSession();
 
   // The rename key unmounts while editing: focus goes back to it when the editor closes.
   const focusRename = useRef(false);
@@ -107,7 +110,15 @@ export function RoutineDetail({
         </div>
         {editing ? <NameEditor name={name} onCancel={closeEditor} onSave={rename} /> : null}
         <div role="group" aria-label={COPY.actionsLabel} className="flex flex-wrap gap-2">
-          {/* E2: «Empezar esta rutina» goes first here. */}
+          <Key
+            variant="signal"
+            icon={Play}
+            aria-disabled={starting || undefined}
+            data-routine-start=""
+            onClick={() => void start(routine.id)}
+          >
+            {SESSIONS_COPY.startRoutine}
+          </Key>
           <Key
             variant="ghost"
             icon={Trash2}

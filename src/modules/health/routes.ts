@@ -16,3 +16,12 @@ export const routinePath = (id: string) => `${HEALTH_PATH}/routines/${id}`;
  * from its page. The list shows the «… eliminado · Deshacer» notice and drops the parameter.
  */
 export const DELETED_PARAM = "deleted";
+
+/** Every session, the newest first (E2). */
+export const SESSIONS_PATH = `${HEALTH_PATH}/sessions`;
+
+/** A session's screen: the open one, or a finished one (editable). */
+export const sessionPath = (id: string) => `${SESSIONS_PATH}/${id}`;
+
+/** `?n=<count>` on /health/sessions: how many it shows («Ver más» adds a page). */
+export const SESSIONS_COUNT_PARAM = "n";

@@ -8,13 +8,13 @@ type HealthHomeProps = {
   /** Id of the page's `<h1 tabIndex={-1}>` (focus lands there after a delete). */
   headingId: string;
   /**
-   * The open session («Seguir») or «Empezar» with the routine that comes next: E2 fills it
-   * (SPEC-health "Pantallas"). Nothing shows while it is empty.
+   * The open session («Seguir») or «Empezar» with the routine that comes next
+   * (session-start.tsx, SPEC-health "Pantallas"). Nothing shows while it is empty.
    */
   session?: React.ReactNode;
   /** «Rutinas» (routines-section.tsx). */
   routines: React.ReactNode;
-  /** «Últimas sesiones»: E2 fills it. Nothing shows while it is empty. */
+  /** «Últimas sesiones» (session-rows.tsx). Nothing shows while it is empty. */
   recent?: React.ReactNode;
 };
 

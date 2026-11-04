@@ -164,6 +164,10 @@ describe("pnpm db:export", () => {
       "health_routines",
       "health_routine_exercises",
       "health_settings",
+      // E2 of health (filled rows: tests/integration/health-sessions.test.ts → "export").
+      "health_sessions",
+      "health_session_exercises",
+      "health_sets",
       // F1 of finance: all six (filled rows: tests/integration/finance.test.ts → "export").
       "finance_categories",
       "finance_payment_methods",

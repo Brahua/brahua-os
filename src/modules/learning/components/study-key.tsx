@@ -1,52 +1,11 @@
 "use client";
 
 import { Play, Square } from "lucide-react";
-import { useSyncExternalStore } from "react";
 import { Key } from "@/design-system";
+import { useSecondClock } from "@/lib/use-second-clock";
 import { elapsedMs, formatElapsed } from "../pace";
 import { SESSIONS_COPY as COPY } from "../sessions-copy";
 import type { RunningSession } from "../sessions-input";
-
-// One clock for every running timer on screen: a single interval while something shows it,
-// cleared when the last one unmounts (CLAUDE.md "Timers in components"). The elapsed time is always
-// computed from `started_at`, never by adding ticks, so it survives reloads and sleeping tabs.
-let current = 0;
-let interval: ReturnType<typeof setInterval> | null = null;
-const listeners = new Set<() => void>();
-
-const secondNow = () => Math.floor(Date.now() / 1000) * 1000;
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  if (interval === null) {
-    current = secondNow();
-    interval = setInterval(() => {
-      current = secondNow();
-      for (const notify of listeners) notify();
-    }, 1000);
-  }
-  return () => {
-    listeners.delete(listener);
-    if (listeners.size === 0 && interval !== null) {
-      clearInterval(interval);
-      interval = null;
-    }
-  };
-}
-
-function getSnapshot() {
-  // Before the first subscription (the first render), read the clock once per second.
-  if (interval === null) current = secondNow();
-  return current;
-}
-
-/** No clock on the server: the time shows after hydration (no mismatch with the server's). */
-const getServerSnapshot = () => null;
-
-/** The current time, to the second, ticking while mounted; null on the server and in hydration. */
-export function useSecondClock(): number | null {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
 
 /**
  * The running time of a timer («12:34», «1:02:03»). Assistive tech reads «Estudiando: 12 min»

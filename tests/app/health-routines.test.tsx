@@ -53,7 +53,12 @@ vi.mock("@/modules/health/queries", () => ({
   listExercises: vi.fn(),
   getExercise: vi.fn(),
   getDeletedExercise: vi.fn(),
+  // E2's slots on /health (tests/app/health-sessions.test.tsx covers them).
+  getOpenSession: vi.fn(async () => null),
+  getNextRoutine: vi.fn(async () => null),
+  listSessions: vi.fn(async () => ({ sessions: [], total: 0 })),
 }));
+vi.mock("@/modules/health/sessions-actions", () => ({ startHealthSession: vi.fn() }));
 vi.mock("@/modules/health/routines-actions", () => ({
   createRoutine: vi.fn(),
   renameRoutine: vi.fn(),
@@ -202,8 +207,10 @@ describe("the pages", () => {
     expect(listRoutineItems).toHaveBeenCalledWith(id(1));
     expect(listExercises).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Rutina A" })).toBeVisible();
-    // «Empezar esta rutina» comes with the sessions (E2): not even a disabled one now.
-    expect(screen.queryByRole("button", { name: /Empezar/ })).toBeNull();
+    // «Empezar esta rutina» (E2) goes first among its actions.
+    expect(
+      within(screen.getByRole("group", { name: COPY.actionsLabel })).getAllByRole("button")[0],
+    ).toHaveAccessibleName("Empezar esta rutina");
     expect((await generateMetadata(params(id(1)))).title).toBe("Rutina A · Entreno · brahua-os");
     vi.mocked(getRoutine).mockResolvedValue(null);
     await expect(RoutinePage(params("nope"))).rejects.toThrow("NEXT_NOT_FOUND");

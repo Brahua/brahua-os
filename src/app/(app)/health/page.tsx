@@ -4,8 +4,17 @@ import { ScreenServicesProvider } from "@/modules/core/components/screen-service
 import { RoutineDeletedNotice } from "@/modules/health/components/deleted-notice";
 import { HealthHome } from "@/modules/health/components/health-home";
 import { RoutinesSection } from "@/modules/health/components/routines-section";
+import { RecentSessions } from "@/modules/health/components/session-rows";
+import { SessionStart } from "@/modules/health/components/session-start";
+import { RECENT_SESSIONS } from "@/modules/health/health-constants";
 import { HEALTH_COPY as COPY } from "@/modules/health/health-copy";
-import { getDeletedRoutine, listRoutines } from "@/modules/health/queries";
+import {
+  getDeletedRoutine,
+  getNextRoutine,
+  getOpenSession,
+  listRoutines,
+  listSessions,
+} from "@/modules/health/queries";
 import { DELETED_PARAM } from "@/modules/health/routes";
 
 export const metadata: Metadata = { title: `${COPY.pageTitle} · brahua-os` };
@@ -17,15 +26,19 @@ type HealthPageProps = {
 };
 
 /**
- * Entreno (SPEC-health "Pantallas"): «Rutinas» and the link to «Ejercicios». The open session and
- * «Últimas sesiones» are slots of HealthHome that E2 fills.
+ * Entreno (SPEC-health "Pantallas"): on top the open session («Seguir») or «Empezar» with the
+ * routine the rotation says, «Otra rutina» and «Sesión libre»; then «Rutinas», «Últimas sesiones»
+ * (10) and the link to «Ejercicios».
  */
 export default async function HealthPage({ searchParams }: HealthPageProps) {
   await requireOwner();
   const search = await searchParams;
   const deletedId = search[DELETED_PARAM];
-  const [routines, deleted] = await Promise.all([
+  const [routines, open, next, recent, deleted] = await Promise.all([
     listRoutines(),
+    getOpenSession(),
+    getNextRoutine(),
+    listSessions(RECENT_SESSIONS),
     // Just deleted from its page: the undo notice needs its name (only while it is deleted).
     typeof deletedId === "string" ? getDeletedRoutine(deletedId) : Promise.resolve(null),
   ]);
@@ -35,7 +48,12 @@ export default async function HealthPage({ searchParams }: HealthPageProps) {
       {/* Bottom padding grows with the notice (--toast-offset): a move leaves a «Deshacer»
           notice, and the last row must stay reachable under it at full scroll. */}
       <div className="mx-auto flex w-full max-w-(--content-max) flex-col gap-6 px-4 py-8 pb-[calc(7rem+var(--toast-offset,0px))] md:px-6 lg:py-12 lg:pb-[calc(7rem+var(--toast-offset,0px))]">
-        <HealthHome headingId={HEADING_ID} routines={<RoutinesSection routines={routines} />} />
+        <HealthHome
+          headingId={HEADING_ID}
+          session={<SessionStart open={open} next={next} routines={routines} />}
+          routines={<RoutinesSection routines={routines} />}
+          recent={<RecentSessions sessions={recent.sessions} />}
+        />
         <RoutineDeletedNotice headingId={HEADING_ID} deleted={deleted} />
       </div>
     </ScreenServicesProvider>

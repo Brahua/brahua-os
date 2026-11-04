@@ -4,6 +4,8 @@
 //   routines are live or their order (create, delete, restore, reorder).
 // - `(10000, hashtext(<routine id>))` (`lockRoutine`): a routine's exercises and its name.
 // - `(10000, hashtext('health:exercises'))` (`lockExercises`): every write of the catalogue.
+// - `(10000, hashtext('health:session'))` (`lockSession`): every write of a session, its
+//   exercises and its sets (E2).
 // Rule: an advisory lock is always the FIRST lock of its transaction, never taken after a row
 // lock, and no transaction takes two of them. Only then the rows (FOR SHARE / FOR UPDATE).
 import "server-only";
@@ -13,6 +15,7 @@ import {
   HEALTH_ADVISORY_SPACE,
   HEALTH_EXERCISES_KEY,
   HEALTH_ROUTINES_KEY,
+  HEALTH_SESSION_KEY,
   routineLockKey,
 } from "./lock-keys";
 
@@ -37,4 +40,9 @@ export function lockRoutine(tx: Tx, routineId: string) {
 /** The catalogue's lock. Must be the first lock of the transaction (see the header). */
 export function lockExercises(tx: Tx) {
   return advisoryLock(tx, HEALTH_EXERCISES_KEY);
+}
+
+/** The sessions' lock. Must be the first lock of the transaction (see the header). */
+export function lockSession(tx: Tx) {
+  return advisoryLock(tx, HEALTH_SESSION_KEY);
 }
