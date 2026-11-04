@@ -74,7 +74,7 @@ export function NotesSearch({ query, onSearch, onClear, inputRef }: NotesSearchP
           if (value === "" && query) onClear();
         }}
       />
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Key type="submit" variant="default" icon={Search}>
           {COPY.searchSubmit}
         </Key>
