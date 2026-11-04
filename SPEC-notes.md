@@ -1,6 +1,6 @@
 # Spec: notes
 
-> Módulo `notes` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` y, por contratos, de `projects`, `tasks`, `habits`, `goals`, `learning` y `today` · Estado: **APROBADA v1.0** (2026-11-03: el owner aceptó todas las recomendaciones de la tanda de preguntas del 2026-11-02 y pidió construir el módulo completo en modo autónomo).
+> Módulo `notes` del [mapa de capacidades](CAPABILITY-MAP.md) · Depende de `core` y, por contratos, de `projects`, `tasks`, `habits`, `goals`, `learning` y `today` · Estado: **APROBADA v1.0 · cerrada el 2026-11-03** (N1–N5 en producción; aprobada el 2026-11-03: el owner aceptó todas las recomendaciones de la tanda de preguntas del 2026-11-02 y pidió construir el módulo completo en modo autónomo).
 
 ## Objetivo
 
@@ -164,3 +164,5 @@ La vista renderizada con «Editar» (en vez de editar siempre), el selector `[[`
 N3 (detalle en `docs/HANDOFF.md` → «Cómo funciona notes → N3»): convertir espera lo pendiente y no se manda con conflicto; la conversión conserva el prefijo de la línea; el «Deshacer» no toca una tarea ya cambiada; una tarea enlazada sin resolver no muestra casilla; el «Deshacer» de la captura deja vacía (no borra) la nota que creó; aviso y «Deshacer» de la captura dentro de la hoja; el pie no cuenta hábitos a evitar.
 
 N4 (detalle en `docs/HANDOFF.md` → «Cómo funciona notes → N4»): la columna `search` suma una segunda configuración, `notes_simple` (palabra entera sin acentos), para que un prefijo a medio escribir encuentre palabras cuya raíz española es más corta («comunicac» → «comunicaciones»); se busca al Enter y no mientras se escribe; los filtros de tipo y área también se aplican a la búsqueda; el fragmento lleva «…» solo donde corta el cuerpo; tope de 300 resultados por búsqueda; borrar con Retroceso deja los resultados hasta Enter.
+
+N5: el extracto de la lista muestra el nombre guardado de cada enlace (no el actual). La lista consolidada de todas las decisiones (spec y N1–N5) está en `docs/HANDOFF.md` → «Cómo funciona notes → Decisiones autónomas para revisar con el owner».

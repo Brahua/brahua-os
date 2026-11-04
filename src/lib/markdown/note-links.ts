@@ -104,6 +104,20 @@ export function parseNoteLinks(text: string): ParsedNoteLink[] {
   return links;
 }
 
+/**
+ * `text` with each well-formed link replaced by its saved name (the list's excerpt: plain text,
+ * like the search's fragment, which does the same in SQL). Anything else stays as written.
+ */
+export function noteLinksAsNames(text: string): string {
+  let result = "";
+  let from = 0;
+  for (const link of parseNoteLinks(text)) {
+    result += text.slice(from, link.start) + link.name;
+    from = link.end;
+  }
+  return result + text.slice(from);
+}
+
 /** The ids each type needs resolved for `text` (one query per type present). */
 export function noteLinkIdsByType(text: string): Map<NoteLinkType, string[]> {
   const byType = new Map<NoteLinkType, Set<string>>();

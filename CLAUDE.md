@@ -380,3 +380,38 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **A red dispatched run is read, not skipped:** after the screenshot bot commit, the dispatched run failed in
   `reminders-push` integration tests the slice never touched, and the PR run on the same head passed. Name the cause
   (here, an unrelated flake, logged in the backlog) before merging on the green one.
+
+## Lessons from `notes` (retrospective, 2026-11-03)
+
+- **Review the local commit before the single push, every cut:** a three-agent review (code, security, accessibility)
+  found blockers in all four cuts: N1's autosave stayed off after a failed delete, N2 treated a link inserted a moment
+  ago as deleted (the resolution map only knew the links the server had seen), N3 lost focus after «Deshacer» and its
+  undo trusted the line the client sent, and N4's E2E named a checkbox wrong in a spec that had never run. Each was a
+  CI round or a production bug saved.
+- **`revalidatePath` re-renders the open page:** in this Next any `revalidatePath` inside a Server Action marks the
+  response as revalidated and the page on screen renders again, whatever path was passed. An autosave revalidates
+  nothing (dynamic pages are fetched again on navigation; only Back/Forward shows the cached one).
+- **Private-use placeholders need a nonce per render:** Markdown decodes HTML character references (`&#xE010;`) into
+  the same characters, so a note could forge a fixed placeholder. Add a random nonce per render, reject the
+  placeholder characters in input, and write them only as `\uE0xx` escapes in code and tests (an invisible literal
+  slips through review, and the edit tools can turn an escape into one: grep for it).
+- **A `textarea` cannot be a combobox:** ARIA in HTML forbids `role="combobox"` on it (axe `aria-allowed-role`). It
+  stays a textbox with `aria-autocomplete="list"`, `aria-controls` while the list exists and `aria-activedescendant`;
+  the announcer says how many results there are.
+- **`DrizzleQueryError` puts the parameters in its message:** a failing query with user text logs that text through
+  Next. Wrap such reads, log `describeError` and rethrow an error without `cause` (the other page reads that pass user
+  text are in the backlog).
+- **Generated columns in Postgres 18 are virtual by default:** say `STORED` to index one. Keeping the column and its
+  index only in the SQL migration (not in `db/schema.ts`) keeps Drizzle from selecting or exporting it and
+  `pnpm db:generate` at «No schema changes»; read it by name.
+- **Spanish stemming breaks prefixes:** «comunicac» stems differently from «comunicaciones», so a half-typed word
+  missed. Index each text with an unaccented `spanish` and an unaccented `simple` configuration and OR the two prefix
+  queries; each word goes as its own parameter with `:*`, never as `tsquery` syntax.
+- **An editor adopts newer props:** a capture or a conversion changes the body from outside the editor. Compare the
+  incoming version during render: take it as saved when nothing is pending, turn it into the usual conflict when
+  something is; otherwise every outside write is a false «Cambió en otro dispositivo».
+- **An undo rebuilds on the server what it checks:** what the client derived (the original line, the task title) is
+  derived again from the rows read `FOR UPDATE`; the client only says which change to undo.
+- **Every plain-text view of the body knows the custom syntax:** the renderer, the search column and the headline
+  replaced `[[type:id|Nombre]]` by its name, but the list's excerpt did not (found only in the production
+  checkpoint). When a module adds syntax to stored text, grep every place that turns that text into plain text.
