@@ -83,6 +83,17 @@ export const NOTES_COPY = {
   editedYesterday: "Ayer",
   editedDaysAgo: (days: number) => `Hace ${days} días`,
 
+  // The search (N4).
+  searchLabel: "Buscar en notas",
+  searchSubmit: "Buscar",
+  searchClear: "Limpiar búsqueda",
+  searchResultsLabel: "Resultados de la búsqueda",
+  searchTooShort: "Escribe al menos 2 letras o números para buscar.",
+  searchNoResults: (text: string) => `Sin resultados para «${text}».`,
+  searchNoResultsFiltered: (text: string) => `Sin resultados para «${text}» con estos filtros.`,
+  searchResultCount: (count: number, more: boolean) =>
+    more ? `Más de ${count} resultados` : count === 1 ? "1 resultado" : `${count} resultados`,
+
   // «Nueva nota».
   newNoteTitle: "Nueva nota",
   newNoteText: "Ponle un título; el texto lo escribes en la nota.",

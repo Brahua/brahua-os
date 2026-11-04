@@ -38,7 +38,9 @@ const day = (value: string) => sql.raw(`'${value}'::date`);
  * N1: the notes. One table, two kinds: `daily` (one per Lima day, its title is the date) and `page`
  * (a knowledge note with a title, an optional life area and a pin). `version` grows by one on
  * every save of the body (the autosave writes only if it still holds the version it edited).
- * Soft delete (`deleted_at`, with «Deshacer»). N4 adds the generated `search` column.
+ * Soft delete (`deleted_at`, with «Deshacer»). N4's generated `search` column (tsvector) and its GIN
+ * index live only in migration 0028, never here: nothing selects or exports them (search-data.ts
+ * reads the column by name) and `db:generate` doesn't try to drop them.
  */
 export const notes = pgTable(
   "notes",

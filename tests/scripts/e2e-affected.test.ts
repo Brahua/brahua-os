@@ -236,6 +236,7 @@ describe("SPEC_MODULES against the real repository", () => {
     "today-tasks": "tasks",
     reminders: "reminders",
     "project-notes-links": "projects",
+    notes: "notes",
     areas: "core",
   };
 
@@ -280,6 +281,7 @@ describe("SPEC_MODULES against the real repository", () => {
       reminders: "reminders",
       "weekly-review": "weekly-review",
       learning: "learning",
+      notes: "notes",
     };
     const wrong = repo.specs.flatMap((spec: string) => {
       const prefix = Object.keys(own).find((p) => spec.startsWith(p));
@@ -345,6 +347,19 @@ describe("SPEC_MODULES against the real repository", () => {
         has: ["weekly-review.spec.ts"],
         hasNot: ["goals.spec.ts", "tasks.spec.ts", "habits.spec.ts", "today.spec.ts"],
       },
+    ],
+    [
+      // N4 of notes: the module and its route run notes.spec (no other module imports `notes`).
+      "src/modules/notes/search.ts",
+      {
+        e2e: "subset",
+        has: ["notes.spec.ts"],
+        hasNot: ["habits-streaks.spec.ts", "finance-summary.spec.ts"],
+      },
+    ],
+    [
+      "src/app/(app)/notes/page.tsx",
+      { e2e: "subset", has: ["notes.spec.ts"], hasNot: ["tasks.spec.ts", "learning.spec.ts"] },
     ],
     [
       "src/app/(app)/finance/page.tsx",

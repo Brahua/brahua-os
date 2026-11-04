@@ -18,3 +18,6 @@ export const DELETED_PARAM = "deleted";
 export const KIND_PARAM = "tipo";
 export const AREA_PARAM = "area";
 export const SHOWN_PARAM = "n";
+
+/** N4: the search text in the URL (`?q=`), so a reload keeps the results. */
+export const SEARCH_PARAM = "q";

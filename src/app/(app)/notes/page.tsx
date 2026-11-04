@@ -9,8 +9,15 @@ import { NotesScreen } from "@/modules/notes/components/notes-screen";
 import { getTodayNoteState } from "@/modules/notes/contracts";
 import { NOTES_COPY as COPY } from "@/modules/notes/copy";
 import { kindFromParam, shownFromParam } from "@/modules/notes/note-list";
-import { getDeletedNote, listNoteAreas, listNotes } from "@/modules/notes/queries";
-import { AREA_PARAM, DELETED_PARAM, KIND_PARAM, SHOWN_PARAM } from "@/modules/notes/routes";
+import { getDeletedNote, listNoteAreas, listNotes, searchNotes } from "@/modules/notes/queries";
+import {
+  AREA_PARAM,
+  DELETED_PARAM,
+  KIND_PARAM,
+  SEARCH_PARAM,
+  SHOWN_PARAM,
+} from "@/modules/notes/routes";
+import { searchTextFromParam, searchWords } from "@/modules/notes/search";
 
 export const metadata: Metadata = { title: `${COPY.pageTitle} · brahua-os` };
 
@@ -38,9 +45,17 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
   const areaId = areas.some((area) => area.id === wanted) ? wanted : null;
   const shown = shownFromParam(one(search[SHOWN_PARAM]));
   const deletedId = one(search[DELETED_PARAM]);
+  // N4: `?q=` searches and the results replace the list; fewer than 2 letters or numbers searches
+  // nothing and says so.
+  const query = searchTextFromParam(one(search[SEARCH_PARAM]));
+  const searching = query !== "";
+  const tooShort = searching && searchWords(query).length === 0;
   const shortcuts = areShortcutsEnabled((await cookies()).get(SHORTCUTS_COOKIE)?.value);
-  const [list, todayNote, deleted] = await Promise.all([
-    listNotes({ kind, areaId, shown }),
+  const [list, found, todayNote, deleted] = await Promise.all([
+    searching ? Promise.resolve({ items: [], more: false }) : listNotes({ kind, areaId, shown }),
+    searching && !tooShort
+      ? searchNotes({ text: query, kind, areaId, shown })
+      : Promise.resolve({ items: [], more: false }),
     getTodayNoteState(now),
     // Just deleted from its page: the undo notice needs its name (only while it is deleted).
     deletedId ? getDeletedNote(deletedId) : Promise.resolve(null),
@@ -66,6 +81,8 @@ export default async function NotesPage({ searchParams }: NotesPageProps) {
           todayHasText={todayNote.hasText}
           headingId={HEADING_ID}
           shortcuts={shortcuts}
+          query={query}
+          search={searching ? { items: found.items, more: found.more, tooShort } : null}
         />
         <NoteDeletedNotice headingId={HEADING_ID} deleted={deleted} today={today} />
       </div>

@@ -27,6 +27,7 @@ import { getTodayNoteState } from "@/modules/notes/contracts";
 import { NOTES_COPY as COPY, NOTES_ERRORS } from "@/modules/notes/copy";
 import { addDays, dailyTitle } from "@/modules/notes/note-day";
 import type { NoteArea, NoteItem, NoteListItem } from "@/modules/notes/note-input";
+import type { NoteSearchItem } from "@/modules/notes/search";
 import {
   getDailyNote,
   getDailyNoteDay,
@@ -36,6 +37,7 @@ import {
   getPageNote,
   listNoteAreas,
   listNotes,
+  searchNotes,
 } from "@/modules/notes/queries";
 import { NOTE_LINK_SOURCES } from "@/lib/note-link-sources";
 import { getDayFooterSlot } from "@/lib/note-extensions";
@@ -50,6 +52,7 @@ vi.mock("@/modules/notes/queries", () => ({
   getNoteLinkResolutions: vi.fn(),
   getLinkedFrom: vi.fn(),
   getDailyNoteDay: vi.fn(),
+  searchNotes: vi.fn(),
 }));
 // N2: the link sources' root and the picker's action (tested on their own).
 vi.mock("@/lib/note-link-sources", () => ({ NOTE_LINK_SOURCES: [] }));
@@ -148,6 +151,7 @@ beforeEach(() => {
   vi.mocked(getNoteLinkResolutions).mockReset().mockResolvedValue({});
   vi.mocked(getLinkedFrom).mockReset().mockResolvedValue([]);
   vi.mocked(getDailyNoteDay).mockReset().mockResolvedValue(null);
+  vi.mocked(searchNotes).mockReset().mockResolvedValue({ items: [], more: false });
 });
 
 const search = (params: Record<string, string> = {}) =>
@@ -656,5 +660,280 @@ describe("/notes/[key]: links (N2)", () => {
       digest: expect.stringContaining(`/notes/${YESTERDAY}`),
     });
     expect(getDailyNoteDay).toHaveBeenCalledWith(id(9));
+  });
+});
+
+function result(n: number, patch: Partial<NoteSearchItem> = {}): NoteSearchItem {
+  return {
+    ...row(n),
+    excerpt: "",
+    fragment: [
+      { text: "Las ", mark: false },
+      { text: "políticas", mark: true },
+      { text: " de IAM", mark: false },
+    ],
+    cutStart: false,
+    cutEnd: false,
+    ...patch,
+  };
+}
+
+describe("the search (N4)", () => {
+  test("?q= searches with the filters instead of reading the list", async () => {
+    vi.mocked(searchNotes).mockResolvedValue({ items: [result(1)], more: false });
+    render(await NotesPage(search({ q: "polit", tipo: "notas", area: id(902) })));
+    expect(searchNotes).toHaveBeenCalledWith({
+      text: "polit",
+      kind: "page",
+      areaId: id(902),
+      shown: 30,
+    });
+    expect(listNotes).not.toHaveBeenCalled();
+    expect(screen.getByRole("searchbox", { name: COPY.searchLabel })).toHaveValue("polit");
+    const results = screen.getByRole("list", { name: COPY.searchResultsLabel });
+    expect(within(results).getByRole("link", { name: /Nota 1/ })).toHaveAttribute(
+      "href",
+      `/notes/${id(1)}`,
+    );
+    expect(document.querySelector("[data-notes-list]")).toBeNull();
+  });
+
+  test("fewer than 2 letters or numbers searches nothing and says so", async () => {
+    render(await NotesPage(search({ q: " p & " })));
+    expect(searchNotes).not.toHaveBeenCalled();
+    expect(listNotes).not.toHaveBeenCalled();
+    expect(screen.getByText(COPY.searchTooShort)).toBeVisible();
+  });
+
+  test("a long ?q= is cut at 200 characters before searching", async () => {
+    render(await NotesPage(search({ q: "a".repeat(300) })));
+    expect(vi.mocked(searchNotes).mock.calls[0][0].text).toHaveLength(200);
+  });
+
+  test("a refused owner never searches", async () => {
+    vi.mocked(requireOwner).mockRejectedValue(new Error("NEXT_REDIRECT"));
+    await expect(NotesPage(search({ q: "polit" }))).rejects.toThrow("NEXT_REDIRECT");
+    expect(searchNotes).not.toHaveBeenCalled();
+  });
+
+  test("Enter searches: the trimmed text goes to the URL with the filters", async () => {
+    render(<List items={[row(1)]} kind="daily" />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    await userEvent.type(field, "  políticas iam {Enter}");
+    expect(router.replace).toHaveBeenLastCalledWith(
+      `/notes?${new URLSearchParams({ q: "políticas iam", tipo: "diario" })}`,
+      { scroll: false },
+    );
+  });
+
+  test("«Buscar» searches too; an empty field searches nothing", async () => {
+    render(<List items={[row(1)]} />);
+    await userEvent.click(screen.getByRole("button", { name: COPY.searchSubmit }));
+    expect(router.replace).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByRole("searchbox", { name: COPY.searchLabel }), "gim");
+    await userEvent.click(screen.getByRole("button", { name: COPY.searchSubmit }));
+    expect(router.replace).toHaveBeenLastCalledWith("/notes?q=gim", { scroll: false });
+  });
+
+  test("the results replace the list, with the found words in <mark> and text never as HTML", () => {
+    render(
+      <List
+        items={[row(9, { title: "No debe verse" })]}
+        query="polit"
+        search={{
+          items: [
+            result(1, { title: "Apuntes IAM" }),
+            result(2, {
+              kind: "daily",
+              day: YESTERDAY,
+              title: null,
+              fragment: [{ text: "<b>no es HTML</b>", mark: false }],
+            }),
+          ],
+          more: false,
+          tooShort: false,
+        }}
+      />,
+    );
+    expect(screen.queryByText("No debe verse")).toBeNull();
+    const first = screen.getByRole("link", { name: /Apuntes IAM/ });
+    const mark = first.querySelector("mark")!;
+    expect(mark).toHaveTextContent("políticas");
+    expect(mark).toHaveClass("bo-note-search-mark");
+    expect(first).toHaveTextContent("Las políticas de IAM");
+    const daily = screen.getByRole("link", { name: new RegExp(dailyTitle(YESTERDAY, TODAY)) });
+    expect(daily).toHaveAttribute("href", `/notes/${YESTERDAY}`);
+    expect(within(daily).getByText("<b>no es HTML</b>")).toBeVisible();
+    expect(daily.querySelector("b")).toBeNull();
+    // The empty states of the list don't show while searching.
+    expect(document.querySelector("[data-notes-empty]")).toBeNull();
+  });
+
+  test("a search announces how many results arrived", async () => {
+    const { rerender } = render(<List items={[row(1)]} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: COPY.searchLabel }), "polit{Enter}");
+    rerender(
+      <List
+        query="polit"
+        search={{ items: [result(1), result(2)], more: false, tooShort: false }}
+      />,
+    );
+    await waitFor(() => expect(announcer()).toHaveTextContent("2 resultados"));
+  });
+
+  test("no results: a neutral message, announced; with filters, «Quitar filtros» keeps the search", async () => {
+    const { rerender } = render(<List kind="page" />);
+    await userEvent.type(screen.getByRole("searchbox", { name: COPY.searchLabel }), "zzz{Enter}");
+    rerender(<List kind="page" query="zzz" search={{ items: [], more: false, tooShort: false }} />);
+    expect(screen.getByText(COPY.searchNoResultsFiltered("zzz"))).toBeVisible();
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.searchNoResultsFiltered("zzz")));
+    await userEvent.click(screen.getByRole("button", { name: COPY.clearFilters }));
+    expect(router.replace).toHaveBeenLastCalledWith("/notes?q=zzz", { scroll: false });
+    rerender(<List query="zzz" search={{ items: [], more: false, tooShort: false }} />);
+    expect(screen.getByText(COPY.searchNoResults("zzz"))).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("radio", { name: COPY.kindAll })).toHaveFocus());
+  });
+
+  test("a text too short is answered here, without navigating, and announced", async () => {
+    render(<List items={[row(1)]} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    await userEvent.type(field, "a b{Enter}");
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-notes-search-empty="short"]')).toHaveTextContent(
+      COPY.searchTooShort,
+    );
+    expect(document.querySelector("[data-notes-list]")).toBeNull();
+    await waitFor(() => expect(announcer()).toHaveTextContent(COPY.searchTooShort));
+    // Positive control: a real word searches (and the message leaves).
+    await userEvent.type(field, "c{Enter}");
+    expect(router.replace).toHaveBeenLastCalledWith(
+      `/notes?${new URLSearchParams({ q: "a bc" })}`,
+      { scroll: false },
+    );
+    expect(document.querySelector('[data-notes-search-empty="short"]')).toBeNull();
+  });
+
+  test("a ?q= too short (a hand-written URL) shows the same message", () => {
+    render(<List query="p" search={{ items: [], more: false, tooShort: true }} />);
+    expect(screen.getByText(COPY.searchTooShort)).toBeVisible();
+  });
+
+  test("«…» only where the fragment cuts the body, hidden from screen readers; no body: «Sin texto»", () => {
+    render(
+      <List
+        query="polit"
+        search={{
+          items: [
+            result(1, { title: "Cortada", cutStart: true, cutEnd: true }),
+            result(2, { title: "Entera" }),
+            result(3, { title: "Vacía", fragment: [] }),
+          ],
+          more: false,
+          tooShort: false,
+        }}
+      />,
+    );
+    const cut = screen.getByRole("link", { name: /Cortada/ });
+    const dots = [...cut.querySelectorAll('[aria-hidden="true"]')].filter((node) =>
+      node.textContent?.includes("…"),
+    );
+    expect(dots).toHaveLength(2);
+    expect(cut).toHaveTextContent("… Las políticas de IAM …");
+    const whole = screen.getByRole("link", { name: /Entera/ });
+    expect(whole).not.toHaveTextContent("…");
+    const empty = screen.getByRole("link", { name: /Vacía/ });
+    expect(within(empty).getByText(COPY.noText)).toBeVisible();
+  });
+
+  test("typing on before the results arrive keeps what was typed", async () => {
+    const { rerender } = render(<List items={[row(1)]} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    await userEvent.type(field, "polit{Enter}");
+    await userEvent.type(field, "icas");
+    // The answer to «polit» arrives after the owner typed on.
+    rerender(<List query="polit" search={{ items: [result(1)], more: false, tooShort: false }} />);
+    expect(field).toHaveValue("politicas");
+    // A change that doesn't come from this form (the browser's back) still moves the field.
+    rerender(<List query="gim" search={{ items: [], more: false, tooShort: false }} />);
+    expect(field).toHaveValue("gim");
+  });
+
+  test("«Limpiar búsqueda» goes back to the list and puts the focus in the field", async () => {
+    const searching = { items: [result(1)], more: false, tooShort: false };
+    const { rerender } = render(<List kind="daily" query="polit" search={searching} />);
+    await userEvent.click(screen.getByRole("button", { name: COPY.searchClear }));
+    expect(router.replace).toHaveBeenLastCalledWith("/notes?tipo=diario", { scroll: false });
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    expect(field).toHaveFocus();
+    expect(field).toHaveValue("");
+    // The server answers with the list: the field keeps the focus and the key leaves.
+    rerender(<List kind="daily" items={[row(1)]} />);
+    expect(field).toHaveFocus();
+    expect(screen.queryByRole("button", { name: COPY.searchClear })).toBeNull();
+    await waitFor(() => expect(announcer()).toHaveTextContent("1 nota"));
+  });
+
+  test("erasing the text keeps the results until Enter; an empty Enter goes back to the list", async () => {
+    render(<List query="polit" search={{ items: [result(1)], more: false, tooShort: false }} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    await userEvent.clear(field);
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("list", { name: COPY.searchResultsLabel })).toBeVisible();
+    await userEvent.type(field, "{Enter}");
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenLastCalledWith("/notes", { scroll: false });
+    expect(field).toHaveFocus();
+  });
+
+  test("the field's clear button or Esc (the native `search` event) go back to the list", async () => {
+    render(<List query="polit" search={{ items: [result(1)], more: false, tooShort: false }} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    // With text, a `search` event (Enter in Chrome) doesn't clear.
+    fireEvent(field, new Event("search"));
+    expect(router.replace).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent(field, new Event("search"));
+    // Chrome also submits on Enter: the second clear for the same search is ignored.
+    fireEvent.submit(field.closest("form")!);
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenLastCalledWith("/notes", { scroll: false });
+    expect(field).toHaveFocus();
+  });
+
+  test("the search form is a search landmark named by its field only", () => {
+    render(<List items={[row(1)]} />);
+    const form = screen.getByRole("search");
+    expect(form).not.toHaveAttribute("aria-label");
+    expect(within(form).getByRole("searchbox", { name: COPY.searchLabel })).toBeVisible();
+  });
+
+  test("the field follows the URL (the browser's back, another search)", () => {
+    const { rerender } = render(
+      <List query="polit" search={{ items: [], more: false, tooShort: false }} />,
+    );
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    expect(field).toHaveValue("polit");
+    rerender(<List query="gim" search={{ items: [], more: false, tooShort: false }} />);
+    expect(field).toHaveValue("gim");
+    rerender(<List items={[row(1)]} />);
+    expect(field).toHaveValue("");
+  });
+
+  test("filters and «Ver más» keep the search; the first new result takes the focus", async () => {
+    const firstPage = Array.from({ length: 30 }, (_, index) => result(index + 1));
+    const { rerender } = render(
+      <List query="polit" search={{ items: firstPage, more: true, tooShort: false }} />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: COPY.kindPage }));
+    expect(router.replace).toHaveBeenLastCalledWith("/notes?q=polit&tipo=notas", {
+      scroll: false,
+    });
+    await userEvent.click(screen.getByRole("button", { name: COPY.showMore }));
+    expect(router.replace).toHaveBeenLastCalledWith("/notes?q=polit&n=60", { scroll: false });
+    const more = [...firstPage, result(31, { title: "Nota nueva" })];
+    rerender(
+      <List query="polit" shown={60} search={{ items: more, more: false, tooShort: false }} />,
+    );
+    await waitFor(() => expect(screen.getByRole("link", { name: /Nota nueva/ })).toHaveFocus());
   });
 });

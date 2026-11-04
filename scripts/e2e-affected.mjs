@@ -55,6 +55,7 @@ export const SPEC_MODULES = {
   "learning.spec.ts": ["learning", "today", "projects", "tasks"],
   "home.spec.ts": ["today", "tasks", "habits", "finance", "projects"],
   "login.spec.ts": ["core"],
+  "notes.spec.ts": ["notes", "today", "projects", "tasks"],
   "passkey.spec.ts": ["core"],
   "project-dependencies.spec.ts": ["projects"],
   "project-detail.spec.ts": ["projects"],
@@ -92,6 +93,7 @@ export const ROUTE_MODULES = {
   review: "weekly-review",
   finance: "finance",
   learning: "learning",
+  notes: "notes",
   "settings/reminders": "reminders",
   "api/telegram": "reminders",
   "api/reminders": "reminders",
@@ -297,7 +299,7 @@ export function classifyFile(file, repo) {
     }
     if (rest.startsWith("settings/reminders/")) return { kind: "modules", modules: ["reminders"] };
     const route = rest.split("/")[0];
-    if (["tasks", "projects", "habits", "finance", "goals"].includes(route)) {
+    if (["tasks", "projects", "habits", "finance", "goals", "notes"].includes(route)) {
       return { kind: "modules", modules: [route], routes: [route] };
     }
     // /review belongs to `weekly-review` (its route and module ids differ).

@@ -64,6 +64,11 @@ describe("notes copy has no guilt", () => {
       NOTES_COPY.captured("Apuntes IAM"),
       NOTES_COPY.dayFooterEmpty,
       NOTES_ERRORS.changed,
+      // N4: the search.
+      NOTES_COPY.searchLabel,
+      NOTES_COPY.searchTooShort,
+      NOTES_COPY.searchNoResults("Apuntes IAM"),
+      NOTES_COPY.searchResultCount(3, true),
     ]) {
       expect(scanned).toContain(expected);
     }
