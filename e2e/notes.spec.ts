@@ -62,6 +62,8 @@ async function search(page: Page, text: string) {
 test("today's note from Hoy: write, link a project, a line becomes a task, and search it @today-tasks", async ({
   page,
 }, testInfo) => {
+  // A long flow (Hoy, the editor, three reloads, the project and the search).
+  test.slow();
   const today = ownerDateKey(new Date());
   const projectName = uniqueName("Ruta QA", testInfo);
   const projectId = await insertProject({ name: projectName });
@@ -128,10 +130,11 @@ test("today's note from Hoy: write, link a project, a line becomes a task, and s
   expect((await readDailyNote(today))?.body).toMatch(
     new RegExp(`- \\[\\[task:${task.id}\\|QA llamar\\]\\]$`),
   );
-  // The server's render names the box by the task's title.
+  // The box is named by the link's name, cleaned like every link name (`cleanNoteLinkName`: `[`, `]`
+  // and `|` become spaces), so «[QA] llamar» reads «QA llamar». The reload brings the server's render.
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-nav-shortcuts", "ready");
-  const check = page.getByRole("checkbox", { name: "Hecha: [QA] llamar" });
+  const check = page.getByRole("checkbox", { name: "Hecha: QA llamar" });
   await expect(check).toBeVisible();
   await expect(check).not.toBeChecked();
 

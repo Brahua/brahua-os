@@ -80,6 +80,8 @@ export function NotesScreen({
   const shownItems: NoteListItem[] = searching ? search.items : items;
   const shownMore = searching ? search.more : more;
   const searchInput = useRef<HTMLInputElement>(null);
+  /** A text too short was submitted: its message takes the list's place until the next search. */
+  const [shortHint, setShortHint] = useState(false);
   const filters = useRef<HTMLDivElement>(null);
   /** A filter changed: say what the new list holds once it arrives. */
   const announceResult = useRef(false);
@@ -166,8 +168,19 @@ export function NotesScreen({
       <NotesSearch
         query={query}
         inputRef={searchInput}
-        onSearch={(text) => filter(notesListUrl({ kind, areaId, q: text }))}
-        onClear={() => filter(notesListUrl({ kind, areaId }))}
+        onSearch={(text) => {
+          setShortHint(false);
+          filter(notesListUrl({ kind, areaId, q: text }));
+        }}
+        onTooShort={() => {
+          // Answered here, without a request: the same message, announced.
+          setShortHint(true);
+          announce(COPY.searchTooShort);
+        }}
+        onClear={() => {
+          setShortHint(false);
+          filter(notesListUrl({ kind, areaId }));
+        }}
       />
 
       <div ref={filters} className="flex flex-wrap items-end gap-4">
@@ -197,7 +210,11 @@ export function NotesScreen({
         </div>
       </div>
 
-      {searching ? (
+      {shortHint ? (
+        <p className="bo-text-body text-text-secondary" data-notes-search-empty="short">
+          {COPY.searchTooShort}
+        </p>
+      ) : searching ? (
         <NoteSearchResults
           query={query}
           items={search.items}
@@ -275,7 +292,7 @@ export function NotesScreen({
         </ul>
       )}
 
-      {shownMore ? (
+      {shownMore && !shortHint ? (
         <Key
           variant="ghost"
           className="w-fit"

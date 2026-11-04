@@ -12,6 +12,7 @@ import {
   prefixOperand,
   SEARCH_MAX_WORDS,
   SEARCH_QUERY_MAX_LENGTH,
+  SEARCH_WORD_PATTERN,
   searchTextFromParam,
   searchWords,
 } from "@/modules/notes/search";
@@ -28,12 +29,13 @@ describe("searchWords", () => {
     ["&", "polit & gim", ["polit", "gim"]],
     ["|", "polit|gim", ["polit", "gim"]],
     ["!", "!polit", ["polit"]],
-    [":", "polit:* gim:A", ["polit", "gim", "A"]],
-    ["'", "o'neil", ["o", "neil"]],
+    // One-letter words go when a longer one is there.
+    [":", "polit:* gim:A", ["polit", "gim"]],
+    ["'", "o'neil", ["neil"]],
     ["(", "(polit) (gim", ["polit", "gim"]],
-    ["<->", "polit <-> gim <2> x", ["polit", "gim", "2", "x"]],
+    ["<->", "polit <-> gim <2> x", ["polit", "gim"]],
     ["backslash", "polit\\gim", ["polit", "gim"]],
-    ["SQL", "x'; drop table notes; --", ["x", "drop", "table", "notes"]],
+    ["SQL", "x'; drop table notes; --", ["drop", "table", "notes"]],
     ["emoji", "🙂 polit 🎉gim", ["polit", "gim"]],
     ["underscore and dash", "snake_case kebab-case", ["snake", "case", "kebab", "case"]],
   ])("%s only split words", (_, text, words) => {
@@ -51,15 +53,28 @@ describe("searchWords", () => {
     expect(searchWords(words).at(-1)).toBe("ocho");
   });
 
-  test("fewer than 2 letters or numbers in all is no search", () => {
+  test("no word of 2 or more characters is no search («a b» too)", () => {
     expect(searchWords("")).toEqual([]);
     expect(searchWords("p")).toEqual([]);
     expect(searchWords(" & | ! : ")).toEqual([]);
     expect(searchWords("🙂🙂🙂")).toEqual([]);
-    // Two characters, even in two words, are enough.
-    expect(searchWords("p")).toEqual([]);
-    expect(searchWords("a b")).toEqual(["a", "b"]);
+    expect(searchWords("a b c")).toEqual([]);
+    // Positive control: one word of 2 is enough, and the one-letter words beside it go.
     expect(searchWords("ab")).toEqual(["ab"]);
+    expect(searchWords("a ab b")).toEqual(["ab"]);
+    expect(searchWords("y 2026")).toEqual(["2026"]);
+  });
+
+  test("the eight words are counted after the one-letter ones go", () => {
+    expect(
+      searchWords("a uno b dos c tres d cuatro e cinco f seis g siete h ocho i nueve"),
+    ).toEqual(["uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho"]);
+  });
+
+  test("every word fits the pattern search-data.ts checks", () => {
+    for (const text of ["polit & !gim", "🙂 año2026 ña", "x".repeat(300), "a'b\"c(d)e:f"]) {
+      for (const word of searchWords(text)) expect(word).toMatch(SEARCH_WORD_PATTERN);
+    }
   });
 
   test("a very long word is cut (a prefix of itself) and the text is read up to its maximum", () => {
@@ -122,8 +137,32 @@ describe("fragmentParts", () => {
     ]);
   });
 
-  test("a mark that is only Markdown or spaces disappears", () => {
-    expect(fragmentParts(`a ${O}**${C} b`)).toEqual([{ text: "a b", mark: false }]);
+  test("a mark that is only spaces disappears", () => {
+    expect(fragmentParts(`a ${O} ${C} b`)).toEqual([{ text: "a b", mark: false }]);
+  });
+
+  test("only markup goes: lone `*`, `_`, `` ` `` and `~` stay as written", () => {
+    expect(fragmentParts("snake_case y 2 * 3 y ~5 y a`b")).toEqual([
+      { text: "snake_case y 2 * 3 y ~5 y a`b", mark: false },
+    ]);
+    // A fragment cut inside an emphasis keeps the half it has.
+    expect(fragmentParts(`${O}políticas${C}** de IAM`)).toEqual([
+      { text: "políticas", mark: true },
+      { text: "** de IAM", mark: false },
+    ]);
+    expect(fragmentParts("*una* _dos_ __tres__ ~~cuatro~~ `cinco`")).toEqual([
+      { text: "una dos tres cuatro cinco", mark: false },
+    ]);
+  });
+
+  test("a Markdown link or image shows only its text", () => {
+    expect(
+      fragmentParts(`ver [la ${O}guía${C}](https://example.org/a_b) y ![foto](x.png)`),
+    ).toEqual([
+      { text: "ver la ", mark: false },
+      { text: "guía", mark: true },
+      { text: " y foto", mark: false },
+    ]);
   });
 
   test("text that looks like HTML stays text", () => {

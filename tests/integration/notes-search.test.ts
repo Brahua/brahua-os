@@ -15,7 +15,12 @@ import { seed } from "@/modules/core/seed";
 import { saveNote } from "@/modules/notes/actions";
 import { notes } from "@/modules/notes/db/schema";
 import { searchNotes } from "@/modules/notes/queries";
-import { HEADLINE_CLOSE, HEADLINE_OPEN, searchWords } from "@/modules/notes/search";
+import {
+  HEADLINE_CLOSE,
+  HEADLINE_OPEN,
+  SEARCH_MAX_SHOWN,
+  searchWords,
+} from "@/modules/notes/search";
 import { selectNoteSearch, wordsQuery } from "@/modules/notes/search-data";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
@@ -179,6 +184,49 @@ describe("order and paging", () => {
     expect(all.more).toBe(false);
   });
 
+  test("never more than SEARCH_MAX_SHOWN results, whatever `shown` asks, and no «más» past it", async () => {
+    await testDb.execute(sql`
+      insert into notes (kind, title, body)
+      select 'page', 'Nota ' || n, 'Ansible en el servidor ' || n
+      from generate_series(1, ${SEARCH_MAX_SHOWN + 5}) as n
+    `);
+    const capped = await search("ansible", { shown: 3_000 });
+    expect(capped.items).toHaveLength(SEARCH_MAX_SHOWN);
+    expect(capped.more).toBe(false);
+    // Positive control: under the cap, there are more.
+    expect((await search("ansible", { shown: 30 })).more).toBe(true);
+  });
+
+  test("the search runs in its own transaction with a statement timeout that doesn't leak", async () => {
+    await page("Viva", "Docker en casa.");
+    const original = testDb.transaction.bind(testDb);
+    const executed: string[] = [];
+    const dialect = new PgDialect();
+    // The real transaction, watching what it executes.
+    const transaction = vi.spyOn(testDb, "transaction").mockImplementation(((
+      run: (tx: Parameters<Parameters<typeof original>[0]>[0]) => Promise<unknown>,
+    ) =>
+      original(async (tx) => {
+        const execute = tx.execute.bind(tx);
+        tx.execute = ((query: Parameters<typeof execute>[0]) => {
+          executed.push(dialect.sqlToQuery(query as never).sql);
+          return execute(query);
+        }) as typeof tx.execute;
+        return run(tx);
+      })) as never);
+    try {
+      expect(await ids("docker")).toHaveLength(1);
+      expect(transaction).toHaveBeenCalledTimes(1);
+      expect(executed).toContain("set local statement_timeout = '5s'");
+    } finally {
+      transaction.mockRestore();
+    }
+    const { rows } = await testDb.execute<{ statement_timeout: string }>(
+      sql`show statement_timeout`,
+    );
+    expect(rows[0].statement_timeout).toBe("0");
+  });
+
   test("the list's kind and area filters apply to the search", async () => {
     const [area] = await testDb
       .select({ id: lifeAreas.id })
@@ -310,10 +358,38 @@ describe("the fragment", () => {
     const [item] = (await search("kubern")).items;
     expect(item.fragment.map((part) => part.text).join("")).toContain("Apuntes del curso");
     expect(item.fragment.some((part) => part.mark)).toBe(false);
+    expect(item).toMatchObject({ cutStart: false, cutEnd: false });
     // An empty body: no fragment at all.
     await testDb.update(notes).set({ body: "" });
     const [empty] = (await search("kubern")).items;
     expect(empty.fragment).toEqual([]);
+    expect(empty).toMatchObject({ cutStart: false, cutEnd: false });
+  });
+
+  test("«…» only where the fragment leaves words out at the start or the end of the body", async () => {
+    const long = (word: string) =>
+      `Una nota muy larga que empieza con muchas palabras antes de llegar a lo importante, pero sigue y sigue con texto de relleno hasta que aparece ${word} de la cuenta y luego más texto todavía para ver el corte final del fragmento.`;
+    await page("Larga", long("kubernetes"));
+    const [middle] = (await search("kubernetes")).items;
+    expect(middle).toMatchObject({ cutStart: true, cutEnd: true });
+    // The start of the body: no «…» before; only punctuation left out after: none after either.
+    await page("Corta", "Terraform en casa.");
+    const [whole] = (await search("terraform")).items;
+    expect(whole).toMatchObject({ cutStart: false, cutEnd: false });
+    await page("Inicio", `Ansible ${long("algo")}`);
+    const [start] = (await search("ansible")).items;
+    expect(start).toMatchObject({ cutStart: false, cutEnd: true });
+  });
+
+  test("a Markdown link shows its text; lone `*` and `_` stay", async () => {
+    await page("Enlaces", "Ver [la guía de docker](https://example.org/a_b) y snake_case y 2 * 3.");
+    const [item] = (await search("docker")).items;
+    const text = item.fragment.map((part) => part.text).join("");
+    // ts_headline picks a short window around the match: the link text, never its URL.
+    expect(text).toContain("guía de docker y snake_case");
+    expect(text).not.toContain("](");
+    expect(item.cutStart).toBe(true);
+    expect(text).not.toContain("example.org");
   });
 });
 
@@ -362,7 +438,7 @@ describe("authorization", () => {
   });
 
   test("the data function with no words returns nothing without a query", async () => {
-    const spy = vi.spyOn(testDb, "select");
+    const spy = vi.spyOn(testDb, "transaction");
     try {
       expect(
         await selectNoteSearch(testDb, { words: [], kind: "all", areaId: null, limit: 30 }),
@@ -372,4 +448,26 @@ describe("authorization", () => {
       spy.mockRestore();
     }
   });
+
+  test.each([["polit:*"], ["a & b"], ["x".repeat(51)], [""], ["polit'"]])(
+    "a word that isn't letters and numbers (%s) throws, without the text, before any query",
+    async (word) => {
+      const spy = vi.spyOn(testDb, "transaction");
+      try {
+        const error = await selectNoteSearch(testDb, {
+          words: ["polit", word],
+          kind: "all",
+          areaId: null,
+          limit: 30,
+        }).then(
+          () => null,
+          (thrown: unknown) => thrown as Error,
+        );
+        expect(error?.message).toBe("notes_search_invalid_words");
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 });

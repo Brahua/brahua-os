@@ -3,13 +3,14 @@ import "server-only";
 import { cache } from "react";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
+import { describeError } from "@/lib/describe-error";
 import { getDb } from "@/lib/db";
 import type { NoteLinkResolutions } from "@/lib/markdown/note-links";
 import { ownerDateKey } from "@/lib/time";
 import { listLifeAreas } from "@/modules/core/queries";
 import type { NoteLinkSource } from "./contracts";
 import { resolveLinks, selectLinkingNotes, type LinkingNote } from "./links";
-import { searchWords, type NoteSearchItem } from "./search";
+import { SEARCH_MAX_SHOWN, searchWords, type NoteSearchItem } from "./search";
 import { selectNoteSearch } from "./search-data";
 import type { DeletedNote, NoteArea, NoteItem, NoteKindFilter, NoteListItem } from "./note-input";
 import {
@@ -21,6 +22,8 @@ import {
 } from "./notes";
 
 const noteId = z.uuid();
+/** Any uuid (an area id from the URL), not tied to notes. */
+const uuid = z.uuid();
 
 /** The list: `shown` notes of the kind and area asked for, and whether there are more. */
 export async function listNotes(filter: {
@@ -107,11 +110,17 @@ export async function searchNotes(filter: {
   const words = searchWords(filter.text);
   if (words.length === 0) return { items: [], more: false };
   const areaId =
-    filter.areaId !== null && noteId.safeParse(filter.areaId).success ? filter.areaId : null;
-  return selectNoteSearch(getDb(), {
-    words,
-    kind: filter.kind,
-    areaId,
-    limit: filter.shown,
-  });
+    filter.areaId !== null && uuid.safeParse(filter.areaId).success ? filter.areaId : null;
+  // Each row costs a `ts_headline`: never more than SEARCH_MAX_SHOWN, whatever `?n=` says (and no
+  // «Ver más» past it: it would ask for the same rows again).
+  const limit = Math.min(filter.shown, SEARCH_MAX_SHOWN);
+  try {
+    const found = await selectNoteSearch(getDb(), { words, kind: filter.kind, areaId, limit });
+    return { items: found.items, more: found.more && limit < SEARCH_MAX_SHOWN };
+  } catch (error) {
+    // Drizzle's error carries the query's parameters (the words searched): the log gets only the
+    // error's name and code, and the page a new error without `cause` (CLAUDE.md, «Secrets»).
+    console.error("notes_search_failed", describeError(error));
+    throw new Error("notes_search_failed");
+  }
 }

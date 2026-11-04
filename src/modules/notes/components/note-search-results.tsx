@@ -89,11 +89,18 @@ export function NoteSearchResults({
               data-note-result={item.id}
             >
               <span className="bo-text-body-strong truncate">{name}</span>
-              {item.fragment.length > 0 ? (
-                <span className="bo-text-body-sm break-words text-text-secondary">
-                  <SearchFragment parts={item.fragment} />
-                </span>
-              ) : null}
+              <span className="bo-text-body-sm break-words text-text-secondary">
+                {item.fragment.length > 0 ? (
+                  <>
+                    {/* «…» only where the fragment really leaves text out; screen readers skip it. */}
+                    {item.cutStart ? <span aria-hidden="true">… </span> : null}
+                    <SearchFragment parts={item.fragment} />
+                    {item.cutEnd ? <span aria-hidden="true"> …</span> : null}
+                  </>
+                ) : (
+                  COPY.noText
+                )}
+              </span>
               <span className="bo-text-label flex flex-wrap items-center gap-x-3 gap-y-1 text-text-secondary">
                 {item.pinned ? (
                   <span className="inline-flex items-center gap-1">

@@ -672,6 +672,8 @@ function result(n: number, patch: Partial<NoteSearchItem> = {}): NoteSearchItem 
       { text: "políticas", mark: true },
       { text: " de IAM", mark: false },
     ],
+    cutStart: false,
+    cutEnd: false,
     ...patch,
   };
 }
@@ -792,12 +794,68 @@ describe("the search (N4)", () => {
     await waitFor(() => expect(screen.getByRole("radio", { name: COPY.kindAll })).toHaveFocus());
   });
 
-  test("a text too short is announced", async () => {
-    const { rerender } = render(<List items={[row(1)]} />);
-    await userEvent.type(screen.getByRole("searchbox", { name: COPY.searchLabel }), "p{Enter}");
-    rerender(<List query="p" search={{ items: [], more: false, tooShort: true }} />);
-    expect(screen.getByText(COPY.searchTooShort)).toBeVisible();
+  test("a text too short is answered here, without navigating, and announced", async () => {
+    render(<List items={[row(1)]} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    await userEvent.type(field, "a b{Enter}");
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-notes-search-empty="short"]')).toHaveTextContent(
+      COPY.searchTooShort,
+    );
+    expect(document.querySelector("[data-notes-list]")).toBeNull();
     await waitFor(() => expect(announcer()).toHaveTextContent(COPY.searchTooShort));
+    // Positive control: a real word searches (and the message leaves).
+    await userEvent.type(field, "c{Enter}");
+    expect(router.replace).toHaveBeenLastCalledWith(
+      `/notes?${new URLSearchParams({ q: "a bc" })}`,
+      { scroll: false },
+    );
+    expect(document.querySelector('[data-notes-search-empty="short"]')).toBeNull();
+  });
+
+  test("a ?q= too short (a hand-written URL) shows the same message", () => {
+    render(<List query="p" search={{ items: [], more: false, tooShort: true }} />);
+    expect(screen.getByText(COPY.searchTooShort)).toBeVisible();
+  });
+
+  test("«…» only where the fragment cuts the body, hidden from screen readers; no body: «Sin texto»", () => {
+    render(
+      <List
+        query="polit"
+        search={{
+          items: [
+            result(1, { title: "Cortada", cutStart: true, cutEnd: true }),
+            result(2, { title: "Entera" }),
+            result(3, { title: "Vacía", fragment: [] }),
+          ],
+          more: false,
+          tooShort: false,
+        }}
+      />,
+    );
+    const cut = screen.getByRole("link", { name: /Cortada/ });
+    const dots = [...cut.querySelectorAll('[aria-hidden="true"]')].filter((node) =>
+      node.textContent?.includes("…"),
+    );
+    expect(dots).toHaveLength(2);
+    expect(cut).toHaveTextContent("… Las políticas de IAM …");
+    const whole = screen.getByRole("link", { name: /Entera/ });
+    expect(whole).not.toHaveTextContent("…");
+    const empty = screen.getByRole("link", { name: /Vacía/ });
+    expect(within(empty).getByText(COPY.noText)).toBeVisible();
+  });
+
+  test("typing on before the results arrive keeps what was typed", async () => {
+    const { rerender } = render(<List items={[row(1)]} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    await userEvent.type(field, "polit{Enter}");
+    await userEvent.type(field, "icas");
+    // The answer to «polit» arrives after the owner typed on.
+    rerender(<List query="polit" search={{ items: [result(1)], more: false, tooShort: false }} />);
+    expect(field).toHaveValue("politicas");
+    // A change that doesn't come from this form (the browser's back) still moves the field.
+    rerender(<List query="gim" search={{ items: [], more: false, tooShort: false }} />);
+    expect(field).toHaveValue("gim");
   });
 
   test("«Limpiar búsqueda» goes back to the list and puts the focus in the field", async () => {
@@ -815,12 +873,38 @@ describe("the search (N4)", () => {
     await waitFor(() => expect(announcer()).toHaveTextContent("1 nota"));
   });
 
-  test("emptying the field while searching goes back to the list (the focus stays)", async () => {
+  test("erasing the text keeps the results until Enter; an empty Enter goes back to the list", async () => {
     render(<List query="polit" search={{ items: [result(1)], more: false, tooShort: false }} />);
     const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
     await userEvent.clear(field);
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("list", { name: COPY.searchResultsLabel })).toBeVisible();
+    await userEvent.type(field, "{Enter}");
+    expect(router.replace).toHaveBeenCalledTimes(1);
     expect(router.replace).toHaveBeenLastCalledWith("/notes", { scroll: false });
     expect(field).toHaveFocus();
+  });
+
+  test("the field's clear button or Esc (the native `search` event) go back to the list", async () => {
+    render(<List query="polit" search={{ items: [result(1)], more: false, tooShort: false }} />);
+    const field = screen.getByRole("searchbox", { name: COPY.searchLabel });
+    // With text, a `search` event (Enter in Chrome) doesn't clear.
+    fireEvent(field, new Event("search"));
+    expect(router.replace).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent(field, new Event("search"));
+    // Chrome also submits on Enter: the second clear for the same search is ignored.
+    fireEvent.submit(field.closest("form")!);
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenLastCalledWith("/notes", { scroll: false });
+    expect(field).toHaveFocus();
+  });
+
+  test("the search form is a search landmark named by its field only", () => {
+    render(<List items={[row(1)]} />);
+    const form = screen.getByRole("search");
+    expect(form).not.toHaveAttribute("aria-label");
+    expect(within(form).getByRole("searchbox", { name: COPY.searchLabel })).toBeVisible();
   });
 
   test("the field follows the URL (the browser's back, another search)", () => {

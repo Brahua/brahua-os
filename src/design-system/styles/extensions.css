@@ -402,8 +402,13 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
 @media (forced-colors: active) { .bo-note-link-option[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; } }
 .bo-note-link-picker { max-height: min(40vh, var(--bo-link-picker-max, 40vh)); overflow-y: auto; overscroll-behavior: contain; border-radius: var(--radius-xl); }
 
-/* notes N4: the words a search found, inside a result's fragment. Not by color alone: the text color
-   (stronger than the fragment's secondary text), weight and a signal underline; forced colors use
-   the system Mark colors. */
-.bo-note-search-mark { background: transparent; color: var(--color-text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--color-signal); text-decoration-thickness: 2px; text-underline-offset: 2px; }
+/* notes N4: the words a search found, inside a result's fragment. Not by color alone: a faint token
+   background (surface-pressed), the text color (stronger than the fragment's secondary text) and
+   weight 600. Text on it: 15.2:1 dark (#F2F2F0 on #1C1C1C), 15.7:1 light (#0A0A0A on #E6E5E0).
+   Forced colors use the system Mark colors. */
+.bo-note-search-mark { background: var(--color-surface-pressed); color: var(--color-text); font-weight: 600; border-radius: 2px; padding-inline: 1px; }
 @media (forced-colors: active) { .bo-note-search-mark { background: Mark; color: MarkText; } }
+/* The search field: no Safari search styling (rounded inset, magnifier decoration); the native
+   clear button stays (it clears the search through the `search` event). */
+.bo-field__control[type="search"] { -webkit-appearance: none; appearance: none; }
+.bo-field__control[type="search"]::-webkit-search-decoration { -webkit-appearance: none; display: none; }
