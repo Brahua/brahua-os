@@ -30,5 +30,10 @@ export const NOTE_LINK_OPEN_MAX_LENGTH = 40;
 /** The picker searches this long after the last key press. */
 export const NOTE_LINK_SEARCH_DELAY_MS = 150;
 
+/** The quick capture's «Nota»: one line of text (SPEC-notes "Captura «Nota»"). */
+export const NOTE_CAPTURE_MAX_LENGTH = 500;
+/** The task items of a note an action may name by index (a bound, not a real limit). */
+export const NOTE_TASK_ITEMS_MAX = 10_000;
+
 /** The autosave runs this long after the last key press. */
 export const NOTE_SAVE_DELAY_MS = 1_000;

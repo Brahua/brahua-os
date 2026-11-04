@@ -2,7 +2,7 @@
 // `*copy.ts` file of the module (later cuts add theirs: the glob picks them up) and what their
 // functions return. A positive control proves the scan can fail.
 import { describe, expect, test } from "vitest";
-import { NOTES_COPY } from "@/modules/notes/copy";
+import { dayFooterText, NOTES_COPY, NOTES_ERRORS } from "@/modules/notes/copy";
 
 const FORBIDDEN = [
   "atrasad",
@@ -59,9 +59,22 @@ describe("notes copy has no guilt", () => {
       NOTES_COPY.conflictTitle,
       NOTES_COPY.unsaved("Apuntes IAM"),
       "Seguir la nota de hoy",
+      // N3: the line → task, the capture and «Ese día».
+      NOTES_COPY.convert,
+      NOTES_COPY.captured("Apuntes IAM"),
+      NOTES_COPY.dayFooterEmpty,
+      NOTES_ERRORS.changed,
     ]) {
       expect(scanned).toContain(expected);
     }
+  });
+
+  test("N3: «Ese día» never counts what was missing, whatever the numbers", () => {
+    const lines = [0, 1, 2, 7].flatMap((tasks) =>
+      [0, 1, 3].map((habits) => dayFooterText(tasks, habits)),
+    );
+    expect(offenders(lines.map((line) => ["dayFooterText", line]))).toEqual([]);
+    for (const line of lines) expect(line).not.toMatch(/falt|sin hacer|de \d|pendiente/i);
   });
 
   test("no string says «atrasado», «fallaste», «deuda» or the like", () => {

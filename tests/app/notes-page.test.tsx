@@ -38,6 +38,7 @@ import {
   listNotes,
 } from "@/modules/notes/queries";
 import { NOTE_LINK_SOURCES } from "@/lib/note-link-sources";
+import { getDayFooterSlot } from "@/lib/note-extensions";
 
 vi.mock("@/lib/auth", () => ({ requireOwner: vi.fn() }));
 vi.mock("@/modules/notes/queries", () => ({
@@ -54,6 +55,16 @@ vi.mock("@/modules/notes/queries", () => ({
 vi.mock("@/lib/note-link-sources", () => ({ NOTE_LINK_SOURCES: [] }));
 vi.mock("@/lib/note-link-actions", () => ({ searchNoteLinks: vi.fn() }));
 vi.mock("@/modules/notes/contracts", () => ({ getTodayNoteState: vi.fn() }));
+// N3: the footer's root and the line controls' actions (tested on their own).
+vi.mock("@/lib/note-extensions", () => ({
+  getDayFooterSlot: vi.fn(async (day: string) => <p data-day-footer={day}>Ese día</p>),
+}));
+vi.mock("@/lib/note-task-actions", () => ({
+  convertNoteLineToTask: vi.fn(),
+  undoNoteLineToTask: vi.fn(),
+  completeNoteTask: vi.fn(),
+  reopenNoteTask: vi.fn(),
+}));
 vi.mock("@/modules/notes/actions", () => ({
   saveDailyNote: vi.fn(),
   saveNote: vi.fn(),
@@ -598,6 +609,45 @@ describe("/notes/[key]: links (N2)", () => {
     render(await NotePage(keyParams(TODAY)));
     expect(getLinkedFrom).not.toHaveBeenCalled();
     expect(screen.queryByRole("region", { name: COPY.linkedFromTitle })).toBeNull();
+  });
+
+  test("N3: a daily page ends with «Ese día» (read for its day, with or without a note); a knowledge note has none", async () => {
+    const { container, unmount } = render(await NotePage(keyParams(YESTERDAY)));
+    expect(getDayFooterSlot).toHaveBeenCalledWith(YESTERDAY);
+    expect(container.querySelector(`[data-day-footer="${YESTERDAY}"]`)).not.toBeNull();
+    unmount();
+
+    vi.mocked(getDayFooterSlot).mockClear();
+    vi.mocked(getPageNote).mockResolvedValue(PAGE);
+    const page = render(await NotePage(keyParams(id(1))));
+    expect(getDayFooterSlot).not.toHaveBeenCalled();
+    expect(page.container.querySelector("[data-day-footer]")).toBeNull();
+  });
+
+  test("N3: the server render draws «Convertir en tarea» and the task's real checkbox", async () => {
+    const task = id(720);
+    vi.mocked(getDailyNote).mockResolvedValue({
+      ...PAGE,
+      kind: "daily",
+      day: YESTERDAY,
+      title: null,
+      body: `- [ ] Llamar al banco\n- [[task:${task}|Pagar luz]]`,
+    });
+    vi.mocked(getNoteLinkResolutions).mockResolvedValue({
+      [`task:${task}`]: {
+        name: "Pagar la luz",
+        href: `/tasks/${task}`,
+        deleted: false,
+        done: true,
+      },
+    });
+    render(await NotePage(keyParams(YESTERDAY)));
+    expect(
+      screen.getByRole("button", { name: COPY.convertLabel("Llamar al banco") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: COPY.taskDoneLabel("Pagar la luz") }),
+    ).toBeChecked();
   });
 
   test("a daily note's id (a link drawn without resolution) opens its day", async () => {

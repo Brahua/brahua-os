@@ -16,6 +16,7 @@
 import "./markdown.css";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { Children, isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -31,13 +32,36 @@ import {
 import {
   isNoteLinkHref,
   isNoteLinkType,
+  noteLinkKey,
+  noteLinkView,
   remarkNoteLinks,
   tokenizeNoteLinks,
   type NoteLinkResolutions,
+  type TokenizedNoteLinks,
   type UnknownNoteLinks,
 } from "./note-links";
+import {
+  hasPlaceholderCharacters,
+  remarkTaskItems,
+  type LinkedTaskState,
+  type TaskItemMark,
+} from "./task-items";
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+
+/**
+ * What the notes draw next to task list items (SPEC-notes "Línea → tarea", "Casilla de tarea").
+ * Without it (projects' and tasks' notes) the items render as before, read-only.
+ */
+export type MarkdownTaskItems = {
+  /**
+   * After the text of an unchecked item that can become a task (before its sublist, if it has
+   * one): its index among the task items, its text as written and as plain words.
+   */
+  open?: (item: { index: number; text: string; plain: string }) => ReactNode;
+  /** Before an item that starts with a `[[task:…]]` link (a task that is gone gets nothing). */
+  linked?: (item: { id: string; name: string; done: boolean | null }) => ReactNode;
+};
 
 export type MarkdownProps = {
   /** Markdown source (untrusted). */
@@ -59,6 +83,8 @@ export type MarkdownProps = {
    * editor's text: a link just inserted shows its saved name).
    */
   unknownNoteLinks?: UnknownNoteLinks;
+  /** The notes' controls on task list items (see `MarkdownTaskItems`). */
+  taskItems?: MarkdownTaskItems;
 };
 
 const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
@@ -190,6 +216,70 @@ const PLUGINS = {
   },
 } satisfies Partial<Options>;
 
+/**
+ * The `li` of a render with task item controls: the mark the plugin left (`data-md-item`) says
+ * which control goes in it. `marks` is filled while parsing, before any `li` renders.
+ */
+function taskItemComponents(
+  marks: readonly TaskItemMark[],
+  renderers: MarkdownTaskItems,
+): Partial<Components> {
+  return {
+    li({ children, className, ...props }) {
+      const { "data-md-item": raw, ...rest } = domProps(props) as Record<string, unknown>;
+      const mark = typeof raw === "string" ? marks[Number(raw)] : undefined;
+      if (mark?.kind === "open") {
+        // Right after the item's own text: before its sublist, if it has one.
+        const parts = Children.toArray(children);
+        const sublist = parts.findIndex(
+          (part) => isValidElement(part) && (part.type === "ul" || part.type === "ol"),
+        );
+        const at = sublist === -1 ? parts.length : sublist;
+        const control = renderers.open?.({ index: mark.index, text: mark.text, plain: mark.plain });
+        return (
+          <li {...rest} className={className}>
+            {parts.slice(0, at)}
+            {control}
+            {parts.slice(at)}
+          </li>
+        );
+      }
+      if (mark?.kind === "linked") {
+        return (
+          <li
+            {...rest}
+            className={cn("bo-md-task-linked", mark.gone && "is-gone", className)}
+            data-md-task={mark.id}
+          >
+            {mark.gone
+              ? null
+              : renderers.linked?.({ id: mark.id, name: mark.name, done: mark.done })}
+            {children}
+          </li>
+        );
+      }
+      return (
+        <li {...rest} className={className}>
+          {children}
+        </li>
+      );
+    },
+  };
+}
+
+/** How a task link at the start of an item reads now (its checkbox needs the state). */
+function linkedTaskState(
+  link: TokenizedNoteLinks["links"][number],
+  resolutions: NoteLinkResolutions | undefined,
+  unknown: UnknownNoteLinks,
+): LinkedTaskState {
+  const view = noteLinkView(link, resolutions, unknown);
+  if (view.kind === "gone") return { name: link.name, done: null, gone: true };
+  const key = noteLinkKey(link.type, link.id);
+  const resolved = resolutions && Object.hasOwn(resolutions, key) ? resolutions[key] : undefined;
+  return { name: view.name, done: resolved?.done ?? null, gone: false };
+}
+
 /** Renders untrusted Markdown (GFM) as sanitized, design-system styled HTML. */
 export function Markdown({
   children,
@@ -197,16 +287,34 @@ export function Markdown({
   className,
   noteLinks,
   unknownNoteLinks = "saved",
+  taskItems,
 }: MarkdownProps) {
   // A new nonce on every render (the placeholders never reach the output).
   const tokens = tokenizeNoteLinks(children);
   const linkOptions = { tokens, resolutions: noteLinks, unknown: unknownNoteLinks };
+  // The notes' task item controls: marked by a plugin that runs before the links are put back.
+  const marks: TaskItemMark[] = [];
+  const taskOptions = {
+    tokens,
+    convertible: !hasPlaceholderCharacters(children),
+    describe: (link: TokenizedNoteLinks["links"][number]) =>
+      linkedTaskState(link, noteLinks, unknownNoteLinks),
+    marks,
+  };
   return (
     <div className={cn("bo-markdown", className)}>
       <ReactMarkdown
         {...PLUGINS}
-        remarkPlugins={[remarkGfm, [remarkNoteLinks, linkOptions]]}
-        components={{ ...BASE_COMPONENTS, ...headingComponents(headingOffset) }}
+        remarkPlugins={
+          taskItems
+            ? [remarkGfm, [remarkTaskItems, taskOptions], [remarkNoteLinks, linkOptions]]
+            : [remarkGfm, [remarkNoteLinks, linkOptions]]
+        }
+        components={{
+          ...BASE_COMPONENTS,
+          ...headingComponents(headingOffset),
+          ...(taskItems ? taskItemComponents(marks, taskItems) : {}),
+        }}
       >
         {tokens.source}
       </ReactMarkdown>

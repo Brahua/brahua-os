@@ -1,7 +1,11 @@
 // Copy of `notes` (SPEC-notes "Pantallas"), in Spanish. Client-safe. No guilt (SPEC-notes "Tono"):
 // never «atrasado», «fallaste» or «deuda»; tests/modules/notes-copy.test.ts scans every string of
 // the module's `*copy.ts` files.
-import { NOTE_BODY_MAX_LENGTH, NOTE_TITLE_MAX_LENGTH } from "./note-constants";
+import {
+  NOTE_BODY_MAX_LENGTH,
+  NOTE_CAPTURE_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+} from "./note-constants";
 
 const formatCount = (n: number) => n.toLocaleString("es");
 
@@ -14,6 +18,7 @@ export const NOTES_ERRORS = {
     control:
       "Quita los caracteres de control del texto (solo se permiten saltos de línea y tabulaciones).",
     bidi: "Quita los caracteres invisibles que cambian el sentido del texto (marcas bidireccionales).",
+    placeholder: "Quita los caracteres invisibles de uso privado del texto.",
   },
   day: "Elige hoy o un día anterior.",
   version: "La petición no es válida. Recarga la página e inténtalo de nuevo.",
@@ -21,9 +26,31 @@ export const NOTES_ERRORS = {
   areaUnavailable: "Esa área ya no está disponible. Elige otra o ninguna.",
   notFound: "Esta nota ya no existe (se eliminó).",
   dayTaken: "Ya hay otra nota de ese día: ábrela desde la lista.",
+
+  // N3: a line turned into a task, and the quick capture.
+  changed:
+    "Cambió mientras tanto: la nota ya no es la que se veía. Revísala y vuelve a intentarlo.",
+  lineTooLong:
+    "Esa línea es más larga que el título de una tarea (200 caracteres). Acórtala y vuelve a intentarlo.",
+  lineInvisible: "Quita los caracteres invisibles o de control de esa línea.",
+  lineEmpty: "Esa línea no tiene texto para la tarea.",
+  bodyFull: `La nota llegó a su límite de ${formatCount(NOTE_BODY_MAX_LENGTH)} caracteres: no cabe más texto.`,
+  taskChanged: "La tarea ya cambió (se editó o se marcó), así que se queda como está.",
+  captureEmpty: "Escribe algo para añadir.",
+  captureTooLong: `Usa ${formatCount(NOTE_CAPTURE_MAX_LENGTH)} caracteres como máximo.`,
+  captureInvisible: "Quita los caracteres invisibles o de control del texto.",
 } as const;
 
-export type NoteFailure = "notFound" | "areaUnavailable" | "dayTaken";
+export type NoteFailure =
+  | "notFound"
+  | "areaUnavailable"
+  | "dayTaken"
+  | "changed"
+  | "lineTooLong"
+  | "lineInvisible"
+  | "lineEmpty"
+  | "bodyFull"
+  | "taskChanged";
 
 export const NOTES_COPY = {
   pageTitle: "Notas",
@@ -178,6 +205,39 @@ export const NOTES_COPY = {
   mentionedInTitle: (count: number) =>
     count === 1 ? "Aparece en 1 nota" : `Aparece en ${count} notas`,
 
+  // N3: a line turned into a task.
+  convert: "Convertir en tarea",
+  /** The key's accessible name: its visible text first (WCAG 2.5.3), then the line. */
+  convertLabel: (text: string) => `Convertir en tarea: ${text}`,
+  convertedTitle: "Tarea creada",
+  converted: (title: string) => `«${title}» quedó en la bandeja.`,
+  convertUndone: (title: string) => `«${title}» volvió a ser una línea de la nota.`,
+  notConverted: "No se convirtió en tarea.",
+  // The live checkbox of a `[[task:…]]` item.
+  taskDoneLabel: (name: string) => `Hecha: ${name}`,
+  taskDoneTitle: "Tarea hecha",
+  notToggled: "No se cambió la tarea.",
+
+  // N3: the quick capture «Nota» (its switch label, «Nota», is written in capture-provider.tsx).
+  captureTitle: "Nota de hoy",
+  captureTextLabel: "¿Qué quieres anotar?",
+  captureTextHelp: "Se añade al final de la nota de hoy, con la hora.",
+  captureAdd: "Añadir a la nota de hoy",
+  captureAdding: "Añadiendo…",
+  captureAddingStatus: "Añadiendo a la nota de hoy…",
+  captureClose: "Cerrar",
+  /** What was added, cut at 60 characters with «…». */
+  captured: (text: string) =>
+    `Se añadió «${text.length > 60 ? `${text.slice(0, 59).trimEnd()}…` : text}» a la nota de hoy.`,
+  captureUndone: "Se quitó de la nota de hoy.",
+
+  // N3: «Ese día», the daily note's footer.
+  dayFooterTitle: "Ese día",
+  dayFooterTasks: (count: number) => (count === 1 ? "1 tarea hecha" : `${count} tareas hechas`),
+  dayFooterHabits: (count: number) =>
+    count === 1 ? "1 hábito cumplido" : `${count} hábitos cumplidos`,
+  dayFooterEmpty: "Sin registros ese día",
+
   // Not found.
   notFoundTitle: "Nota no encontrada · brahua-os",
   notFoundLcd: "SIN NOTA",
@@ -189,4 +249,16 @@ export const NOTES_COPY = {
 /** «Nota de hoy» or, when today's note has text, «Seguir la nota de hoy». */
 export function todayNoteLabel(hasText: boolean): string {
   return hasText ? NOTES_COPY.continueTodayNote : NOTES_COPY.todayNote;
+}
+
+/**
+ * «Ese día»'s line (SPEC-notes "Pie"): «4 tareas hechas · 3 hábitos cumplidos», leaving out a part
+ * at 0, and «Sin registros ese día» when both are. Never what was missing.
+ */
+export function dayFooterText(tasksDone: number, habitsDone: number): string {
+  const parts = [
+    tasksDone > 0 ? NOTES_COPY.dayFooterTasks(tasksDone) : null,
+    habitsDone > 0 ? NOTES_COPY.dayFooterHabits(habitsDone) : null,
+  ].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : NOTES_COPY.dayFooterEmpty;
 }

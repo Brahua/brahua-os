@@ -338,8 +338,9 @@ const LEARNING_ONLY_CORE_AND_CONTRACTS = {
 };
 // `notes` (SPEC-notes "Contratos") sits above `core` and, through contracts, above the modules it
 // links to. NOBODY imports it: the composition roots in src/lib (note-extensions.tsx,
-// note-routes.ts, note-link-sources.ts, note-link-actions.ts, modules.ts, db.ts, data-export.ts)
-// and the pages under src/app/(app)/notes are the only ones that may. `notes` itself imports no
+// note-routes.ts, note-link-sources.ts, note-link-actions.ts, note-task-actions.ts,
+// capture-providers.tsx, modules.ts, db.ts, data-export.ts) and the pages under
+// src/app/(app)/notes are the only ones that may. `notes` itself imports no
 // module but `core`: the link sources reach it as an argument from note-link-sources.ts.
 const NOTES_IMPORT = {
   group: ["@/modules/notes", "@/modules/notes/*"],

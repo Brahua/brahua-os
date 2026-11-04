@@ -129,6 +129,51 @@
   display: block;
 }
 
+/*
+ * Notes (N3): an item that starts with a task link carries the task's real checkbox instead of a
+ * bullet. Each item is at least 44 px tall and holds its whole 44 px touch square (absolutely
+ * placed at its start, reaching only into the list's own left padding), so two squares never
+ * overlap and a tap never marks the neighbour. A task that is gone has no box: muted, with its
+ * bullet (struck-through text means «done» in Tareas).
+ */
+.bo-markdown .bo-md-task-linked:not(.is-gone) {
+  position: relative;
+  min-height: 44px;
+  padding-block: 10px;
+  padding-left: 32px;
+  list-style: none;
+}
+.bo-markdown .bo-md-task-linked.is-gone {
+  color: var(--color-text-secondary);
+}
+.bo-md-task-check {
+  position: absolute;
+  top: 0;
+  left: -12px;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+/*
+ * «Convertir en tarea»: an icon key drawn at 28 px so it doesn't swell the line, touchable at
+ * 44 × 32 px (its ::before reaches 8 px to the sides and 2 px up and down: two keys on
+ * consecutive items, 32 px apart, never share a touch area; above WCAG 2.5.8's 24 px).
+ */
+.bo-markdown .bo-md-task-convert.bo-key--icon {
+  --_h: 28px;
+  position: relative;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+.bo-markdown .bo-md-task-convert.bo-key--icon::before {
+  position: absolute;
+  inset: -2px -8px;
+  content: "";
+}
+
 /* Read-only task box: drawn like the design system's controls, never a form control. */
 .bo-md-check {
   display: inline-block;

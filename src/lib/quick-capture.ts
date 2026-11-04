@@ -4,7 +4,7 @@
 // root (src/lib/capture-providers.tsx, rendered by the app layout) hands the modules' providers
 // to the shell through `QuickCaptureContext`, as an ordered list. `core` never imports a module.
 //
-// With more than one provider the shell lets the owner pick ("Tarea · Gasto") and remembers the
+// With more than one provider the shell lets the owner pick ("Tarea · Gasto · Nota") and remembers the
 // choice on the device; each provider's sheet shows that switch (`switcher`) at its top.
 //
 // Context only, no module-level registry: the root names the providers explicitly, so there is no
@@ -22,7 +22,7 @@ export type CaptureSheetProps = {
    */
   returnFocusRef: RefObject<HTMLElement | null>;
   /**
-   * With several providers, the shell's switch between them ("Tarea · Gasto"): the sheet renders
+   * With several providers, the shell's switch between them ("Tarea · Gasto · Nota"): the sheet renders
    * it first in its body. Picking another provider replaces the sheet with that one's.
    */
   switcher?: ReactNode;

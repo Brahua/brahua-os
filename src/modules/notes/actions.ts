@@ -10,8 +10,11 @@ import { ownerAction } from "@/lib/owner-action";
 import { ownerDateKey } from "@/lib/time";
 import { NOTES_ERRORS, type NoteFailure } from "./copy";
 import {
+  captureNoteInputSchema,
   createNoteInputSchema,
   noteIdInputSchema,
+  undoCaptureInputSchema,
+  type CapturedLine,
   pinNoteInputSchema,
   renameNoteInputSchema,
   saveDailyNoteInputSchema,
@@ -22,6 +25,7 @@ import {
   type SaveResult,
 } from "./note-input";
 import { isWritableDay } from "./note-day";
+import { appendToDailyNote, undoDailyNoteAppend } from "./note-lines-data";
 import {
   insertPageNote,
   renamePageNote,
@@ -161,4 +165,44 @@ const restore = ownerAction(
  */
 export async function restoreNote(input: unknown): Promise<ActionResult<DeletedNote>> {
   return restore(input);
+}
+
+// N3: the quick capture «Nota». It revalidates the notes pages and Hoy (its key turns into
+// «Seguir la nota de hoy»). Today's note open on this screen takes the newer version the page
+// brings (useNoteAutosave) when nothing is pending there; with something pending, and in another
+// tab or device (which only learns at its next save), it is the conflict of N1 («Cambió en otro
+// dispositivo», the typed text kept): the capture moved the version.
+
+const capture = ownerAction(
+  captureNoteInputSchema,
+  async (data) => {
+    const result = await appendToDailyNote(getDb(), data, new Date());
+    if (typeof result === "string") {
+      return {
+        ok: false,
+        error: NOTES_ERRORS[result],
+        fieldErrors: { text: [NOTES_ERRORS[result]] },
+      };
+    }
+    return settle(result);
+  },
+  { name: "captureNote" },
+);
+
+/** `- HH:MM texto` at the end of today's note (created if the day has none). */
+export async function captureNote(input: unknown): Promise<ActionResult<CapturedLine>> {
+  return capture(input);
+}
+
+const undoCapture = ownerAction(
+  undoCaptureInputSchema,
+  async (data) => settle(await undoDailyNoteAppend(getDb(), data)),
+  { name: "undoCaptureNote" },
+);
+
+/** «Deshacer» of a capture: only if the note is still at the version the capture left. */
+export async function undoCaptureNote(
+  input: unknown,
+): Promise<ActionResult<{ noteId: string; version: number }>> {
+  return undoCapture(input);
 }

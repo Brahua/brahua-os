@@ -114,6 +114,49 @@ export function useNoteAutosave({ initial, day, announce }: Options) {
     timer.current = undefined;
   }, []);
 
+  // N3: the page was read again (a quick capture, any revalidation) and brought a newer note: a
+  // higher version of the same note, or the note a day without one just got. With nothing pending
+  // (no conflict, nothing unsaved, no save on its way) the screen takes it as the saved text; with
+  // something pending it is a conflict («Cambió en otro dispositivo») and the typed text stays.
+  // Compared with the previous prop while rendering (no state set in an effect); the mirrors the
+  // queued saves read are synced right after the commit.
+  const [server, setServer] = useState<KnownNote>(initial);
+  const [taken, setTaken] = useState<{ known: KnownNote; text: string } | null>(null);
+  if (
+    initial.id !== server.id ||
+    initial.version !== server.version ||
+    initial.body !== server.body
+  ) {
+    setServer(initial);
+    const newer =
+      initial.id !== null &&
+      (known.id === null || (initial.id === known.id && initial.version > known.version));
+    if (newer) {
+      const saved = { id: initial.id as string, body: initial.body, version: initial.version };
+      const pending =
+        conflict !== null || differsFrom(text, known.body) || status.kind === "saving";
+      if (!pending) {
+        setKnownState(saved);
+        setTextState(saved.body);
+        setTaken({ known: saved, text: saved.body });
+      } else if (conflict === null) {
+        setConflictState(saved);
+      }
+    }
+  }
+  useEffect(() => {
+    if (!taken) return;
+    knownRef.current = taken.known;
+    textRef.current = taken.text;
+  }, [taken]);
+  useEffect(() => {
+    // A conflict from the server's newer note (above): stop the pending timer, mirror it.
+    if (conflict && conflictRef.current !== conflict) {
+      conflictRef.current = conflict;
+      clearTimer();
+    }
+  }, [conflict, clearTimer]);
+
   const flush = useCallback(() => {
     clearTimer();
     if (stopped.current || conflictRef.current) return;
@@ -232,6 +275,41 @@ export function useNoteAutosave({ initial, day, announce }: Options) {
   /** The note's id as the last save left it (read after `settle`, when state may lag). */
   const currentId = useCallback(() => knownRef.current.id, []);
 
+  /**
+   * N3: what a line action (convert, its «Deshacer») may act on, read after `settle`: the note as
+   * the server holds it, or null when the screen isn't in step with it (no note yet, a conflict,
+   * text not saved, or saving stopped). Then the action isn't sent.
+   */
+  const inStep = useCallback((): (KnownNote & { id: string }) | null => {
+    const target = knownRef.current;
+    if (stopped.current || conflictRef.current || target.id === null) return null;
+    if (differsFrom(textRef.current, target.body)) return null;
+    return { ...target, id: target.id };
+  }, []);
+
+  /**
+   * N3: a line action changed the note on the server (a new body and version). With nothing
+   * pending, the screen takes it as the saved text. If something was typed meanwhile, it is a
+   * conflict like any other («Cambió en otro dispositivo»): the typed text stays as the draft and is
+   * never sent over the new version by itself.
+   */
+  const adopt = useCallback(
+    (saved: SavedNote) => {
+      const pending =
+        conflictRef.current !== null || differsFrom(textRef.current, knownRef.current.body);
+      if (pending) {
+        clearTimer();
+        setConflict(saved);
+        setStatus({ kind: "idle" });
+        return;
+      }
+      setKnown({ ...saved });
+      textRef.current = saved.body;
+      setTextState(saved.body);
+    },
+    [clearTimer, setConflict, setKnown, setStatus],
+  );
+
   /** No more saves (the note was deleted). */
   const stop = useCallback(() => {
     stopped.current = true;
@@ -272,6 +350,8 @@ export function useNoteAutosave({ initial, day, announce }: Options) {
     flush,
     settle,
     currentId,
+    inStep,
+    adopt,
     announceWhenSaved,
     known,
     status,

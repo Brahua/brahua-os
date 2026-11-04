@@ -4,23 +4,35 @@ import { Check, Pencil, RotateCw, Trash2, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Icon, Key, TextArea } from "@/design-system";
+import type { ActionResult } from "@/lib/action-result";
 import { normalizeNotes } from "@/lib/markdown-text";
 import { useUnsavedChangesGuard } from "@/lib/navigation-guard";
 import { isShortcutFreeTarget } from "@/lib/shortcuts";
 import { useRequiredScreenServices } from "@/modules/core/components/screen-services";
 import { deleteNote } from "../actions";
-import { NOTES_COPY as COPY } from "../copy";
+import { NOTES_COPY as COPY, NOTES_ERRORS } from "../copy";
 import { NOTE_BODY_COUNTER_FROM, NOTE_BODY_MAX_LENGTH } from "../note-constants";
+import type { ConvertedLine, RestoredLine } from "../note-input";
 import { DELETED_PARAM, NOTES_PATH } from "../routes";
-import type { NoteLinkResolutions } from "@/lib/markdown/note-links";
+import { noteLinkHref, noteLinkKey, type NoteLinkResolutions } from "@/lib/markdown/note-links";
 import { pendingDayLink } from "./day-focus";
 import { useLinkPicker, type SearchLinks } from "./link-picker";
 import { ClientMarkdown, loadMarkdown } from "./note-markdown";
+import { NOTE_TASK_ITEMS } from "./note-task-items";
+import {
+  LINE_CONTROL,
+  NoteLinesContext,
+  type NoteLineActions,
+  type NoteLines,
+} from "./note-task-lines";
 import { SaveIndicator } from "./save-indicator";
 import { differsFrom, failureReason, useNoteAutosave, type KnownNote } from "./use-note-autosave";
 
 /** Headings in a note start at h2: the note's title (or date) is the page's h1. */
 const HEADING_OFFSET = 1;
+
+/** The control a line action (N3) leaves the focus to, once it shows. */
+type FocusTarget = { kind: "task"; id: string } | { kind: "convert"; index: number };
 
 type NoteBodyProps = {
   /** The note as the page read it (`id` null: a day without a note yet, `version` then 0). */
@@ -42,6 +54,12 @@ type NoteBodyProps = {
   searchLinks?: SearchLinks;
   /** N3: the daily note's «Ese día» footer goes in this slot, last. */
   dayFooter?: React.ReactNode;
+  /**
+   * N3: the Server Actions of «Convertir en tarea» and the task checkboxes (src/lib). Without them,
+   * task items render read-only. The page's server render must pass `NOTE_TASK_ITEMS` to its
+   * `<Markdown>` too.
+   */
+  lineActions?: NoteLineActions;
 };
 
 /**
@@ -60,9 +78,10 @@ export function NoteBody({
   dayFooter = null,
   noteLinks,
   searchLinks,
+  lineActions,
 }: NoteBodyProps) {
   const router = useRouter();
-  const { toaster, announce } = useRequiredScreenServices();
+  const { toaster, announce, enqueue } = useRequiredScreenServices();
   const autosave = useNoteAutosave({ initial: note, day, announce });
   const { text, setText, flush, status, conflict, draft, dirty } = autosave;
   // From what the server answered: a day's first save (or its conflict) gives the note an id.
@@ -78,6 +97,30 @@ export function NoteBody({
   const conflictHeading = useRef<HTMLParagraphElement>(null);
   const retryPressed = useRef(false);
   const ids = useId();
+  // N3: the line actions' queue, the items whose conversion is on its way (only their keys wait),
+  // the control a line action left the focus to, the tasks this screen just created, and the task
+  // states the server answered after a checkbox (dropped when the page brings newer resolutions).
+  const lineChain = useRef<Promise<void>>(Promise.resolve());
+  const [busyLines, setBusyLines] = useState<number[]>([]);
+  const focusTarget = useRef<FocusTarget | null>(null);
+  const [localLinks, setLocalLinks] = useState<NoteLinkResolutions>({});
+  const [taskStates, setTaskStates] = useState<Record<string, boolean>>({});
+  const [linksSeen, setLinksSeen] = useState(noteLinks);
+  if (noteLinks !== linksSeen) {
+    setLinksSeen(noteLinks);
+    setTaskStates({});
+  }
+  useEffect(() => {
+    const drop = () => {
+      focusTarget.current = null;
+    };
+    document.addEventListener("keydown", drop, true);
+    document.addEventListener("pointerdown", drop, true);
+    return () => {
+      document.removeEventListener("keydown", drop, true);
+      document.removeEventListener("pointerdown", drop, true);
+    };
+  }, []);
 
   // The `[[` picker: choosing replaces `[[texto` with the link (the autosave runs as with any key)
   // and the cursor goes right after it. Through `insertText` when the browser has it, so ⌘Z undoes
@@ -223,6 +266,199 @@ export function NoteBody({
     autosave.stop();
     router.push(`${NOTES_PATH}?${DELETED_PARAM}=${id}`);
   }
+
+  // ── N3: «Convertir en tarea» and the task checkboxes (note-task-lines.tsx explains the rules) ──
+
+  function notSaved(what: string, reason: string) {
+    toaster.push({ title: COPY.notSavedTitle, text: `${what} ${reason}`, tone: "error" });
+  }
+
+  /**
+   * Conversions and their «Deshacer» run one after another (each needs the version the previous
+   * one left): a second one asked while the first is on its way waits its turn, never lost.
+   */
+  function queueLine(run: () => Promise<void>) {
+    const next = lineChain.current.then(run, run);
+    lineChain.current = next.catch(() => undefined);
+    return next;
+  }
+
+  function convertLine(item: { index: number; text: string }) {
+    if (!lineActions) return;
+    // Which of the items with this same text it is, in the text shown now: after an earlier
+    // conversion in the queue, indices move, but this stays.
+    const shown = normalizeNotes(text);
+    const lineText = item.text.normalize("NFC");
+    setBusyLines((previous) => [...previous, item.index]);
+    void loadMarkdown();
+    void queueLine(async () => {
+      try {
+        await runConvert(shown, item.index, lineText);
+      } finally {
+        setBusyLines((previous) => previous.filter((index) => index !== item.index));
+      }
+    });
+  }
+
+  async function runConvert(shown: string, shownIndex: number, lineText: string) {
+    if (!lineActions) return;
+    // What is pending lands first; then only a screen in step with the server sends the action.
+    await autosave.settle();
+    const target = autosave.inStep();
+    const { parseTaskItems } = await import("@/lib/markdown/task-items");
+    const same = (body: string) =>
+      parseTaskItems(body).filter((candidate) => candidate.text === lineText);
+    const occurrence = same(shown).findIndex((candidate) => candidate.index === shownIndex);
+    const index = target ? same(target.body)[occurrence]?.index : undefined;
+    if (!target || occurrence === -1 || index === undefined) {
+      notSaved(COPY.notConverted, NOTES_ERRORS.changed);
+      return;
+    }
+    let result: ActionResult<ConvertedLine> | null;
+    try {
+      result = await lineActions.convert({
+        noteId: target.id,
+        version: target.version,
+        index,
+        text: lineText,
+      });
+    } catch {
+      result = null;
+    }
+    if (!result || !result.ok) {
+      notSaved(COPY.notConverted, result ? failureReason(result) : COPY.checkConnection);
+      return;
+    }
+    const converted = result.data;
+    // The new task is known at once (its checkbox shows before the page is read again).
+    setLocalLinks((previous) => ({
+      ...previous,
+      [noteLinkKey("task", converted.taskId)]: {
+        name: converted.title,
+        href: noteLinkHref("task", converted.taskId),
+        deleted: false,
+        done: false,
+      },
+    }));
+    autosave.adopt({ id: converted.noteId, body: converted.body, version: converted.version });
+    // The key is gone with its line: the task's new checkbox claims the focus when it shows (and
+    // again when the server's render replaces the editor's); until then «Editar» holds it.
+    focusTarget.current = { kind: "task", id: converted.taskId };
+    pendingFocus.current = () =>
+      document.querySelector(`[data-note-task-check="${converted.taskId}"]`)
+        ? null
+        : editKey.current;
+    toaster.push({
+      title: COPY.convertedTitle,
+      text: COPY.converted(converted.title),
+      action: { label: COPY.undo, run: () => void undoConvert(converted) },
+    });
+  }
+
+  function undoConvert(converted: ConvertedLine) {
+    return queueLine(async () => {
+      if (!lineActions) return;
+      await autosave.settle();
+      // Something typed since (and not saved, or a conflict): the note isn't the one it left.
+      if (!autosave.inStep()) {
+        notSaved(COPY.notUndone, NOTES_ERRORS.changed);
+        return;
+      }
+      let result: ActionResult<RestoredLine> | null;
+      try {
+        result = await lineActions.undoConvert({
+          noteId: converted.noteId,
+          version: converted.version,
+          taskId: converted.taskId,
+          line: converted.line,
+          original: converted.original,
+        });
+      } catch {
+        result = null;
+      }
+      if (!result || !result.ok) {
+        notSaved(COPY.notUndone, result ? failureReason(result) : COPY.checkConnection);
+        return;
+      }
+      autosave.adopt({
+        id: result.data.noteId,
+        body: result.data.body,
+        version: result.data.version,
+      });
+      // The checkbox the notice viewport gave the focus back to is gone with the link: the line's
+      // «Convertir» key takes it (and claims it again when the server's render arrives), else
+      // «Editar».
+      focusTarget.current = { kind: "convert", index: converted.index };
+      pendingFocus.current = () =>
+        document.querySelector<HTMLElement>(`[data-note-convert="${converted.index}"]`) ??
+        editKey.current;
+      toaster.push({ title: COPY.undoneTitle, text: COPY.convertUndone(converted.title) });
+    });
+  }
+
+  async function toggleTask(task: { id: string; name: string }, done: boolean): Promise<boolean> {
+    if (!lineActions) return false;
+    const action = done ? lineActions.complete : lineActions.reopen;
+    // The screen's queue, with the key the task lists use: a newer tap on the same task wins.
+    const queued = await enqueue(`task-done:${task.id}`, () => action({ id: task.id }));
+    if (queued.kind === "skipped" || queued.superseded) return false;
+    if (queued.kind === "threw") {
+      notSaved(COPY.notToggled, COPY.checkConnection);
+      return false;
+    }
+    const result = queued.value;
+    if (!result.ok) {
+      notSaved(COPY.notToggled, failureReason(result));
+      return false;
+    }
+    const toggled = result.data;
+    setTaskStates((previous) => ({ ...previous, [toggled.id]: toggled.done }));
+    if (toggled.done) {
+      toaster.push({
+        title: COPY.taskDoneTitle,
+        text: toggled.notice,
+        action: {
+          label: COPY.undo,
+          run: () => void toggleTask({ id: toggled.id, name: task.name }, false),
+        },
+      });
+    } else {
+      announce(toggled.notice);
+    }
+    return true;
+  }
+
+  /**
+   * Whether the control `target` should take the focus now: it is the one a line action left the
+   * focus to, and the focus is on nothing (the control it was on unmounted) or on «Editar» (the
+   * fallback). Any key press or tap of the owner drops the claim.
+   */
+  function claims(target: FocusTarget): boolean {
+    const wanted = focusTarget.current;
+    const same =
+      wanted !== null &&
+      (wanted.kind === "task"
+        ? target.kind === "task" && wanted.id === target.id
+        : target.kind === "convert" && wanted.index === target.index);
+    if (!same) return false;
+    const active = document.activeElement;
+    return !active || active === document.body || active === editKey.current;
+  }
+
+  const lines: NoteLines | null = lineActions
+    ? {
+        canConvert: noteId !== null && conflict === null,
+        isConverting: (index) => busyLines.includes(index),
+        convert: convertLine,
+        toggle: toggleTask,
+        doneOf: (id) => taskStates[id],
+        claimFocus: (id) => claims({ kind: "task", id }),
+        claimConvertFocus: (index) => claims({ kind: "convert", index }),
+      }
+    : null;
+  // What the editor's text shows for links: the server's resolutions win over what this screen
+  // learned by itself (a task just converted).
+  const knownLinks = { ...localLinks, ...noteLinks };
 
   const used = normalizeNotes(text).length;
   const over = used > NOTE_BODY_MAX_LENGTH;
@@ -426,33 +662,44 @@ export function NoteBody({
           {picker.list}
         </form>
       ) : (
-        <div
-          className="min-w-0 cursor-text"
-          data-note-view=""
-          // A tap on the text opens the editor; a link inside still opens, and selecting text
-          // (to copy it) doesn't. Keyboard users have «Editar» and `E`.
-          onClick={(event) => {
-            if ((event.target as Element).closest("a, button, summary, [role='group']")) return;
-            if (window.getSelection()?.toString()) return;
-            openEditor();
-          }}
-        >
-          {normalizeNotes(text) === "" ? (
-            <p className="bo-text-body-sm text-text-secondary">{COPY.emptyBody}</p>
-          ) : showServerRender ? (
-            rendered
-          ) : (
-            // The typed text may hold links the server never looked up (just inserted): those
-            // show their saved name, never «(ya no existe)».
-            <ClientMarkdown
-              headingOffset={HEADING_OFFSET}
-              noteLinks={noteLinks}
-              unknownNoteLinks="saved"
-            >
-              {text}
-            </ClientMarkdown>
-          )}
-        </div>
+        <NoteLinesContext value={lines}>
+          <div
+            className="min-w-0 cursor-text"
+            data-note-view=""
+            // A tap on the text opens the editor; a link or a line control (N3) inside still does
+            // its own thing, and selecting text (to copy it) doesn't. Keyboard users have
+            // «Editar» and `E`.
+            onClick={(event) => {
+              const target = event.target as Element;
+              if (
+                target.closest(
+                  `a, button, summary, label, input, [role='group'], [${LINE_CONTROL}]`,
+                )
+              ) {
+                return;
+              }
+              if (window.getSelection()?.toString()) return;
+              openEditor();
+            }}
+          >
+            {normalizeNotes(text) === "" ? (
+              <p className="bo-text-body-sm text-text-secondary">{COPY.emptyBody}</p>
+            ) : showServerRender ? (
+              rendered
+            ) : (
+              // The typed text may hold links the server never looked up (just inserted): those
+              // show their saved name, never «(ya no existe)».
+              <ClientMarkdown
+                headingOffset={HEADING_OFFSET}
+                noteLinks={knownLinks}
+                unknownNoteLinks="saved"
+                taskItems={lineActions ? NOTE_TASK_ITEMS : undefined}
+              >
+                {text}
+              </ClientMarkdown>
+            )}
+          </div>
+        </NoteLinesContext>
       )}
 
       {draft !== null ? (
