@@ -655,3 +655,99 @@ test.each([
   expect(messages).toHaveLength(1);
   expect(messages[0]).toContain("`notes` depende de `core`");
 });
+
+// SPEC-health "Contratos": `health` reads `habits` only through its contract and routes (and its
+// schema file imports the habits table for the foreign key); it imports no other module but
+// `core`. Nobody imports `health` except `today` and `weekly-review`, through
+// `@/modules/health/contracts` only (E4).
+const IMPORT_HEALTH = `import { HEALTH_PATH } from "@/modules/health/routes";
+export const path = HEALTH_PATH;
+`;
+const IMPORT_HEALTH_CONTRACT = `import type { ExerciseKind } from "@/modules/health/contracts";
+export type Kind = ExerciseKind;
+`;
+const IMPORT_HEALTH_BARREL = `import * as health from "@/modules/health";
+export const all = health;
+`;
+
+test.each([
+  "src/modules/core/components/app-nav.tsx",
+  "src/modules/projects/projects.ts",
+  "src/modules/tasks/tasks.ts",
+  "src/modules/habits/habits.ts",
+  "src/modules/finance/expenses.ts",
+  "src/modules/reminders/engine.ts",
+  "src/modules/goals/goals.ts",
+  "src/modules/goals/db/schema.ts",
+  "src/modules/household/actions.ts",
+  "src/modules/learning/tracks.ts",
+  "src/modules/learning/db/schema.ts",
+  "src/modules/notes/notes.ts",
+])("%s cannot import health, not even its contract", async (file) => {
+  for (const code of [IMPORT_HEALTH, IMPORT_HEALTH_CONTRACT, IMPORT_HEALTH_BARREL]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatch(/`health` depende de este módulo|`notes` depende de `core`/);
+  }
+});
+
+test.each(["src/modules/today/components/today-board.tsx", "src/modules/weekly-review/queries.ts"])(
+  "%s may read the contract of health and nothing else of it",
+  async (file) => {
+    expect(await restricted(IMPORT_HEALTH_CONTRACT, file)).toEqual([]);
+    for (const code of [
+      IMPORT_HEALTH,
+      IMPORT_HEALTH_BARREL,
+      `import { selectRoutineSummaries } from "@/modules/health/routines";\nexport const x = selectRoutineSummaries;\n`,
+      `import { healthExercises } from "@/modules/health/db/schema";\nexport const x = healthExercises;\n`,
+    ]) {
+      const messages = await restricted(code, file);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain("leen `health` solo por su contrato");
+    }
+  },
+);
+
+test("health itself, its pages and the registry may import it", async () => {
+  expect(await restricted(IMPORT_HEALTH, "src/modules/health/routines.ts")).toEqual([]);
+  expect(await restricted(IMPORT_HEALTH, "src/app/(app)/health/page.tsx")).toEqual([]);
+  expect(await restricted(IMPORT_HEALTH, "src/lib/modules.ts")).toEqual([]);
+});
+
+test.each([
+  `import { getHabitsTodaySummary } from "@/modules/habits/contracts";\nexport const x = getHabitsTodaySummary;\n`,
+  `import { HABITS_PATH } from "@/modules/habits/routes";\nexport const x = HABITS_PATH;\n`,
+  `import { isSameIdSet } from "@/modules/core/life-area-order";\nexport const x = isSameIdSet;\n`,
+  `import { requireOwner } from "@/lib/auth";\nexport const x = requireOwner;\n`,
+])("health may read the contract and routes of habits, and core %#", async (code) => {
+  expect(await restricted(code, "src/modules/health/routines.ts")).toEqual([]);
+});
+
+test.each([
+  `import { selectHabits } from "@/modules/habits/habits";\nexport const x = selectHabits;\n`,
+  `import { habits } from "@/modules/habits/db/schema";\nexport const x = habits;\n`,
+  `import * as habits from "@/modules/habits";\nexport const x = habits;\n`,
+])("health cannot reach the internals of habits %#", async (code) => {
+  const messages = await restricted(code, "src/modules/health/routines.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`health` lee `habits` solo por su contrato");
+});
+
+test("the schema file may import the habits table (the foreign key), and nothing else", async () => {
+  const table = `import { habits } from "@/modules/habits/db/schema";\nexport const x = habits;\n`;
+  expect(await restricted(table, "src/modules/health/db/schema.ts")).toEqual([]);
+  const tasks = `import { tasks } from "@/modules/tasks/db/schema";\nexport const x = tasks;\n`;
+  expect(await restricted(tasks, "src/modules/health/db/schema.ts")).toHaveLength(1);
+});
+
+test.each([
+  `import { getTasksByTag } from "@/modules/tasks/contracts";\nexport const x = getTasksByTag;\n`,
+  `import { getProjectOptions } from "@/modules/projects/contracts";\nexport const x = getProjectOptions;\n`,
+  `import { getLearningTodaySummary } from "@/modules/learning/contracts";\nexport const x = getLearningTodaySummary;\n`,
+  `import { NOTES_PATH } from "@/modules/notes/routes";\nexport const x = NOTES_PATH;\n`,
+  `import { buildBoard } from "@/modules/today/today-board";\nexport const x = buildBoard;\n`,
+])("health depends on core and habits only %#", async (code) => {
+  const messages = await restricted(code, "src/modules/health/routines.ts");
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("`health` depende de `core` y `habits`");
+});

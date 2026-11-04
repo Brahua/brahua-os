@@ -23,7 +23,7 @@ describe("registry", () => {
     }
   });
 
-  test("Hoy (1), Proyectos (2), Tareas (3), Hábitos (4), Finanzas (5), Metas (6), Revisión (no key), Hogar (no key), Aprendizaje (no key), Notas (no key), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
+  test("Hoy (1), Proyectos (2), Tareas (3), Hábitos (4), Finanzas (5), Metas (6), Revisión (no key), Hogar (no key), Aprendizaje (no key), Notas (no key), Entreno (no key), Áreas (footer, 7) and Ajustes (footer, 8) are navigable; none is planned", () => {
     expect(navItems().map((item) => [item.label, item.href, item.group, item.shortcut])).toEqual([
       ["Hoy", "/", "main", "1"],
       ["Proyectos", "/projects", "main", "2"],
@@ -35,13 +35,14 @@ describe("registry", () => {
       ["Hogar", "/household", "main", undefined],
       ["Aprendizaje", "/learning", "main", undefined],
       ["Notas", "/notes", "main", undefined],
+      ["Entreno", "/health", "main", undefined],
       ["Áreas", "/areas", "footer", "7"],
       ["Ajustes", "/settings", "footer", "8"],
     ]);
     expect(MODULES.filter((entry) => entry.status === "planned")).toEqual([]);
   });
 
-  test("on the phone, Hábitos takes the cell after the capture key; Tareas, Finanzas, Metas, Revisión, Hogar, Aprendizaje, Notas, Áreas and Ajustes go under Más", () => {
+  test("on the phone, Hábitos takes the cell after the capture key; Tareas, Finanzas, Metas, Revisión, Hogar, Aprendizaje, Notas, Entreno, Áreas and Ajustes go under Más", () => {
     const { primary, overflow } = splitBottomNav(navItems());
     // Cells 1, 2 and 4 (the capture key is cell 3), then "Más" in cell 5 (SPEC-habits,
     // SPEC-finance "Navegación").
@@ -54,6 +55,7 @@ describe("registry", () => {
       "Hogar",
       "Aprendizaje",
       "Notas",
+      "Entreno",
       "Áreas",
       "Ajustes",
     ]);
