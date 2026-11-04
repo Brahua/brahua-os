@@ -176,6 +176,15 @@ export function noteLinkView(
 // ---------------------------------------------------------------------------------------------
 // Rendering (steps 1 and 2 of the header).
 
+/**
+ * Whether `text` holds the placeholders' private characters themselves (U+E010, U+E011): a note's
+ * body refuses them (N3), and a text with them has no task item that can become a task (the parsed
+ * lines lose them and wouldn't match the stored text character for character).
+ */
+export function hasPlaceholderCharacters(text: string): boolean {
+  return /[\uE010\uE011]/.test(text);
+}
+
 const OPEN = "\uE010";
 const CLOSE = "\uE011";
 

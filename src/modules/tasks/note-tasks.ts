@@ -8,7 +8,7 @@
 // write that puts a task in a project, or takes it out of one, takes that project's lock), so the
 // notes' transaction keeps its own lock order.
 import "server-only";
-import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, gte, lt, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
 import { OWNER_TIME_ZONE } from "@/lib/time";
 import { hasInvisibleCharacters } from "@/lib/text";
@@ -52,24 +52,37 @@ export async function createInboxTask(
   return created;
 }
 
+
 /**
- * «Deshacer» of a line turned into a task: soft-deletes the task only if it is untouched since it
- * was created (`removed`): still visible and pending, and never written after its insert
- * (`updated_at = created_at`: any edit, move, tag, note, completion or reopening stamps
- * `updated_at`, T3's rule for an untouched occurrence). Otherwise nothing is written: `kept` (it
- * changed: it is the owner's now) or `missing` (deleted, or never existed). The row is locked
- * (FOR UPDATE), so a completion at the same time either waits or wins.
+ * «Deshacer» of a line turned into a task. The row is locked (FOR UPDATE), so a completion at the
+ * same time either waits or wins, and it is read whatever its state:
+ * - `mismatch`: the task doesn't exist or its stored title isn't `title` (what the line being put
+ *   back would make, through `inboxTaskTitle`): the request doesn't describe this task, nothing is
+ *   written.
+ * - `missing`: it is already gone (deleted, or its project is): nothing to remove.
+ * - `kept`: it changed since it was created (it is the owner's now): nothing is written.
+ *   Untouched means pending and never written after its insert (`updated_at = created_at`: any
+ *   edit, move, tag, note, completion or reopening stamps `updated_at`, T3's rule for an untouched
+ *   occurrence).
+ * - `removed`: soft-deleted.
  */
 export async function undoInboxTask(
   tx: Tx,
   id: string,
-): Promise<"removed" | "kept" | "missing"> {
+  title: string,
+): Promise<"removed" | "kept" | "missing" | "mismatch"> {
   const [task] = await tx
-    .select({ untouched: sql<boolean>`${tasks.updatedAt} = ${tasks.createdAt}`, doneAt: tasks.doneAt })
+    .select({
+      title: tasks.title,
+      untouched: sql<boolean>`${tasks.updatedAt} = ${tasks.createdAt}`,
+      doneAt: tasks.doneAt,
+      visible: sql<boolean>`${visibleTask}`,
+    })
     .from(tasks)
-    .where(and(eq(tasks.id, id), visibleTask))
+    .where(eq(tasks.id, id))
     .for("update");
-  if (!task) return "missing";
+  if (!task || task.title !== title) return "mismatch";
+  if (!task.visible) return "missing";
   if (!task.untouched || task.doneAt !== null) return "kept";
   await tx.update(tasks).set({ deletedAt: sql`now()` }).where(eq(tasks.id, id));
   return "removed";
@@ -77,21 +90,18 @@ export async function undoInboxTask(
 
 /**
  * «Ese día» (SPEC-notes "Pie"): how many visible tasks were completed on the Lima day `day`
- * (`YYYY-MM-DD`), whatever their due date. ONE query: `done_at` read as a Lima date (23:59 counts
- * for that day, 00:00 for the next). Each completed occurrence of a recurring task is its own row
- * and counts once; the next occurrence it created is pending and doesn't. A deleted task, or one
- * of a deleted project, never counts (`visibleTask`).
+ * (`YYYY-MM-DD`), whatever their due date. ONE query over a range of `done_at` (from Lima's
+ * midnight of `day` to the next one, so the column is compared as stored): 23:59 counts for that
+ * day, 00:00 for the next. Each completed occurrence of a recurring task is its own row and counts
+ * once; the next occurrence it created is pending and doesn't. A deleted task, or one of a deleted
+ * project, never counts (`visibleTask`).
  */
 export async function countTasksCompletedOn(db: Database, day: string): Promise<number> {
+  const start = sql`(${day}::date::timestamp at time zone ${OWNER_TIME_ZONE})`;
+  const end = sql`((${day}::date + 1)::timestamp at time zone ${OWNER_TIME_ZONE})`;
   const [row] = await db
     .select({ count: count() })
     .from(tasks)
-    .where(
-      and(
-        visibleTask,
-        isNotNull(tasks.doneAt),
-        sql`(${tasks.doneAt} at time zone ${OWNER_TIME_ZONE})::date = ${day}::date`,
-      ),
-    );
+    .where(and(visibleTask, gte(tasks.doneAt, start), lt(tasks.doneAt, end)));
   return row?.count ?? 0;
 }

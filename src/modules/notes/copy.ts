@@ -18,6 +18,7 @@ export const NOTES_ERRORS = {
     control:
       "Quita los caracteres de control del texto (solo se permiten saltos de línea y tabulaciones).",
     bidi: "Quita los caracteres invisibles que cambian el sentido del texto (marcas bidireccionales).",
+    placeholder: "Quita los caracteres invisibles de uso privado del texto.",
   },
   day: "Elige hoy o un día anterior.",
   version: "La petición no es válida. Recarga la página e inténtalo de nuevo.",
@@ -225,7 +226,9 @@ export const NOTES_COPY = {
   captureAdding: "Añadiendo…",
   captureAddingStatus: "Añadiendo a la nota de hoy…",
   captureClose: "Cerrar",
-  captured: "Se añadió a la nota de hoy.",
+  /** What was added, cut at 60 characters with «…». */
+  captured: (text: string) =>
+    `Se añadió «${text.length > 60 ? `${text.slice(0, 59).trimEnd()}…` : text}» a la nota de hoy.`,
   captureUndone: "Se quitó de la nota de hoy.",
 
   // N3: «Ese día», the daily note's footer.

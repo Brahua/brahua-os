@@ -168,8 +168,10 @@ export async function restoreNote(input: unknown): Promise<ActionResult<DeletedN
 }
 
 // N3: the quick capture «Nota». It revalidates the notes pages and Hoy (its key turns into
-// «Seguir la nota de hoy»). An editor open on today's note elsewhere gets the conflict of N1 on its
-// next save («Cambió en otro dispositivo», its text kept as a draft): the capture moved the version.
+// «Seguir la nota de hoy»). Today's note open on this screen takes the newer version the page
+// brings (useNoteAutosave) when nothing is pending there; with something pending, and in another
+// tab or device (which only learns at its next save), it is the conflict of N1 («Cambió en otro
+// dispositivo», the typed text kept): the capture moved the version.
 
 const capture = ownerAction(
   captureNoteInputSchema,

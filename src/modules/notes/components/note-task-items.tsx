@@ -6,6 +6,6 @@ import type { MarkdownTaskItems } from "@/lib/markdown/markdown";
 import { ConvertLineKey, NoteTaskCheckbox } from "./note-task-lines";
 
 export const NOTE_TASK_ITEMS: MarkdownTaskItems = {
-  open: ({ index, text }) => <ConvertLineKey index={index} text={text} />,
+  open: ({ index, text, plain }) => <ConvertLineKey index={index} text={text} plain={plain} />,
   linked: ({ id, name, done }) => <NoteTaskCheckbox id={id} name={name} done={done} />,
 };

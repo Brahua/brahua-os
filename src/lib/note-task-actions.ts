@@ -24,13 +24,20 @@ import {
   type NoteTaskWriter,
 } from "@/modules/notes/note-lines-data";
 import { revalidateNotes } from "@/modules/notes/revalidate";
-import { createInboxTask, undoInboxTask } from "@/modules/tasks/note-tasks";
+import { createInboxTask, inboxTaskTitle, undoInboxTask } from "@/modules/tasks/note-tasks";
 import { completeTaskWithNext, reopenTaskWithSpawn } from "@/modules/tasks/recurrence-actions";
 import { completedNotice, reopenedNotice } from "@/modules/tasks/recurrence-notices";
 import { revalidateTaskLists } from "@/modules/tasks/revalidate";
 import { TASKS_COPY } from "@/modules/tasks/tasks-copy";
 
-const WRITER: NoteTaskWriter = { create: createInboxTask, undo: undoInboxTask };
+const WRITER: NoteTaskWriter = {
+  create: createInboxTask,
+  titleOf: (text) => {
+    const checked = inboxTaskTitle(text);
+    return "title" in checked ? checked.title : null;
+  },
+  undo: undoInboxTask,
+};
 
 /** After a line changed into a task (or back): the notes pages and every list of tasks. */
 function revalidateBoth() {

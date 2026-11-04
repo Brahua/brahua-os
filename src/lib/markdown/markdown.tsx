@@ -16,7 +16,7 @@
 import "./markdown.css";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -54,8 +54,11 @@ type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
  * Without it (projects' and tasks' notes) the items render as before, read-only.
  */
 export type MarkdownTaskItems = {
-  /** After an unchecked item that can become a task: its index among the task items, its text. */
-  open?: (item: { index: number; text: string }) => ReactNode;
+  /**
+   * After the text of an unchecked item that can become a task (before its sublist, if it has
+   * one): its index among the task items, its text as written and as plain words.
+   */
+  open?: (item: { index: number; text: string; plain: string }) => ReactNode;
   /** Before an item that starts with a `[[task:…]]` link (a task that is gone gets nothing). */
   linked?: (item: { id: string; name: string; done: boolean | null }) => ReactNode;
 };
@@ -226,10 +229,18 @@ function taskItemComponents(
       const { "data-md-item": raw, ...rest } = domProps(props) as Record<string, unknown>;
       const mark = typeof raw === "string" ? marks[Number(raw)] : undefined;
       if (mark?.kind === "open") {
+        // Right after the item's own text: before its sublist, if it has one.
+        const parts = Children.toArray(children);
+        const sublist = parts.findIndex(
+          (part) => isValidElement(part) && (part.type === "ul" || part.type === "ol"),
+        );
+        const at = sublist === -1 ? parts.length : sublist;
+        const control = renderers.open?.({ index: mark.index, text: mark.text, plain: mark.plain });
         return (
           <li {...rest} className={className}>
-            {children}
-            {renderers.open?.({ index: mark.index, text: mark.text })}
+            {parts.slice(0, at)}
+            {control}
+            {parts.slice(at)}
           </li>
         );
       }

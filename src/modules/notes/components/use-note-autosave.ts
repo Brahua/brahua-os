@@ -114,6 +114,49 @@ export function useNoteAutosave({ initial, day, announce }: Options) {
     timer.current = undefined;
   }, []);
 
+  // N3: the page was read again (a quick capture, any revalidation) and brought a newer note: a
+  // higher version of the same note, or the note a day without one just got. With nothing pending
+  // (no conflict, nothing unsaved, no save on its way) the screen takes it as the saved text; with
+  // something pending it is a conflict («Cambió en otro dispositivo») and the typed text stays.
+  // Compared with the previous prop while rendering (no state set in an effect); the mirrors the
+  // queued saves read are synced right after the commit.
+  const [server, setServer] = useState<KnownNote>(initial);
+  const [taken, setTaken] = useState<{ known: KnownNote; text: string } | null>(null);
+  if (
+    initial.id !== server.id ||
+    initial.version !== server.version ||
+    initial.body !== server.body
+  ) {
+    setServer(initial);
+    const newer =
+      initial.id !== null &&
+      (known.id === null || (initial.id === known.id && initial.version > known.version));
+    if (newer) {
+      const saved = { id: initial.id as string, body: initial.body, version: initial.version };
+      const pending =
+        conflict !== null || differsFrom(text, known.body) || status.kind === "saving";
+      if (!pending) {
+        setKnownState(saved);
+        setTextState(saved.body);
+        setTaken({ known: saved, text: saved.body });
+      } else if (conflict === null) {
+        setConflictState(saved);
+      }
+    }
+  }
+  useEffect(() => {
+    if (!taken) return;
+    knownRef.current = taken.known;
+    textRef.current = taken.text;
+  }, [taken]);
+  useEffect(() => {
+    // A conflict from the server's newer note (above): stop the pending timer, mirror it.
+    if (conflict && conflictRef.current !== conflict) {
+      conflictRef.current = conflict;
+      clearTimer();
+    }
+  }, [conflict, clearTimer]);
+
   const flush = useCallback(() => {
     clearTimer();
     if (stopped.current || conflictRef.current) return;

@@ -19,7 +19,9 @@
 // characters are the same too.
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { tokenizeNoteLinks, type TokenizedNoteLinks } from "./note-links";
+import { hasPlaceholderCharacters, tokenizeNoteLinks, type TokenizedNoteLinks } from "./note-links";
+
+export { hasPlaceholderCharacters } from "./note-links";
 
 export type MarkdownTaskItem = {
   /** Position among the task items of the text (0-based, document order). */
@@ -29,8 +31,16 @@ export type MarkdownTaskItem = {
   line: number;
   /** Offset of the marker inside its line (characters). */
   column: number;
-  /** The text after `[ ]`, trimmed, when the item can become a task; else null. */
+  /**
+   * The text after `[ ]` as written (trimmed), when the item can become a task; else null. What the
+   * screen and the server compare, and what the line keeps.
+   */
   text: string | null;
+  /**
+   * The same text as plain words (no `**`, a link's text without its URL): the task's title and
+   * the key's name. Null when `text` is.
+   */
+  plain: string | null;
 };
 
 export type MarkdownLinkedItem = {
@@ -99,15 +109,17 @@ export function collectTaskItems(
       const column = (node.position.start.offset ?? 0) - (starts[line] ?? 0);
       const paragraph = node.children?.[0];
       if (typeof node.checked === "boolean") {
+        const text =
+          node.checked || !convertible
+            ? null
+            : openText(lines[line] ?? "", column, paragraph, line);
         found.tasks.push({
           index: found.tasks.length,
           checked: node.checked,
           line,
           column,
-          text:
-            node.checked || !convertible
-              ? null
-              : openText(lines[line] ?? "", column, paragraph, line),
+          text,
+          plain: text === null || !paragraph ? null : plainText(paragraph),
           node,
         });
       } else if (paragraph?.type === "paragraph") {
@@ -142,11 +154,21 @@ function openText(
 }
 
 /**
- * Whether `text` holds the placeholder characters themselves: then no item can become a task (the
- * parsed lines lose them and wouldn't match the stored text character for character).
+ * A paragraph as plain words, like mdast's `toString`: the text of its inline nodes (code
+ * included, a link's or image's text, never a URL or raw HTML), whitespace collapsed. GFM already
+ * took the `[ ] ` out of a task item's paragraph.
  */
-export function hasPlaceholderCharacters(text: string): boolean {
-  return /[\uE010\uE011]/.test(text);
+export function plainText(node: MdNode): string {
+  const parts: string[] = [];
+  function walk(current: MdNode) {
+    if (current.type === "html") return;
+    if (current.type === "text" || current.type === "inlineCode") parts.push(current.value ?? "");
+    else if (current.type === "image") parts.push(String((current as { alt?: unknown }).alt ?? ""));
+    else if (current.type === "break") parts.push(" ");
+    current.children?.forEach(walk);
+  }
+  walk(node);
+  return parts.join("").replace(/\s+/g, " ").trim();
 }
 
 /** A fixed nonce for parses that never render (the placeholders never leave this file). */
@@ -166,14 +188,18 @@ export function parseTaskItems(text: string): MarkdownTaskItem[] {
       tree.children = [];
     };
   }
-  // react-markdown's own processor (parse and run, synchronously); its output is discarded.
+  // react-markdown's own processor, called as a plain function: `Markdown` (not `MarkdownHooks`)
+  // parses and runs synchronously and uses no hooks, so it works outside a render; its output is
+  // discarded. (`unified` and `remark-parse` aren't direct dependencies and pnpm doesn't resolve
+  // them from src/; tests/lib/markdown-task-items.test.tsx pins this behaviour.)
   Markdown({ children: tokens.source, remarkPlugins: [remarkGfm, collect] });
-  return collected.tasks.map(({ index, checked, line, column, text: itemText }) => ({
+  return collected.tasks.map(({ index, checked, line, column, text: itemText, plain }) => ({
     index,
     checked,
     line,
     column,
     text: itemText,
+    plain,
   })) satisfies MarkdownTaskItem[];
 }
 
@@ -182,7 +208,7 @@ export function parseTaskItems(text: string): MarkdownTaskItem[] {
 
 /** What the renderer draws next to an item, by the `data-md-item` mark it put on the `li`. */
 export type TaskItemMark =
-  | { kind: "open"; index: number; text: string }
+  | { kind: "open"; index: number; text: string; plain: string }
   | {
       kind: "linked";
       /** The task's id. */
@@ -221,7 +247,9 @@ export function remarkTaskItems({ tokens, convertible, describe, marks }: Remark
       marks.push(value);
     };
     for (const item of tasks) {
-      if (item.text !== null) mark(item.node, { kind: "open", index: item.index, text: item.text });
+      if (item.text !== null && item.plain) {
+        mark(item.node, { kind: "open", index: item.index, text: item.text, plain: item.plain });
+      }
     }
     for (const item of linked) {
       const link = tokens.links[item.link];

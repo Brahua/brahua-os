@@ -13,11 +13,8 @@ export function NoteDayFooter({
 }) {
   const empty = tasksDone === 0 && habitsDone === 0;
   return (
-    <section
-      aria-label={COPY.dayFooterTitle}
-      className="border-t border-border pt-4"
-      data-note-day-footer=""
-    >
+    // The note's own footer (the page's `article` holds it): one line, no heading of its own.
+    <footer className="border-t border-border pt-4" data-note-day-footer="">
       <p className="bo-text-body-sm text-text-secondary">
         {empty ? (
           COPY.dayFooterEmpty
@@ -28,6 +25,6 @@ export function NoteDayFooter({
           </>
         )}
       </p>
-    </section>
+    </footer>
   );
 }

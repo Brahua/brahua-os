@@ -16,7 +16,7 @@ type CaptureSwitcherProps = {
 };
 
 /**
- * The switch between the quick captures ("Tarea · Gasto", SPEC-finance "Captura rápida"): a
+ * The switch between the quick captures ("Tarea · Gasto · Nota", SPEC-finance and SPEC-notes): a
  * radio group at the top of the open sheet. Picking another one replaces the sheet with that
  * provider's. With a tap or click, the new sheet focuses its first field (on the phone that opens
  * the keyboard: one interaction less); from the keyboard, focus stays on the switch (WCAG 3.2.2),

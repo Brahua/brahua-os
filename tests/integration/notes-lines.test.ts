@@ -35,9 +35,10 @@ import { notes } from "@/modules/notes/db/schema";
 import { dailyNoteLockKey, NOTES_ADVISORY_SPACE } from "@/modules/notes/lock-keys";
 import { addDays } from "@/modules/notes/note-day";
 import type { CapturedLine, ConvertedLine } from "@/modules/notes/note-input";
+import { convertNoteLine, type NoteTaskWriter } from "@/modules/notes/note-lines-data";
 import { projects } from "@/modules/projects/db/schema";
 import { tasks } from "@/modules/tasks/db/schema";
-import { countTasksCompletedOn } from "@/modules/tasks/note-tasks";
+import { countTasksCompletedOn, createInboxTask } from "@/modules/tasks/note-tasks";
 import { completeTaskById } from "@/modules/tasks/tasks";
 import { AUTH_ENV, OTHER, OWNER, sessionCookieFor } from "./owner-session";
 import { testDb } from "./test-db";
@@ -225,14 +226,14 @@ describe("«Deshacer» of a conversion", () => {
     expect((await taskRow(line.taskId)).doneAt).not.toBeNull();
     expect(await noteRow(id)).toMatchObject({ body: line.body, version: line.version });
 
-    // Edited (a title change stamps updated_at), then reopened: still the owner's.
+    // Edited without touching its title (a priority change stamps updated_at): still the owner's.
     const other = await dailyNote(addDays(TODAY, -2), BODY);
     const second = await converted(other);
-    await testDb
-      .update(tasks)
-      .set({ title: "Llamar al banco hoy" })
-      .where(eq(tasks.id, second.taskId));
-    expect((await undoNoteLineToTask(undoOf(second))).ok).toBe(false);
+    await testDb.update(tasks).set({ priority: "high" }).where(eq(tasks.id, second.taskId));
+    expect(await undoNoteLineToTask(undoOf(second))).toEqual({
+      ok: false,
+      error: NOTES_ERRORS.taskChanged,
+    });
     expect((await taskRow(second.taskId)).deletedAt).toBeNull();
   });
 
@@ -242,6 +243,122 @@ describe("«Deshacer» of a conversion", () => {
     await testDb.update(tasks).set({ deletedAt: new Date() }).where(eq(tasks.id, line.taskId));
     expect((await undoNoteLineToTask(undoOf(line))).ok).toBe(true);
     expect((await noteRow(id)).body).toBe(BODY);
+  });
+});
+
+describe("review fixes: what the server no longer trusts", () => {
+  test("the task's title is the item's plain text; the line keeps it as written", async () => {
+    const id = await dailyNote(YESTERDAY, "- [ ] Llamar **al** [banco](https://banco.example)");
+    const result = await convert(id, 1, 0, "Llamar **al** [banco](https://banco.example)");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect((await taskRow(result.data.taskId)).title).toBe("Llamar al banco");
+    expect(result.data.body).toBe(`- [[task:${result.data.taskId}|Llamar al banco]]`);
+    expect(result.data.original).toBe("- [ ] Llamar **al** [banco](https://banco.example)");
+    // Its exact «Deshacer» (the plain text of the line put back gives the stored title).
+    expect((await undoNoteLineToTask(undoOf(result.data))).ok).toBe(true);
+    expect((await noteRow(id)).body).toBe("- [ ] Llamar **al** [banco](https://banco.example)");
+  });
+
+  test("a line typed by hand to point at another task can't delete it", async () => {
+    // Another fresh, untouched task (created elsewhere), and a note that links to it by hand.
+    const [other] = await testDb.insert(tasks).values({ title: "Renovar pasaporte" }).returning();
+    const id = await dailyNote(YESTERDAY, `- [[task:${other.id}|Renovar pasaporte]]`);
+    // An «original» whose text isn't the task's title: refused.
+    expect(
+      await undoNoteLineToTask({
+        noteId: id,
+        version: 1,
+        taskId: other.id,
+        line: 0,
+        original: "- [ ] Cualquier cosa",
+      }),
+    ).toEqual({ ok: false, error: NOTES_ERRORS.changed });
+    // An «original» that isn't an item that can become a task: refused.
+    expect(
+      await undoNoteLineToTask({
+        noteId: id,
+        version: 1,
+        taskId: other.id,
+        line: 0,
+        original: "- [ ] [[note:00000000-0000-4000-8000-000000000001|x]]",
+      }),
+    ).toMatchObject({ ok: false });
+    // A task id that doesn't exist: refused, nothing written.
+    expect(
+      await undoNoteLineToTask({
+        noteId: id,
+        version: 1,
+        taskId: crypto.randomUUID(),
+        line: 0,
+        original: "- [ ] Renovar pasaporte",
+      }),
+    ).toMatchObject({ ok: false });
+    expect((await taskRow(other.id)).deletedAt).toBeNull();
+    expect(await noteRow(id)).toMatchObject({ version: 1 });
+  });
+
+  test("an «original» with bidi controls or placeholder characters is refused", async () => {
+    const id = await dailyNote(YESTERDAY, BODY);
+    const line = await converted(id);
+    for (const original of ["- [ ] Llamar al banco \u202E", "- [ ] Llamar al banco \uE010"]) {
+      expect((await undoNoteLineToTask({ ...undoOf(line), original })).ok).toBe(false);
+    }
+    expect((await taskRow(line.taskId)).deletedAt).toBeNull();
+  });
+
+  test("an undo whose line would pass 50 000 characters is refused (bodyFull)", async () => {
+    const filler = "z".repeat(49_900);
+    const id = await dailyNote(YESTERDAY, `${filler}\n\n- [ ] Llamar al banco`);
+    const result = await convert(id, 1, 0, "Llamar al banco");
+    if (!result.ok) throw new Error("convert failed");
+    // The line put back is longer than the link (the same text, many spaces before it).
+    const original = `- [ ] ${" ".repeat(200)}Llamar al banco`;
+    expect(await undoNoteLineToTask({ ...undoOf(result.data), original })).toEqual({
+      ok: false,
+      error: NOTES_ERRORS.bodyFull,
+    });
+    expect((await taskRow(result.data.taskId)).deletedAt).toBeNull();
+  });
+
+  test("a failure after the task is inserted rolls it back: no task, the note untouched", async () => {
+    const id = await dailyNote(YESTERDAY, BODY);
+    const failing: NoteTaskWriter = {
+      create: async (tx, text) => {
+        await createInboxTask(tx, text);
+        throw new Error("boom after the insert");
+      },
+      titleOf: () => null,
+      undo: async () => "mismatch",
+    };
+    await expect(
+      convertNoteLine(
+        testDb,
+        { noteId: id, version: 1, index: 0, text: "Llamar al banco" },
+        failing,
+      ),
+    ).rejects.toThrow("boom after the insert");
+    expect(await allTasks()).toHaveLength(0);
+    expect(await noteRow(id)).toMatchObject({ body: BODY, version: 1 });
+  });
+
+  test("the undo of a capture only touches the daily note of the day it returned", async () => {
+    const result = await captureNote({ text: "idea" });
+    if (!result.ok) throw new Error("capture failed");
+    const page = await testDb
+      .insert(notes)
+      .values({ kind: "page", title: "Apuntes", body: result.data.appended })
+      .returning();
+    // A knowledge note with the same text, or another day: not found.
+    expect(await undoCaptureNote({ ...result.data, noteId: page[0].id })).toEqual({
+      ok: false,
+      error: NOTES_ERRORS.notFound,
+    });
+    expect(await undoCaptureNote({ ...result.data, day: YESTERDAY })).toEqual({
+      ok: false,
+      error: NOTES_ERRORS.notFound,
+    });
+    expect((await undoCaptureNote(result.data)).ok).toBe(true);
   });
 });
 

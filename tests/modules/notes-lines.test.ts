@@ -9,6 +9,7 @@ import { dayFooterText, NOTES_COPY as COPY, NOTES_ERRORS } from "@/modules/notes
 import {
   captureNoteInputSchema,
   convertLineInputSchema,
+  noteBodySchema,
   undoCaptureInputSchema,
   undoConvertLineInputSchema,
 } from "@/modules/notes/note-input";
@@ -197,12 +198,13 @@ describe("the inputs of the N3 actions", () => {
     expect(refusal("a".repeat(501))).toBe(NOTES_ERRORS.captureTooLong);
     expect(captureNoteInputSchema.safeParse({ text: "a".repeat(500) }).success).toBe(true);
     expect(refusal("con\u0000nul")).toBe(NOTES_ERRORS.captureInvisible);
-    expect(refusal("bidi ‮")).toBe(NOTES_ERRORS.captureInvisible);
+    expect(refusal("bidi \u202E")).toBe(NOTES_ERRORS.captureInvisible);
   });
 
   test("undo of a capture: only a line it could have appended", () => {
     const ok = (appended: string) =>
-      undoCaptureInputSchema.safeParse({ noteId: id, version: 2, appended }).success;
+      undoCaptureInputSchema.safeParse({ noteId: id, day: "2026-11-03", version: 2, appended })
+        .success;
     expect(ok("- 18:42 idea")).toBe(true);
     expect(ok("\n- 18:42 idea")).toBe(true);
     expect(ok("Hola")).toBe(false);
@@ -242,5 +244,68 @@ describe("the inputs of the N3 actions", () => {
         original: "- [ ] Uno\r",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("review fixes (N3)", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+
+  test("an item's plain text: no Markdown marks, a link's text without its URL", () => {
+    const [item] = listTaskItems("- [ ] Llamar **al** [banco](https://banco.example) `ya`");
+    expect(item.text).toBe("Llamar **al** [banco](https://banco.example) `ya`");
+    expect(item.plain).toBe("Llamar al banco ya");
+    // The link's name is the plain text; the line keeps everything before the box.
+    expect(
+      convertTaskItem(
+        "- [ ] Llamar **al** banco",
+        listTaskItems("- [ ] Llamar **al** banco")[0],
+        TASK,
+      ),
+    ).toBe(`- [[task:${TASK}|Llamar al banco]]`);
+  });
+
+  test("the undo of a capture names the day it returned", () => {
+    expect(
+      undoCaptureInputSchema.safeParse({ noteId: id, version: 2, appended: "- 18:42 idea" })
+        .success,
+    ).toBe(false);
+    expect(
+      undoCaptureInputSchema.safeParse({
+        noteId: id,
+        day: "2026-11-31",
+        version: 2,
+        appended: "- 18:42 idea",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("a line sent in NFD is compared in NFC (as stored)", () => {
+    const decomposed = "Cafe\u0301";
+    const parsed = convertLineInputSchema.parse({
+      noteId: id,
+      version: 1,
+      index: 0,
+      text: decomposed,
+    });
+    expect(parsed.text).toBe("Café");
+  });
+
+  test("bidi controls and the placeholders' characters are refused in a line, a capture and a body", () => {
+    const line = (text: string) =>
+      undoConvertLineInputSchema.safeParse({
+        noteId: id,
+        version: 2,
+        taskId: TASK,
+        line: 0,
+        original: text,
+      }).success;
+    expect(line("- [ ] Uno")).toBe(true);
+    expect(line("- [ ] Uno \u202E")).toBe(false);
+    expect(line("- [ ] Uno \uE010")).toBe(false);
+    expect(captureNoteInputSchema.safeParse({ text: "idea \uE011" }).success).toBe(false);
+    expect(noteBodySchema.safeParse("Hola \uE010x\uE011").error?.issues[0]?.message).toBe(
+      NOTES_ERRORS.body.placeholder,
+    );
+    expect(noteBodySchema.safeParse("Hola").success).toBe(true);
   });
 });

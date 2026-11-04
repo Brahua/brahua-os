@@ -3,7 +3,7 @@
 // N3 (SPEC-notes "Línea → tarea", "Casilla de tarea"): the controls the view draws on task list
 // items, and the logic behind them, which lives in `NoteBody` (it owns the autosave):
 //
-// - «Convertir en tarea» after an unchecked item: first what is pending lands (`settle`), then the
+// - «Convertir en tarea» after an unchecked item's text: first what is pending lands (`settle`), then the
 //   action is sent only if the screen is in step with the server (no conflict, nothing unsaved);
 //   the new body and version come back and the editor takes them (`adopt`), so the next save
 //   never meets a false conflict. Its notice has «Deshacer» (the line comes back and the untouched
@@ -17,7 +17,7 @@
 // `notes` doesn't import `tasks`.
 import { ListPlus } from "lucide-react";
 import { createContext, use, useEffect, useOptimistic, useRef, useTransition } from "react";
-import { Key } from "@/design-system";
+import { IconKey } from "@/design-system";
 import type { ActionResult } from "@/lib/action-result";
 import { NOTES_COPY as COPY } from "../copy";
 import type { ConvertedLine, NoteTaskToggled, RestoredLine } from "../note-input";
@@ -34,19 +34,22 @@ export type NoteLineActions = {
 export type NoteLines = {
   /** Whether a line may be converted now (the note exists and isn't in a conflict). */
   canConvert: boolean;
-  /** A conversion (or its «Deshacer») is on its way. */
-  converting: boolean;
+  /** Whether this item's conversion is on its way (only its key waits). */
+  isConverting: (index: number) => boolean;
   convert: (item: { index: number; text: string }) => void;
   /** Marks (`done`) or unmarks a task; true once the server agreed. */
   toggle: (task: { id: string; name: string }, done: boolean) => Promise<boolean>;
   /** A task's state as the last answer from the server left it, if this screen changed it. */
   doneOf: (id: string) => boolean | undefined;
   /**
-   * True once for the task whose checkbox should take the focus when it shows (the line just
-   * converted: its key is gone). The checkbox asks when it mounts (the editor's text may render
-   * a moment later, once its Markdown code has loaded).
+   * Whether this task's checkbox should take the focus now: the line just converted (its key is
+   * gone) and the focus is on nothing or on the «Editar» fallback. Asked on every render, so it
+   * works again when the server's render replaces the editor's; a key press or tap of the owner
+   * drops the claim.
    */
   claimFocus: (id: string) => boolean;
+  /** The same for the «Convertir» key of item `index` (after «Deshacer» of its conversion). */
+  claimConvertFocus: (index: number) => boolean;
 };
 
 export const NoteLinesContext = createContext<NoteLines | null>(null);
@@ -54,27 +57,42 @@ export const NoteLinesContext = createContext<NoteLines | null>(null);
 /** Marks the controls, so a tap on them never opens the editor (the view's tap-to-edit). */
 export const LINE_CONTROL = "data-note-line-control";
 
-/** «Convertir en tarea», after an unchecked item that can become a task. */
-export function ConvertLineKey({ index, text }: { index: number; text: string }) {
+/**
+ * «Convertir en tarea», right after the text of an unchecked item that can become a task: an icon
+ * key (drawn at 28 px, touchable larger; markdown.css) named «Convertir en tarea: <texto>» with
+ * the item's plain text, with its tooltip on the desktop. Only the item being converted waits.
+ */
+export function ConvertLineKey({
+  index,
+  text,
+  plain,
+}: {
+  index: number;
+  text: string;
+  plain: string;
+}) {
   const lines = use(NoteLinesContext);
+  useEffect(() => {
+    if (!lines?.claimConvertFocus(index)) return;
+    document.querySelector<HTMLElement>(`[data-note-convert="${index}"]`)?.focus();
+  });
   if (!lines) return null;
-  const unavailable = !lines.canConvert || lines.converting;
+  const unavailable = !lines.canConvert || lines.isConverting(index);
   return (
-    <Key
+    <IconKey
       variant="ghost"
       size="sm"
       icon={ListPlus}
+      label={COPY.convertLabel(plain)}
+      placement="top"
       className="bo-md-task-convert"
-      aria-label={COPY.convertLabel(text)}
       aria-disabled={unavailable || undefined}
       data-note-convert={index}
       {...{ [LINE_CONTROL]: "" }}
       onClick={() => {
         if (!unavailable) lines.convert({ index, text });
       }}
-    >
-      {COPY.convert}
-    </Key>
+    />
   );
 }
 
@@ -97,9 +115,10 @@ export function NoteTaskCheckbox({
   const [pending, startTransition] = useTransition();
   const box = useRef<HTMLInputElement>(null);
   const visible = lines !== null && known !== null;
+  // Asked after every render (see `claimFocus`).
   useEffect(() => {
     if (visible && lines?.claimFocus(id)) box.current?.focus();
-  }, [visible, lines, id]);
+  });
   if (!lines || known === null) return null;
   return (
     // A label: the whole 44 px square toggles the 20 px box.

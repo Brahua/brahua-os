@@ -33,6 +33,7 @@ import {
   convertTaskItem,
   findConvertibleItem,
   lineAt,
+  listTaskItems,
   removeAppended,
   restoreTaskItem,
 } from "./note-lines";
@@ -49,8 +50,13 @@ export type NoteTaskWriter = {
     tx: Tx,
     text: string,
   ): Promise<{ id: string; title: string } | { problem: "empty" | "tooLong" | "invisible" }>;
-  /** Soft-deletes the task only if untouched since it was created. */
-  undo(tx: Tx, id: string): Promise<"removed" | "kept" | "missing">;
+  /** The title `create` would store for `text`, or null when it couldn't be one. */
+  titleOf(text: string): string | null;
+  /**
+   * Soft-deletes the task only if its stored title is `title` and it is untouched since it was
+   * created; `mismatch` when it isn't that task.
+   */
+  undo(tx: Tx, id: string, title: string): Promise<"removed" | "kept" | "missing" | "mismatch">;
 };
 
 const TITLE_PROBLEM: Record<"empty" | "tooLong" | "invisible", NoteFailure> = {
@@ -63,6 +69,16 @@ const TITLE_PROBLEM: Record<"empty" | "tooLong" | "invisible", NoteFailure> = {
 const SAMPLE_ID = "00000000-0000-0000-0000-000000000000";
 
 const live = isNull(notes.deletedAt);
+
+/** A live note's body and version (no lock). */
+async function readNote(db: Database, id: string) {
+  const [note] = await db
+    .select({ id: notes.id, body: notes.body, version: notes.version })
+    .from(notes)
+    .where(and(eq(notes.id, id), live))
+    .limit(1);
+  return note ?? null;
+}
 
 /** A live note's body and version, its row locked until the transaction ends. */
 async function lockNote(tx: Tx, id: string) {
@@ -85,29 +101,38 @@ async function writeBody(tx: Tx, id: string, body: string) {
 }
 
 /**
- * «Convertir en tarea» (SPEC-notes "Línea → tarea"): in one transaction, checks the note is still
- * at `version` and its task item `index` still reads `text`, creates the inbox task and replaces
- * the line with `[[task:<id>|texto]]`. Anything else writes nothing: `changed` (the note moved on),
- * `notFound`, the title's problem, or `bodyFull` (the link doesn't fit in 50 000).
+ * «Convertir en tarea» (SPEC-notes "Línea → tarea"): checks the note is at `version` and its task
+ * item `index` still reads `text`, then, in one transaction, creates the inbox task (titled with
+ * the item's plain text) and replaces the line with `[[task:<id>|texto]]`. Anything else writes
+ * nothing: `changed` (the note moved on), `notFound`, the title's problem, or `bodyFull` (the link
+ * doesn't fit in 50 000).
+ *
+ * The Markdown is parsed outside the transaction (from an unlocked read); inside, the note's row is
+ * locked and only its version is compared again: the same version is the same body.
  */
 export async function convertNoteLine(
   db: Database,
   { noteId, version, index, text }: ConvertLineInput,
   writer: NoteTaskWriter,
 ): Promise<ConvertedLine | NoteFailure> {
+  const read = await readNote(db, noteId);
+  if (!read) return "notFound";
+  if (read.version !== version) return "changed";
+  const item = findConvertibleItem(read.body, index, text);
+  if (!item?.text || !item.plain) return "changed";
+  // Measured first: once the task is inserted, the transaction must not end in a plain return.
+  const measured = convertTaskItem(read.body, item, SAMPLE_ID);
+  if (measured === null) return "changed";
+  if (measured.length > NOTE_BODY_MAX_LENGTH) return "bodyFull";
+  const plain = item.plain;
   return db.transaction(async (tx) => {
     const note = await lockNote(tx, noteId);
     if (!note) return "notFound";
     if (note.version !== version) return "changed";
-    const item = findConvertibleItem(note.body, index, text);
-    if (!item?.text) return "changed";
-    // Measured first: once the task is inserted, returning would commit it.
-    const measured = convertTaskItem(note.body, item, SAMPLE_ID);
-    if (measured === null) return "changed";
-    if (measured.length > NOTE_BODY_MAX_LENGTH) return "bodyFull";
-    const created = await writer.create(tx, item.text);
+    const created = await writer.create(tx, plain);
     if ("problem" in created) return TITLE_PROBLEM[created.problem];
     const body = convertTaskItem(note.body, item, created.id);
+    // Thrown (never returned): the task just inserted rolls back with the transaction.
     if (body === null) throw new Error("convertNoteLine: the measured line stopped matching");
     const saved = await writeBody(tx, noteId, body);
     return {
@@ -116,6 +141,7 @@ export async function convertNoteLine(
       body: saved.body,
       taskId: created.id,
       title: created.title,
+      index,
       line: item.line,
       original: lineAt(note.body, item.line) ?? "",
     };
@@ -124,9 +150,11 @@ export async function convertNoteLine(
 
 /**
  * «Deshacer» of a conversion: only if the note is still at the version the conversion left
- * (`changed` otherwise) and the task is untouched (`taskChanged` otherwise: it is the owner's now,
- * and both stay). The task is soft-deleted and the line is the original again. A task that is
- * already gone (deleted from Tareas) just lets the line come back.
+ * (`changed` otherwise) and the line holds exactly the link to `taskId`. Nothing the client sends is
+ * trusted beyond that: the line put back must be an item that can become a task (its prefix the
+ * same), whose plain text gives — through `tasks`' own title rule — exactly the task's stored title
+ * (read FOR UPDATE; otherwise `changed`), and the body must fit (`bodyFull`). A task that changed
+ * since keeps everything as it is (`taskChanged`); one already gone just lets the line come back.
  */
 export async function undoNoteLineConversion(
   db: Database,
@@ -139,8 +167,14 @@ export async function undoNoteLineConversion(
     if (note.version !== version) return "changed";
     const body = restoreTaskItem(note.body, line, taskId, original);
     if (body === null) return "changed";
-    // Checked before writing the note: a task that changed keeps everything as it is.
-    if ((await writer.undo(tx, taskId)) === "kept") return "taskChanged";
+    if (body.length > NOTE_BODY_MAX_LENGTH) return "bodyFull";
+    const item = listTaskItems(body).find((candidate) => candidate.line === line);
+    const title = item?.plain ? writer.titleOf(item.plain) : null;
+    if (title === null) return "changed";
+    // Checked before writing the note: another task, or one that changed, keeps everything.
+    const undone = await writer.undo(tx, taskId, title);
+    if (undone === "mismatch") return "changed";
+    if (undone === "kept") return "taskChanged";
     const saved = await writeBody(tx, noteId, body);
     return { noteId, version: saved.version, body: saved.body };
   });
@@ -189,14 +223,19 @@ export async function appendToDailyNote(
  * «Deshacer» of a capture: removes exactly what it appended, only if the note is still at the
  * version it left (`changed` otherwise). A note the capture created stays, empty (decisión
  * autónoma para revisar con el owner: deleting it could race a first save of the editor; an empty
- * daily note reads «Sin texto todavía» in the list and keeps «Nota de hoy» on Hoy).
+ * daily note reads «Sin texto todavía» in the list and keeps «Nota de hoy» on Hoy). Only the daily
+ * note of the day the capture returned.
  */
 export async function undoDailyNoteAppend(
   db: Database,
-  { noteId, version, appended }: UndoCaptureInput,
+  { noteId, day, version, appended }: UndoCaptureInput,
 ): Promise<{ noteId: string; version: number } | NoteFailure> {
   return db.transaction(async (tx) => {
-    const note = await lockNote(tx, noteId);
+    const [note] = await tx
+      .select({ body: notes.body, version: notes.version })
+      .from(notes)
+      .where(and(eq(notes.id, noteId), eq(notes.kind, "daily"), eq(notes.day, day), live))
+      .for("update");
     if (!note) return "notFound";
     if (note.version !== version) return "changed";
     const body = removeAppended(note.body, appended);

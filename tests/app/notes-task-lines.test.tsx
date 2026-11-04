@@ -78,6 +78,7 @@ const CONVERTED: ConvertedLine = {
   body: CONVERTED_BODY,
   taskId: TASK,
   title: "Llamar al banco",
+  index: 0,
   line: 2,
   original: "- [ ] Llamar al banco",
 };
@@ -190,7 +191,7 @@ describe("«Convertir en tarea»", () => {
     expect(actions.convert).not.toHaveBeenCalled();
   });
 
-  test("«Deshacer» sends what the conversion left and the line comes back", async () => {
+  test("«Deshacer» sends what the conversion left, the line comes back and its key takes the focus", async () => {
     actions.convert.mockResolvedValue(ok(CONVERTED));
     actions.undoConvert.mockResolvedValue(ok({ noteId: ID, version: 5, body: BODY }));
     render(<Body />);
@@ -209,20 +210,153 @@ describe("«Convertir en tarea»", () => {
     expect(
       await screen.findByRole("button", { name: COPY.convertLabel("Llamar al banco") }),
     ).toBeVisible();
+    // Never on <body>: the checkbox the notice gave the focus back to is gone.
+    await waitFor(() => expect(convertKey("Llamar al banco")).toHaveFocus());
     expect(await within(notices()).findByText(COPY.convertUndone("Llamar al banco"))).toBeVisible();
+  });
+
+  test("only the item being converted waits; another one asked meanwhile is queued, never lost", async () => {
+    const first = deferred<ActionResult<ConvertedLine>>();
+    actions.convert.mockReturnValueOnce(first.promise);
+    const SECOND = "11111111-2222-4333-8444-555555555555";
+    actions.convert.mockResolvedValueOnce(
+      ok({
+        ...CONVERTED,
+        version: 5,
+        body: `Pendientes:\n\n- [[task:${TASK}|Llamar al banco]]\n- [[task:${SECOND}|Pagar la luz]]`,
+        taskId: SECOND,
+        title: "Pagar la luz",
+        index: 0,
+        line: 3,
+        original: "- [ ] Pagar la luz",
+      }),
+    );
+    render(<Body />);
+    await user.click(convertKey("Llamar al banco"));
+    await waitFor(() => expect(actions.convert).toHaveBeenCalledTimes(1));
+    expect(convertKey("Llamar al banco")).toHaveAttribute("aria-disabled", "true");
+    expect(convertKey("Pagar la luz")).not.toHaveAttribute("aria-disabled");
+    await user.click(convertKey("Pagar la luz"));
+    // It waits for the first one…
+    expect(actions.convert).toHaveBeenCalledTimes(1);
+    await act(async () => first.resolve(ok(CONVERTED)));
+    // …and then goes with the version and the index the first one left (it is item 0 now).
+    await waitFor(() =>
+      expect(actions.convert).toHaveBeenLastCalledWith({
+        noteId: ID,
+        version: 4,
+        index: 0,
+        text: "Pagar la luz",
+      }),
+    );
+    expect(await within(notices()).findByText(COPY.converted("Pagar la luz"))).toBeVisible();
+  });
+
+  test("the key is named with the plain text; the text as written is what is sent", async () => {
+    actions.convert.mockResolvedValue(fail(NOTES_ERRORS.changed));
+    render(<Body body={"- [ ] Llamar **al** [banco](https://banco.example)"} />);
+    await user.click(convertKey("Llamar al banco"));
+    await waitFor(() =>
+      expect(actions.convert).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "Llamar **al** [banco](https://banco.example)" }),
+      ),
+    );
+  });
+
+  test("the new checkbox claims the focus again when the server's render replaces the editor's", async () => {
+    actions.convert.mockResolvedValue(ok(CONVERTED));
+    const { rerender } = render(<Body />);
+    await user.click(convertKey("Llamar al banco"));
+    await waitFor(() => expect(checkbox("Llamar al banco")).toHaveFocus());
+    // The revalidated page: the converted body, resolved, rendered on the server.
+    rerender(
+      <Body
+        body={CONVERTED_BODY}
+        version={4}
+        noteLinks={{
+          [`task:${TASK}`]: {
+            name: "Llamar al banco",
+            href: `/tasks/${TASK}`,
+            deleted: false,
+            done: false,
+          },
+        }}
+      />,
+    );
+    await waitFor(() => expect(checkbox("Llamar al banco")).toHaveFocus());
+  });
+});
+
+describe("a newer note from the page (a capture, a revalidation)", () => {
+  test("with nothing pending the view takes it: no false conflict on the next save", async () => {
+    const { rerender } = render(<Body />);
+    const captured = `${BODY}\n- 18:42 idea`;
+    rerender(<Body body={captured} version={4} />);
+    expect(await screen.findByText("18:42 idea", { exact: false })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    const field = screen.getByRole("textbox", { name: COPY.bodyLabel });
+    expect(field).toHaveValue(captured);
+    await user.type(field, "!");
+    await user.click(screen.getByRole("button", { name: COPY.done }));
+    await waitFor(() =>
+      expect(saveNote).toHaveBeenCalledWith({ id: ID, body: `${captured}!`, version: 4 }),
+    );
+    expect(document.querySelector("[data-note-conflict]")).toBeNull();
+  });
+
+  test("with text pending it is a conflict and the typed text stays", async () => {
+    const { rerender } = render(<Body />);
+    await user.click(screen.getByRole("button", { name: COPY.edit }));
+    await user.type(screen.getByRole("textbox", { name: COPY.bodyLabel }), " mío");
+    rerender(<Body body={`${BODY}\n- 18:42 idea`} version={4} />);
+    await waitFor(() => expect(document.querySelector("[data-note-conflict]")).not.toBeNull());
+    expect(screen.getByRole("textbox", { name: COPY.bodyLabel })).toHaveValue(`${BODY} mío`);
+    // The autosave stopped: nothing was sent over the newer version.
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    expect(saveNote).not.toHaveBeenCalled();
+  });
+
+  test("a day without a note takes the note a capture created", async () => {
+    const { rerender } = render(
+      <ScreenServicesProvider label={COPY.noticesLabel} actionHint={COPY.undoHint}>
+        <NoteBody
+          note={{ id: null, body: "", version: 0 }}
+          day="2026-11-03"
+          rendered={null}
+          shortcuts={false}
+        />
+      </ScreenServicesProvider>,
+    );
+    expect(screen.getByRole("textbox", { name: COPY.bodyLabel })).toHaveValue("");
+    rerender(
+      <ScreenServicesProvider label={COPY.noticesLabel} actionHint={COPY.undoHint}>
+        <NoteBody
+          note={{ id: ID, body: "- 08:00 café", version: 1 }}
+          day="2026-11-03"
+          rendered={null}
+          shortcuts={false}
+        />
+      </ScreenServicesProvider>,
+    );
+    const field = screen.getByRole("textbox", { name: COPY.bodyLabel });
+    await waitFor(() => expect(field).toHaveValue("- 08:00 café"));
+    await user.type(field, " y pan");
+    await user.click(screen.getByRole("button", { name: COPY.done }));
+    // By id and version (never a first save of the day, which would be a conflict).
+    await waitFor(() =>
+      expect(saveNote).toHaveBeenCalledWith({ id: ID, body: "- 08:00 café y pan", version: 1 }),
+    );
   });
 });
 
 describe("«Ese día»", () => {
-  test("the counts in one line, named by its region; both at 0 neutral", () => {
-    const { unmount } = render(<NoteDayFooter tasksDone={4} habitsDone={1} />);
-    const region = screen.getByRole("region", { name: COPY.dayFooterTitle });
-    expect(region).toHaveTextContent("Ese día: 4 tareas hechas · 1 hábito cumplido");
+  test("the counts in one line, in the note's footer; both at 0 neutral", () => {
+    const { container, unmount } = render(<NoteDayFooter tasksDone={4} habitsDone={1} />);
+    const footer = container.querySelector("footer[data-note-day-footer]");
+    expect(footer).toHaveTextContent("Ese día: 4 tareas hechas · 1 hábito cumplido");
     unmount();
-    render(<NoteDayFooter tasksDone={0} habitsDone={0} />);
-    expect(screen.getByRole("region", { name: COPY.dayFooterTitle })).toHaveTextContent(
-      /^Sin registros ese día$/,
-    );
+    const empty = render(<NoteDayFooter tasksDone={0} habitsDone={0} />);
+    expect(empty.container.querySelector("footer")).toHaveTextContent(/^Sin registros ese día$/);
   });
 });
 

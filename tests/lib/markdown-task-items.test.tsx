@@ -3,6 +3,7 @@
 // index and the text, draws a task link item with its state (and none when the task is gone or
 // unknown), and changes nothing without `taskItems` (projects' and tasks' notes).
 import { render, screen } from "@testing-library/react";
+import ReactMarkdown from "react-markdown";
 import { describe, expect, test } from "vitest";
 import { Markdown, type MarkdownTaskItems } from "@/lib/markdown/markdown";
 import { parseTaskItems } from "@/lib/markdown/task-items";
@@ -111,5 +112,43 @@ describe("task item controls", () => {
     expect(opens(container)).toEqual([[0, "convertir Real"]]);
     // The rendered list items carry no mark attribute at all.
     expect(container.querySelector("[data-md-item]")).toBeNull();
+  });
+});
+
+describe("review fixes (N3)", () => {
+  test("a parent item with a sublist: its control right after its own text, before the children", () => {
+    const body = "- [ ] Mudanza\n  - [ ] Cajas\n  - [x] Camión";
+    const { container } = render(<Markdown taskItems={RENDERERS}>{body}</Markdown>);
+    const parent = container.querySelector("li")!;
+    const control = parent.querySelector(":scope > [data-open]")!;
+    const sublist = parent.querySelector(":scope > ul")!;
+    expect(control).toHaveTextContent("convertir Mudanza");
+    expect(control.compareDocumentPosition(sublist)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(opens(container)).toEqual([
+      [0, "convertir Mudanza"],
+      [1, "convertir Cajas"],
+    ]);
+  });
+
+  test("the control gets the plain text too (no `**`, no URL)", () => {
+    const seen: string[] = [];
+    render(
+      <Markdown taskItems={{ open: ({ plain }) => (seen.push(plain), null) }}>
+        {"- [ ] Llamar **al** [banco](https://banco.example)"}
+      </Markdown>,
+    );
+    expect(seen).toEqual(["Llamar al banco"]);
+  });
+
+  test("react-markdown's `Markdown` is synchronous and hook-free (parseTaskItems calls it as a function)", () => {
+    let ran = false;
+    const plugin = () => () => {
+      ran = true;
+    };
+    // Outside any render: a hook would throw here, and an async run wouldn't have run yet.
+    const element = ReactMarkdown({ children: "- [ ] Uno", remarkPlugins: [plugin] });
+    expect(ran).toBe(true);
+    expect(element).toBeTruthy();
+    expect(parseTaskItems("- [ ] Uno\n- [x] Dos").map((item) => item.index)).toEqual([0, 1]);
   });
 });

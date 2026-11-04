@@ -32,7 +32,7 @@ export function NoteCaptureSheet({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<CapturedLine | null>(null);
+  const [saved, setSaved] = useState<{ line: CapturedLine; text: string } | null>(null);
   const [announcement, announce] = useAnnouncer();
   const [pending, startTransition] = useTransition();
   const [undoing, startUndo] = useTransition();
@@ -49,9 +49,10 @@ export function NoteCaptureSheet({
 
   function showError(message: string) {
     setError(message);
-    // Focus stays in the field (Enter): the error is read through the sheet's status region.
-    announce(message);
-    input.current?.focus();
+    // Said once. With the focus already in the field (Enter), moving it there says nothing, so the
+    // sheet's status region reads it; otherwise focusing the field reads its error description.
+    if (document.activeElement === input.current) announce(message);
+    else input.current?.focus();
   }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -82,20 +83,21 @@ export function NoteCaptureSheet({
         setText("");
       }
       setError(null);
-      setSaved(result.data);
+      setSaved({ line: result.data, text: parsed.data.text });
       input.current?.focus();
-      announce(COPY.captured);
+      announce(COPY.captured(parsed.data.text));
     });
   }
 
   function undoSaved() {
-    const line = saved;
+    const line = saved?.line;
     if (!line || busy) return;
     startUndo(async () => {
       let result: ActionResult<{ noteId: string; version: number }>;
       try {
         result = await undoCaptureNote({
           noteId: line.noteId,
+          day: line.day,
           version: line.version,
           appended: line.appended,
         });
@@ -187,7 +189,7 @@ export function NoteCaptureSheet({
             className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-4 py-3"
             data-note-captured=""
           >
-            <p className="bo-text-body-sm">{COPY.captured}</p>
+            <p className="bo-text-body-sm">{COPY.captured(saved.text)}</p>
             {/* 48 px (a touch key), like every key on the phone. */}
             <Key variant="ghost" aria-disabled={busy || undefined} onClick={undoSaved}>
               {COPY.undo}

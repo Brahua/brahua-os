@@ -61,7 +61,7 @@ describe("notes copy has no guilt", () => {
       "Seguir la nota de hoy",
       // N3: the line → task, the capture and «Ese día».
       NOTES_COPY.convert,
-      NOTES_COPY.captured,
+      NOTES_COPY.captured("Apuntes IAM"),
       NOTES_COPY.dayFooterEmpty,
       NOTES_ERRORS.changed,
     ]) {

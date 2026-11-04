@@ -49,7 +49,7 @@ async function answer(result: ActionResult<CapturedLine>) {
 
 function renderSheet() {
   const onOpenChange = vi.fn();
-  render(
+  const view = render(
     <NoteCaptureSheet
       open
       onOpenChange={onOpenChange}
@@ -57,7 +57,7 @@ function renderSheet() {
       switcher={<div data-testid="switcher" />}
     />,
   );
-  return { onOpenChange };
+  return { onOpenChange, unmount: view.unmount };
 }
 
 const field = () => screen.getByRole("textbox", { name: COPY.captureTextLabel });
@@ -85,20 +85,45 @@ describe("NoteCaptureSheet", () => {
     await answer(ok(LINE));
     expect(field()).toHaveValue("");
     expect(field()).toHaveFocus();
-    await waitFor(() => expect(status()).toHaveTextContent(COPY.captured));
+    const said = COPY.captured("idea: comparar Neon con Supabase");
+    expect(said).toBe("Se añadió «idea: comparar Neon con Supabase» a la nota de hoy.");
+    await waitFor(() => expect(status()).toHaveTextContent(said));
     const notice = document.querySelector("[data-note-captured]")!;
-    expect(notice).toHaveTextContent(COPY.captured);
+    expect(notice).toHaveTextContent(said);
 
     vi.mocked(undoCaptureNote).mockResolvedValue(ok({ noteId: NOTE, version: 5 }));
     await user.click(screen.getByRole("button", { name: COPY.undo }));
     expect(undoCaptureNote).toHaveBeenCalledWith({
       noteId: NOTE,
+      day: "2026-11-03",
       version: 4,
       appended: LINE.appended,
     });
     await waitFor(() => expect(document.querySelector("[data-note-captured]")).toBeNull());
     expect(field()).toHaveFocus();
     await waitFor(() => expect(status()).toHaveTextContent(COPY.captureUndone));
+  });
+
+  test("a long text is cut with «…» in the notice", () => {
+    const long = "a".repeat(80);
+    expect(COPY.captured(long)).toBe(`Se añadió «${"a".repeat(59)}…» a la nota de hoy.`);
+  });
+
+  test("an error is said once: through the status only while the field has the focus", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderSheet();
+    await user.type(field(), "   {Enter}");
+    await waitFor(() => expect(status()).toHaveTextContent(NOTES_ERRORS.captureEmpty));
+    unmount();
+
+    // From the footer key the focus moves to the field (its description reads the error): the
+    // status says nothing.
+    renderSheet();
+    await user.click(screen.getByRole("button", { name: COPY.captureAdd }));
+    await waitFor(() => expect(field()).toHaveFocus());
+    expect(field()).toHaveAccessibleDescription(expect.stringContaining(NOTES_ERRORS.captureEmpty));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(status()).not.toHaveTextContent(NOTES_ERRORS.captureEmpty);
   });
 
   test("text typed while saving stays for the next one", async () => {

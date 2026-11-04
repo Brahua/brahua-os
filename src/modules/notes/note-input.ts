@@ -3,7 +3,8 @@
 // one projects' and tasks' notes use (src/lib/markdown-text.ts) with the notes' own limit.
 import { z } from "zod";
 import type { AreaColor, AreaIconName } from "@/design-system";
-import { hasControlCharacters, markdownTextSchema } from "@/lib/markdown-text";
+import { hasBidiControls, hasControlCharacters, markdownTextSchema } from "@/lib/markdown-text";
+import { hasPlaceholderCharacters } from "@/lib/markdown/note-links";
 import { hasInvisibleCharacters, normalizeName } from "@/lib/text";
 import { NOTES_ERRORS } from "./copy";
 import {
@@ -22,7 +23,8 @@ const id = z.uuid({ error: NOTES_ERRORS.notFound });
 export const noteBodySchema = markdownTextSchema(NOTE_BODY_MAX_LENGTH, NOTES_ERRORS.body, {
   // A note's body is always text: null is refused, never read as «empty it».
   nullable: false,
-});
+  // N3: the `[[…]]` placeholders' private characters (U+E010, U+E011) never get stored.
+}).refine((value) => !hasPlaceholderCharacters(value), NOTES_ERRORS.body.placeholder);
 
 /** A knowledge note's title, normalized like names: 1–120, no invisible characters. */
 export const noteTitleSchema = z
@@ -147,11 +149,22 @@ const version = z
   .min(1, NOTES_ERRORS.version)
   .max(2_147_483_647, NOTES_ERRORS.version);
 
-/** One line of a note as the screen read it: no line breaks or control characters. */
+/**
+ * One line of a note as the screen read it, in NFC (as stored: text pasted in NFD still matches):
+ * no line breaks, control or bidi characters, nor the placeholders' private characters.
+ */
 const lineText = z
   .string({ error: NOTES_ERRORS.version })
   .max(NOTE_BODY_MAX_LENGTH, NOTES_ERRORS.version)
-  .refine((value) => !/[\r\n]/.test(value) && !hasControlCharacters(value), NOTES_ERRORS.version);
+  .transform((value) => value.normalize("NFC"))
+  .refine(
+    (value) =>
+      !/[\r\n]/.test(value) &&
+      !hasControlCharacters(value) &&
+      !hasBidiControls(value) &&
+      !hasPlaceholderCharacters(value),
+    NOTES_ERRORS.version,
+  );
 
 /**
  * «Convertir en tarea»: the note, the version the screen showed, the item's index among the task
@@ -196,7 +209,10 @@ export const captureTextSchema = z
       .string()
       .min(1, NOTES_ERRORS.captureEmpty)
       .max(NOTE_CAPTURE_MAX_LENGTH, NOTES_ERRORS.captureTooLong)
-      .refine((value) => !hasInvisibleCharacters(value), NOTES_ERRORS.captureInvisible),
+      .refine(
+        (value) => !hasInvisibleCharacters(value) && !hasPlaceholderCharacters(value),
+        NOTES_ERRORS.captureInvisible,
+      ),
   );
 
 export const captureNoteInputSchema = z.object({ text: captureTextSchema });
@@ -205,9 +221,13 @@ export type CaptureNoteInput = z.output<typeof captureNoteInputSchema>;
 /** What a capture appended: `- HH:MM texto`, after a line break when the note had text. */
 const APPENDED = new RegExp(`^\\n?- \\d{2}:\\d{2} [^\\r\\n]{1,${NOTE_CAPTURE_MAX_LENGTH}}$`);
 
-/** «Deshacer» of a capture: the note, the version it left and exactly what it appended. */
+/**
+ * «Deshacer» of a capture: the note and its day (as the capture returned them), the version it
+ * left and exactly what it appended.
+ */
 export const undoCaptureInputSchema = z.object({
   noteId: id,
+  day,
   version,
   appended: z
     .string({ error: NOTES_ERRORS.version })
@@ -223,6 +243,8 @@ export type ConvertedLine = {
   taskId: string;
   /** The task's title (as stored). */
   title: string;
+  /** The item's index among the task items (its «Convertir» key gets the focus after «Deshacer»). */
+  index: number;
   /** The line that changed (0-based) and what it held before. */
   line: number;
   original: string;

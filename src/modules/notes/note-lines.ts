@@ -47,16 +47,16 @@ function replaceLine(body: string, line: number, next: (current: string) => stri
 }
 
 /**
- * `body` with the item's `[ ] texto` turned into `[[task:<id>|texto]]` (the link's name cleaned of
+ * `body` with the item's `[ ] texto` turned into `[[task:<id>|texto]]` (the name is its plain text, cleaned of
  * `[`, `]` and `|`). Null if the line no longer looks like that item.
  */
 export function convertTaskItem(
   body: string,
-  item: Pick<MarkdownTaskItem, "line" | "column" | "text">,
+  item: Pick<MarkdownTaskItem, "line" | "column" | "text" | "plain">,
   taskId: string,
 ): string | null {
-  if (item.text === null) return null;
-  const link = formatNoteLink("task", taskId, item.text);
+  if (item.text === null || !item.plain) return null;
+  const link = formatNoteLink("task", taskId, item.plain);
   return replaceLine(body, item.line, (current) => {
     const match = OPEN_FROM_MARKER.exec(current.slice(item.column));
     if (!match) return null;
