@@ -321,7 +321,7 @@ describe("a routine's page", () => {
     render(<Detail />);
     await userEvent.click(screen.getByRole("button", { name: COPY.addItem }));
     await userEvent.type(await screen.findByLabelText(COPY.pickerSearch), "Press Arnold");
-    expect(screen.getByText(COPY.pickerNone)).toBeVisible();
+    expect(screen.getByText(COPY.pickerNone, { selector: "p:not([role=status])" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: COPY.pickerCreate("Press Arnold") }));
     const name = await screen.findByRole("textbox", { name: "Nombre" });
     expect(name).toHaveValue("Press Arnold");
