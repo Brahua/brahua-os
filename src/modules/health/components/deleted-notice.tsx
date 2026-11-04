@@ -8,6 +8,8 @@ import { HEALTH_COPY as COPY } from "../health-copy";
 import { DELETED_PARAM } from "../routes";
 import { restoreRoutine } from "../routines-actions";
 import { ROUTINES_COPY } from "../routines-copy";
+import { restoreHealthSession } from "../sessions-actions";
+import { SESSIONS_COPY } from "../sessions-copy";
 import { failureReason, useHealthSave } from "./use-health-save";
 
 /** A live region only speaks what changes after it is on the page. */
@@ -88,6 +90,25 @@ export function RoutineDeletedNotice(props: Deleted) {
       title={ROUTINES_COPY.deletedTitle}
       text={ROUTINES_COPY.deleted}
       restored={ROUTINES_COPY.restored}
+    />
+  );
+}
+
+/** «Deshacer» of a session's delete or discard, as the notice calls it. */
+const restoreSession = ({ id }: { id: string }) => restoreHealthSession({ sessionId: id });
+
+/**
+ * /health/sessions after deleting (or discarding) a session from its screen: «Sesión eliminada ·
+ * Deshacer». `deleted.name` is the routine's name or «Sesión libre».
+ */
+export function SessionDeletedNotice(props: Deleted) {
+  return (
+    <DeletedNotice
+      {...props}
+      restore={restoreSession}
+      title={SESSIONS_COPY.deletedTitle}
+      text={SESSIONS_COPY.deleted}
+      restored={SESSIONS_COPY.restored}
     />
   );
 }

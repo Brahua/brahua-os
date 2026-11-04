@@ -26,7 +26,15 @@ export const routineLockKey = (routineId: string) => routineId;
  * every write of an exercise (create, edit, delete, restore): two saves of the same name wait for
  * each other, so the second sees the first and says «Ya existe» (the partial unique index on
  * `name_key` stays the hard guarantee).
- *
- * E2 adds `(10000, hashtext('health:session'))` for the sessions.
  */
 export const HEALTH_EXERCISES_KEY = "health:exercises";
+
+/**
+ * Second key of the sessions lock: `(10000, hashtext('health:session'))` (E2). The FIRST, and only,
+ * advisory lock of EVERY write of a session, its exercises or its sets (start, the sets, add,
+ * remove and reorder exercises, the note and times, finish, discard, delete and their «Deshacer»):
+ * two «Empezar» at once queue on it, so the second sees the first one's open session (the partial
+ * unique index `health_sessions_open_unique` stays the hard guarantee), and the order inside a
+ * session needs no lock of its own.
+ */
+export const HEALTH_SESSION_KEY = "health:session";

@@ -7,8 +7,17 @@ import { getDb } from "@/lib/db";
 import { selectDeletedExercise, selectExercise, selectExercises } from "./exercises";
 import type { DeletedExercise, ExerciseItem } from "./exercises-input";
 import { selectRoutineItems } from "./routine-items";
+import { nextRoutine, type RotationRoutine } from "./rotation";
 import { selectDeletedRoutine, selectRoutine, selectRoutineSummaries } from "./routines";
 import type { RoutineItem, RoutineRef, RoutineSummary } from "./routines-input";
+import {
+  selectDeletedSession,
+  selectOpenSession,
+  selectRotationRoutines,
+  selectSessionDetail,
+  selectSessionSummaries,
+} from "./sessions";
+import type { OpenSession, SessionDetail, SessionSummary } from "./sessions-input";
 
 // Not a uuid: no query (Postgres would reject the cast and quote the value in its error).
 const uuid = z.uuid();
@@ -62,4 +71,45 @@ export async function getDeletedExercise(id: string): Promise<DeletedExercise | 
   await requireOwner();
   if (!isId(id)) return null;
   return selectDeletedExercise(getDb(), id);
+}
+
+// ── E2: sessions ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * A live session for its screen, or null when it doesn't exist, is deleted or the id is
+ * malformed (the page is a 404). Cached per request: the page's metadata reads it too.
+ */
+export const getSession = cache(async (id: string): Promise<SessionDetail | null> => {
+  await requireOwner();
+  if (!isId(id)) return null;
+  return selectSessionDetail(getDb(), id);
+});
+
+/** The open session («Seguir»), or null. */
+export async function getOpenSession(): Promise<OpenSession | null> {
+  await requireOwner();
+  return selectOpenSession(getDb());
+}
+
+/** The routine that comes next by the rotation (SPEC-health "Rotación"), or null. */
+export async function getNextRoutine(): Promise<RotationRoutine | null> {
+  await requireOwner();
+  return nextRoutine(await selectRotationRoutines(getDb()));
+}
+
+/** The newest `limit` live sessions and how many there are. */
+export async function listSessions(
+  limit: number,
+): Promise<{ sessions: SessionSummary[]; total: number }> {
+  await requireOwner();
+  return selectSessionSummaries(getDb(), limit);
+}
+
+/** A session just deleted or discarded (`?deleted=<id>`), or null when it isn't deleted. */
+export async function getDeletedSession(
+  id: string,
+): Promise<{ id: string; routineName: string | null } | null> {
+  await requireOwner();
+  if (!isId(id)) return null;
+  return selectDeletedSession(getDb(), id);
 }

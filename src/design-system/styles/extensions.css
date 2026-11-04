@@ -45,9 +45,10 @@
 }
 /* WCAG 2.4.11: focused elements scrolled into view never end up under the bottom bar. */
 /* --toast-offset: the height of a visible notice plus its gap, set by core's ToastViewport (0 without one). */
-html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-offset) + var(--toast-offset, 0px)); }
+/* --rest-bar-offset: the height of health's rest bar plus its gap while it shows (0 without it). */
+html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-offset) + var(--toast-offset, 0px) + var(--rest-bar-offset, 0px)); }
 @media (min-width: 1024px) {
-  html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: var(--toast-offset, 0px); }
+  html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--toast-offset, 0px) + var(--rest-bar-offset, 0px)); }
 }
 /* min-height, not height: with larger text the bar grows instead of clipping its labels. */
 .bo-bottomnav--fixed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: auto; min-height: var(--shell-bottom-min);
@@ -81,9 +82,9 @@ html:has(.bo-bottomnav--fixed) { scroll-padding-bottom: calc(var(--shell-bottom-
  * plain fade under reduced motion (--motion-travel is 0 there).
  */
 .bo-toast-viewport { position: fixed; z-index: 40; display: flex; justify-content: center; pointer-events: none;
-  left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); bottom: calc(var(--shell-bottom-offset) + 12px); }
+  left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); bottom: calc(var(--shell-bottom-offset) + 12px + var(--rest-bar-offset, 0px)); }
 @media (min-width: 1024px) {
-  .bo-toast-viewport { justify-content: flex-end; left: auto; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); width: min(420px, calc(100vw - 48px)); }
+  .bo-toast-viewport { justify-content: flex-end; left: auto; right: max(24px, env(safe-area-inset-right)); bottom: calc(max(24px, env(safe-area-inset-bottom)) + var(--rest-bar-offset, 0px)); width: min(420px, calc(100vw - 48px)); }
 }
 .bo-toast-viewport > [role="status"] { display: flex; justify-content: inherit; width: 100%; }
 .bo-toast-viewport .bo-toast { width: 100%; pointer-events: auto; animation: bo-toast-in var(--duration-state) var(--ease-out); }
@@ -412,3 +413,23 @@ button.bo-metric-card { cursor: pointer; font: inherit; color: inherit; width: 1
    clear button stays (it clears the search through the `search` event). */
 .bo-field__control[type="search"] { -webkit-appearance: none; appearance: none; }
 .bo-field__control[type="search"]::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+
+/*
+ * Health (E2): a session's screen. The rest bar sits fixed at the bottom (above the phone's bar, at
+ * the bottom right like the notices from 1024 px) and publishes its height as --rest-bar-offset
+ * (components/rest-bar.tsx): the notices rise above it and focused controls scroll clear of it.
+ * A set is a row of five columns (number, two fields, the checkbox, the menu key): at 320 px the
+ * block leaves 264 px, so the gaps are 4 px and the fields keep ~70 px each, enough for «142,5» or
+ * «1:05:00» at 16 px (never smaller: iOS zooms into smaller fields). The checkbox is larger than a
+ * task's: it is tapped with one hand between sets.
+ */
+.bo-rest-bar { position: fixed; z-index: 35; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right));
+  bottom: calc(var(--shell-bottom-offset) + 12px); }
+@media (min-width: 1024px) {
+  .bo-rest-bar { left: auto; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); width: min(420px, calc(100vw - 48px)); }
+}
+.bo-set-grid { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr) minmax(0, 1fr) 2.75rem 2.75rem; align-items: center; gap: 4px; }
+@media (min-width: 640px) { .bo-set-grid { gap: 8px; } }
+.bo-set-field { height: 44px; padding: 0 2px; font-size: 16px; }
+.bo-set-field.is-error { border: 2px solid var(--color-signal); padding: 0 1px; }
+.bo-set-check { width: 26px; height: 26px; }

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   pgTable,
@@ -16,6 +17,7 @@ import {
 import { habits } from "@/modules/habits/db/schema";
 import {
   DEFAULT_REST_SECONDS,
+  DISTANCE_MAX_METERS,
   EQUIPMENT,
   EXERCISE_KINDS,
   EXERCISE_NAME_MAX_LENGTH,
@@ -23,12 +25,19 @@ import {
   REST_MAX_SECONDS,
   REST_MIN_SECONDS,
   ROUTINE_NAME_MAX_LENGTH,
+  SESSION_NOTE_MAX_LENGTH,
+  SET_REPS_MAX,
+  SET_REPS_MIN,
+  SET_SECONDS_MAX,
+  SET_SECONDS_MIN,
   TARGET_REPS_MAX,
   TARGET_REPS_MIN,
   TARGET_SECONDS_MAX,
   TARGET_SECONDS_MIN,
   TARGET_SETS_MAX,
   TARGET_SETS_MIN,
+  WEIGHT_MAX_GRAMS,
+  WEIGHT_STEP_GRAMS,
 } from "../health-constants";
 
 /** A compile-time number inside a CHECK (never user input). */
@@ -197,8 +206,131 @@ export const healthSettings = pgTable(
   (table) => [check("health_settings_single_row_check", sql`${table.id} = 1`)],
 );
 
+/**
+ * E2: a training session, started from a routine (`routine_id`) or free (null). `ended_at` null =
+ * open; at most one open live session (the partial unique index, behind the session lock in
+ * sessions.ts). `habit_marked_day` is E4's: the Lima day this session marked the linked habit.
+ * Soft delete (discard, or delete a finished one), with «Deshacer». `updated_at` is stamped to the
+ * millisecond by every session write (sessions.ts): the «Deshacer» of «Terminar» compares it.
+ */
+export const healthSessions = pgTable(
+  "health_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routineId: uuid("routine_id").references(() => healthRoutines.id, { onDelete: "restrict" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    note: text("note"), // ≤ 500
+    habitMarkedDay: date("habit_marked_day"),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "health_sessions_note_check",
+      sql`${table.note} is null or char_length(${table.note}) <= ${n(SESSION_NOTE_MAX_LENGTH)}`,
+    ),
+    check(
+      "health_sessions_ended_check",
+      sql`${table.endedAt} is null or ${table.endedAt} >= ${table.startedAt}`,
+    ),
+    // One open session at a time (SPEC-health "Empezar").
+    uniqueIndex("health_sessions_open_unique")
+      .on(sql`(true)`)
+      .where(sql`${table.endedAt} is null and ${table.deletedAt} is null`),
+    // The lists by time, and the rotation (the last finished session of each routine).
+    index("health_sessions_started_idx")
+      .on(table.startedAt)
+      .where(sql`${table.deletedAt} is null`),
+    index("health_sessions_routine_idx")
+      .on(table.routineId)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);
+
+/**
+ * E2: a session's exercises in order. `rest_seconds` is copied from the routine's item when the
+ * session starts (null: the exercise's). What changes here never touches the routine.
+ */
+export const healthSessionExercises = pgTable(
+  "health_session_exercises",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => healthSessions.id, { onDelete: "restrict" }),
+    exerciseId: uuid("exercise_id")
+      .notNull()
+      .references(() => healthExercises.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+    restSeconds: integer("rest_seconds"), // 30–600, optional
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "health_session_exercises_rest_check",
+      sql`${table.restSeconds} is null or ${table.restSeconds} between ${n(REST_MIN_SECONDS)} and ${n(REST_MAX_SECONDS)}`,
+    ),
+    check("health_session_exercises_position_check", sql`${table.position} >= 0`),
+    index("health_session_exercises_session_idx")
+      .on(table.sessionId, table.position)
+      .where(sql`${table.deletedAt} is null`),
+    // An exercise's history (the prefill, E3's records).
+    index("health_session_exercises_exercise_idx")
+      .on(table.exerciseId)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);
+
+/**
+ * E2: a set of a session's exercise. Which values a done set needs by its exercise's kind lives in
+ * Zod and sessions.ts (a CHECK can't read another table); the ranges are here. `done_at` null = a
+ * planned set; «Terminar» soft-deletes the planned ones (its «Deshacer» brings them back).
+ */
+export const healthSets = pgTable(
+  "health_sets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionExerciseId: uuid("session_exercise_id")
+      .notNull()
+      .references(() => healthSessionExercises.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+    weightGrams: integer("weight_grams"), // 0–1 000 000, multiple of 250
+    reps: integer("reps"), // 1–999
+    seconds: integer("seconds"), // 1–36 000
+    distanceMeters: integer("distance_meters"), // 0–1 000 000
+    warmup: boolean("warmup").notNull().default(false),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "health_sets_weight_check",
+      sql`${table.weightGrams} is null or (${table.weightGrams} between 0 and ${n(WEIGHT_MAX_GRAMS)} and ${table.weightGrams} % ${n(WEIGHT_STEP_GRAMS)} = 0)`,
+    ),
+    check(
+      "health_sets_reps_check",
+      sql`${table.reps} is null or ${table.reps} between ${n(SET_REPS_MIN)} and ${n(SET_REPS_MAX)}`,
+    ),
+    check(
+      "health_sets_seconds_check",
+      sql`${table.seconds} is null or ${table.seconds} between ${n(SET_SECONDS_MIN)} and ${n(SET_SECONDS_MAX)}`,
+    ),
+    check(
+      "health_sets_distance_check",
+      sql`${table.distanceMeters} is null or ${table.distanceMeters} between 0 and ${n(DISTANCE_MAX_METERS)}`,
+    ),
+    check("health_sets_position_check", sql`${table.position} >= 0`),
+    index("health_sets_exercise_idx")
+      .on(table.sessionExerciseId, table.position)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);
+
 export type HealthExercise = typeof healthExercises.$inferSelect;
 export type NewHealthExercise = typeof healthExercises.$inferInsert;
 export type HealthRoutine = typeof healthRoutines.$inferSelect;
 export type HealthRoutineExercise = typeof healthRoutineExercises.$inferSelect;
 export type HealthSettings = typeof healthSettings.$inferSelect;
+export type HealthSession = typeof healthSessions.$inferSelect;
+export type HealthSessionExercise = typeof healthSessionExercises.$inferSelect;
+export type HealthSet = typeof healthSets.$inferSelect;
