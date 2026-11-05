@@ -19,6 +19,7 @@ import { HEALTH_COPY } from "../health-copy";
 import { prefillSets } from "../prefill";
 import type { SessionRecord } from "../records";
 import { RECORDS_COPY } from "../records-copy";
+import { SETTINGS_COPY } from "../settings-copy";
 import { writeRest } from "../rest-timer";
 import { DELETED_PARAM, SESSIONS_PATH } from "../routes";
 import { ROUTINES_COPY } from "../routines-copy";
@@ -794,7 +795,10 @@ export function SessionScreen({
     toaster.push({
       id: `session-finished-${++noticeSerial.current}`,
       title: COPY.finishedTitle,
-      text: COPY.finished(summary),
+      // E4: «Marcaste «Gimnasio».» when this «Terminar» marked the linked habit.
+      text: finished.habitMarked
+        ? `${COPY.finished(summary)} ${SETTINGS_COPY.habitMarked(finished.habitMarked)}`
+        : COPY.finished(summary),
       action: { label: HEALTH_COPY.undo, run: () => void undoFinish(finished) },
     });
   }

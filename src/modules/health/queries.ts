@@ -21,6 +21,8 @@ import {
   selectSessionSummaries,
 } from "./sessions";
 import type { OpenSession, SessionDetail, SessionSummary } from "./sessions-input";
+import { selectSettingsView } from "./settings";
+import type { HealthSettingsView } from "./settings-input";
 
 // Not a uuid: no query (Postgres would reject the cast and quote the value in its error).
 const uuid = z.uuid();
@@ -133,4 +135,12 @@ export async function getExerciseRecords(
 ): Promise<ExerciseRecordsView> {
   await requireOwner();
   return selectExerciseRecords(getDb(), exercise.id, exercise.kind, limit);
+}
+
+// ── E4: settings ────────────────────────────────────────────────────────────────────────────
+
+/** «Ajustes»: the linked habit and the habits a session can mark. */
+export async function getHealthSettings(): Promise<HealthSettingsView> {
+  await requireOwner();
+  return selectSettingsView(getDb());
 }

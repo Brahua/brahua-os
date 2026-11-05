@@ -111,6 +111,8 @@ export type FinishResult = {
   removedSetIds: string[];
   /** The new records it set (E3): the summary lists them and the screen celebrates. */
   records: SessionRecord[];
+  /** E4: the linked habit's name when this «Terminar» marked it (null: nothing marked). */
+  habitMarked: string | null;
 };
 
 /** A session's start and end (the times of a finished one). */

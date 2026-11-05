@@ -237,6 +237,7 @@ describe("SPEC_MODULES against the real repository", () => {
     reminders: "reminders",
     "project-notes-links": "projects",
     notes: "notes",
+    health: "health",
     areas: "core",
   };
 
@@ -282,6 +283,7 @@ describe("SPEC_MODULES against the real repository", () => {
       "weekly-review": "weekly-review",
       learning: "learning",
       notes: "notes",
+      health: "health",
     };
     const wrong = repo.specs.flatMap((spec: string) => {
       const prefix = Object.keys(own).find((p) => spec.startsWith(p));
@@ -360,6 +362,19 @@ describe("SPEC_MODULES against the real repository", () => {
     [
       "src/app/(app)/notes/page.tsx",
       { e2e: "subset", has: ["notes.spec.ts"], hasNot: ["tasks.spec.ts", "learning.spec.ts"] },
+    ],
+    [
+      "src/app/(app)/health/page.tsx",
+      { e2e: "subset", has: ["health.spec.ts"], hasNot: ["tasks.spec.ts", "learning.spec.ts"] },
+    ],
+    [
+      // today and weekly-review read health through its contract: their specs run too.
+      "src/modules/health/sessions.ts",
+      {
+        e2e: "subset",
+        has: ["health.spec.ts", "today.spec.ts", "weekly-review.spec.ts"],
+        hasNot: ["finance-summary.spec.ts", "projects.spec.ts"],
+      },
     ],
     [
       "src/app/(app)/finance/page.tsx",

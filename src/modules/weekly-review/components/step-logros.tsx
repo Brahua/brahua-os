@@ -8,8 +8,9 @@ type StepLogrosProps = { model: LogrosModel };
 
 /**
  * Step 1 · Logros (SPEC-weekly-review "Pantallas"): «Días completos esta semana: N», the four big
- * figures (a fifth, «3 h 20 de estudio», when the week had study sessions: SPEC-learning L3) and, under them, what is worth naming. A Server Component: nothing here changes on the
- * client. No comparisons with other weeks; a week with nothing to count says so gently.
+ * figures (plus «3 h 20 de estudio» when the week had study sessions, SPEC-learning L3, and «3
+ * sesiones de entreno · 2 récords» when it had training sessions, SPEC-health E4) and, under them,
+ * what is worth naming. A Server Component: nothing here changes on the client. No comparisons with other weeks; a week with nothing to count says so gently.
  */
 export function StepLogros({ model }: StepLogrosProps) {
   const { habits } = model;
@@ -35,6 +36,16 @@ export function StepLogros({ model }: StepLogrosProps) {
           },
         ]
       : []),
+    // E4 of `health`: «3 sesiones de entreno · 2 récords», only when the week had sessions.
+    ...(model.trainingSessions > 0
+      ? [
+          {
+            key: "training",
+            value: model.trainingSessions,
+            label: LOGROS_COPY.training(model.trainingSessions, model.trainingRecords),
+          },
+        ]
+      : []),
   ];
   return (
     <div className="flex flex-col gap-6" data-review-step="logros">
@@ -45,7 +56,11 @@ export function StepLogros({ model }: StepLogrosProps) {
       <dl
         className={cn(
           "grid grid-cols-2 gap-3",
-          figures.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4",
+          figures.length > 5
+            ? "lg:grid-cols-3"
+            : figures.length > 4
+              ? "lg:grid-cols-5"
+              : "lg:grid-cols-4",
         )}
         data-review-figures=""
       >

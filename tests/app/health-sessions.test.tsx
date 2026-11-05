@@ -63,7 +63,10 @@ vi.mock("@/modules/health/queries", () => ({
   listSessions: vi.fn(),
   getDeletedSession: vi.fn(async () => null),
   getSessionRecords: vi.fn(async () => []),
+  // E4's «Ajustes» row (tests/app/health-habit.test.tsx covers it).
+  getHealthSettings: vi.fn(async () => ({ habitId: null, options: [] })),
 }));
+vi.mock("@/modules/health/settings-actions", () => ({ updateHealthSettings: vi.fn() }));
 vi.mock("@/modules/health/sessions-actions", () => ({
   startHealthSession: vi.fn(),
   addSessionExercise: vi.fn(),
@@ -334,6 +337,7 @@ describe("the session screen", () => {
         updatedAt: "2026-11-04T19:00:00.123Z",
         removedSetIds: [planned.id],
         records: [],
+        habitMarked: null,
       }),
     );
     vi.mocked(undoFinishHealthSession).mockResolvedValue(ok(detail));
@@ -383,6 +387,7 @@ describe("the session screen", () => {
         updatedAt: "2026-11-04T19:00:00.123Z",
         removedSetIds: [PLANNED[1].id],
         records: [],
+        habitMarked: null,
       }),
     );
     render(<Screen detail={session([squat(PLANNED)])} />);

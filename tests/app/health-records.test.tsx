@@ -402,6 +402,7 @@ describe("the session screen", () => {
         updatedAt: "2026-11-04T19:00:00.123Z",
         removedSetIds: [],
         records: RECORDS,
+        habitMarked: null,
       }),
     );
     render(<Screen detail={detail} />);
@@ -425,6 +426,7 @@ describe("the session screen", () => {
         updatedAt: "2026-11-04T19:00:00.123Z",
         removedSetIds: [],
         records: [],
+        habitMarked: null,
       }),
     );
     render(<Screen detail={detail} />);

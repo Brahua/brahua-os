@@ -33,6 +33,7 @@ function sources(overrides: Partial<LogrosSources> = {}): LogrosSources {
     projects: { weekStart: "2026-10-12", projects: [], milestonesDone: [] },
     goals: { weekStart: "2026-10-12", active: [], achieved: [], entries: [] },
     learning: { minutes: 0 },
+    health: { sessions: 0, records: 0 },
     ...overrides,
   } as LogrosSources;
 }
@@ -68,6 +69,8 @@ describe("buildLogros", () => {
       milestonesDone: 0,
       goalsAchieved: 0,
       studyMinutes: 0,
+      trainingSessions: 0,
+      trainingRecords: 0,
       topHabits: [],
       recentTasks: [],
       milestones: [],
@@ -162,6 +165,25 @@ describe("Estudio (L3 of learning)", () => {
     [61, "1 h 1"],
   ])("%i min reads «%s»", (minutes, text) => {
     expect(LOGROS_COPY.studyFigure(minutes)).toBe(text);
+  });
+});
+
+describe("Entreno (E4 of health)", () => {
+  test("the week's sessions and records are a figure, and alone they are not a quiet week", () => {
+    const model = buildLogros("2026-10-12", sources({ health: { sessions: 3, records: 2 } }));
+    expect(model).toMatchObject({ trainingSessions: 3, trainingRecords: 2, quiet: false });
+  });
+
+  test("no sessions keeps a week with nothing else quiet", () => {
+    const model = buildLogros("2026-10-12", sources({ health: { sessions: 0, records: 0 } }));
+    expect(model).toMatchObject({ trainingSessions: 0, quiet: true });
+  });
+
+  test("reads «sesiones de entreno · 2 récords», the records only when there are some", () => {
+    expect(LOGROS_COPY.training(3, 2)).toBe("sesiones de entreno · 2 récords");
+    expect(LOGROS_COPY.training(3, 1)).toBe("sesiones de entreno · 1 récord");
+    expect(LOGROS_COPY.training(1, 0)).toBe("sesión de entreno");
+    expect(LOGROS_COPY.training(2, 0)).toBe("sesiones de entreno");
   });
 });
 

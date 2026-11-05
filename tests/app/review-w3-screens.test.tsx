@@ -159,6 +159,8 @@ const MODEL: LogrosModel = {
   milestonesDone: 2,
   goalsAchieved: 1,
   studyMinutes: 0,
+  trainingSessions: 0,
+  trainingRecords: 0,
   topHabits: [],
   recentTasks: [],
   milestones: [],

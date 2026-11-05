@@ -377,7 +377,8 @@ const NOTES_ONLY_CORE = {
 };
 // `health` (SPEC-health "Contratos") sits above `habits`: it reads it only through its contract
 // (`contracts`) and its client-safe routes, and imports no other module but `core`. Only `today` and
-// `weekly-review` read it (E4), and only through `@/modules/health/contracts`.
+// `weekly-review` read it (E4): `weekly-review` only through `@/modules/health/contracts`, `today`
+// also through its routes and the «Entreno» card (HEALTH_FOR_TODAY).
 const HEALTH_IMPORT = {
   group: ["@/modules/health", "@/modules/health/*"],
   message: "`health` depende de este módulo: no puede importarlo.",
@@ -391,6 +392,25 @@ const HEALTH_FOR_CONSUMERS = {
   message: HEALTH_FOR_CONSUMERS_MESSAGE,
 };
 const HEALTH_BARREL = { name: "@/modules/health", message: HEALTH_FOR_CONSUMERS_MESSAGE };
+// `today` draws «Entreno» (E4) with `health`'s own card, like «Estudio» with `learning`'s: besides
+// the contract it may import the client-safe routes and the one file `components/training-today`
+// (the card and the rule that picks it). Never the data layer, the actions or the screens. Same
+// gotcha as LEARNING_FOR_TODAY: `components` is let in before its files, and only the one file is
+// let back.
+const HEALTH_FOR_TODAY_MESSAGE =
+  "`today` lee `health` solo por su contrato (`contracts`), sus rutas (`routes`) y la tarjeta `components/training-today`.";
+const HEALTH_FOR_TODAY = {
+  group: [
+    "@/modules/health/*",
+    "!@/modules/health/contracts",
+    "!@/modules/health/routes",
+    "!@/modules/health/components",
+    "@/modules/health/components/*",
+    "!@/modules/health/components/training-today",
+  ],
+  message: HEALTH_FOR_TODAY_MESSAGE,
+};
+const HEALTH_BARREL_FOR_TODAY = { name: "@/modules/health", message: HEALTH_FOR_TODAY_MESSAGE };
 const HEALTH_MESSAGE =
   "`health` lee `habits` solo por su contrato (`contracts`) y sus rutas (`routes`).";
 const HEALTH_ONLY_CONTRACTS = {
@@ -568,7 +588,7 @@ const moduleBoundaries = [
             FINANCE_BARREL_FOR_TODAY,
             REMINDERS_BARREL,
             LEARNING_BARREL_FOR_TODAY,
-            HEALTH_BARREL,
+            HEALTH_BARREL_FOR_TODAY,
           ],
           patterns: [
             FINANCE_FOR_TODAY,
@@ -577,7 +597,7 @@ const moduleBoundaries = [
             HOUSEHOLD_IMPORT,
             LEARNING_FOR_TODAY,
             NOTES_IMPORT,
-            HEALTH_FOR_CONSUMERS,
+            HEALTH_FOR_TODAY,
           ],
         },
       ],

@@ -17,6 +17,8 @@ function model(values: Partial<LogrosModel> = {}): LogrosModel {
     milestonesDone: 2,
     goalsAchieved: 1,
     studyMinutes: 0,
+    trainingSessions: 0,
+    trainingRecords: 0,
     topHabits: [{ id: "h1", name: "Correr", done: 6, expected: 7 }],
     recentTasks: [{ id: "t1", title: "Pagar la luz" }],
     milestones: [{ id: "m1", title: "Primer prototipo", projectName: "Lanzar brahua-os" }],
@@ -128,6 +130,25 @@ describe("StepLogros", () => {
     render(<StepLogros model={model({ studyMinutes: 0 })} />);
     expect(document.querySelector("[data-figure=study]")).toBeNull();
     expect(document.querySelector("[data-figure=goals]")).not.toBeNull();
+  });
+
+  test("«Entreno» (E4 of health): sessions with their records, the records only when > 0, none at 0", () => {
+    const { unmount } = render(
+      <StepLogros model={model({ trainingSessions: 3, trainingRecords: 2 })} />,
+    );
+    const figure = document.querySelector("[data-figure=training]") as HTMLElement;
+    expect(figure.querySelector("dd")).toHaveTextContent("3");
+    expect(within(figure).getByText("sesiones de entreno · 2 récords")).toBeVisible();
+    unmount();
+    const second = render(
+      <StepLogros model={model({ trainingSessions: 1, trainingRecords: 0 })} />,
+    );
+    const one = document.querySelector("[data-figure=training]") as HTMLElement;
+    expect(within(one).getByText("sesión de entreno")).toBeVisible();
+    expect(within(one).queryByText(/récord/)).toBeNull();
+    second.unmount();
+    render(<StepLogros model={model({ trainingSessions: 0, trainingRecords: 0 })} />);
+    expect(document.querySelector("[data-figure=training]")).toBeNull();
   });
 
   test("a week with nothing says «Una semana tranquila», without highlights or scolding", () => {

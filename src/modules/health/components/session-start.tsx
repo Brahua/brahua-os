@@ -61,11 +61,12 @@ export function SessionStart({ open, next, routines }: SessionStartProps) {
             <Key
               variant="signal"
               icon={Play}
+              className="h-auto max-w-full py-2"
               aria-disabled={busy || undefined}
               data-health-start={next.id}
               onClick={() => void start(next.id)}
             >
-              {COPY.start(next.name)}
+              <span className="min-w-0 text-left break-words">{COPY.start(next.name)}</span>
             </Key>
           ) : null}
           {routines.length > 1 ? (

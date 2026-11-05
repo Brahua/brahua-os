@@ -59,6 +59,12 @@ export const LOGROS_COPY = {
     return rest === 0 ? `${hours} h` : `${hours} h ${rest}`;
   },
   study: "de estudio",
+  /** E4 of `health`: «3» over «sesiones de entreno · 2 récords» (records only when there are some). */
+  training: (sessions: number, records: number) => {
+    const label = sessions === 1 ? "sesión de entreno" : "sesiones de entreno";
+    if (records <= 0) return label;
+    return `${label} · ${records === 1 ? "1 récord" : `${records} récords`}`;
+  },
   quietTitle: "Una semana tranquila",
   quietText: "No hay nada que contar esta vez, y está bien. Descansar también es parte del ritmo.",
   habitsHighlights: "Los hábitos más constantes",

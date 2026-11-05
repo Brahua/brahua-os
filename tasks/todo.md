@@ -17,11 +17,11 @@ Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`p
   - Empezar (rutina o libre; lock primero), precarga por posición, serie (peso ↔ gramos, reps, segundos, distancia, calentamiento, casilla), añadir/quitar con «Deshacer», reordenar, nota, barra de descanso, terminar/descartar (4 h, «Deshacer» exacto), `/health/sessions` y `/health/sessions/[id]` (terminadas editables), `useSecondClock` a `src/lib`.
   - **Aceptación:** nunca dos sesiones abiertas; una serie marcada sobrevive a recargar; «Terminar» quita las planificadas y su «Deshacer» las devuelve.
   - **Verificación:** unitarias (peso, precarga, 4 h, descanso, componentes); integración (`health-sessions.test.ts`: concurrencia con control positivo, terminar y deshacer, autorización); dispatch de `update-screenshots.yml` si cambian capturas. Sin E2E nueva.
-- [ ] **E3: Récords e historial** (M; `feat/health-e3`) — hecho en local con el gate liviano en verde (integración `health-records.test.ts` 9/9), pendiente de revisión, push y merge
+- [x] **E3: Récords e historial** (M; `feat/health-e3`) — en producción (#180)
   - `records.ts` (por tipo, Epley 1–12, nuevos estrictos), resumen al terminar con `celebrate`, detalle del ejercicio (récords, línea SVG + tabla, historial de 20 en 20), récords en las filas de sesiones.
   - **Aceptación:** el resumen nombra exactamente los récords superados; editar o borrar una sesión los recalcula.
   - **Verificación:** unitarias (récords y bordes, línea, componentes); integración (`health-records.test.ts`). Sin E2E nueva.
-- [ ] **E4: Hábito, Hoy, revisión y E2E** (M; `feat/health-e4`) — depende de E3
+- [ ] **E4: Hábito, Hoy, revisión y E2E** (M; `feat/health-e4`) — commit local `d30cf2c` (enmendado tras la revisión: migración aditiva `0031` con la marca exacta del hábito) con el gate liviano en verde (integración `health-habit.test.ts` 24/24, `health-sessions.test.ts` 21/21), pendiente de push, `update-screenshots.yml` (primera corrida del E2E y la captura nueva `today-training.png`) y merge
   - Contrato en `habits/contracts.ts` (`getCheckHabitOptions`, `markHabitDoneBySource`, `unmarkHabitBySource`), hoja «Ajustes», marcado al terminar y su «Deshacer»; `getHealthTodaySummary` y el slot «Entreno»; `getHealthWeekReview` y la cifra en «Logros».
   - **El único E2E** `e2e/health.spec.ts` (extiende `boardTest`, limpia sus tablas), `e2e/support/health.ts`, entrada en `SPEC_MODULES` y `ROUTE_MODULES`.
   - **Aceptación:** terminar marca el hábito y el «Deshacer» desmarca solo lo propio; Hoy y «Logros» aparecen y desaparecen según las reglas; el E2E pasa en CI.

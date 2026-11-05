@@ -54,7 +54,7 @@ Fuera de este módulo (backlog): peso corporal y medidas, metas por ejercicio (f
 | Récords | Se calculan al leer, nunca se guardan. Por ejercicio y tipo, sobre series hechas y no de calentamiento de sesiones terminadas y vivas: `weight_reps` → peso máximo y 1RM estimado (Epley, `peso × (1 + reps/30)`, solo con 1–12 repeticiones; con 1 repetición es el peso); `reps` → más repeticiones en una serie; `time` → más segundos; `cardio` → más distancia y más tiempo. Un récord es **nuevo** en una sesión si supera (estrictamente) todo lo anterior a su inicio; el primer registro de un ejercicio no es récord. | Owner |
 | Al terminar | Resumen «52 min · 14 series · 2 récords nuevos» con la lista; con récords, `celebrate()` (respeta movimiento reducido). Sin récords, el resumen sin celebración. | Owner |
 | Detalle del ejercicio | `/health/exercises/[id]`: datos editables, récords con su fecha, línea SVG simple del mejor peso (o reps/tiempo/distancia según el tipo) por sesión de los últimos 12 meses con una tabla accesible equivalente, historial por sesión de 20 en 20. Componente propio pequeño (sin mover el gráfico de `finance`). | Owner; autónoma (componente propio) |
-| Hábito enlazado | Ajuste único en `/health` → «Ajustes»: «Al terminar una sesión, marcar el hábito ___» (hábitos vivos y no archivados, de medida `check` y tipo `build`; o ninguno). Al terminar, marca el **día de Lima del fin** con un contrato nuevo de `habits`, en la misma transacción. Si el hábito ya estaba hecho ese día, nada cambia. La sesión guarda si fue ella la que lo marcó: «Deshacer» de «Terminar» lo desmarca solo en ese caso y si sigue hecho; borrar una sesión después **no** lo desmarca. Un hábito borrado o archivado deja el ajuste en «(ya no existe)» y no marca nada. | Owner |
+| Hábito enlazado | Ajuste único en `/health` → «Ajustes»: «Al terminar una sesión, marcar el hábito ___» (hábitos vivos y no archivados, de medida `check` y tipo `build`; o ninguno). Al terminar, marca el **día de Lima del fin** con un contrato nuevo de `habits`, en la misma transacción. Si el hábito ya estaba hecho ese día, nada cambia. La sesión guarda si fue ella la que lo marcó (el día, el hábito y la marca de tiempo del registro al marcarlo): «Deshacer» de «Terminar» desmarca ese hábito ese día solo en ese caso, si sigue hecho y si nadie tocó el registro desde entonces (aunque «Ajustes» haya cambiado); borrar una sesión después **no** lo desmarca. Un hábito borrado o archivado deja el ajuste en «(ya no existe)» y no marca nada. | Owner |
 | Hoy | Slot «Entreno» después de «Estudio». Con una sesión abierta: «Entreno en curso · Rutina A · 23 min» y «Seguir». Sin sesión, si el hábito enlazado toca hoy y no está hecho: «Empezar Rutina B» (la que toca) y «Otra rutina». Si no, la sección no sale. Nunca bloquea «Día completo». | Owner |
 | Revisión semanal | «Logros» suma «Entreno: 3 sesiones · 2 récords» (sesiones terminadas cuyo inicio cae en la semana de Lima; récords nuevos en esas sesiones; «· 2 récords» solo si hay) y cuenta para «Una semana tranquila». Sin cifra si es 0. | Owner |
 | Tono | Lista prohibida de `learning` más «solo», «todavía», «perdiste», «fallaste»; una prueba recorre el copy (`tests/modules/health-copy.test.ts`). | Principios UX 6 |
@@ -72,7 +72,7 @@ Principios aplicables (`docs/principios-ux.md`): registro en un toque (la casill
 
 ## Modelo de datos
 
-Ocho tablas en dos migraciones aditivas (`0029` en E1, `0030` en E2), todas con borrado lógico salvo los ajustes.
+Ocho tablas en tres migraciones aditivas (`0029` en E1, `0030` en E2, `0031` en E4: las dos columnas de la marca del hábito), todas con borrado lógico salvo los ajustes.
 
 ```ts
 healthExercises = pgTable("health_exercises", {
@@ -115,6 +115,9 @@ healthSessions = pgTable("health_sessions", {
   endedAt: timestamp("ended_at", { withTimezone: true }), // null = abierta
   note: text("note"),                                // ≤ 500
   habitMarkedDay: date("habit_marked_day"),          // el día que esta sesión marcó el hábito
+  habitMarkedId: uuid("habit_marked_id"),            // E4 (0031): qué hábito marcó (FK restrict)
+  habitMarkAt: timestamp("habit_mark_at", { withTimezone: true }), // E4: updated_at del registro al marcarlo (ms)
+  // CHECK: los tres juntos o ninguno
   createdAt, updatedAt, deletedAt,
 });
 // ÚNICO PARCIAL: ((true)) WHERE ended_at IS NULL AND deleted_at IS NULL

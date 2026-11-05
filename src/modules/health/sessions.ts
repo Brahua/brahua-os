@@ -23,7 +23,9 @@
 import "server-only";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Database } from "@/lib/db";
+import { ownerDateKey } from "@/lib/time";
 import { isSameIdSet } from "@/modules/core/life-area-order";
+import { markHabitDoneBySource, unmarkHabitBySource } from "@/modules/habits/contracts";
 import {
   healthExercises,
   healthRoutines,
@@ -37,6 +39,7 @@ import { prefillSets, previousForOccurrence } from "./prefill";
 import { selectNewRecordCounts, selectSessionRecords } from "./records-data";
 import { selectRoutineItems } from "./routine-items";
 import type { RotationRoutine } from "./rotation";
+import { selectSettingsRow } from "./settings";
 import {
   keepShown,
   missingValue,
@@ -391,7 +394,15 @@ export async function selectDeletedSession(
 
 // ── Helpers of the writes ────────────────────────────────────────────────────────────────────
 
-type SessionRow = { id: string; startedAt: Date; endedAt: Date | null; updatedAt: Date };
+type SessionRow = {
+  id: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  updatedAt: Date;
+  habitMarkedDay: string | null;
+  habitMarkedId: string | null;
+  habitMarkAt: Date | null;
+};
 
 /** Locks the sessions (first), then the live session's row FOR UPDATE, or refuses. */
 async function openSession(
@@ -401,7 +412,15 @@ async function openSession(
 ): Promise<SessionRow> {
   await lockSession(tx);
   const [row] = await tx
-    .select({ id: s.id, startedAt: s.startedAt, endedAt: s.endedAt, updatedAt: s.updatedAt })
+    .select({
+      id: s.id,
+      startedAt: s.startedAt,
+      endedAt: s.endedAt,
+      updatedAt: s.updatedAt,
+      habitMarkedDay: s.habitMarkedDay,
+      habitMarkedId: s.habitMarkedId,
+      habitMarkAt: s.habitMarkAt,
+    })
     .from(s)
     .where(and(eq(s.id, id), liveSession))
     .for("update");
@@ -972,13 +991,15 @@ export async function finishSession(
         .where(and(inSession(sessionId), liveSet, isNotNull(st.doneAt)));
       if (done === 0) throw new Refusal("noDoneSets");
       let end = nowMs;
+      const now = await databaseNow(tx);
+      let endAt = now;
       if (endedAt !== null) {
-        const now = await databaseNow(tx);
         const at = Date.parse(endedAt);
         if (at < session.startedAt.getTime() || at > now + CLOCK_SKEW_MS) {
           throw new Refusal("endOutOfRange");
         }
-        end = sql`date_trunc('milliseconds', ${new Date(Math.min(at, now)).toISOString()}::timestamptz)`;
+        endAt = Math.min(at, now);
+        end = sql`date_trunc('milliseconds', ${new Date(endAt).toISOString()}::timestamptz)`;
       }
       const removed = await tx
         .update(st)
@@ -988,9 +1009,18 @@ export async function finishSession(
       for (const exerciseId of new Set(removed.map((row) => row.sessionExerciseId))) {
         await renumberSets(tx, exerciseId);
       }
+      // E4: the linked habit, on the Lima day of the end (the session remembers only its own mark).
+      const habit = await markLinkedHabit(tx, ownerDateKey(new Date(endAt)), new Date(now));
       const [row] = await tx
         .update(s)
-        .set({ endedAt: end, note, updatedAt: nowMs })
+        .set({
+          endedAt: end,
+          note,
+          habitMarkedDay: habit?.day ?? null,
+          habitMarkedId: habit?.habitId ?? null,
+          habitMarkAt: habit?.markAt ?? null,
+          updatedAt: nowMs,
+        })
         .where(eq(s.id, sessionId))
         .returning({ endedAt: s.endedAt, updatedAt: s.updatedAt });
       return {
@@ -1000,9 +1030,43 @@ export async function finishSession(
         removedSetIds: removed.map((set) => set.id),
         // Read after the end is written: the session now counts as finished.
         records: await selectSessionRecords(tx, sessionId),
+        habitMarked: habit?.name ?? null,
       };
     }),
   );
+}
+
+/**
+ * E4 (SPEC-health "Hábito enlazado"): marks the linked habit done on `day` through `habits`'
+ * contract, inside «Terminar»'s transaction (after the sessions lock and the session's row; the
+ * settings row FOR SHARE, then the habit FOR SHARE inside the contract, like `setHabitDoneById`).
+ * Returns what the session stores (the day, the habit and the log's stamp right after marking)
+ * and the habit's name only when this session marked it: a habit already done that day, or one
+ * that can't be marked (deleted, archived, another measure, a day out of the window), returns
+ * null and the session stores no mark. `now` is the database clock.
+ */
+async function markLinkedHabit(
+  tx: Tx,
+  day: string,
+  now: Date,
+): Promise<{ day: string; habitId: string; markAt: Date; name: string } | null> {
+  const settings = await selectSettingsRow(tx, { forShare: true });
+  if (!settings?.habitId) return null;
+  const mark = await markHabitDoneBySource(tx, settings.habitId, day, now);
+  if (mark.result !== "marked") return null;
+  return { day, habitId: settings.habitId, markAt: mark.markAt, name: mark.name };
+}
+
+/**
+ * E4: the «Deshacer» of «Terminar» unmarks exactly what the session marked (`habit_marked_id` on
+ * `habit_marked_day`), whatever «Ajustes» says now, and only while that log is as the mark left it
+ * (still done, `updated_at` still `habit_mark_at`): a habit unmarked and marked again by hand in
+ * between stays. Anything else stays too. The caller clears the three fields.
+ */
+async function unmarkLinkedHabit(tx: Tx, session: SessionRow) {
+  const { habitMarkedDay: day, habitMarkedId: habitId, habitMarkAt: markAt } = session;
+  if (day === null || habitId === null || markAt === null) return;
+  await unmarkHabitBySource(tx, habitId, day, markAt, new Date(await databaseNow(tx)));
 }
 
 /**
@@ -1066,7 +1130,17 @@ export async function undoFinish(
           .from(s)
           .where(and(isNull(s.endedAt), liveSession, ne(s.id, sessionId)));
         if (other) throw new Refusal("otherOpen");
-        await tx.update(s).set({ endedAt: null, updatedAt: nowMs }).where(eq(s.id, sessionId));
+        await unmarkLinkedHabit(tx, session);
+        await tx
+          .update(s)
+          .set({
+            endedAt: null,
+            habitMarkedDay: null,
+            habitMarkedId: null,
+            habitMarkAt: null,
+            updatedAt: nowMs,
+          })
+          .where(eq(s.id, sessionId));
         const restored = await tx
           .update(st)
           .set({ deletedAt: null })
