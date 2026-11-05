@@ -2072,6 +2072,7 @@ Rama `feat/weekly-review-w4` (PR abierto, sin merge). Sin migración, sin E2E nu
 - **Android (si hay uno a mano):** Chrome → menú ⋮ → "Instalar app" (o el aviso de instalación). Usa el ícono *maskable* con la forma del launcher.
 
 ## Respaldos (C10)
+- **Ids de la semilla (hallado por la primera corrida del E2E, 2026-11-05):** los ids de los 64 ejercicios de la semilla salen de `md5(...)::uuid` y 55 no tienen los bits de versión RFC; `z.uuid()` de Zod 4 los rechazaba, así que en producción (E1–E3) esos ejercicios no se podían agregar a una rutina ni a una sesión, y su detalle daba 404. Todo `health` valida ids con `z.guid()` (forma 8-4-4-4-12) y `tests/modules/health-seed.test.ts` pasa cada id de la semilla por la validación (con control positivo). Lección: un id derivado en SQL se prueba contra el validador de la app.
 
 ### Estado de la configuración (2026-10-01)
 

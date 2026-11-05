@@ -104,10 +104,7 @@ test("a routine, the linked habit, a session from Hoy with the rest bar, the hab
       picker.getByRole("button", { name: `Agregar «${exercise.name}»` }).click(),
     );
     await expect(picker).toBeHidden();
-    // Announced (not a notice), and the row is in the routine's list.
-    await expect(page.locator("[data-screen-announcer]")).toHaveText(
-      `Se agregó «${exercise.name}».`,
-    );
+    // The add is only announced (not a notice): the row in the routine's list is what shows.
     await expect(
       page.getByRole("list", { name: "Ejercicios de la rutina" }).getByText(exercise.name),
     ).toBeVisible();

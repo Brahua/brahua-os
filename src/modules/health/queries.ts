@@ -24,8 +24,9 @@ import type { OpenSession, SessionDetail, SessionSummary } from "./sessions-inpu
 import { selectSettingsView } from "./settings";
 import type { HealthSettingsView } from "./settings-input";
 
-// Not a uuid: no query (Postgres would reject the cast and quote the value in its error).
-const uuid = z.uuid();
+// Not a uuid: no query (Postgres would reject the cast and quote the value in its error). `guid`, not
+// `uuid`: the seeded exercises' ids come from md5 (migration 0029) and carry no RFC version bits.
+const uuid = z.guid();
 const isId = (id: string) => uuid.safeParse(id).success;
 
 /** The live routines in their order (the list on /health). */

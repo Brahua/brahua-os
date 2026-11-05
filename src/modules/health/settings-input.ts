@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 /** «Al terminar una sesión, marcar el hábito ___»: a habit's id, or null («Ninguno»). */
-export const updateSettingsInputSchema = z.object({ habitId: z.uuid().nullable() });
+export const updateSettingsInputSchema = z.object({ habitId: z.guid().nullable() });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsInputSchema>;
 
