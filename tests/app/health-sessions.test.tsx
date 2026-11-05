@@ -220,6 +220,146 @@ describe("the session screen", () => {
     expect(document.documentElement.style.getPropertyValue("--rest-bar-offset")).toBe("");
   });
 
+  test("marking a set fills the following empty sets (E5); typed values and warmups keep theirs", async () => {
+    vi.mocked(updateHealthSet).mockImplementation(async (input) => {
+      const { done, sessionId, ...values } = input as SessionSet & {
+        done: boolean;
+        sessionId: string;
+      };
+      void sessionId;
+      return ok({ ...set(0), ...values, doneAt: done ? "2026-11-04T18:10:00.000Z" : null });
+    });
+    const sets = [
+      set(0, { weightGrams: 80_000, reps: 8 }),
+      set(1),
+      set(2, { reps: 6 }),
+      set(3, { warmup: true }),
+      set(4),
+    ];
+    render(<Screen detail={session([squat(sets)])} />);
+    const weight = (index: number) =>
+      screen.getByRole("textbox", { name: COPY.weightName(serie(index)) });
+    const reps = (index: number) =>
+      screen.getByRole("textbox", { name: COPY.repsName(serie(index)) });
+
+    await userEvent.click(check(sets[0].id));
+    expect(weight(1)).toHaveValue("80");
+    expect(reps(1)).toHaveValue("8");
+    expect(weight(4)).toHaveValue("80");
+    expect(reps(4)).toHaveValue("8");
+    // Something typed stays; a warmup stays empty; neither copy is marked.
+    expect(weight(2)).toHaveValue("");
+    expect(reps(2)).toHaveValue("6");
+    expect(
+      screen.getByRole("textbox", { name: COPY.weightName(COPY.warmupName(3, SQUAT)) }),
+    ).toHaveValue("");
+    expect(check(sets[1].id)).not.toBeChecked();
+    expect(check(sets[4].id)).not.toBeChecked();
+    // Each copy is saved like an edit of its own.
+    await waitFor(() => expect(updateHealthSet).toHaveBeenCalledTimes(3));
+    for (const target of [sets[1], sets[4]]) {
+      expect(updateHealthSet).toHaveBeenCalledWith({
+        sessionId: SESSION,
+        id: target.id,
+        weightGrams: 80_000,
+        reps: 8,
+        seconds: null,
+        distanceMeters: null,
+        warmup: false,
+        done: false,
+      });
+    }
+    // One announcement for the mark, the copies and the rest.
+    await waitFor(() =>
+      expect(document.querySelector("[data-screen-announcer]")).toHaveTextContent(
+        `${COPY.marked(serie(0))} ${COPY.valuesCopied(2)} ${COPY.restStarted("2 min")}`,
+      ),
+    );
+
+    // Unmarking keeps the copies.
+    vi.mocked(updateHealthSet).mockClear();
+    await userEvent.click(check(sets[0].id));
+    await waitFor(() => expect(check(sets[0].id)).not.toBeChecked());
+    expect(weight(1)).toHaveValue("80");
+    expect(updateHealthSet).toHaveBeenCalledTimes(1);
+  });
+
+  describe("the copy to the following sets (E5)", () => {
+    const answer = async (input: unknown) => {
+      const { done, sessionId, ...values } = input as SessionSet & {
+        done: boolean;
+        sessionId: string;
+      };
+      void sessionId;
+      return ok({ ...set(0), ...values, doneAt: done ? "2026-11-04T18:10:00.000Z" : null });
+    };
+    const three = () => [set(0, { weightGrams: 80_000, reps: 8 }), set(1), set(2)];
+    const weight = (index: number) =>
+      screen.getByRole("textbox", { name: COPY.weightName(serie(index)) });
+    const reps = (index: number) =>
+      screen.getByRole("textbox", { name: COPY.repsName(serie(index)) });
+    const savedIds = () =>
+      vi.mocked(updateHealthSet).mock.calls.map(([input]) => (input as { id: string }).id);
+
+    test("text that doesn't parse keeps the set out of it, with its error; an empty one takes it", async () => {
+      vi.mocked(updateHealthSet).mockImplementation(answer);
+      const sets = three();
+      render(<Screen detail={session([squat(sets)])} />);
+      await userEvent.type(weight(1), "abc");
+      await userEvent.tab();
+      expect(weight(1)).toHaveAccessibleDescription(SESSION_ERRORS.weight);
+      expect(updateHealthSet).not.toHaveBeenCalled();
+
+      await userEvent.click(check(sets[0].id));
+      expect(weight(2)).toHaveValue("80");
+      expect(reps(2)).toHaveValue("8");
+      expect(weight(1)).toHaveValue("abc");
+      expect(reps(1)).toHaveValue("");
+      expect(weight(1)).toHaveAccessibleDescription(SESSION_ERRORS.weight);
+      await waitFor(() => expect(savedIds()).toEqual([sets[0].id, sets[2].id]));
+    });
+
+    test("a value typed on screen stays; only the empty set takes the copy", async () => {
+      vi.mocked(updateHealthSet).mockImplementation(answer);
+      const sets = three();
+      render(<Screen detail={session([squat(sets)])} />);
+      await userEvent.type(reps(2), "6");
+      await waitFor(() => expect(savedIds()).toEqual([sets[2].id]));
+      vi.mocked(updateHealthSet).mockClear();
+
+      await userEvent.click(check(sets[0].id));
+      expect(weight(1)).toHaveValue("80");
+      expect(reps(1)).toHaveValue("8");
+      expect(weight(2)).toHaveValue("");
+      expect(reps(2)).toHaveValue("6");
+      await waitFor(() => expect(savedIds()).toEqual([sets[0].id, sets[1].id]));
+    });
+
+    test("refused copies roll back under a single notice", async () => {
+      const sets = three();
+      vi.mocked(updateHealthSet).mockImplementation(async (input) =>
+        (input as { id: string }).id === sets[0].id ? answer(input) : fail(SESSION_ERRORS.notOpen),
+      );
+      render(<Screen detail={session([squat(sets)])} />);
+      await userEvent.click(check(sets[0].id));
+      await waitFor(() => expect(weight(1)).toHaveValue(""));
+      await waitFor(() => expect(weight(2)).toHaveValue(""));
+      expect(check(sets[0].id)).toBeChecked();
+      const notices = screen.getByRole("region", { name: HEALTH_COPY.noticesLabel });
+      await waitFor(() =>
+        expect(within(notices).getAllByText(new RegExp(COPY.notSaved.copy))).toHaveLength(1),
+      );
+      expect(within(notices).queryByText(new RegExp(COPY.notSaved.set))).toBeNull();
+    });
+  });
+
+  test("the note says «Nota» once: its field's label, no heading over it (E5)", () => {
+    render(<Screen detail={session([squat(PLANNED)])} />);
+    expect(screen.getByRole("textbox", { name: COPY.note })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: COPY.note })).toBeNull();
+    expect(screen.getAllByText(COPY.note, { exact: true })).toHaveLength(1);
+  });
+
   test("marking without its values asks for them first and sends nothing", async () => {
     const empty = set(0);
     render(<Screen detail={session([squat([empty])])} />);

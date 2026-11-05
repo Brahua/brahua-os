@@ -1,38 +1,22 @@
 # Tareas
 
-> En curso: **`health`** (Entreno; spec [`SPEC-health.md`](../SPEC-health.md) aprobada el 2026-11-04, plan en [`plan.md`](plan.md)). Último cerrado: **`notes`** (Notas, 2026-11-03; plan y tareas en [`archive/notes-plan.md`](archive/notes-plan.md) y [`archive/notes-todo.md`](archive/notes-todo.md)). Después: los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
+> Sin módulo en curso. Último cerrado: **`health`** (Entreno, 2026-11-05; plan y tareas en [`archive/health-plan.md`](archive/health-plan.md) y [`archive/health-todo.md`](archive/health-todo.md)). El orden del mapa quedó completo. **Siguiente:** cargar las rutinas reales del owner y los gráficos de «Resumen» cuando exista el diseño. Planes y tareas de módulos cerrados en [`archive/`](archive/).
 
-## Módulo `health` (Entreno): en curso
+## Módulo `health` (Entreno): cerrado el 2026-11-05
 
-Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`plan.md`](plan.md). Cada tarea termina con el gate local liviano en verde, revisión del commit local, un push, un PR con los 3 checks verdes y el deploy con smoke. Commits en inglés (`feat(health): …`). Máximo un E2E nuevo en todo el módulo (E4).
+Spec [`SPEC-health.md`](../SPEC-health.md); plan y tareas archivados en [`archive/health-plan.md`](archive/health-plan.md) y [`archive/health-todo.md`](archive/health-todo.md) (con el párrafo del Checkpoint). Spec y plan (#177), E1 catálogo y rutinas (#178), E2 sesión (#179), E3 récords e historial (#180) y E4 hábito, Hoy, revisión y E2E (#181) están en producción; E5 (`feat/health-e5`) aplica los hallazgos del Checkpoint y cierra. El hábito «Gimnasio» existe y está enlazado. **Pendiente del owner:**
 
-- [x] **E1: Catálogo y rutinas** (M; `feat/health-e1`) — en producción (#178)
-  - Migración aditiva `0029`: `health_exercises` (semilla de 64 por `seed_key`, ids `md5`, `ON CONFLICT DO NOTHING`; único parcial por `name_key`), `health_routines`, `health_routine_exercises`, `health_settings` (una fila, FK a `habits`); Prettier sobre el snapshot; `EXPORTABLE_TABLES`.
-  - `src/modules/health/`: `module.ts` («Entreno», `navOrder` 70, `Dumbbell`), `routes.ts`, `lock-keys.ts` (`HEALTH_ADVISORY_SPACE = 10000`), `seed.ts`, `exercises-*.ts`, `routines-*.ts`, copy, `export.ts`, `components/`; páginas `/health`, `/health/exercises`, `/health/exercises/[id]`, `/health/routines/[id]` con `requireOwner()`.
-  - Regla de ESLint `HEALTH_ONLY_CONTRACTS` (nadie importa `health` salvo `today` y `weekly-review`; `health` solo `habits/contracts` y `routes`) y la excepción de un archivo para la FK.
-  - **Aceptación:** los 64 ejercicios existen tras migrar (dos veces = 64); «Nuevo ejercicio» rechaza un nombre repetido sin acentos; una rutina con 5 ejercicios se arma y reordena con teclado y toque; borrar tiene «Deshacer».
-  - **Verificación:** unitarias (clave de nombre, Zod de rutina, copy sin cadenas prohibidas, componentes); integración de a un archivo (`tests/integration/health-catalog.test.ts`: `CHECK` crudos, semilla idempotente, unicidad, orden con lock, autorización, exportación); tras el push, `e2e/home.spec.ts` y dispatch de `update-screenshots.yml`. Sin E2E nueva.
-- [x] **E2: Sesión** (L; `feat/health-e2`) — en producción (#179)
-  - Migración `0030`: `health_sessions` (único parcial de la abierta), `health_session_exercises`, `health_sets`.
-  - Empezar (rutina o libre; lock primero), precarga por posición, serie (peso ↔ gramos, reps, segundos, distancia, calentamiento, casilla), añadir/quitar con «Deshacer», reordenar, nota, barra de descanso, terminar/descartar (4 h, «Deshacer» exacto), `/health/sessions` y `/health/sessions/[id]` (terminadas editables), `useSecondClock` a `src/lib`.
-  - **Aceptación:** nunca dos sesiones abiertas; una serie marcada sobrevive a recargar; «Terminar» quita las planificadas y su «Deshacer» las devuelve.
-  - **Verificación:** unitarias (peso, precarga, 4 h, descanso, componentes); integración (`health-sessions.test.ts`: concurrencia con control positivo, terminar y deshacer, autorización); dispatch de `update-screenshots.yml` si cambian capturas. Sin E2E nueva.
-- [x] **E3: Récords e historial** (M; `feat/health-e3`) — en producción (#180)
-  - `records.ts` (por tipo, Epley 1–12, nuevos estrictos), resumen al terminar con `celebrate`, detalle del ejercicio (récords, línea SVG + tabla, historial de 20 en 20), récords en las filas de sesiones.
-  - **Aceptación:** el resumen nombra exactamente los récords superados; editar o borrar una sesión los recalcula.
-  - **Verificación:** unitarias (récords y bordes, línea, componentes); integración (`health-records.test.ts`). Sin E2E nueva.
-- [ ] **E4: Hábito, Hoy, revisión y E2E** (M; `feat/health-e4`) — commit local `d30cf2c` (enmendado tras la revisión: migración aditiva `0031` con la marca exacta del hábito) con el gate liviano en verde (integración `health-habit.test.ts` 24/24, `health-sessions.test.ts` 21/21), pendiente de push, `update-screenshots.yml` (primera corrida del E2E y la captura nueva `today-training.png`) y merge
-  - Contrato en `habits/contracts.ts` (`getCheckHabitOptions`, `markHabitDoneBySource`, `unmarkHabitBySource`), hoja «Ajustes», marcado al terminar y su «Deshacer»; `getHealthTodaySummary` y el slot «Entreno»; `getHealthWeekReview` y la cifra en «Logros».
-  - **El único E2E** `e2e/health.spec.ts` (extiende `boardTest`, limpia sus tablas), `e2e/support/health.ts`, entrada en `SPEC_MODULES` y `ROUTE_MODULES`.
-  - **Aceptación:** terminar marca el hábito y el «Deshacer» desmarca solo lo propio; Hoy y «Logros» aparecen y desaparecen según las reglas; el E2E pasa en CI.
-  - **Verificación:** unitarias (`today-board`, `logros`, componentes); integración (`health-habit.test.ts`: los cuatro casos del hábito, contratos de Hoy y revisión); `update-screenshots.yml` tras el push (primera corrida del E2E).
-- [ ] **E5: Cierre** (S; `feat/health-e5`) — depende de E4
-  - Checkpoint en producción (Chrome del owner, datos `[QA]` borrados después), retrospectiva en `CLAUDE.md`, backlog consolidado, mapa, HANDOFF («Cómo funciona health»), archivo del plan y las tareas; carga de las rutinas reales con el owner.
+- Pasar sus rutinas reales para cargarlas (nombres, ejercicios, series objetivo y descanso).
+- Confirmar en el iPhone la sesión con una mano, la barra de descanso (Safari del iPhone no vibra) y la tarjeta de Hoy.
+- Revisar las decisiones autónomas, consolidadas en `docs/HANDOFF.md` → «Cómo funciona health» (E1–E5) y en `SPEC-health.md` → «Decisiones autónomas para revisar con el owner»; también las 3 veces por semana de «Gimnasio».
 
-### `health` → backlog
+### `health` → backlog consolidado
 
-- **Lecturas de récords:** hoy cada pantalla lee todas las series hechas de los ejercicios implicados y calcula en TS (`records-data.ts`). Si el historial crece, reducir en SQL a lo mejor de cada ejercicio por métrica antes de la ventana (o del inicio de la sesión) y traer solo las sesiones de la página.
-- **1RM mostrado a 0,5 kg (decisión autónoma para revisar con el owner):** se compara exacto pero se muestra redondeado, así que un récord nuevo puede leerse igual que el anterior («79 kg» → «79 kg»). Opciones: mostrar un decimal más cuando choque, o redondear antes de comparar.
+- **Fuera de v1 por la spec:** peso corporal y medidas, metas por ejercicio (fuente nueva en `goals`), mapa de músculos (MuscleMap, MIT: convertir los trazos nosotros), imágenes o GIFs (Gym visual, licencia por archivo; nunca en git, solo en almacenamiento privado), instrucciones paso a paso, RPE/RIR, drop sets y superseries, aviso del descanso con la pantalla bloqueada (push), registrar por Telegram, registrar una sesión pasada desde cero, sugerencias de progresión, sueño y alimentación.
+- **Lecturas de récords:** hoy cada pantalla lee todas las series hechas de los ejercicios implicados y calcula en TS (`records-data.ts`), y `finishSession` lo hace dentro de su transacción. Si el historial crece, reducir en SQL a lo mejor de cada ejercicio por métrica antes de la ventana y traer solo las sesiones de la página.
+- **1RM mostrado a 0,5 kg (decisión autónoma para revisar con el owner):** se compara exacto pero se muestra redondeado, así que un récord nuevo puede leerse igual que el anterior («79 kg» → «79 kg»). Opciones: un decimal más cuando choque, o redondear antes de comparar.
+- **Copias a las series vacías (E5):** se guardan desde el cliente, una llamada por serie, por la cola de E2; si en el uso real se ven lentas con mala señal, pasarlas a una sola acción del servidor.
+- **Atrás/Adelante en `/health`:** las acciones de la sesión no revalidan la lista (para no volver a dibujar la sesión abierta); el navegador puede mostrar `/health` de su caché al volver atrás. Revisar si molesta.
 
 ## Módulo `notes` (Notas): cerrado el 2026-11-03
 

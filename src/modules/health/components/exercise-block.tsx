@@ -43,6 +43,8 @@ export type SetHandlers = {
   onWarmup: (exercise: SessionExercise, set: SessionSet, warmup: boolean) => void;
   onRemoveSet: (exercise: SessionExercise, set: SessionSet) => void;
   onRetry: (set: SessionSet) => void;
+  /** A set's row holds text that doesn't parse (or no longer does). */
+  onDraftHeld: (setId: string, held: boolean) => void;
   onAddSet: (exercise: SessionExercise) => void;
   onRemoveExercise: (exercise: SessionExercise) => void;
 };
@@ -143,6 +145,7 @@ export function ExerciseBlock({ exercise, unsaved, ...handlers }: ExerciseBlockP
                   onWarmup={(warmup) => handlers.onWarmup(exercise, set, warmup)}
                   onRemove={() => handlers.onRemoveSet(exercise, set)}
                   onRetry={() => handlers.onRetry(set)}
+                  onDraftHeld={(held) => handlers.onDraftHeld(set.id, held)}
                 />
               </li>
             ))}

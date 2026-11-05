@@ -284,6 +284,32 @@ describe("the exercise's records slot", () => {
     expect(screen.queryByRole("link", { name: RECORDS_COPY.seeMore })).toBeNull();
   });
 
+  test("one session: no line nor its table, a neutral sentence; records and history stay", () => {
+    const one: ExerciseRecordsView = {
+      ...VIEW,
+      line: VIEW.line.slice(1),
+      history: VIEW.history.slice(0, 1),
+      totalSessions: 1,
+    };
+    render(<Slot exerciseId={id(100)} view={one} shown={20} />);
+    expect(document.querySelector("[data-progress-line]")).toBeNull();
+    expect(document.querySelector("[data-exercise-line] svg")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByText(RECORDS_COPY.lineOnePoint)).toBeVisible();
+    expect(screen.queryByText(RECORDS_COPY.lineEmpty)).toBeNull();
+    expect(screen.getByRole("list", { name: RECORDS_COPY.listLabel })).toBeVisible();
+    expect(
+      within(screen.getByRole("list", { name: RECORDS_COPY.historyLabel })).getAllByRole("link"),
+    ).toHaveLength(1);
+  });
+
+  test("no session in the last 12 months: the window's sentence, no line", () => {
+    render(<Slot exerciseId={id(100)} view={{ ...VIEW, line: [] }} shown={20} />);
+    expect(screen.getByText(RECORDS_COPY.lineEmpty)).toBeVisible();
+    expect(screen.queryByText(RECORDS_COPY.lineOnePoint)).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
   test("«Ver más» replaces the entry; the first new row takes focus and the count is said", async () => {
     const view = { ...VIEW, history: historyOf(20), totalSessions: 45 };
     const { rerender } = render(<Slot exerciseId={id(100)} view={view} shown={20} />);
