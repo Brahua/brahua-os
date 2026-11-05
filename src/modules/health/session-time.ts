@@ -53,6 +53,17 @@ export function formatMinutes(minutes: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
+/**
+ * The start (ISO) of the exercise line's window: 00:00 in Lima of the same calendar day 12 months
+ * before today's Lima day (29 Feb → 28 Feb of the year before).
+ */
+export function lineWindowStart(now: Date): string {
+  const [year, month, day] = toLimaInput(now.getTime()).slice(0, 10).split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year - 1, month, 0)).getUTCDate();
+  const key = `${year - 1}-${String(month).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+  return new Date(Date.parse(`${key}T00:00:00-05:00`)).toISOString();
+}
+
 /** The running time as a clock: «4:05» under an hour, «1:02:03» from there. */
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));

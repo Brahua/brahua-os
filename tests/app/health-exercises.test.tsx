@@ -31,6 +31,14 @@ vi.mock("@/modules/health/queries", () => ({
   listExercises: vi.fn(),
   getExercise: vi.fn(),
   getDeletedExercise: vi.fn(),
+  // E3's slot (tests/app/health-records.test.tsx covers it).
+  getExerciseRecords: vi.fn(async () => ({
+    records: [],
+    lineMetric: "maxWeight",
+    line: [],
+    history: [],
+    totalSessions: 0,
+  })),
 }));
 vi.mock("@/modules/health/exercises-actions", () => ({
   createExercise: vi.fn(),

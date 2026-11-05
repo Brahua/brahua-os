@@ -18,6 +18,7 @@ import {
   type Equipment,
   type ExerciseKind,
 } from "./health-constants";
+import type { SessionRecord } from "./records";
 import { SESSION_ERRORS as ERRORS } from "./sessions-copy";
 
 /** A set's values (any may be empty while it is planned). */
@@ -91,6 +92,8 @@ export type SessionSummary = {
   startedAt: string;
   endedAt: string | null;
   doneSets: number;
+  /** New records in it (E3; 0 while open). */
+  newRecords: number;
 };
 
 /** The open session, for «Seguir». */
@@ -106,6 +109,8 @@ export type FinishResult = {
   updatedAt: string;
   /** The planned (unmarked) sets it removed: «Deshacer» restores exactly these. */
   removedSetIds: string[];
+  /** The new records it set (E3): the summary lists them and the screen celebrates. */
+  records: SessionRecord[];
 };
 
 /** A session's start and end (the times of a finished one). */

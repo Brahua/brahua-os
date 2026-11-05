@@ -106,3 +106,10 @@ export const REST_STEP_SECONDS = 15;
 /** «Últimas sesiones» on /health, and a page of /health/sessions. */
 export const RECENT_SESSIONS = 10;
 export const SESSIONS_PAGE = 30;
+
+// ── E3: records and history ─────────────────────────────────────────────────────────────────
+
+/** A page of an exercise's history (SPEC-health "Detalle del ejercicio"). */
+export const HISTORY_PAGE = 20;
+/** «Ver más» of the history never asks for more than this (a bound on what the page renders). */
+export const HISTORY_MAX = 3_000;

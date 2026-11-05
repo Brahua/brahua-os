@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useId, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { Key, SectionLabel, TextArea, TextField } from "@/design-system";
 import type { ActionResult } from "@/lib/action-result";
+import { celebrate } from "@/lib/celebrate";
 import { hasNotice } from "@/lib/toast/queue";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { useSecondClock } from "@/lib/use-second-clock";
@@ -16,6 +17,8 @@ import { formatDuration } from "../format";
 import { MAX_SESSION_EXERCISES } from "../health-constants";
 import { HEALTH_COPY } from "../health-copy";
 import { prefillSets } from "../prefill";
+import type { SessionRecord } from "../records";
+import { RECORDS_COPY } from "../records-copy";
 import { writeRest } from "../rest-timer";
 import { DELETED_PARAM, SESSIONS_PATH } from "../routes";
 import { ROUTINES_COPY } from "../routines-copy";
@@ -33,6 +36,7 @@ import {
   addSessionExercise,
   deleteHealthSession,
   finishHealthSession,
+  readHealthSessionRecords,
   removeHealthSet,
   removeSessionExercise,
   reorderSessionExercises,
@@ -64,6 +68,7 @@ import {
   type OrderListProps,
 } from "./order-rows";
 import { RestBar, useRestTimer } from "./rest-bar";
+import { SessionRecords } from "./session-records";
 import { useFocusRequest } from "./use-focus-request";
 import { failureReason } from "./use-health-save";
 
@@ -81,9 +86,11 @@ type SessionScreenProps = {
   catalogue: ExerciseItem[];
   /** Id of the `<h1>`. */
   headingId: string;
-  /** E3's hook point: the new records under the summary of a finished session. */
-  records?: React.ReactNode;
+  /** The new records of a finished session (E3): its summary counts and lists them. */
+  records?: SessionRecord[];
 };
+
+const NO_RECORDS: SessionRecord[] = [];
 
 type Header = Omit<SessionDetail, "exercises">;
 
@@ -114,7 +121,7 @@ export function SessionScreen({
   session: initial,
   catalogue,
   headingId,
-  records = null,
+  records: initialRecords = NO_RECORDS,
 }: SessionScreenProps) {
   const router = useRouter();
   const { enqueue, toaster, announce } = useRequiredScreenServices();
@@ -124,6 +131,8 @@ export function SessionScreen({
   const [header, setHeader] = useState<Header>(() => headerOf(initial));
   const [exercises, setExercises] = useState<SessionExercise[]>(initial.exercises);
   const [unsaved, setUnsaved] = useState<ReadonlySet<string>>(() => new Set());
+  // Derived on the server (never stored): read again after a correction of a finished session.
+  const [records, setRecords] = useState<SessionRecord[]>(initialRecords);
   const open = header.endedAt === null;
   const name = COPY.routineOrFree(header.routineName);
 
@@ -161,6 +170,18 @@ export function SessionScreen({
   }
 
   /**
+   * The records of a finished session after a write that may change them (a set, an exercise, the
+   * times): queued behind that write, collapsed while one waits. A failed read keeps what is shown.
+   */
+  function refreshRecords() {
+    void enqueue("records", () => readHealthSessionRecords({ sessionId })).then((queued) => {
+      if (queued.kind === "done" && !queued.superseded && queued.value.ok) {
+        setRecords(queued.value.data);
+      }
+    });
+  }
+
+  /**
    * Sends a call through the screen's queue (in order; with a `key`, a newer call of the same key
    * replaces one still waiting). `refused` and `threw` default to a «Sin guardar» notice.
    */
@@ -184,6 +205,7 @@ export function SessionScreen({
       if (queued.kind === "skipped" || queued.superseded) return;
       if (queued.kind === "done" && queued.value.ok) {
         done?.(queued.value.data);
+        if (!open && key !== "note") refreshRecords();
         return;
       }
       if (queued.kind === "done" && !queued.value.ok) {
@@ -759,10 +781,16 @@ export function SessionScreen({
         sets: renumber(row.sets.filter((set) => !removed.has(set.id))),
       })),
     );
-    const summary = COPY.summary(
-      formatMinutes(minutesBetween(header.startedAt, finished.endedAt)),
-      doneAts.length,
+    setRecords(finished.records);
+    const summary = withRecords(
+      COPY.summary(
+        formatMinutes(minutesBetween(header.startedAt, finished.endedAt)),
+        doneAts.length,
+      ),
+      finished.records.length,
     );
+    // Once, right after this «Terminar» (never on opening an old session); reduced motion: none.
+    if (finished.records.length > 0) void celebrate();
     toaster.push({
       id: `session-finished-${++noticeSerial.current}`,
       title: COPY.finishedTitle,
@@ -780,6 +808,7 @@ export function SessionScreen({
       return;
     }
     adopt(result.data);
+    setRecords(NO_RECORDS);
     toaster.push({ title: HEALTH_COPY.undoneTitle, text: COPY.reopened });
   }
 
@@ -806,6 +835,8 @@ export function SessionScreen({
     const result = await send(() => updateSessionTimes({ sessionId, startedAt, endedAt }));
     if (!result.ok) return result;
     setHeader((current) => ({ ...current, ...result.data }));
+    // Which sessions count as earlier depends on the start.
+    refreshRecords();
     setEditingTimes(false);
     requestFocus(() => timesKey.current);
     announce(COPY.timesSaved);
@@ -842,12 +873,15 @@ export function SessionScreen({
               )}
             </p>
             <p className="bo-text-heading">
-              {COPY.summary(
-                formatMinutes(minutesBetween(header.startedAt, header.endedAt as string)),
-                doneCount,
+              {withRecords(
+                COPY.summary(
+                  formatMinutes(minutesBetween(header.startedAt, header.endedAt as string)),
+                  doneCount,
+                ),
+                records.length,
               )}
             </p>
-            {records}
+            <SessionRecords records={records} />
           </div>
         )}
         <div role="group" aria-label={COPY.actionsLabel} className="flex flex-wrap gap-2">
@@ -1008,6 +1042,11 @@ export function SessionScreen({
       />
     </article>
   );
+}
+
+/** «52 min · 14 series», plus «· 2 récords nuevos» when there are any. */
+function withRecords(summary: string, count: number): string {
+  return count > 0 ? `${summary} · ${RECORDS_COPY.newCount(count)}` : summary;
 }
 
 /** The running time («23:45»); assistive tech reads «En curso: 23 min» (once a minute). */
