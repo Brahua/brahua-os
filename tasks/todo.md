@@ -4,7 +4,7 @@
 
 ## Módulo `health` (Entreno): cerrado el 2026-11-05
 
-Spec [`SPEC-health.md`](../SPEC-health.md); plan y tareas archivados en [`archive/health-plan.md`](archive/health-plan.md) y [`archive/health-todo.md`](archive/health-todo.md) (con el párrafo del Checkpoint). Spec y plan (#177), E1 catálogo y rutinas (#178), E2 sesión (#179), E3 récords e historial (#180) y E4 hábito, Hoy, revisión y E2E (#181) están en producción; E5 (`feat/health-e5`) aplica los hallazgos del Checkpoint y cierra. El hábito «Gimnasio» existe y está enlazado. **Pendiente del owner:**
+Spec [`SPEC-health.md`](../SPEC-health.md); plan y tareas archivados en [`archive/health-plan.md`](archive/health-plan.md) y [`archive/health-todo.md`](archive/health-todo.md) (con el párrafo del Checkpoint). Spec y plan (#177), E1 catálogo y rutinas (#178), E2 sesión (#179), E3 récords e historial (#180) y E4 hábito, Hoy, revisión y E2E (#181) están en producción; E5 (#182) aplica los hallazgos del Checkpoint y cierra. El hábito «Gimnasio» existe y está enlazado. **Pendiente del owner:**
 
 - Pasar sus rutinas reales para cargarlas (nombres, ejercicios, series objetivo y descanso).
 - Confirmar en el iPhone la sesión con una mano, la barra de descanso (Safari del iPhone no vibra) y la tarjeta de Hoy.
@@ -135,6 +135,8 @@ Mejoras cortas a módulos cerrados que salen de [`docs/benchmark-rimu.html`](../
 Quedan en el backlog (abajo, sección "Del benchmark") los de menor prioridad: `ics-feed`, `task-checklist`, `habit-heatmap-year`.
 
 ## Backlog técnico
+
+- **Flake en `e2e/reminders.spec.ts:275` («Canal de avisos»):** en la corrida de `main` de #182 (2026-11-05) no apareció «Este dispositivo no recibe avisos por push.» (1 de 499); el reintento del job pasó sin cambios y el mismo spec había pasado en `main` con #181. Si se repite, revisar la espera tras apagar el push en ese dispositivo.
 
 - [ ] **Espacios de advisory lock repetidos** (visto en la revisión de N1, 2026-11-03): `FINANCE` y `GOALS` usan los dos `5000`, y `PUSH` y `WEEKLY_REVIEW` los dos `6000`. Hoy no chocan (las segundas claves son distintas), pero el espacio debía separar módulos: darle a cada uno el suyo y anotar la tabla de espacios en un solo lugar.
 - [ ] **Markdown: tope de anidamiento de bloques antes de parsear** (revisión de N3, 2026-11-03; existe desde antes de N3): un texto con `> ` anidado unas 25 000 veces desborda la pila del render (notas, proyectos y tareas). Cortar o rechazar más de N niveles antes de pasar el texto al parser.
