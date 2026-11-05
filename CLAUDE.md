@@ -415,3 +415,31 @@ Recurring review findings and incidents, turned into rules. Apply them before re
 - **Every plain-text view of the body knows the custom syntax:** the renderer, the search column and the headline
   replaced `[[type:id|Nombre]]` by its name, but the list's excerpt did not (found only in the production
   checkpoint). When a module adds syntax to stored text, grep every place that turns that text into plain text.
+
+## Lessons from `health` (retrospective, 2026-11-05)
+
+- **A "library" can be a whole app:** openGym was a full AGPL app whose media belongs to a third party (Gym visual) under
+  its own licence. Before reusing anything, check the licence of the code, the data and the media separately; take ideas,
+  not files, when any of them would bind the repo.
+- **Ids derived in SQL must pass the app's validator:** the seed's `md5(...)::uuid` ids carry no RFC version bits and Zod
+  4's `z.uuid()` is strict, so 55 of 64 seeded exercises could not be added or opened in production for three cuts. Unit
+  and integration tests called the services directly; only the E2E went through the real validation. Validate such ids
+  with `z.guid()` and run every derived id through the validator in a unit test.
+- **Review a never-run E2E against the real components:** a reviewer that checked each locator against the copy files
+  found two failures (an announcement asserted as a notice, a fixture longer than its `CHECK`) before the first run. When
+  the first CI run still fails, reproduce that one spec locally (the allowed exception): it found the real bug in one
+  iteration instead of several CI rounds.
+- **An undo across modules carries the other module's stamp:** comparing the settings' `updated_at` with the session's
+  raced (`now()` is the transaction's start, after a lock wait). The session stores the habit id and the log's
+  `updated_at` at marking, and the undo touches the log only if both still match.
+- **Undo of a removal restores by a shared stamp, not a client list:** «Terminar» marks the sets it removes with one
+  `deleted_at`; the undo restores exactly those and rebuilds their order (restored sets take their stored positions,
+  the rest fill the gaps). A retried create with a client id is idempotent (same id and parent return the row).
+- **Work typed but not saved blocks the step that would drop it:** a set marked offline was deleted by «Terminar»; the
+  finish sheet now waits for «Reintentar». Undo answers from the server merge with local unsaved rows, never replace them.
+- **Time in component tests comes from one clock read:** a start computed after the end made a «52 min» test read 51 when
+  the run crossed a minute. Derive both ends from the same `Date.now()`.
+- **Agents' commits in worktrees:** the RTK hook blocked `git add`/`git commit` in some agent worktrees; the agent leaves
+  the work staged and the message in the scratchpad, and the orchestrator commits it (`git commit -F`), or the agent uses
+  `/usr/bin/git`.
+

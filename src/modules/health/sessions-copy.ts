@@ -147,6 +147,11 @@ export const SESSIONS_COPY = {
   retryAll: "Reintentar",
   retryAllName: "Reintentar guardar las series",
   marked: (set: string) => `${set} hecha.`,
+  /** E5: the following empty sets took the marked set's values. */
+  valuesCopied: (count: number) =>
+    count === 1
+      ? "La serie siguiente tomó sus valores."
+      : `Las ${count} series siguientes tomaron sus valores.`,
 
   // ── Rest ───────────────────────────────────────────────────────────────────────────────
   rest: "Descanso",
@@ -203,6 +208,7 @@ export const SESSIONS_COPY = {
   notSaved: {
     start: "No se empezó la sesión.",
     set: "No se guardó la serie.",
+    copy: "No se guardaron los valores copiados a las series siguientes.",
     addSet: "No se añadió la serie.",
     removeSet: "No se quitó la serie.",
     add: "No se agregó el ejercicio.",

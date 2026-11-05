@@ -2,7 +2,12 @@
 // «La vez pasada»; the rotation; the 4 h threshold and the proposed end; the rest timer (±15 s,
 // zero, storage that throws); the values a set needs; the note.
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { prefillSets, previousForOccurrence, previousLine } from "@/modules/health/prefill";
+import {
+  fillFollowing,
+  prefillSets,
+  previousForOccurrence,
+  previousLine,
+} from "@/modules/health/prefill";
 import {
   REST_BAR_MAX_SECONDS,
   adjustRest,
@@ -24,6 +29,7 @@ import {
   missingValue,
   sessionNoteSchema,
   updateTimesInputSchema,
+  type SessionSet,
   type SetValues,
 } from "@/modules/health/sessions-input";
 import {
@@ -197,6 +203,72 @@ describe("prefill and «La vez pasada»", () => {
     expect(
       previousLine("cardio", [{ ...values(null, null), seconds: 1_200, distanceMeters: 3_200 }]),
     ).toBe("20:00 · 3,2 km");
+  });
+});
+
+describe("a marked set fills the following empty ones (E5)", () => {
+  const row = (n: number, values: Partial<SessionSet> = {}): SessionSet => ({
+    id: `set-${n}`,
+    position: n,
+    weightGrams: null,
+    reps: null,
+    seconds: null,
+    distanceMeters: null,
+    warmup: false,
+    doneAt: null,
+    ...values,
+  });
+  const DONE = "2026-11-05T18:00:00.000Z";
+
+  test("empty planned sets after it take its values; typed, prefilled, done and warmups keep theirs", () => {
+    const marked = row(1, { weightGrams: 80_000, reps: 8, doneAt: DONE });
+    const sets = [
+      row(0), // before the marked one: untouched
+      marked,
+      row(2), // empty: filled
+      row(3, { weightGrams: 82_500, reps: 6 }), // prefilled from last time
+      row(4, { reps: 5 }), // half typed: not empty
+      row(5, { warmup: true }), // warmup
+      row(6, { weightGrams: 60_000, reps: 10, doneAt: DONE }), // already done
+      row(7), // empty: filled
+    ];
+    const filled = fillFollowing("weight_reps", sets, marked);
+    expect(filled.map((set) => set.id)).toEqual(["set-2", "set-7"]);
+    // A row holding text that doesn't parse yet reads empty but isn't.
+    expect(
+      fillFollowing("weight_reps", sets, marked, new Set(["set-2"])).map((set) => set.id),
+    ).toEqual(["set-7"]);
+    for (const set of filled) {
+      expect(set).toMatchObject({ weightGrams: 80_000, reps: 8, warmup: false, doneAt: null });
+    }
+  });
+
+  test("copies only the values the kind shows, and never the done state", () => {
+    const marked = row(0, { seconds: 600, distanceMeters: 1_500, reps: 3, doneAt: DONE });
+    const [next] = fillFollowing("cardio", [marked, row(1)], marked);
+    expect(next).toMatchObject({ seconds: 600, distanceMeters: 1_500, reps: null, doneAt: null });
+    // A «time» set with a value only in a field it doesn't show still counts as empty.
+    const timed = row(0, { seconds: 45, doneAt: DONE });
+    expect(fillFollowing("time", [timed, row(1, { reps: 4 })], timed)).toEqual([
+      expect.objectContaining({ id: "set-1", seconds: 45, reps: null }),
+    ]);
+  });
+
+  test("a warmup, a set not done, or one missing a needed value copies nothing", () => {
+    const warmup = row(0, { weightGrams: 40_000, reps: 10, warmup: true, doneAt: DONE });
+    expect(fillFollowing("weight_reps", [warmup, row(1)], warmup)).toEqual([]);
+    const planned = row(0, { weightGrams: 80_000, reps: 8 });
+    expect(fillFollowing("weight_reps", [planned, row(1)], planned)).toEqual([]);
+    const lacking = row(0, { reps: 8, doneAt: DONE });
+    expect(fillFollowing("weight_reps", [lacking, row(1)], lacking)).toEqual([]);
+    // «reps» needs only the reps: without an extra weight, the copy has none either.
+    const bodyweight = row(0, { reps: 12, doneAt: DONE });
+    expect(fillFollowing("reps", [bodyweight, row(1)], bodyweight)).toEqual([
+      expect.objectContaining({ reps: 12, weightGrams: null }),
+    ]);
+    // The last set, or one not in the list: nothing follows.
+    expect(fillFollowing("reps", [row(1), bodyweight], bodyweight)).toEqual([]);
+    expect(fillFollowing("reps", [row(1)], bodyweight)).toEqual([]);
   });
 });
 

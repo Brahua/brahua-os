@@ -1,7 +1,7 @@
 "use client";
 
 import { EllipsisVertical, RotateCw, Trash2 } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useState } from "react";
 import { IconKey, Key } from "@/design-system";
 import { cn } from "@/lib/cn";
 import type { ExerciseKind } from "../health-constants";
@@ -99,6 +99,11 @@ type SetRowProps = {
   onWarmup: (warmup: boolean) => void;
   onRemove: () => void;
   onRetry: () => void;
+  /**
+   * Whether a field holds text that doesn't parse (`,`, `8a`, a blurred invalid value): the screen
+   * doesn't see that text, so it must not take the set as empty (E5's copy would land over it).
+   */
+  onDraftHeld: (held: boolean) => void;
 };
 
 /**
@@ -118,6 +123,7 @@ export function SetRow({
   onWarmup,
   onRemove,
   onRetry,
+  onDraftHeld,
 }: SetRowProps) {
   const ids = useId();
   const [drafts, setDrafts] = useState<Drafts>(() => toDrafts(set));
@@ -130,8 +136,20 @@ export function SetRow({
   if (key !== seen) {
     setSeen(key);
     const current = draftsToValues(kind, drafts, set);
-    if (!current.ok || valuesKey(current.values) !== key) setDrafts(toDrafts(set));
+    if (!current.ok || valuesKey(current.values) !== key) {
+      setDrafts(toDrafts(set));
+      // The old error spoke of text that is gone.
+      setError(null);
+    }
   }
+
+  // Reported after every commit that changes it (before a click can reach the screen); the
+  // cleanup clears it when the row goes.
+  const held = !draftsToValues(kind, drafts, set).ok;
+  useLayoutEffect(() => {
+    onDraftHeld(held);
+    return () => onDraftHeld(false);
+  }, [held, onDraftHeld]);
 
   const name = set.warmup
     ? COPY.warmupName(index, exerciseName)

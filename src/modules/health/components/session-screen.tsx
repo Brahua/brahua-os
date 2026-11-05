@@ -4,7 +4,7 @@ import { ArrowDownUp, Check, Clock, Flag, Plus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useId, useLayoutEffect, useRef, useState, useTransition } from "react";
-import { Key, SectionLabel, TextArea, TextField } from "@/design-system";
+import { Key, TextArea, TextField } from "@/design-system";
 import type { ActionResult } from "@/lib/action-result";
 import { celebrate } from "@/lib/celebrate";
 import { hasNotice } from "@/lib/toast/queue";
@@ -16,7 +16,7 @@ import type { ExerciseItem } from "../exercises-input";
 import { formatDuration } from "../format";
 import { MAX_SESSION_EXERCISES } from "../health-constants";
 import { HEALTH_COPY } from "../health-copy";
-import { prefillSets } from "../prefill";
+import { fillFollowing, prefillSets } from "../prefill";
 import type { SessionRecord } from "../records";
 import { RECORDS_COPY } from "../records-copy";
 import { SETTINGS_COPY } from "../settings-copy";
@@ -298,7 +298,18 @@ export function SessionScreen({
     });
   }
 
-  function saveSet(next: SessionSet) {
+  // Sets whose row holds text that doesn't parse (E5): never empty for the copy.
+  const heldDrafts = useRef(new Set<string>());
+  const onDraftHeld = useCallback((setId: string, held: boolean) => {
+    if (held) heldDrafts.current.add(setId);
+    else heldDrafts.current.delete(setId);
+  }, []);
+
+  /**
+   * Saves a set. A `copy` (E5) that is refused rolls back under one shared notice, so a refusal of
+   * several copies says it once.
+   */
+  function saveSet(next: SessionSet, { copy = false }: { copy?: boolean } = {}) {
     run(
       `set:${next.id}`,
       () =>
@@ -320,7 +331,16 @@ export function SessionScreen({
           markUnsaved(next.id, false);
           const back = confirmed.current.get(next.id);
           if (back) replaceSet(back);
-          notSaved(COPY.notSaved.set, failureReason(result));
+          if (copy) {
+            toaster.replace({
+              id: "health-set-copy-refused",
+              title: HEALTH_COPY.notSavedTitle,
+              text: `${COPY.notSaved.copy} ${failureReason(result)}`,
+              tone: "error",
+            });
+          } else {
+            notSaved(COPY.notSaved.set, failureReason(result));
+          }
         },
         threw: () => {
           markUnsaved(next.id, true);
@@ -385,18 +405,38 @@ export function SessionScreen({
       };
       replaceSet(next);
       if (!notCreated.current.has(set.id)) saveSet(next);
+      // E5: the following planned, empty sets take these values, each saved like an edit of its
+      // own (`set:<id>` in the queue). Unmarking never clears them.
+      const current = latest.current.find((row) => row.id === exercise.id) ?? exercise;
+      const filled = done
+        ? fillFollowing(
+            exercise.kind,
+            current.sets.map((row) => (row.id === next.id ? next : row)),
+            next,
+            heldDrafts.current,
+          )
+        : [];
+      for (const row of filled) {
+        replaceSet(row);
+        if (!notCreated.current.has(row.id)) saveSet(row, { copy: true });
+      }
       const setName = COPY.setName(
         exercise.sets.findIndex((row) => row.id === set.id),
         exercise.name,
       );
+      // One announcement for the mark, the copies and the rest.
+      const said = [
+        COPY.marked(setName),
+        filled.length > 0 ? COPY.valuesCopied(filled.length) : null,
+      ];
       if (done && open) {
         const rest = restOf(exercise);
         // Focus stays on the checkbox (the bar never takes it) and comes back to it after.
         restFrom.current = set.id;
         timer.start(rest);
-        announce(`${COPY.marked(setName)} ${COPY.restStarted(formatDuration(rest))}`);
+        announce([...said, COPY.restStarted(formatDuration(rest))].filter(Boolean).join(" "));
       } else if (done) {
-        announce(COPY.marked(setName));
+        announce(said.filter(Boolean).join(" "));
       }
     },
     onWarmup: (_exercise, set, warmup) => {
@@ -429,6 +469,7 @@ export function SessionScreen({
       mapSets(exercise.id, (sets) => [...sets, set]);
       sendAdd(exercise.id, set);
     },
+    onDraftHeld,
     onRemoveSet: (exercise, set) => removeSet(exercise, set),
     onRemoveExercise: (exercise) => removeExercise(exercise),
   };
@@ -964,8 +1005,8 @@ export function SessionScreen({
         </Key>
       </section>
 
+      {/* No heading over the note (E5): the field's own label says «Nota» once. */}
       <section className="flex max-w-160 flex-col gap-4">
-        <SectionLabel as="h2" title={COPY.note} />
         <TextArea
           id={noteId}
           label={COPY.note}

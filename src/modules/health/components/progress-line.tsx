@@ -6,6 +6,8 @@ import { RECORDS_COPY as COPY } from "../records-copy";
 /** The drawing's box (SVG units); it scales with the width and keeps its aspect. */
 export const LINE_WIDTH = 320;
 export const LINE_HEIGHT = 120;
+/** Fewer points than this are not drawn (E5): the page says when the line shows up instead. */
+export const LINE_MIN_POINTS = 2;
 const PADDING = 8;
 
 export type LineCoordinate = { x: number; y: number };

@@ -1,7 +1,15 @@
 // The prefill of a session's planned sets and the «La vez pasada» line (SPEC-health "Precarga").
 // Client-safe and pure.
 import type { ExerciseKind } from "./health-constants";
-import { EMPTY_SET_VALUES, keepShown, type PreviousSet, type SetValues } from "./sessions-input";
+import {
+  EMPTY_SET_VALUES,
+  keepShown,
+  missingValue,
+  SET_FIELDS,
+  type PreviousSet,
+  type SessionSet,
+  type SetValues,
+} from "./sessions-input";
 import { formatClock, formatKg, formatKm, formatWeight } from "./weight";
 
 /**
@@ -15,6 +23,39 @@ export function prefillSets(previous: readonly PreviousSet[], count: number): Se
     const source = previous[index] ?? last;
     return source ? { ...source } : { ...EMPTY_SET_VALUES };
   });
+}
+
+/**
+ * The sets that take the values of a set just marked done (E5, approved by the owner on
+ * 2026-11-05): the following sets of the same exercise that are still planned, not warmups, and
+ * empty (none of the fields their kind shows holds a value). They take the marked set's shown
+ * values; never its warmup flag nor its done state. A set with anything in it (typed, or prefilled
+ * from last time) keeps it. A warmup set marked done copies nothing (it is lighter on purpose), and
+ * neither does a set that lacks a value its kind needs. `held` are the sets whose row holds text
+ * that doesn't parse yet (`8a`): their values read empty but they are not. Returns only the sets
+ * that change, with their new values.
+ */
+export function fillFollowing(
+  kind: ExerciseKind,
+  sets: readonly SessionSet[],
+  marked: SessionSet,
+  held: ReadonlySet<string> = new Set(),
+): SessionSet[] {
+  if (marked.warmup || marked.doneAt === null || missingValue(kind, marked) !== null) return [];
+  const from = sets.findIndex((set) => set.id === marked.id);
+  if (from === -1) return [];
+  const shown = SET_FIELDS[kind].shown;
+  const values = keepShown(kind, marked);
+  return sets
+    .slice(from + 1)
+    .filter(
+      (set) =>
+        set.doneAt === null &&
+        !set.warmup &&
+        !held.has(set.id) &&
+        shown.every((field) => set[field] === null),
+    )
+    .map((set) => ({ ...set, ...values }));
 }
 
 /**

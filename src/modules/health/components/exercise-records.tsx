@@ -11,7 +11,7 @@ import { exercisePath, HISTORY_COUNT_PARAM, sessionPath } from "../routes";
 import { formatSessionDay } from "../session-time";
 import { SESSIONS_COPY } from "../sessions-copy";
 import { HistoryMore } from "./history-more";
-import { ProgressLine } from "./progress-line";
+import { LINE_MIN_POINTS, ProgressLine } from "./progress-line";
 
 type ExerciseRecordsProps = {
   exerciseId: string;
@@ -84,7 +84,7 @@ export function ExerciseRecords({ exerciseId, view, shown }: ExerciseRecordsProp
               {COPY.lineWindow}
             </span>
           </h3>
-          {line.length > 0 ? (
+          {line.length >= LINE_MIN_POINTS ? (
             <ProgressLine
               title={lineTitle}
               points={line.map((point) => ({
@@ -95,7 +95,11 @@ export function ExerciseRecords({ exerciseId, view, shown }: ExerciseRecordsProp
               }))}
             />
           ) : (
-            <p className="bo-text-body-sm text-text-secondary">{COPY.lineEmpty}</p>
+            // One point draws a lone dot in a 120-unit-high box (E5): a sentence says when the
+            // line shows up; the records and the history above and below already have the value.
+            <p className="bo-text-body-sm text-text-secondary" data-exercise-line-empty="">
+              {line.length === 0 ? COPY.lineEmpty : COPY.lineOnePoint}
+            </p>
           )}
         </div>
       </section>

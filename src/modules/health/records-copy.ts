@@ -61,6 +61,7 @@ export const RECORDS_COPY = {
   noRecords: "Estas series no tienen valores que den récords (por ejemplo, peso 0).",
   lineWindow: "Últimos 12 meses",
   lineEmpty: "En los últimos 12 meses no hay sesiones con este ejercicio.",
+  lineOnePoint: "La línea aparece desde tu segunda sesión.",
   lineTable: (title: string) => `${title}, últimos 12 meses`,
   columnDay: "Fecha",
   columnBest: "Mejor",
