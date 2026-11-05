@@ -12,6 +12,8 @@
 import { fail, INVALID_FIELDS_MESSAGE, ok, type ActionResult } from "@/lib/action-result";
 import { getDb } from "@/lib/db";
 import { ownerAction } from "@/lib/owner-action";
+import type { SessionRecord } from "./records";
+import { selectSessionRecords } from "./records-data";
 import { revalidateHealth } from "./revalidate";
 import {
   addExercise,
@@ -267,4 +269,20 @@ const restore = ownerAction(
 /** «Deshacer» of a delete or discard (an open one only while no other is open). */
 export async function restoreHealthSession(input: unknown): Promise<ActionResult<{ id: string }>> {
   return restore(input);
+}
+
+const records = ownerAction(
+  sessionRefInputSchema,
+  async ({ sessionId }) => ok(await selectSessionRecords(getDb(), sessionId)),
+  { name: "readHealthSessionRecords" },
+);
+
+/**
+ * The new records of a finished session, read again after a correction on its screen (a set, the
+ * times): they are derived, so the summary follows what was edited. A read: nothing revalidates.
+ */
+export async function readHealthSessionRecords(
+  input: unknown,
+): Promise<ActionResult<SessionRecord[]>> {
+  return records(input);
 }

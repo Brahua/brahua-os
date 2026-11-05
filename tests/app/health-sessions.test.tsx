@@ -62,6 +62,7 @@ vi.mock("@/modules/health/queries", () => ({
   getNextRoutine: vi.fn(),
   listSessions: vi.fn(),
   getDeletedSession: vi.fn(async () => null),
+  getSessionRecords: vi.fn(async () => []),
 }));
 vi.mock("@/modules/health/sessions-actions", () => ({
   startHealthSession: vi.fn(),
@@ -79,6 +80,7 @@ vi.mock("@/modules/health/sessions-actions", () => ({
   undoFinishHealthSession: vi.fn(),
   deleteHealthSession: vi.fn(),
   restoreHealthSession: vi.fn(),
+  readHealthSessionRecords: vi.fn(),
 }));
 vi.mock("@/modules/health/routines-actions", () => ({
   createRoutine: vi.fn(),
@@ -331,6 +333,7 @@ describe("the session screen", () => {
         endedAt: new Date().toISOString(),
         updatedAt: "2026-11-04T19:00:00.123Z",
         removedSetIds: [planned.id],
+        records: [],
       }),
     );
     vi.mocked(undoFinishHealthSession).mockResolvedValue(ok(detail));
@@ -379,6 +382,7 @@ describe("the session screen", () => {
         endedAt: new Date().toISOString(),
         updatedAt: "2026-11-04T19:00:00.123Z",
         removedSetIds: [PLANNED[1].id],
+        records: [],
       }),
     );
     render(<Screen detail={session([squat(PLANNED)])} />);
@@ -588,6 +592,7 @@ describe("the pages", () => {
     startedAt: "2026-11-03T23:00:00.000Z",
     endedAt: "2026-11-03T23:52:00.000Z",
     doneSets: 14,
+    newRecords: 0,
     ...values,
   });
 

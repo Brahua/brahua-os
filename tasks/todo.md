@@ -12,12 +12,12 @@ Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`p
   - Regla de ESLint `HEALTH_ONLY_CONTRACTS` (nadie importa `health` salvo `today` y `weekly-review`; `health` solo `habits/contracts` y `routes`) y la excepción de un archivo para la FK.
   - **Aceptación:** los 64 ejercicios existen tras migrar (dos veces = 64); «Nuevo ejercicio» rechaza un nombre repetido sin acentos; una rutina con 5 ejercicios se arma y reordena con teclado y toque; borrar tiene «Deshacer».
   - **Verificación:** unitarias (clave de nombre, Zod de rutina, copy sin cadenas prohibidas, componentes); integración de a un archivo (`tests/integration/health-catalog.test.ts`: `CHECK` crudos, semilla idempotente, unicidad, orden con lock, autorización, exportación); tras el push, `e2e/home.spec.ts` y dispatch de `update-screenshots.yml`. Sin E2E nueva.
-- [ ] **E2: Sesión** (L; `feat/health-e2`) — hecho en local con el gate liviano en verde, pendiente de revisión, push y merge
+- [x] **E2: Sesión** (L; `feat/health-e2`) — en producción (#179)
   - Migración `0030`: `health_sessions` (único parcial de la abierta), `health_session_exercises`, `health_sets`.
   - Empezar (rutina o libre; lock primero), precarga por posición, serie (peso ↔ gramos, reps, segundos, distancia, calentamiento, casilla), añadir/quitar con «Deshacer», reordenar, nota, barra de descanso, terminar/descartar (4 h, «Deshacer» exacto), `/health/sessions` y `/health/sessions/[id]` (terminadas editables), `useSecondClock` a `src/lib`.
   - **Aceptación:** nunca dos sesiones abiertas; una serie marcada sobrevive a recargar; «Terminar» quita las planificadas y su «Deshacer» las devuelve.
   - **Verificación:** unitarias (peso, precarga, 4 h, descanso, componentes); integración (`health-sessions.test.ts`: concurrencia con control positivo, terminar y deshacer, autorización); dispatch de `update-screenshots.yml` si cambian capturas. Sin E2E nueva.
-- [ ] **E3: Récords e historial** (M; `feat/health-e3`) — depende de E2
+- [ ] **E3: Récords e historial** (M; `feat/health-e3`) — hecho en local con el gate liviano en verde (integración `health-records.test.ts` 9/9), pendiente de revisión, push y merge
   - `records.ts` (por tipo, Epley 1–12, nuevos estrictos), resumen al terminar con `celebrate`, detalle del ejercicio (récords, línea SVG + tabla, historial de 20 en 20), récords en las filas de sesiones.
   - **Aceptación:** el resumen nombra exactamente los récords superados; editar o borrar una sesión los recalcula.
   - **Verificación:** unitarias (récords y bordes, línea, componentes); integración (`health-records.test.ts`). Sin E2E nueva.
@@ -28,6 +28,11 @@ Spec [`SPEC-health.md`](../SPEC-health.md) (aprobada el 2026-11-04), plan en [`p
   - **Verificación:** unitarias (`today-board`, `logros`, componentes); integración (`health-habit.test.ts`: los cuatro casos del hábito, contratos de Hoy y revisión); `update-screenshots.yml` tras el push (primera corrida del E2E).
 - [ ] **E5: Cierre** (S; `feat/health-e5`) — depende de E4
   - Checkpoint en producción (Chrome del owner, datos `[QA]` borrados después), retrospectiva en `CLAUDE.md`, backlog consolidado, mapa, HANDOFF («Cómo funciona health»), archivo del plan y las tareas; carga de las rutinas reales con el owner.
+
+### `health` → backlog
+
+- **Lecturas de récords:** hoy cada pantalla lee todas las series hechas de los ejercicios implicados y calcula en TS (`records-data.ts`). Si el historial crece, reducir en SQL a lo mejor de cada ejercicio por métrica antes de la ventana (o del inicio de la sesión) y traer solo las sesiones de la página.
+- **1RM mostrado a 0,5 kg (decisión autónoma para revisar con el owner):** se compara exacto pero se muestra redondeado, así que un récord nuevo puede leerse igual que el anterior («79 kg» → «79 kg»). Opciones: mostrar un decimal más cuando choque, o redondear antes de comparar.
 
 ## Módulo `notes` (Notas): cerrado el 2026-11-03
 

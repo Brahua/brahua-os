@@ -6,6 +6,9 @@ import { requireOwner } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { selectDeletedExercise, selectExercise, selectExercises } from "./exercises";
 import type { DeletedExercise, ExerciseItem } from "./exercises-input";
+import type { ExerciseKind } from "./health-constants";
+import type { ExerciseRecordsView, SessionRecord } from "./records";
+import { selectExerciseRecords, selectSessionRecords } from "./records-data";
 import { selectRoutineItems } from "./routine-items";
 import { nextRoutine, type RotationRoutine } from "./rotation";
 import { selectDeletedRoutine, selectRoutine, selectRoutineSummaries } from "./routines";
@@ -112,4 +115,22 @@ export async function getDeletedSession(
   await requireOwner();
   if (!isId(id)) return null;
   return selectDeletedSession(getDb(), id);
+}
+
+// ── E3: records and history ─────────────────────────────────────────────────────────────────
+
+/** The new records of a finished session (its summary); empty for an open or missing one. */
+export async function getSessionRecords(id: string): Promise<SessionRecord[]> {
+  await requireOwner();
+  if (!isId(id)) return [];
+  return selectSessionRecords(getDb(), id);
+}
+
+/** An exercise's records, line and the newest `limit` sessions of its history. */
+export async function getExerciseRecords(
+  exercise: { id: string; kind: ExerciseKind },
+  limit: number,
+): Promise<ExerciseRecordsView> {
+  await requireOwner();
+  return selectExerciseRecords(getDb(), exercise.id, exercise.kind, limit);
 }

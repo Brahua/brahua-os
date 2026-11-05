@@ -1,6 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Icon, SectionLabel } from "@/design-system";
+import { RECORDS_COPY } from "../records-copy";
 import { SESSIONS_PATH, sessionPath } from "../routes";
 import { formatMinutes, formatSessionDay, minutesBetween } from "../session-time";
 import { SESSIONS_COPY as COPY } from "../sessions-copy";
@@ -9,15 +10,14 @@ import type { SessionSummary } from "../sessions-input";
 type SessionRowsProps = {
   sessions: readonly SessionSummary[];
   label: string;
-  /** E3's hook point: the records of each row, by session id. */
-  records?: (session: SessionSummary) => React.ReactNode;
 };
 
 /**
  * Sessions as rows (SPEC-health "Pantallas"): the day and the routine, then the duration and the
- * done sets («52 min · 14 series»), or «En curso». Each row opens the session. A Server Component.
+ * done sets («52 min · 14 series»), with its new records when it has any («· 2 récords», E3), or
+ * «En curso». Each row opens the session. A Server Component.
  */
-export function SessionRows({ sessions, label, records }: SessionRowsProps) {
+export function SessionRows({ sessions, label }: SessionRowsProps) {
   return (
     <ul aria-label={label} className="bo-list" data-health-sessions="">
       {sessions.map((session) => {
@@ -45,8 +45,10 @@ export function SessionRows({ sessions, label, records }: SessionRowsProps) {
                         formatMinutes(minutesBetween(session.startedAt, session.endedAt)),
                         session.doneSets,
                       )}
+                  {session.endedAt !== null && session.newRecords > 0
+                    ? ` · ${RECORDS_COPY.rowCount(session.newRecords)}`
+                    : null}
                 </span>
-                {records?.(session)}
               </span>
               <Icon icon={ChevronRight} size="sm" className="shrink-0 text-text-secondary" />
             </Link>

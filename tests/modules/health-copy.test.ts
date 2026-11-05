@@ -3,6 +3,7 @@
 // up) and what their functions return. A positive control proves the scan can fail.
 import { describe, expect, test } from "vitest";
 import { EXERCISE_ERRORS } from "@/modules/health/exercises-copy";
+import { RECORDS_COPY } from "@/modules/health/records-copy";
 import { ROUTINES_COPY } from "@/modules/health/routines-copy";
 import { SESSION_ERRORS, SESSIONS_COPY } from "@/modules/health/sessions-copy";
 
@@ -62,6 +63,7 @@ describe("health copy has no guilt", () => {
       "exercises-copy.ts",
       "routines-copy.ts",
       "sessions-copy.ts",
+      "records-copy.ts",
     ]) {
       expect(files.some((file) => file.endsWith(name))).toBe(true);
     }
@@ -80,6 +82,10 @@ describe("health copy has no guilt", () => {
       "Ya tienes un entreno en curso.",
       "Descanso terminado. A la siguiente serie.",
       "Descartar la sesión",
+      // E3
+      "Cuando lo entrenes, aquí verás tus récords.",
+      "1 récord nuevo",
+      "Peso máximo",
     ]) {
       expect(scanned).toContain(expected);
     }
@@ -99,6 +105,9 @@ describe("health copy has no guilt", () => {
       ["summary", SESSIONS_COPY.finishSummary("52 min", 0)],
       ["previousNone", SESSIONS_COPY.previousNone],
       ["restLeft", SESSIONS_COPY.restLeftName(0, 5)],
+      ["lineEmpty", RECORDS_COPY.lineEmpty],
+      ["newCount0", RECORDS_COPY.newCount(0)],
+      ["history0", RECORDS_COPY.historyCount(0)],
     ];
     expect(offenders(sentences)).toEqual([]);
   });

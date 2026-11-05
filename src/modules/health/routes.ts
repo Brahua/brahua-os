@@ -25,3 +25,6 @@ export const sessionPath = (id: string) => `${SESSIONS_PATH}/${id}`;
 
 /** `?n=<count>` on /health/sessions: how many it shows («Ver más» adds a page). */
 export const SESSIONS_COUNT_PARAM = "n";
+
+/** `?n=<count>` on an exercise's page: how many sessions its history shows («Ver más»). */
+export const HISTORY_COUNT_PARAM = "n";

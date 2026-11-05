@@ -34,6 +34,7 @@ import {
 import { MAX_EXERCISE_SETS, MAX_SESSION_EXERCISES, type ExerciseKind } from "./health-constants";
 import { lockSession, type Tx } from "./locks";
 import { prefillSets, previousForOccurrence } from "./prefill";
+import { selectNewRecordCounts, selectSessionRecords } from "./records-data";
 import { selectRoutineItems } from "./routine-items";
 import type { RotationRoutine } from "./rotation";
 import {
@@ -339,11 +340,16 @@ export async function selectSessionSummaries(
       .limit(limit),
     db.select({ total: count() }).from(s).where(liveSession),
   ]);
+  const records = await selectNewRecordCounts(
+    db,
+    rows.filter((row) => row.endedAt !== null).map((row) => row.id),
+  );
   return {
     sessions: rows.map((row) => ({
       ...row,
       startedAt: iso(row.startedAt),
       endedAt: isoOrNull(row.endedAt),
+      newRecords: records.get(row.id) ?? 0,
     })),
     total,
   };
@@ -992,6 +998,8 @@ export async function finishSession(
         endedAt: iso(row.endedAt as Date),
         updatedAt: iso(row.updatedAt),
         removedSetIds: removed.map((set) => set.id),
+        // Read after the end is written: the session now counts as finished.
+        records: await selectSessionRecords(tx, sessionId),
       };
     }),
   );
