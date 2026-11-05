@@ -380,9 +380,15 @@ describe("the session rows", () => {
 
 describe("the session screen", () => {
   test("a finished session lists its records; opening it never celebrates", () => {
-    const now = new Date().toISOString();
+    // Both ends fixed from one clock read: a start taken after `now` made it 51 min 59 s (flaked).
+    const end = Date.now();
+    const now = new Date(end).toISOString();
+    const startedAt = new Date(end - 52 * 60_000).toISOString();
     render(
-      <Screen detail={session([set(0, { doneAt: now })], { endedAt: now })} records={RECORDS} />,
+      <Screen
+        detail={session([set(0, { doneAt: now })], { startedAt, endedAt: now })}
+        records={RECORDS}
+      />,
     );
     expect(summaryBox()).toHaveTextContent("52 min · 1 serie · 2 récords nuevos");
     const items = within(recordList()!).getAllByRole("listitem");
