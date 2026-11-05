@@ -10,6 +10,7 @@ import { getFinanceTodaySummary, type FinanceTodayItem } from "@/modules/finance
 import { getHabitsDueToday } from "@/modules/habits/contracts";
 import type { HabitItem } from "@/modules/habits/habit-input";
 import { getLearningTodaySummary } from "@/modules/learning/contracts";
+import { getHealthTodaySummary } from "@/modules/health/contracts";
 import { setHabitDone } from "@/modules/habits/log-actions";
 import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import {
@@ -43,6 +44,9 @@ vi.mock("@/modules/projects/contracts", () => ({ getProjectsTodaySummary: vi.fn(
 vi.mock("@/modules/finance/contracts", () => ({ getFinanceTodaySummary: vi.fn() }));
 // L3 of `learning`: «Estudio» reads its contract; the cards' actions are never called here.
 vi.mock("@/modules/learning/contracts", () => ({ getLearningTodaySummary: vi.fn() }));
+// E4 of `health`: «Entreno» reads its contract; the card's «Empezar» is never called here.
+vi.mock("@/modules/health/contracts", () => ({ getHealthTodaySummary: vi.fn() }));
+vi.mock("@/modules/health/sessions-actions", () => ({ startHealthSession: vi.fn() }));
 vi.mock("@/modules/learning/sessions-actions", () => ({
   startSession: vi.fn(),
   stopSession: vi.fn(),
@@ -84,6 +88,12 @@ beforeEach(() => {
   vi.mocked(getFinanceTodaySummary).mockResolvedValue([]);
   vi.mocked(getLearningTodaySummary).mockReset();
   vi.mocked(getLearningTodaySummary).mockResolvedValue({ tracks: [], running: null });
+  vi.mocked(getHealthTodaySummary).mockReset();
+  vi.mocked(getHealthTodaySummary).mockResolvedValue({
+    running: null,
+    next: null,
+    habitDue: false,
+  });
 });
 
 afterEach(() => {
@@ -202,6 +212,69 @@ test("home page reads the study summary at the same instant and shows Estudio af
 test("a track in progress alone keeps the day from being empty; none hides «Estudio»", async () => {
   render(await Home());
   expect(screen.queryByRole("region", { name: "Estudio" })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Nada programado para hoy" })).toBeInTheDocument();
+});
+
+test("home page reads the training summary at the same instant and shows Entreno after Estudio (E4)", async () => {
+  vi.mocked(getLearningTodaySummary).mockResolvedValue({
+    tracks: [
+      {
+        id: "00000000-0000-4000-8000-0000000000c1",
+        title: "AWS SAA",
+        kind: "certification",
+        steps: { done: 0, total: 0 },
+        upcoming: [],
+        weekMinutes: 0,
+        weeklyTargetMinutes: null,
+      },
+    ],
+    running: null,
+  });
+  vi.mocked(getHealthTodaySummary).mockResolvedValue({
+    running: null,
+    next: { routineId: "00000000-0000-4000-8000-0000000000e1", routineName: "Rutina B" },
+    habitDue: true,
+  });
+  render(await Home());
+  expect(getHealthTodaySummary).toHaveBeenCalledTimes(1);
+  expect(getHealthTodaySummary).toHaveBeenCalledWith(new Date("2026-09-30T13:15:00Z"));
+  const section = screen.getByRole("region", { name: "Entreno" });
+  expect(within(section).getByRole("button", { name: "Empezar Rutina B" })).toBeInTheDocument();
+  expect(within(section).getByRole("link", { name: "Ver entreno" })).toHaveAttribute(
+    "href",
+    "/health",
+  );
+  const study = screen.getByRole("region", { name: "Estudio" });
+  expect(study.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("«Entreno» alone keeps the day from being empty; without a card it doesn't show (E4)", async () => {
+  vi.mocked(getHealthTodaySummary).mockResolvedValue({
+    running: {
+      id: "00000000-0000-4000-8000-0000000000f1",
+      routineName: "Rutina A",
+      startedAt: "2026-09-30T12:52:00Z",
+    },
+    next: null,
+    habitDue: false,
+  });
+  const { unmount } = render(await Home());
+  const section = screen.getByRole("region", { name: "Entreno" });
+  expect(within(section).getByText("Entreno en curso")).toBeInTheDocument();
+  expect(within(section).getByRole("link", { name: "Seguir con Rutina A" })).toHaveAttribute(
+    "href",
+    "/health/sessions/00000000-0000-4000-8000-0000000000f1",
+  );
+  expect(screen.queryByRole("heading", { name: "Nada programado para hoy" })).toBeNull();
+  unmount();
+  // The habit isn't due (or no habit is linked): nothing, and the day is empty.
+  vi.mocked(getHealthTodaySummary).mockResolvedValue({
+    running: null,
+    next: { routineId: "00000000-0000-4000-8000-0000000000e1", routineName: "Rutina B" },
+    habitDue: false,
+  });
+  render(await Home());
+  expect(screen.queryByRole("region", { name: "Entreno" })).toBeNull();
   expect(screen.getByRole("heading", { name: "Nada programado para hoy" })).toBeInTheDocument();
 });
 

@@ -22,6 +22,8 @@ export type TodayCounts = {
   tasks?: number;
   /** L3 of `learning` (`getLearningTodaySummary`): the tracks in progress («Estudio»). */
   study?: number;
+  /** E4 of `health` (`getHealthTodaySummary`): 1 when «Entreno» shows a card, else 0. */
+  training?: number;
   /** F4 of `finance` (`getFinanceTodaySummary`): every pending period shown, upcoming included. */
   payments?: number;
   projects?: number;
@@ -34,6 +36,7 @@ export type TodaySections = {
   habits: boolean;
   tasks: boolean;
   study: boolean;
+  training: boolean;
   payments: boolean;
   projects: boolean;
   /** Nothing at all today: the calm "Nada programado para hoy" instead of the sections. */
@@ -50,6 +53,10 @@ export type TodaySections = {
  * Study (L3 of `learning`): a track in progress shows its «Sigue con» card, so the day is not
  * empty either; it never keeps «Día completo» away (studying is not due on a day).
  *
+ * Training (E4 of `health`): «Entreno en curso» or «Empezar Rutina B» (the linked habit is due) is
+ * on the board, so the day is not empty; like study, it never keeps «Día completo» away (the habit
+ * it follows already counts in «Hábitos»).
+ *
  * Payments (F4): a day whose only rows are upcoming payments (due within 7 days, nothing overdue
  * or due today) is not empty, because "Pagos" shows them: the empty day never sits next to a
  * section with rows (decision to review with the owner: the conservative reading).
@@ -58,6 +65,7 @@ export function todaySections(counts: TodayCounts): TodaySections {
   const habits = counts.habits > 0;
   const tasks = (counts.tasks ?? 0) > 0;
   const study = (counts.study ?? 0) > 0;
+  const training = (counts.training ?? 0) > 0;
   const payments = (counts.payments ?? 0) > 0;
   const projects = (counts.projects ?? 0) > 0;
   const dayComplete = counts.dayComplete ?? false;
@@ -65,9 +73,10 @@ export function todaySections(counts: TodayCounts): TodaySections {
     habits,
     tasks,
     study,
+    training,
     payments,
     projects,
-    empty: !habits && !tasks && !study && !payments && !projects && !dayComplete,
+    empty: !habits && !tasks && !study && !training && !payments && !projects && !dayComplete,
   };
 }
 

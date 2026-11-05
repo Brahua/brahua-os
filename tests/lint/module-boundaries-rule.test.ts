@@ -691,22 +691,43 @@ test.each([
   }
 });
 
-test.each(["src/modules/today/components/today-board.tsx", "src/modules/weekly-review/queries.ts"])(
-  "%s may read the contract of health and nothing else of it",
-  async (file) => {
-    expect(await restricted(IMPORT_HEALTH_CONTRACT, file)).toEqual([]);
-    for (const code of [
-      IMPORT_HEALTH,
-      IMPORT_HEALTH_BARREL,
-      `import { selectRoutineSummaries } from "@/modules/health/routines";\nexport const x = selectRoutineSummaries;\n`,
-      `import { healthExercises } from "@/modules/health/db/schema";\nexport const x = healthExercises;\n`,
-    ]) {
-      const messages = await restricted(code, file);
-      expect(messages).toHaveLength(1);
-      expect(messages[0]).toContain("leen `health` solo por su contrato");
-    }
-  },
-);
+test("weekly-review may read the contract of health and nothing else of it", async () => {
+  const file = "src/modules/weekly-review/queries.ts";
+  expect(await restricted(IMPORT_HEALTH_CONTRACT, file)).toEqual([]);
+  for (const code of [
+    IMPORT_HEALTH,
+    IMPORT_HEALTH_BARREL,
+    `import { selectRoutineSummaries } from "@/modules/health/routines";\nexport const x = selectRoutineSummaries;\n`,
+    `import { healthExercises } from "@/modules/health/db/schema";\nexport const x = healthExercises;\n`,
+  ]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("leen `health` solo por su contrato");
+  }
+});
+
+// E4: `today` draws «Entreno» with `health`'s card (HEALTH_FOR_TODAY), like «Estudio».
+test("today may read the contract, the routes and the «Entreno» card of health, nothing else", async () => {
+  const file = "src/modules/today/components/today-training.tsx";
+  for (const code of [
+    IMPORT_HEALTH_CONTRACT,
+    IMPORT_HEALTH,
+    `import { TrainingTodayCard } from "@/modules/health/components/training-today";\nexport const x = TrainingTodayCard;\n`,
+  ]) {
+    expect(await restricted(code, file)).toEqual([]);
+  }
+  for (const code of [
+    IMPORT_HEALTH_BARREL,
+    `import { selectRoutineSummaries } from "@/modules/health/routines";\nexport const x = selectRoutineSummaries;\n`,
+    `import { healthExercises } from "@/modules/health/db/schema";\nexport const x = healthExercises;\n`,
+    `import { SessionScreen } from "@/modules/health/components/session-screen";\nexport const x = SessionScreen;\n`,
+    `import { TrainingTodayCard } from "@/modules/health/components/training-today-card";\nexport const x = TrainingTodayCard;\n`,
+  ]) {
+    const messages = await restricted(code, file);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("`today` lee `health` solo por su contrato");
+  }
+});
 
 test("health itself, its pages and the registry may import it", async () => {
   expect(await restricted(IMPORT_HEALTH, "src/modules/health/routines.ts")).toEqual([]);

@@ -68,13 +68,13 @@ export const routineNameSchema = z
       .refine((value) => !hasInvisibleCharacters(value), ERRORS.invisible),
   );
 
-const routineId = z.uuid({ error: ERRORS.notFound });
-const itemId = z.uuid({ error: ERRORS.itemNotFound });
+const routineId = z.guid({ error: ERRORS.notFound });
+const itemId = z.guid({ error: ERRORS.itemNotFound });
 
 /** A set of distinct ids (a reorder): checked against the live set by the data layer. */
 const idSet = (max: number) =>
   z
-    .array(z.uuid({ error: ERRORS.order }), { error: ERRORS.order })
+    .array(z.guid({ error: ERRORS.order }), { error: ERRORS.order })
     .min(1, ERRORS.order)
     .max(max, ERRORS.order)
     .refine((ids) => new Set(ids).size === ids.length, ERRORS.order);
@@ -169,7 +169,7 @@ export const addItemInputSchema = z
   .object({
     routineId,
     id: itemId,
-    exerciseId: z.uuid({ error: ERRORS.exerciseUnavailable }),
+    exerciseId: z.guid({ error: ERRORS.exerciseUnavailable }),
     ...targetsShape,
   })
   .superRefine(checkPairs);
@@ -189,7 +189,7 @@ export type ItemRefInput = z.output<typeof itemRefInputSchema>;
 export const restoreItemInputSchema = z.object({
   routineId,
   id: itemId,
-  afterId: z.uuid({ error: ERRORS.order }).nullable().default(null),
+  afterId: z.guid({ error: ERRORS.order }).nullable().default(null),
   position: int(ERRORS.order, 0, MAX_ROUTINE_ITEMS),
 });
 export type RestoreItemInput = z.output<typeof restoreItemInputSchema>;

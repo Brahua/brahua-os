@@ -84,11 +84,11 @@ export type CreateExerciseInput = z.output<typeof createExerciseInputSchema>;
 
 /** Its page: every field, sent whole. */
 export const updateExerciseInputSchema = z.object({
-  id: z.uuid({ error: ERRORS.notFound }),
+  id: z.guid({ error: ERRORS.notFound }),
   ...fields,
 });
 export type UpdateExerciseInput = z.output<typeof updateExerciseInputSchema>;
 
 /** Delete and restore. */
-export const exerciseIdInputSchema = z.object({ id: z.uuid({ error: ERRORS.notFound }) });
+export const exerciseIdInputSchema = z.object({ id: z.guid({ error: ERRORS.notFound }) });
 export type ExerciseIdInput = z.output<typeof exerciseIdInputSchema>;

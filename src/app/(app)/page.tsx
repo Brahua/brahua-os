@@ -5,6 +5,7 @@ import { getReviewInviteSlot } from "@/lib/review-extensions";
 import { dayPartFor, formatLongDate, greetingFor, ownerDateKey } from "@/lib/time";
 import { getFinanceTodaySummary } from "@/modules/finance/contracts";
 import { getHabitsDueToday } from "@/modules/habits/contracts";
+import { getHealthTodaySummary } from "@/modules/health/contracts";
 import { getLearningTodaySummary } from "@/modules/learning/contracts";
 import { getProjectsTodaySummary } from "@/modules/projects/contracts";
 import { getTasksDoneTodayCount, getTasksTodaySummary } from "@/modules/tasks/contracts";
@@ -15,6 +16,7 @@ import { TodayPayments } from "@/modules/today/components/today-payments";
 import { TodayProjects } from "@/modules/today/components/today-projects";
 import { TodayStudy } from "@/modules/today/components/today-study";
 import { TodayTasks } from "@/modules/today/components/today-tasks";
+import { TodayTraining, trainingCount } from "@/modules/today/components/today-training";
 import { paymentsTally, TODAY_HEADING_ID } from "@/modules/today/today-board";
 import { TODAY_COPY } from "@/modules/today/today-copy";
 
@@ -33,20 +35,30 @@ export default async function Home() {
 
   // One `Promise.all`, one entry per contract (SPEC-today "Lecturas"), each passed to its slot
   // of `TodayBoard` ("Día completo" reads the tasks completed today; "Pagos" is `finance`'s, F4;
-  // "Estudio" is `learning`'s, L3).
-  const [habits, tasks, projects, tasksDoneToday, payments, study, reviewInvite, todayNote] =
-    await Promise.all([
-      getHabitsDueToday(now),
-      getTasksTodaySummary(now),
-      getProjectsTodaySummary(now),
-      getTasksDoneTodayCount(now),
-      getFinanceTodaySummary(now),
-      getLearningTodaySummary(now),
-      // W4: the invitation to close the week (Sunday 18:00 → Monday 23:59 Lima), or null.
-      getReviewInviteSlot(now),
-      // N1 of notes: «Nota de hoy» (or «Seguir la nota de hoy») under the greeting.
-      getTodayNoteSlot(now),
-    ]);
+  // "Estudio" is `learning`'s, L3; "Entreno" is `health`'s, E4).
+  const [
+    habits,
+    tasks,
+    projects,
+    tasksDoneToday,
+    payments,
+    study,
+    training,
+    reviewInvite,
+    todayNote,
+  ] = await Promise.all([
+    getHabitsDueToday(now),
+    getTasksTodaySummary(now),
+    getProjectsTodaySummary(now),
+    getTasksDoneTodayCount(now),
+    getFinanceTodaySummary(now),
+    getLearningTodaySummary(now),
+    getHealthTodaySummary(now),
+    // W4: the invitation to close the week (Sunday 18:00 → Monday 23:59 Lima), or null.
+    getReviewInviteSlot(now),
+    // N1 of notes: «Nota de hoy» (or «Seguir la nota de hoy») under the greeting.
+    getTodayNoteSlot(now),
+  ]);
   const today = ownerDateKey(now);
   // evening-close-ritual: from 20:00 (Lima) the header turns into the close of the day.
   const closing = await isEveningCloseFor(now);
@@ -76,6 +88,7 @@ export default async function Home() {
         habits={habits}
         tasks={{ count: tasks.length, content: <TodayTasks tasks={tasks} /> }}
         study={{ count: study.tracks.length, content: <TodayStudy summary={study} /> }}
+        training={{ count: trainingCount(training), content: <TodayTraining summary={training} /> }}
         payments={{
           count: payments.length,
           blocking: paymentsTally(payments, today).blocking,

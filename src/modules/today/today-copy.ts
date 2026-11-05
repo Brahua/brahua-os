@@ -33,6 +33,9 @@ export const TODAY_COPY = {
   studyTitle: "Estudio",
   studyList: "Frentes en curso",
   seeLearning: "Ver aprendizaje",
+  /** E4 of `health`: the «Entreno» section. */
+  trainingTitle: "Entreno",
+  seeHealth: "Ver entreno",
 
   // ── Día completo (D4) ──
   dayCompleteTitle: "Día completo",

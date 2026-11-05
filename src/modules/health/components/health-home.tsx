@@ -16,11 +16,13 @@ type HealthHomeProps = {
   routines: React.ReactNode;
   /** «Últimas sesiones» (session-rows.tsx). Nothing shows while it is empty. */
   recent?: React.ReactNode;
+  /** E4: the «Ajustes» row of the list (settings-sheet.tsx, an `<li>`), after «Ejercicios». */
+  settings?: React.ReactNode;
 };
 
 /**
  * /health (SPEC-health "Pantallas"): the title, then the slots in their order (the session on
- * top, «Rutinas», «Últimas sesiones») and the links to «Ejercicios» (and «Ajustes» in E4). A
+ * top, «Rutinas», «Últimas sesiones») and the links to «Ejercicios» and «Ajustes» (E4). A
  * Server Component: each slot brings its own client parts.
  */
 export function HealthHome({
@@ -28,6 +30,7 @@ export function HealthHome({
   session = null,
   routines,
   recent = null,
+  settings = null,
 }: HealthHomeProps) {
   return (
     <div className="flex flex-col gap-8">
@@ -53,6 +56,7 @@ export function HealthHome({
               <Icon icon={ChevronRight} size="sm" className="shrink-0 text-text-secondary" />
             </Link>
           </li>
+          {settings}
         </ul>
       </nav>
     </div>

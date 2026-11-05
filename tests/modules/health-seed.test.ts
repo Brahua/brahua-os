@@ -3,15 +3,18 @@
 // drift (a row added, renamed or changed on one side only), and checks the seed itself: 64
 // exercises (SPEC-health "Anexo"), stable unique keys, unique names without case or accents, and
 // values the CHECKs accept.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
+import { z } from "zod";
 import {
   EQUIPMENT,
   EXERCISE_KINDS,
   EXERCISE_NAME_MAX_LENGTH,
   MUSCLE_GROUPS,
 } from "@/modules/health/health-constants";
+import { exerciseIdInputSchema } from "@/modules/health/exercises-input";
 import { exerciseNameKey } from "@/modules/health/name-key";
 import { SEED_EXERCISES } from "@/modules/health/seed";
 
@@ -94,5 +97,21 @@ describe("the catalogue's seed", () => {
     const renamed = rows.map((row, index) => (index === 10 ? { ...row, name: "Dominada" } : row));
     expect(renamed).not.toEqual(rows);
     expect(rows.slice(1)).not.toEqual(rows);
+  });
+});
+
+describe("the seeded ids", () => {
+  // md5('health:exercise:<key>')::uuid, as migration 0029 writes them.
+  const seedId = (seedKey: string) => {
+    const hex = createHash("md5").update(`health:exercise:${seedKey}`).digest("hex");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  };
+
+  test("every one passes the module's id validation, though most carry no RFC version bits", () => {
+    const ids = SEED_EXERCISES.map((exercise) => seedId(exercise.seedKey));
+    const refused = ids.filter((id) => !exerciseIdInputSchema.safeParse({ id }).success);
+    expect(refused).toEqual([]);
+    // Positive control: a strict uuid check refuses most of them (the bug the E2E found).
+    expect(ids.filter((id) => !z.uuid().safeParse(id).success).length).toBeGreaterThan(0);
   });
 });

@@ -57,7 +57,10 @@ vi.mock("@/modules/health/queries", () => ({
   getOpenSession: vi.fn(async () => null),
   getNextRoutine: vi.fn(async () => null),
   listSessions: vi.fn(async () => ({ sessions: [], total: 0 })),
+  // E4's «Ajustes» row (tests/app/health-habit.test.tsx covers it).
+  getHealthSettings: vi.fn(async () => ({ habitId: null, options: [] })),
 }));
+vi.mock("@/modules/health/settings-actions", () => ({ updateHealthSettings: vi.fn() }));
 vi.mock("@/modules/health/sessions-actions", () => ({ startHealthSession: vi.fn() }));
 vi.mock("@/modules/health/routines-actions", () => ({
   createRoutine: vi.fn(),

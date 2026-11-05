@@ -7,6 +7,7 @@ import ReviewPage, { generateMetadata } from "@/app/(app)/review/page";
 import { requireOwner } from "@/lib/auth";
 import { getGoalsWeekReview, getWeeklyObjectiveForWeek } from "@/modules/goals/contracts";
 import { getHabitsWeekCompleteDays, getHabitsWeekSummary } from "@/modules/habits/contracts";
+import { getHealthWeekReview } from "@/modules/health/contracts";
 import { getLearningWeekReview } from "@/modules/learning/contracts";
 import { getProjectsWeekReview } from "@/modules/projects/contracts";
 import { getTasksWeekReview } from "@/modules/tasks/contracts";
@@ -19,6 +20,8 @@ vi.mock("@/modules/habits/contracts", () => ({
 }));
 vi.mock("@/modules/tasks/contracts", () => ({ getTasksWeekReview: vi.fn() }));
 vi.mock("@/modules/learning/contracts", () => ({ getLearningWeekReview: vi.fn() }));
+// E4 of `health`: «Entreno» reads its contract.
+vi.mock("@/modules/health/contracts", () => ({ getHealthWeekReview: vi.fn() }));
 vi.mock("@/modules/projects/contracts", () => ({ getProjectsWeekReview: vi.fn() }));
 vi.mock("@/modules/goals/contracts", () => ({
   getGoalsWeekReview: vi.fn(),
@@ -61,6 +64,7 @@ beforeEach(() => {
     getGoalsWeekReview,
     getWeeklyObjectiveForWeek,
     getLearningWeekReview,
+    getHealthWeekReview,
     hasReview,
     getReviewRow,
     getPreviousWeeks,
@@ -73,6 +77,7 @@ beforeEach(() => {
   vi.mocked(getPreviousWeeks).mockResolvedValue([]);
   vi.mocked(getWeeklyObjectiveForWeek).mockResolvedValue(null);
   vi.mocked(getLearningWeekReview).mockResolvedValue({ minutes: 0 });
+  vi.mocked(getHealthWeekReview).mockResolvedValue({ sessions: 0, records: 0 });
   vi.mocked(getHabitsWeekSummary).mockResolvedValue({
     weekStart: "2026-10-05",
     habits: [{ id: "h", name: "Correr", area: null, compliance: { done: 5, expected: 7 } }],
@@ -180,6 +185,9 @@ describe("which step", () => {
     expect(getLearningWeekReview).toHaveBeenCalledWith("2026-10-05");
     // No study that week: no «Estudio» figure.
     expect(screen.queryByText("de estudio")).toBeNull();
+    expect(getHealthWeekReview).toHaveBeenCalledWith("2026-10-05");
+    // No training that week: no «Entreno» figure.
+    expect(document.querySelector("[data-figure=training]")).toBeNull();
     expect(screen.getByRole("link", { name: /Logros/ }).getAttribute("aria-current")).toBe("step");
   });
 
@@ -189,6 +197,14 @@ describe("which step", () => {
     const figure = screen.getByText("de estudio").closest("[data-figure]");
     expect(figure).toHaveAttribute("data-figure", "study");
     expect(figure).toHaveTextContent("3 h 20");
+  });
+
+  test("step 1 shows the week's training as a figure (E4 of health)", async () => {
+    vi.mocked(getHealthWeekReview).mockResolvedValue({ sessions: 3, records: 2 });
+    await open();
+    const figure = screen.getByText("sesiones de entreno · 2 récords").closest("[data-figure]");
+    expect(figure).toHaveAttribute("data-figure", "training");
+    expect(figure).toHaveTextContent("3");
   });
 
   test("an unknown ?paso= is step 1", async () => {
@@ -208,6 +224,7 @@ describe("which step", () => {
     expect(getProjectsWeekReview).not.toHaveBeenCalled();
     expect(getGoalsWeekReview).not.toHaveBeenCalled();
     expect(getLearningWeekReview).not.toHaveBeenCalled();
+    expect(getHealthWeekReview).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: /Pendientes/ }).getAttribute("aria-current")).toBe(
       "step",
     );

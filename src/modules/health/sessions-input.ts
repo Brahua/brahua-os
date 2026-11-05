@@ -111,6 +111,8 @@ export type FinishResult = {
   removedSetIds: string[];
   /** The new records it set (E3): the summary lists them and the screen celebrates. */
   records: SessionRecord[];
+  /** E4: the linked habit's name when this «Terminar» marked it (null: nothing marked). */
+  habitMarked: string | null;
 };
 
 /** A session's start and end (the times of a finished one). */
@@ -149,9 +151,9 @@ export function keepShown(kind: ExerciseKind, values: SetValues): SetValues {
 
 // ── Schemas ──────────────────────────────────────────────────────────────────────────────
 
-const sessionId = z.uuid({ error: ERRORS.notFound });
-const exerciseRowId = z.uuid({ error: ERRORS.exerciseNotFound });
-const setId = z.uuid({ error: ERRORS.setNotFound });
+const sessionId = z.guid({ error: ERRORS.notFound });
+const exerciseRowId = z.guid({ error: ERRORS.exerciseNotFound });
+const setId = z.guid({ error: ERRORS.setNotFound });
 
 const int = (message: string, min: number, max: number) =>
   z.number({ error: message }).int(message).min(min, message).max(max, message);
@@ -168,7 +170,7 @@ const setValuesShape = {
 /** A set of distinct ids (a reorder): checked against the live set by the data layer. */
 const idSet = (max: number) =>
   z
-    .array(z.uuid({ error: ERRORS.order }), { error: ERRORS.order })
+    .array(z.guid({ error: ERRORS.order }), { error: ERRORS.order })
     .min(1, ERRORS.order)
     .max(max, ERRORS.order)
     .refine((ids) => new Set(ids).size === ids.length, ERRORS.order);
@@ -178,7 +180,7 @@ const instant = z.iso.datetime({ offset: true, error: ERRORS.time });
 
 /** «Empezar»: from a routine, or free (null). */
 export const startSessionInputSchema = z.object({
-  routineId: z.uuid({ error: ERRORS.routineNotFound }).nullable(),
+  routineId: z.guid({ error: ERRORS.routineNotFound }).nullable(),
 });
 export type StartSessionInput = z.output<typeof startSessionInputSchema>;
 
@@ -189,7 +191,7 @@ export type SessionRefInput = z.output<typeof sessionRefInputSchema>;
 export const addExerciseInputSchema = z.object({
   sessionId,
   id: exerciseRowId,
-  exerciseId: z.uuid({ error: ERRORS.exerciseUnavailable }),
+  exerciseId: z.guid({ error: ERRORS.exerciseUnavailable }),
 });
 export type AddExerciseInput = z.output<typeof addExerciseInputSchema>;
 
@@ -200,7 +202,7 @@ export type ExerciseRefInput = z.output<typeof exerciseRefInputSchema>;
 export const restoreExerciseInputSchema = z.object({
   sessionId,
   id: exerciseRowId,
-  afterId: z.uuid({ error: ERRORS.order }).nullable().default(null),
+  afterId: z.guid({ error: ERRORS.order }).nullable().default(null),
   position: int(ERRORS.order, 0, MAX_SESSION_EXERCISES),
 });
 export type RestoreExerciseInput = z.output<typeof restoreExerciseInputSchema>;
@@ -241,7 +243,7 @@ export type SetRefInput = z.output<typeof setRefInputSchema>;
 export const restoreSetInputSchema = z.object({
   sessionId,
   id: setId,
-  afterId: z.uuid({ error: ERRORS.order }).nullable().default(null),
+  afterId: z.guid({ error: ERRORS.order }).nullable().default(null),
   position: int(ERRORS.order, 0, MAX_EXERCISE_SETS),
 });
 export type RestoreSetInput = z.output<typeof restoreSetInputSchema>;

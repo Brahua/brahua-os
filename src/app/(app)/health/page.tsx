@@ -6,10 +6,12 @@ import { HealthHome } from "@/modules/health/components/health-home";
 import { RoutinesSection } from "@/modules/health/components/routines-section";
 import { RecentSessions } from "@/modules/health/components/session-rows";
 import { SessionStart } from "@/modules/health/components/session-start";
+import { SettingsRow } from "@/modules/health/components/settings-sheet";
 import { RECENT_SESSIONS } from "@/modules/health/health-constants";
 import { HEALTH_COPY as COPY } from "@/modules/health/health-copy";
 import {
   getDeletedRoutine,
+  getHealthSettings,
   getNextRoutine,
   getOpenSession,
   listRoutines,
@@ -28,17 +30,18 @@ type HealthPageProps = {
 /**
  * Entreno (SPEC-health "Pantallas"): on top the open session («Seguir») or «Empezar» with the
  * routine the rotation says, «Otra rutina» and «Sesión libre»; then «Rutinas», «Últimas sesiones»
- * (10) and the link to «Ejercicios».
+ * (10) and the links to «Ejercicios» and «Ajustes» (E4: the linked habit).
  */
 export default async function HealthPage({ searchParams }: HealthPageProps) {
   await requireOwner();
   const search = await searchParams;
   const deletedId = search[DELETED_PARAM];
-  const [routines, open, next, recent, deleted] = await Promise.all([
+  const [routines, open, next, recent, settings, deleted] = await Promise.all([
     listRoutines(),
     getOpenSession(),
     getNextRoutine(),
     listSessions(RECENT_SESSIONS),
+    getHealthSettings(),
     // Just deleted from its page: the undo notice needs its name (only while it is deleted).
     typeof deletedId === "string" ? getDeletedRoutine(deletedId) : Promise.resolve(null),
   ]);
@@ -53,6 +56,7 @@ export default async function HealthPage({ searchParams }: HealthPageProps) {
           session={<SessionStart open={open} next={next} routines={routines} />}
           routines={<RoutinesSection routines={routines} />}
           recent={<RecentSessions sessions={recent.sessions} />}
+          settings={<SettingsRow view={settings} />}
         />
         <RoutineDeletedNotice headingId={HEADING_ID} deleted={deleted} />
       </div>

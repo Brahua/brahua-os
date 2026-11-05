@@ -1,0 +1,4 @@
+ALTER TABLE "health_sessions" ADD COLUMN "habit_marked_id" uuid;--> statement-breakpoint
+ALTER TABLE "health_sessions" ADD COLUMN "habit_mark_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "health_sessions" ADD CONSTRAINT "health_sessions_habit_marked_id_habits_id_fk" FOREIGN KEY ("habit_marked_id") REFERENCES "public"."habits"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "health_sessions" ADD CONSTRAINT "health_sessions_habit_mark_check" CHECK (("health_sessions"."habit_marked_day" is null and "health_sessions"."habit_marked_id" is null and "health_sessions"."habit_mark_at" is null) or ("health_sessions"."habit_marked_day" is not null and "health_sessions"."habit_marked_id" is not null and "health_sessions"."habit_mark_at" is not null));

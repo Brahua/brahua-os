@@ -209,7 +209,8 @@ export const healthSettings = pgTable(
 /**
  * E2: a training session, started from a routine (`routine_id`) or free (null). `ended_at` null =
  * open; at most one open live session (the partial unique index, behind the session lock in
- * sessions.ts). `habit_marked_day` is E4's: the Lima day this session marked the linked habit.
+ * sessions.ts). `habit_marked_day`, `habit_marked_id` and `habit_mark_at` are E4's: the Lima day
+ * this session marked the linked habit, which habit, and the log's `updated_at` right after.
  * Soft delete (discard, or delete a finished one), with «Deshacer». `updated_at` is stamped to the
  * millisecond by every session write (sessions.ts): the «Deshacer» of «Terminar» compares it.
  */
@@ -222,9 +223,18 @@ export const healthSessions = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true }),
     note: text("note"), // ≤ 500
     habitMarkedDay: date("habit_marked_day"),
+    // E4 (0031): the habit it marked and that habit log's `updated_at` right after marking (to the
+    // millisecond): the «Deshacer» unmarks only that log, and only while nobody touched it since.
+    habitMarkedId: uuid("habit_marked_id").references(() => habits.id, { onDelete: "restrict" }),
+    habitMarkAt: timestamp("habit_mark_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
+    // The mark is all or nothing: the day, the habit and the log's stamp together.
+    check(
+      "health_sessions_habit_mark_check",
+      sql`(${table.habitMarkedDay} is null and ${table.habitMarkedId} is null and ${table.habitMarkAt} is null) or (${table.habitMarkedDay} is not null and ${table.habitMarkedId} is not null and ${table.habitMarkAt} is not null)`,
+    ),
     check(
       "health_sessions_note_check",
       sql`${table.note} is null or char_length(${table.note}) <= ${n(SESSION_NOTE_MAX_LENGTH)}`,

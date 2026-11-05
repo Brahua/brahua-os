@@ -28,17 +28,21 @@
 //   composition root src/lib/goal-extensions.ts (`ensureGoalExtensions()`, imported by name);
 //   `habits` never imports the provider.
 //
+// - getCheckHabitOptions() / markHabitDoneBySource(tx, habitId, day) / unmarkHabitBySource(tx,
+//   habitId, day) (for `health`, E4): the yes/no habits to build a session can mark, and the mark
+//   and its «Deshacer» inside the caller's transaction, with the rules of `setHabitDoneById`.
+//
 // To log from `today`: getHabitsDueToday, then the client component `HabitPad`, the actions of
 // log-actions.ts and the hooks `useDayLog`/`useQuantityLog` inside `HabitsScreenWithin` (the
 // host's queue, notices and announcer through `ScreenServicesContext`; `areas` only feeds the
 // create form, which a pad never opens: `[]` is fine). Link with `habitPath(id)` (routes.ts).
 import "server-only";
-import { and, inArray, isNotNull, lte, ne, type SQL } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, lte, ne, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { requireOwner } from "@/lib/auth";
 import { getDb, type Database } from "@/lib/db";
 import { ownerDateKey } from "@/lib/time";
-import { habits } from "./db/schema";
+import { habitLogs, habits } from "./db/schema";
 import { doneDaysIn, type HabitDoneDays } from "./done-days";
 import {
   createHabitSectionRegistry,
@@ -48,8 +52,9 @@ import {
 import { activeHabit, selectItems, selectPauses, visibleHabit, type Tx } from "./habits";
 import { selectHabitsWeek, selectLogsInRange } from "./history";
 import { completeDaysOf, type HabitsWeekCompleteDays } from "./complete-days";
-import { addDays, weekStart as mondayOf } from "./schedule";
+import { addDays, isLoggableDay, weekStart as mondayOf } from "./schedule";
 import type { HabitItem } from "./habit-input";
+import { countsAsDone } from "./habit-status";
 import {
   buildHabitsTodaySummary,
   habitsDueToday,
@@ -485,4 +490,150 @@ export function renderHabitSections(
   context: HabitSectionContext,
 ): Promise<{ id: string; node: React.ReactNode }[]> {
   return sections.render(context);
+}
+
+// ── Marked by another module (E4 of `health`, SPEC-health "Hábito enlazado") ─────────────────
+
+/** A habit another module can mark done: a yes/no habit to build. */
+export type CheckHabitOption = { id: string; name: string };
+
+/**
+ * The habits another module can mark done: active (neither archived nor deleted), yes/no
+ * (`check`) and to build, in their manual order (the list on /habits). Trusts its caller (see
+ * getCheckHabitOptions).
+ */
+export async function selectCheckHabitOptions(db: Database | Tx): Promise<CheckHabitOption[]> {
+  return db
+    .select({ id: habits.id, name: habits.name })
+    .from(habits)
+    .where(and(activeHabit, eq(habits.measure, "check"), eq(habits.kind, "build")))
+    .orderBy(habits.sortOrder, habits.id);
+}
+
+/** For `health`'s settings: the habits a finished session can mark. Checks the owner. */
+export async function getCheckHabitOptions(): Promise<CheckHabitOption[]> {
+  await requireOwner();
+  return selectCheckHabitOptions(getDb());
+}
+
+/**
+ * What `markHabitDoneBySource` did: marked it (with the habit's name and the log's `updated_at`
+ * right after, to the millisecond: what `unmarkHabitBySource` checks), it was already done, or it
+ * can't be marked.
+ */
+export type HabitSourceMark =
+  { result: "marked"; name: string; markAt: Date } | { result: "already" | "unavailable" };
+
+/**
+ * The habit as a source may mark it on `day`, read FOR SHARE (an archive or a delete at the same
+ * time waits): visible, not archived, a yes/no habit to build, and the day within the logging
+ * window (today and the 7 before, from its start date: `setHabitDoneById`'s rules). Null when not.
+ */
+async function markableHabit(tx: Tx, habitId: string, day: string, today: string) {
+  const [habit] = await tx
+    .select({
+      name: habits.name,
+      measure: habits.measure,
+      kind: habits.kind,
+      goal: habits.goal,
+      startDate: habits.startDate,
+      archivedAt: habits.archivedAt,
+    })
+    .from(habits)
+    .where(and(eq(habits.id, habitId), visibleHabit))
+    .for("share");
+  if (!habit || habit.archivedAt !== null) return null;
+  if (habit.measure !== "check" || habit.kind !== "build") return null;
+  if (!isLoggableDay(day, today, habit.startDate)) return null;
+  return habit;
+}
+
+/** The log's stamp when a source marks it: to the millisecond, so it round-trips through JS. */
+const markStamp = sql`date_trunc('milliseconds', now())`;
+
+/**
+ * For `health` (a finished session marks its linked habit): marks a yes/no habit done on `day`
+ * (Lima, YYYY-MM-DD) inside the caller's transaction `tx`, with the rules of `setHabitDoneById`
+ * (archived, deleted, another measure or a day out of the window: `"unavailable"`). A day already
+ * done changes nothing (`"already"`): the caller remembers only its own marks. One upsert on
+ * (habit_id, day), like the habits' own screens (they take no advisory lock either). `now` gives
+ * Lima's today for the window (the caller passes its database clock). Every write of a log stamps
+ * `updated_at` with `now()` (habits.ts, quantity.ts, `$onUpdate`), so the stamp returned here
+ * changes as soon as anything else touches that day. Trusts its caller (the session's action
+ * checked the owner).
+ */
+export async function markHabitDoneBySource(
+  tx: Tx,
+  habitId: string,
+  day: string,
+  now: Date,
+): Promise<HabitSourceMark> {
+  const habit = await markableHabit(tx, habitId, day, ownerDateKey(now));
+  if (!habit) return { result: "unavailable" };
+  const [changed] = await tx
+    .insert(habitLogs)
+    .values({ habitId, day, quantity: 1, target: habit.goal, updatedAt: markStamp })
+    .onConflictDoUpdate({
+      target: [habitLogs.habitId, habitLogs.day],
+      set: { quantity: 1, updatedAt: markStamp },
+      setWhere: eq(habitLogs.quantity, 0),
+    })
+    .returning({ updatedAt: habitLogs.updatedAt });
+  if (!changed) return { result: "already" };
+  return { result: "marked", name: habit.name, markAt: changed.updatedAt };
+}
+
+/**
+ * The «Deshacer» of `markHabitDoneBySource`: unmarks the day (quantity back to 0; rows are never
+ * deleted) only while the log is exactly as that mark left it (still done, and `updated_at` is
+ * still `markAt`: an unmark and a re-mark by hand in between leave it alone) and the habit can
+ * still be logged that day (the same rules; `now` is the caller's database clock). Returns whether
+ * it changed something. Trusts its caller.
+ */
+export async function unmarkHabitBySource(
+  tx: Tx,
+  habitId: string,
+  day: string,
+  markAt: Date,
+  now: Date,
+): Promise<boolean> {
+  const habit = await markableHabit(tx, habitId, day, ownerDateKey(now));
+  if (!habit) return false;
+  const changed = await tx
+    .update(habitLogs)
+    .set({ quantity: 0, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(habitLogs.habitId, habitId),
+        eq(habitLogs.day, day),
+        gt(habitLogs.quantity, 0),
+        eq(habitLogs.updatedAt, markAt),
+      ),
+    )
+    .returning({ habitId: habitLogs.habitId });
+  return changed.length > 0;
+}
+
+/**
+ * For `health`'s Hoy card: whether the habit `habitId` is one a source can mark (a yes/no habit to
+ * build, active), due today (Lima's day of `now`: started, scheduled and not paused, like the pads)
+ * and doesn't count as done yet (a day done, or a weekly quota already met). False for a habit
+ * that doesn't exist, is archived or deleted. The usual three queries for one habit. Trusts its
+ * caller.
+ */
+export async function selectCheckHabitOpenToday(
+  db: Database | Tx,
+  habitId: string,
+  now: Date,
+): Promise<boolean> {
+  const today = ownerDateKey(now);
+  const where = and(
+    activeHabit,
+    eq(habits.id, habitId),
+    eq(habits.measure, "check"),
+    eq(habits.kind, "build"),
+    lte(habits.startDate, today),
+  ) as SQL;
+  const [habit] = habitsDueToday(await selectItems(db, today, where), now);
+  return habit !== undefined && !countsAsDone(habit);
 }

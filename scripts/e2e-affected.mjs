@@ -51,6 +51,7 @@ export const SPEC_MODULES = {
   "habits-skip.spec.ts": ["habits", "tasks"],
   "habits-streaks.spec.ts": ["habits"],
   "habits.spec.ts": ["habits", "today"],
+  "health.spec.ts": ["health", "today", "habits"],
   "household.spec.ts": ["household", "tasks"],
   "learning.spec.ts": ["learning", "today", "projects", "tasks"],
   "home.spec.ts": ["today", "tasks", "habits", "finance", "projects"],
@@ -81,7 +82,7 @@ export const SPEC_MODULES = {
   "today-projects.spec.ts": ["today", "projects", "tasks"],
   "today-tasks.spec.ts": ["today", "habits", "tasks", "finance"],
   "today.spec.ts": ["today", "habits", "tasks", "finance", "projects"],
-  "weekly-review.spec.ts": ["weekly-review", "habits", "tasks", "goals", "projects"],
+  "weekly-review.spec.ts": ["weekly-review", "habits", "tasks", "goals", "projects", "health"],
 };
 
 /** Route segments that belong to a module (an E2E spec that opens one exercises that module). */
@@ -94,6 +95,7 @@ export const ROUTE_MODULES = {
   finance: "finance",
   learning: "learning",
   notes: "notes",
+  health: "health",
   "settings/reminders": "reminders",
   "api/telegram": "reminders",
   "api/reminders": "reminders",
@@ -299,7 +301,7 @@ export function classifyFile(file, repo) {
     }
     if (rest.startsWith("settings/reminders/")) return { kind: "modules", modules: ["reminders"] };
     const route = rest.split("/")[0];
-    if (["tasks", "projects", "habits", "finance", "goals", "notes"].includes(route)) {
+    if (["tasks", "projects", "habits", "finance", "goals", "notes", "health"].includes(route)) {
       return { kind: "modules", modules: [route], routes: [route] };
     }
     // /review belongs to `weekly-review` (its route and module ids differ).
